@@ -7,10 +7,14 @@ import type {
   MetricValueLog,
   PrivacyProfile,
   Protocol,
+  ProtocolChangeAuditEvent,
   ProtocolAlias,
+  ProtocolRevision,
+  ProtocolRevisionRule,
   ProtocolRule,
   Reminder,
   ReminderPreference,
+  SensitiveActionAuditEvent,
   Site,
   SymptomLog,
   Vial,
@@ -46,11 +50,15 @@ export type AtlasExportSnapshot = {
   logEvents: LogEvent[];
   metricValueLogs: MetricValueLog[];
   privacyProfile: PrivacyProfile;
+  protocolChangeAudits: ProtocolChangeAuditEvent[];
   protocols: Protocol[];
   protocolAliases: ProtocolAlias[];
+  protocolRevisionRules: ProtocolRevisionRule[];
+  protocolRevisions: ProtocolRevision[];
   protocolRules: ProtocolRule[];
   reminderPreference: ReminderPreference;
   reminders: Reminder[];
+  sensitiveActionAudits: SensitiveActionAuditEvent[];
   sites: Site[];
   symptomLogs: SymptomLog[];
   vials: Vial[];
@@ -126,11 +134,15 @@ async function getAtlasExportSnapshot(): Promise<AtlasExportSnapshot> {
     logEvents,
     metricValueLogs,
     privacyProfile,
+    protocolChangeAudits,
     protocols,
     protocolAliases,
+    protocolRevisionRules,
+    protocolRevisions,
     protocolRules,
     reminderPreference,
     reminders,
+    sensitiveActionAudits,
     sites,
     symptomLogs,
     vials,
@@ -143,11 +155,15 @@ async function getAtlasExportSnapshot(): Promise<AtlasExportSnapshot> {
     repositories.logEvents.listAll(),
     repositories.metricValueLogs.listAll(),
     repositories.privacyProfiles.get(),
+    repositories.protocolChangeAudits.listAll(),
     repositories.protocols.listAll(),
     repositories.protocolAliases.listAllActive(),
+    repositories.protocolRevisionRules.listAll(),
+    repositories.protocolRevisions.listAll(),
     repositories.protocolRules.listAll(),
     repositories.reminderPreferences.get(),
     repositories.reminders.listAll(),
+    repositories.sensitiveActionAudits.listAll(),
     repositories.sites.listAll(),
     repositories.symptomLogs.listAll(),
     repositories.vials.listAll(),
@@ -162,11 +178,15 @@ async function getAtlasExportSnapshot(): Promise<AtlasExportSnapshot> {
     logEvents,
     metricValueLogs,
     privacyProfile,
+    protocolChangeAudits,
     protocols,
     protocolAliases,
+    protocolRevisionRules,
+    protocolRevisions,
     protocolRules,
     reminderPreference,
     reminders,
+    sensitiveActionAudits,
     sites,
     symptomLogs,
     vials,
@@ -262,10 +282,14 @@ export function getSnapshotRowCount(snapshot: AtlasExportSnapshot) {
     snapshot.logEvents.length +
     snapshot.metricValueLogs.length +
     1 +
+    snapshot.protocolChangeAudits.length +
     snapshot.protocols.length +
     snapshot.protocolAliases.length +
+    snapshot.protocolRevisionRules.length +
+    snapshot.protocolRevisions.length +
     snapshot.protocolRules.length +
     snapshot.reminders.length +
+    snapshot.sensitiveActionAudits.length +
     snapshot.sites.length +
     snapshot.symptomLogs.length +
     snapshot.vials.length +
@@ -276,7 +300,12 @@ export function getSnapshotRowCount(snapshot: AtlasExportSnapshot) {
 export function buildAtlasJsonContents(snapshot: AtlasExportSnapshot, generatedAt: string) {
   return JSON.stringify(
     {
-      generatedAt,
+      manifest: {
+        format: 'atlas_export',
+        generatedAt,
+        source: 'atlas-react-native',
+        version: 1,
+      },
       snapshot,
     },
     null,
@@ -298,6 +327,39 @@ export function buildAtlasCsvContents(snapshot: AtlasExportSnapshot) {
         record.ruleType,
         record.timeOfDay,
         record.anchorDate
+      )
+    ),
+    ...snapshot.protocolRevisions.map((record) =>
+      buildCsvRow(
+        'protocol_revision',
+        record.id,
+        record.protocolId,
+        record.effectiveFrom,
+        record.lifecycleState,
+        record.timezoneStrategy,
+        record.notes
+      )
+    ),
+    ...snapshot.protocolRevisionRules.map((record) =>
+      buildCsvRow(
+        'protocol_revision_rule',
+        record.id,
+        record.revisionId,
+        record.createdAt,
+        record.ruleType,
+        record.phaseType,
+        record.anchorDate
+      )
+    ),
+    ...snapshot.protocolChangeAudits.map((record) =>
+      buildCsvRow(
+        'protocol_change_audit',
+        record.id,
+        record.protocolId,
+        record.createdAt,
+        record.changeType,
+        record.effectiveFrom,
+        record.summary
       )
     ),
     ...snapshot.logEvents.map((record) =>
@@ -379,6 +441,17 @@ export function buildAtlasCsvContents(snapshot: AtlasExportSnapshot) {
         record.aliasLabel,
         record.aliasCompoundLabel,
         record.archivedAt
+      )
+    ),
+    ...snapshot.sensitiveActionAudits.map((record) =>
+      buildCsvRow(
+        'sensitive_action_audit',
+        record.id,
+        record.eventType,
+        record.createdAt,
+        record.surface,
+        record.renderMode,
+        record.scopeKind
       )
     ),
     ...snapshot.calculatorProfiles.map((record) =>

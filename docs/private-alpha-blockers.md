@@ -1,39 +1,39 @@
-# Atlas private alpha blockers
+# Atlas native private beta blockers
 
-This list is intentionally narrow. It tracks launch blockers and near-blockers for a private alpha, not every future enhancement.
+This list is intentionally narrow. It tracks true blockers and near-blockers for shipping the native iOS app to a limited TestFlight beta.
 
 ## Blockers
 
-### 1. Device notification action QA is still required
+### 1. Physical iPhone QA pass is still required
 - Priority: P0
-- Why it matters: reminder scheduling logic is covered by tests, but device-level delivery and action handling (`Mark taken`, `Skip`, open app) still need a fresh physical-device pass before inviting outside testers.
-- Current state: local scheduling, regeneration, and privacy formatting are implemented and tested in-app; runtime notification delivery remains a manual QA item.
+- Why it matters: simulator builds and tests are green, but final release confidence still needs a real-device pass for notifications, biometrics, share sheets, file handoff, and lifecycle/resume behavior.
+- Current state: the native manual checklist exists in `qa/native-ios-release-manual-checklist.md`, but the physical-device run is not yet recorded in this repo.
 
-### 2. Real Supabase environment smoke is still required
+### 2. Signed archive / TestFlight smoke is still required
 - Priority: P0
-- Why it matters: auth/session bootstrap is implemented, but a real project URL/key smoke test is still needed to validate sign-in and sign-up behavior before inviting account-based testers.
-- Current state: guest mode is production-usable; missing config remains non-blocking by design.
+- Why it matters: release builds compile locally, but an actual signed archive upload plus clean-install migration/import smoke is still required before inviting outside testers.
+- Current state: clean Release builds for the app and extensions are green in this workspace; TestFlight packaging remains a final operational step.
 
 ## Near-blockers
 
-### 3. iOS runtime verification is still pending
+### 3. Accessibility sweep on small and large iPhone sizes is still required
 - Priority: P1
-- Why it matters: the codebase is now preflight-clean for iOS configuration, but this Windows environment still cannot certify a real iOS runtime pass.
-- Current state: Expo config drift was fixed, `expo-notifications` is now declared in the Expo plugin list, and no known iOS-only code blocker has been identified in the current codebase.
+- Why it matters: VoiceOver, Dynamic Type, and smaller-screen layout regressions are easiest to miss in feature-heavy local-first apps.
+- Current state: key flows are manually checklist-covered, but the final small-phone/large-phone accessibility pass is still open.
 
-### 4. Export destination UX needs one device review
+### 4. Analytics/crash sink hookup is still minimal by design
 - Priority: P1
-- Why it matters: export generation is reliable locally, but the final share-sheet experience can vary by device and installed apps.
-- Current state: share-sheet failure is now non-fatal and the export file is still written locally.
+- Why it matters: beta builds benefit from basic observability, but Atlas should not over-collect sensitive data.
+- Current state: onboarding analytics preference exists, but production telemetry remains intentionally lightweight and should be finalized only within privacy-policy bounds.
 
-## Not blockers for private alpha
+## Not blockers for native private beta
 - Full cloud sync engine
-- Apple Health / Health Connect real adapters
-- Push notification backend
-- Protocol edit/pause/titration UI
-- Advanced insight modeling
+- Rich HealthKit adapters
+- Live/cloud-backed review sessions
+- Widget/App Intents business logic expansion
+- Post-beta pattern and export polish
 
 ## Recommended next QA order
-1. Android physical-device pass for reminders and export flows
-2. Supabase-configured auth smoke pass
-3. Mac-based iOS dev-build smoke pass
+1. Physical iPhone pass using `qa/native-ios-release-manual-checklist.md`
+2. Signed archive + TestFlight upload smoke
+3. Clean-install import/migration smoke with guest and imported-user fixtures

@@ -60,6 +60,14 @@ Never mix generated future schedule occurrences with immutable historical log ev
 - Every milestone ends with typecheck, tests, and a review pass.
 - Do not introduce medical advice, dose recommendations, or sourcing flows.
 
+## Native migration freeze policy
+- React Native Atlas is now in feature freeze except for:
+  - critical bug fixes
+  - Atlas Export contract improvements required for native migration
+  - Android-only stability fixes
+- New second-order feature work is paused until native iOS reaches parity through Trust Vault + Selective Sharing.
+- Native iOS is now the primary product path.
+
 ## UX rules for onboarding
 - One primary question per screen.
 - Clean white background.
