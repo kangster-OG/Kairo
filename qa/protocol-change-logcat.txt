@@ -1,0 +1,138 @@
+--------- beginning of system
+E/ActivityManager(  601): ANR in com.david.atlas (com.david.atlas/.MainActivity)
+E/ActivityManager(  601): PID: 23499
+E/ActivityManager(  601): Reason: Input dispatching timed out (Application does not have a focused window).
+E/ActivityManager(  601): Parent: com.david.atlas/.MainActivity
+E/ActivityManager(  601): ErrorId: d4e252d2-9938-4595-b3d5-86bed82e2245
+E/ActivityManager(  601): Frozen: false
+E/ActivityManager(  601): Load: 1.06 / 2.49 / 1.66
+E/ActivityManager(  601): ----- Output from /proc/pressure/memory -----
+E/ActivityManager(  601): some avg10=0.00 avg60=0.13 avg300=0.48 total=97706097
+E/ActivityManager(  601): full avg10=0.00 avg60=0.06 avg300=0.14 total=54022556
+E/ActivityManager(  601): ----- End output from /proc/pressure/memory -----
+E/ActivityManager(  601): ----- Output from /proc/pressure/cpu -----
+E/ActivityManager(  601): some avg10=2.45 avg60=7.43 avg300=14.47 total=1697179209
+E/ActivityManager(  601): full avg10=0.00 avg60=0.00 avg300=0.00 total=0
+E/ActivityManager(  601): ----- End output from /proc/pressure/cpu -----
+E/ActivityManager(  601): ----- Output from /proc/pressure/io -----
+E/ActivityManager(  601): some avg10=0.00 avg60=0.14 avg300=0.64 total=96645289
+E/ActivityManager(  601): full avg10=0.00 avg60=0.02 avg300=0.09 total=41316016
+E/ActivityManager(  601): ----- End output from /proc/pressure/io -----
+E/ActivityManager(  601): 
+E/ActivityManager(  601): CPU usage from 122098ms to -1ms ago (2026-03-13 20:28:14.749 to 2026-03-13 20:30:16.848):
+E/ActivityManager(  601):   16% 472/surfaceflinger: 0% user + 16% kernel / faults: 67 minor 6 major
+E/ActivityManager(  601):   8% 424/android.hardware.graphics.composer3-service.ranchu: 0% user + 8% kernel / faults: 6 major
+E/ActivityManager(  601):   4.8% 601/system_server: 0% user + 4.7% kernel / faults: 3094 minor 85 major
+E/ActivityManager(  601):   3.5% 418/android.hardware.sensors-service.multihal: 0% user + 3.5% kernel
+E/ActivityManager(  601):   0.6% 23202/kworker/1:1-virtio_vsock: 0% user + 0.6% kernel
+E/ActivityManager(  601):   0.6% 992/com.android.systemui: 0% user + 0.6% kernel / faults: 1893 minor 83 major
+E/ActivityManager(  601):   0.3% 952/android.hardware.biometrics.fingerprint-service.ranchu: 0% user + 0.3% kernel
+E/ActivityManager(  601):   0.3% 1240/com.google.android.apps.nexuslauncher: 0% user + 0.3% kernel / faults: 294 minor 10 major
+E/ActivityManager(  601):   0.3% 415/android.hardware.graphics.allocator@3.0-service.ranchu: 0% user + 0.3% kernel
+E/ActivityManager(  601):   0.2% 22725/kworker/3:1-events: 0% user + 0.2% kernel
+E/ActivityManager(  601): 10% TOTAL: 0.2% user + 9.8% kernel + 0% iowait + 0.2% softirq
+E/ActivityManager(  601): CPU usage from 51ms to 720ms later (2026-03-13 20:30:16.898 to 2026-03-13 20:30:17.567):
+E/ActivityManager(  601):   76% 601/system_server: 3.1% user + 73% kernel / faults: 2335 minor 325 major
+E/ActivityManager(  601):     30% 23592/AnrAuxiliaryTas: 0% user + 30% kernel
+E/ActivityManager(  601):     25% 610/Signal Catcher: 1.5% user + 23% kernel
+E/ActivityManager(  601):     3.1% 23591/AnrConsumer: 0% user + 3.1% kernel
+E/ActivityManager(  601):     1.5% 642/batterystats-ha: 0% user + 1.5% kernel
+E/ActivityManager(  601):     1.5% 678/binder:601_3: 0% user + 1.5% kernel
+E/ActivityManager(  601):     1.5% 689/SensorService: 0% user + 1.5% kernel
+E/ActivityManager(  601):     1.5% 1921/binder:601_10: 0% user + 1.5% kernel
+E/ActivityManager(  601):     1.5% 1926/binder:601_13: 0% user + 1.5% kernel
+E/ActivityManager(  601):     1.5% 23590/AnrMainProcessD: 0% user + 1.5% kernel
+E/ActivityManager(  601):   22% 23499/com.david.atlas: 6.6% user + 15% kernel / faults: 753 minor 18 major
+E/ActivityManager(  601):     13% 23504/Signal Catcher: 4.4% user + 8.9% kernel
+E/ActivityManager(  601):     2.2% 23499/com.david.atlas: 0% user + 2.2% kernel
+E/ActivityManager(  601):     2.2% 23518/RenderThread: 0% user + 2.2% kernel
+E/ActivityManager(  601):   6.3% 424/android.hardware.graphics.composer3-service.ranchu: 0% user + 6.3% kernel
+E/ActivityManager(  601):     4.7% 536/_thread: 0% user + 4.7% kernel
+E/ActivityManager(  601):   4.7% 418/android.hardware.sensors-service.multihal: 0% user + 4.7% kernel
+E/ActivityManager(  601):     3.1% 437/android.hardwar: 0% user + 3.1% kernel
+E/ActivityManager(  601):   3% 243/tombstoned: 1.5% user + 1.5% kernel / faults: 1 minor 1 major
+E/ActivityManager(  601):   3.1% 472/surfaceflinger: 0% user + 3.1% kernel
+E/ActivityManager(  601):     1.5% 551/TimerDispatch: 0% user + 1.5% kernel
+E/ActivityManager(  601):     1.5% 552/app: 0% user + 1.5% kernel
+E/ActivityManager(  601):   1.4% 32/ksoftirqd/2: 0% user + 1.4% kernel
+E/ActivityManager(  601):   1.5% 391/dhcpclient: 0% user + 1.5% kernel
+E/ActivityManager(  601):   1.5% 1096/com.android.networkstack.process: 0% user + 1.5% kernel / faults: 17 minor
+E/ActivityManager(  601):     1.5% 14784/NetworkMonitor/: 0% user + 1.5% kernel
+E/ActivityManager(  601):   2.1% 21861/kworker/1:3H-kverityd: 0% user + 2.1% kernel
+E/ActivityManager(  601):   2.2% 23210/kworker/2:1H-kverityd: 0% user + 2.2% kernel
+E/ActivityManager(  601):  +0% 23593/kworker/0:0H-kverityd: 0% user + 0% kernel
+E/ActivityManager(  601): 39% TOTAL: 1.7% user + 32% kernel + 3.1% iowait + 1.7% softirq
+--------- beginning of crash
+E/AndroidRuntime(23633): FATAL EXCEPTION: main
+E/AndroidRuntime(23633): PID: 23633
+E/AndroidRuntime(23633): java.lang.IllegalStateException: UiAutomationService android.accessibilityservice.IAccessibilityServiceClient$Stub$Proxy@52c2532already registered!
+E/AndroidRuntime(23633): 	at android.os.Parcel.createExceptionOrNull(Parcel.java:3250)
+E/AndroidRuntime(23633): 	at android.os.Parcel.createException(Parcel.java:3226)
+E/AndroidRuntime(23633): 	at android.os.Parcel.readException(Parcel.java:3209)
+E/AndroidRuntime(23633): 	at android.os.Parcel.readException(Parcel.java:3151)
+E/AndroidRuntime(23633): 	at android.view.accessibility.IAccessibilityManager$Stub$Proxy.registerUiTestAutomationService(IAccessibilityManager.java:1098)
+E/AndroidRuntime(23633): 	at android.app.UiAutomationConnection.registerUiTestAutomationServiceLocked(UiAutomationConnection.java:651)
+E/AndroidRuntime(23633): 	at android.app.UiAutomationConnection.connect(UiAutomationConnection.java:119)
+E/AndroidRuntime(23633): 	at android.app.UiAutomation.connectWithTimeout(UiAutomation.java:385)
+E/AndroidRuntime(23633): 	at android.app.UiAutomation.connect(UiAutomation.java:330)
+E/AndroidRuntime(23633): 	at com.android.uiautomator.core.UiAutomationShellWrapper.connect(UiAutomationShellWrapper.java:36)
+E/AndroidRuntime(23633): 	at com.android.commands.uiautomator.DumpCommand.run(DumpCommand.java:78)
+E/AndroidRuntime(23633): 	at com.android.commands.uiautomator.Launcher.main(Launcher.java:83)
+E/AndroidRuntime(23633): 	at com.android.internal.os.RuntimeInit.nativeFinishInit(Native Method)
+E/AndroidRuntime(23633): 	at com.android.internal.os.RuntimeInit.main(RuntimeInit.java:369)
+E/AndroidRuntime(23633): Caused by: android.os.RemoteException: Remote stack trace:
+E/AndroidRuntime(23633): 	at com.android.server.accessibility.UiAutomationManager.registerUiTestAutomationServiceLocked(UiAutomationManager.java:109)
+E/AndroidRuntime(23633): 	at com.android.server.accessibility.AccessibilityManagerService.registerUiTestAutomationService(AccessibilityManagerService.java:1489)
+E/AndroidRuntime(23633): 	at android.view.accessibility.IAccessibilityManager$Stub.onTransact(IAccessibilityManager.java:546)
+E/AndroidRuntime(23633): 	at android.os.Binder.execTransactInternal(Binder.java:1500)
+E/AndroidRuntime(23633): 	at android.os.Binder.execTransact(Binder.java:1444)
+E/AndroidRuntime(23633): 
+E/AndroidRuntime(23633): Error reporting crash
+E/AndroidRuntime(23633): java.lang.RuntimeException: Bad file descriptor
+E/AndroidRuntime(23633): 	at android.os.BinderProxy.transactNative(Native Method)
+E/AndroidRuntime(23633): 	at android.os.BinderProxy.transact(BinderProxy.java:586)
+E/AndroidRuntime(23633): 	at android.os.IServiceManager$Stub$Proxy.checkService(IServiceManager.java:441)
+E/AndroidRuntime(23633): 	at android.os.ServiceManagerProxy.getService(ServiceManagerNative.java:63)
+E/AndroidRuntime(23633): 	at android.os.ServiceManager.rawGetService(ServiceManager.java:428)
+E/AndroidRuntime(23633): 	at android.os.ServiceManager.getService(ServiceManager.java:175)
+E/AndroidRuntime(23633): 	at android.app.ActivityManager$3.create(ActivityManager.java:5692)
+E/AndroidRuntime(23633): 	at android.app.ActivityManager$3.create(ActivityManager.java:5689)
+E/AndroidRuntime(23633): 	at android.util.Singleton.get(Singleton.java:44)
+E/AndroidRuntime(23633): 	at android.app.ActivityManager.getService(ActivityManager.java:5680)
+E/AndroidRuntime(23633): 	at com.android.internal.os.RuntimeInit$KillApplicationHandler.uncaughtException(RuntimeInit.java:170)
+E/AndroidRuntime(23633): 	at java.lang.ThreadGroup.uncaughtException(ThreadGroup.java:1071)
+E/AndroidRuntime(23633): 	at java.lang.ThreadGroup.uncaughtException(ThreadGroup.java:1066)
+E/AndroidRuntime(23633): 	at java.lang.Thread.dispatchUncaughtException(Thread.java:2306)
+E/AndroidRuntime(23635): FATAL EXCEPTION: main
+E/AndroidRuntime(23635): PID: 23635
+E/AndroidRuntime(23635): java.lang.IllegalStateException: UiAutomationService android.accessibilityservice.IAccessibilityServiceClient$Stub$Proxy@52c2532already registered!
+E/AndroidRuntime(23635): 	at android.os.Parcel.createExceptionOrNull(Parcel.java:3250)
+E/AndroidRuntime(23635): 	at android.os.Parcel.createException(Parcel.java:3226)
+E/AndroidRuntime(23635): 	at android.os.Parcel.readException(Parcel.java:3209)
+E/AndroidRuntime(23635): 	at android.os.Parcel.readException(Parcel.java:3151)
+E/AndroidRuntime(23635): 	at android.view.accessibility.IAccessibilityManager$Stub$Proxy.registerUiTestAutomationService(IAccessibilityManager.java:1098)
+E/AndroidRuntime(23635): 	at android.app.UiAutomationConnection.registerUiTestAutomationServiceLocked(UiAutomationConnection.java:651)
+E/AndroidRuntime(23635): 	at android.app.UiAutomationConnection.connect(UiAutomationConnection.java:119)
+E/AndroidRuntime(23635): 	at android.app.UiAutomation.connectWithTimeout(UiAutomation.java:385)
+E/AndroidRuntime(23635): 	at android.app.UiAutomation.connect(UiAutomation.java:330)
+E/AndroidRuntime(23635): 	at com.android.uiautomator.core.UiAutomationShellWrapper.connect(UiAutomationShellWrapper.java:36)
+E/AndroidRuntime(23635): 	at com.android.commands.uiautomator.DumpCommand.run(DumpCommand.java:78)
+E/AndroidRuntime(23635): 	at com.android.commands.uiautomator.Launcher.main(Launcher.java:83)
+E/AndroidRuntime(23635): 	at com.android.internal.os.RuntimeInit.nativeFinishInit(Native Method)
+E/AndroidRuntime(23635): 	at com.android.internal.os.RuntimeInit.main(RuntimeInit.java:369)
+E/AndroidRuntime(23635): Error reporting crash
+E/AndroidRuntime(23635): java.lang.RuntimeException: Bad file descriptor
+E/AndroidRuntime(23635): 	at android.os.BinderProxy.transactNative(Native Method)
+E/AndroidRuntime(23635): 	at android.os.BinderProxy.transact(BinderProxy.java:586)
+E/AndroidRuntime(23635): 	at android.os.IServiceManager$Stub$Proxy.checkService(IServiceManager.java:441)
+E/AndroidRuntime(23635): 	at android.os.ServiceManagerProxy.getService(ServiceManagerNative.java:63)
+E/AndroidRuntime(23635): 	at android.os.ServiceManager.rawGetService(ServiceManager.java:428)
+E/AndroidRuntime(23635): 	at android.os.ServiceManager.getService(ServiceManager.java:175)
+E/AndroidRuntime(23635): 	at android.app.ActivityManager$3.create(ActivityManager.java:5692)
+E/AndroidRuntime(23635): 	at android.app.ActivityManager$3.create(ActivityManager.java:5689)
+E/AndroidRuntime(23635): 	at android.util.Singleton.get(Singleton.java:44)
+E/AndroidRuntime(23635): 	at android.app.ActivityManager.getService(ActivityManager.java:5680)
+E/AndroidRuntime(23635): 	at com.android.internal.os.RuntimeInit$KillApplicationHandler.uncaughtException(RuntimeInit.java:170)
+E/AndroidRuntime(23635): 	at java.lang.ThreadGroup.uncaughtException(ThreadGroup.java:1071)
+E/AndroidRuntime(23635): 	at java.lang.ThreadGroup.uncaughtException(ThreadGroup.java:1066)
+E/AndroidRuntime(23635): 	at java.lang.Thread.dispatchUncaughtException(Thread.java:2306)

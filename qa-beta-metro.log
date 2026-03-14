@@ -1,0 +1,53 @@
+Starting project at C:\Users\david\Documents\Playground\atlas
+Starting Metro Bundler
+warning: Bundler cache is empty, rebuilding (this may take a minute)
+Waiting on http://localhost:8081
+Logs for your project will appear below.
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓░░░░░░ 67.2% ( 980/1219)
+Android Bundled 5803ms node_modules\expo-router\entry.js (2069 modules)
+Android src\lib\database\index.ts ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 292ms src\lib\database\index.ts (658 modules)
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 47ms node_modules\expo-router\entry.js (1 module)
+Android src\lib\database\index.ts ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 20ms src\lib\database\index.ts (1 module)
+ INFO  [Atlas analytics] protocol_created {"kind": "glp", "protocolId": "pro_mmp5v7a3_bedvmf77", "scheduleType": "weekly"}
+ INFO  [Atlas analytics] reminder_scheduled {"occurrenceId": "pro_mmp5v7a3_bedvmf77:prl_mmp5v7bc_w9c8xp4v:2026-03-20T12:00:00.000Z", "privacyMode": "full_detail", "protocolId": "pro_mmp5v7a3_bedvmf77"}
+ INFO  [Atlas analytics] dose_logged {"eventId": "log_mmp5w6rk_dbv00fe7", "protocolId": "pro_mmp5v7a3_bedvmf77", "source": "today"}
+ INFO  [Atlas analytics] reminder_scheduled {"occurrenceId": "pro_mmp5v7a3_bedvmf77:prl_mmp5v7bc_w9c8xp4v:2026-03-20T12:00:00.000Z", "privacyMode": "full_detail", "protocolId": "pro_mmp5v7a3_bedvmf77"}
+ INFO  [Atlas analytics] reminder_scheduled {"occurrenceId": "rescheduled:log_mmp5yib8_oybk6jpc", "privacyMode": "full_detail", "protocolId": "pro_mmp5v7a3_bedvmf77"}
+ INFO  [Atlas analytics] reminder_scheduled {"occurrenceId": "pro_mmp5v7a3_bedvmf77:prl_mmp5v7bc_w9c8xp4v:2026-03-27T12:00:00.000Z", "privacyMode": "full_detail", "protocolId": "pro_mmp5v7a3_bedvmf77"}
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 54ms node_modules\expo-router\entry.js (1 module)
+Android src\lib\database\index.ts ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 16ms src\lib\database\index.ts (1 module)
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 43ms node_modules\expo-router\entry.js (1 module)
+Android src\lib\database\index.ts ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 15ms src\lib\database\index.ts (1 module)
+ INFO  [Atlas analytics] reminder_scheduled {"occurrenceId": "pro_mmp5v7a3_bedvmf77:prl_mmp5v7bc_w9c8xp4v:2026-03-27T12:00:00.000Z", "privacyMode": "silent", "protocolId": "pro_mmp5v7a3_bedvmf77"}
+Android src\features\inventory\service.ts ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 291ms src\features\inventory\service.ts (664 modules)
+Android Bundled 160ms src\features\day-loop\service.ts (662 modules)
+C:\Users\david\Documents\Playground\atlas\node_modules\expo\node_modules\@expo\cli\build\src\utils\errors.js:130
+    throw error;
+    ^
+
+Error: ENOENT: no such file or directory, watch 'C:\Users\david\Documents\Playground\atlas\node_modules\@types\.jest-Potpe6Hr\node_modules\@sinclair\typebox\build\cjs\value\cast'
+    at FSWatcher.<computed> (node:internal/fs/watchers:254:19)
+    at Object.watch (node:fs:2539:36)
+    at FallbackWatcher._watchdir (C:\Users\david\Documents\Playground\atlas\node_modules\metro-file-map\src\watchers\FallbackWatcher.js:119:33)
+    at C:\Users\david\Documents\Playground\atlas\node_modules\metro-file-map\src\watchers\FallbackWatcher.js:219:22
+    at Walker.<anonymous> (C:\Users\david\Documents\Playground\atlas\node_modules\metro-file-map\src\watchers\FallbackWatcher.js:358:5)
+    at Walker.emit (node:events:508:28)
+    at C:\Users\david\Documents\Playground\atlas\node_modules\walker\lib\walker.js:69:16
+    at FSReqCallback.oncomplete (node:fs:185:23) {
+  errno: -4058,
+  syscall: 'watch',
+  code: 'ENOENT',
+  path: 'C:\\Users\\david\\Documents\\Playground\\atlas\\node_modules\\@types\\.jest-Potpe6Hr\\node_modules\\@sinclair\\typebox\\build\\cjs\\value\\cast',
+  filename: 'C:\\Users\\david\\Documents\\Playground\\atlas\\node_modules\\@types\\.jest-Potpe6Hr\\node_modules\\@sinclair\\typebox\\build\\cjs\\value\\cast'
+}
+
+Node.js v24.12.0

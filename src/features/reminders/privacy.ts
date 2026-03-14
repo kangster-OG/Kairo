@@ -1,0 +1,15 @@
+export {
+  buildReminderPreview,
+  formatCompoundDisplayName,
+  formatProtocolDisplayName,
+  formatSensitiveAuditSummary,
+  formatTimelineItemSummary,
+  formatTodayOccurrenceLabel,
+  formatVialDisplayName,
+  getEffectiveReminderPrivacyMode,
+  getIsDiscreetModeEnabled,
+  indexProtocolAliases,
+  resolvePrivacyRenderMode,
+  type AliasLookup,
+  type ReminderPreview,
+} from '@/src/features/trust-vault/privacy';

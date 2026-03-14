@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "project": "atlas",
+  "artifacts": [
+    {
+      "id": "foundation",
+      "status": "scaffolded",
+      "routes": ["/", "/onboarding", "/auth", "/today"],
+      "state": "zustand",
+      "forms": "react-hook-form + zod",
+      "persistence": "AsyncStorage via onboarding storage adapter",
+      "notes": [
+        "Onboarding is the first routed vertical slice.",
+        "Supabase is isolated behind a client boundary for future cloud auth work.",
+        "Protocol engine is intentionally deferred."
+      ]
+    }
+  ]
+}

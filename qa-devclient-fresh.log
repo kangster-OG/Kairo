@@ -1,0 +1,520 @@
+Starting project at C:\Users\david\Documents\Playground\atlas
+Starting Metro Bundler
+warning: Bundler cache is empty, rebuilding (this may take a minute)
+Waiting on http://localhost:8081
+Logs for your project will appear below.
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android node_modules\expo-router\entry.js ▓▓░░░░░░░░░░░░░░ 13.5% ( 54/147)
+Android node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓▓░░░░ 81.2% (1482/1679)
+Android Bundled 7758ms node_modules\expo-router\entry.js (1848 modules)
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 46ms node_modules\expo-router\entry.js (1 module)
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 51ms node_modules\expo-router\entry.js (1 module)
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 50ms node_modules\expo-router\entry.js (1 module)
+ ERROR  [Error: Uncaught (in promise, id: 0) URIError: Malformed decodeURI input] 
+
+Call Stack
+  decodeURI (<native>)
+  fromDeepLink (node_modules\expo-router\build\fork\extractPathFromURL.js)
+  extractExactPathFromURL (node_modules\expo-router\build\fork\extractPathFromURL.js)
+  extractExpoPathFromURL (node_modules\expo-router\build\fork\extractPathFromURL.js)
+  getStateFromURL (node_modules\expo-router\build\fork\useLinking.native.js)
+  listener (node_modules\expo-router\build\fork\useLinking.native.js)
+  callback (node_modules\expo-router\build\link\linking.js)
+  next (<native>)
+  asyncGeneratorStep (node_modules\@babel\runtime\helpers\asyncToGenerator.js)
+  _next (node_modules\@babel\runtime\helpers\asyncToGenerator.js)
+  Promise$argument_0 (node_modules\@babel\runtime\helpers\asyncToGenerator.js)
+  tryCallTwo (address at (InternalBytecode.js:1:1222)
+  doResolve (address at (InternalBytecode.js:1:2541)
+  Promise (address at (InternalBytecode.js:1:1318)
+  <anonymous> (node_modules\@babel\runtime\helpers\asyncToGenerator.js)
+  apply (<native>)
+  <anonymous> (node_modules\expo-router\build\link\linking.js)
+  apply (<native>)
+  emit (node_modules\react-native\Libraries\vendor\emitter\EventEmitter.js)
+  apply (<native>)
+  <anonymous> (node_modules\@babel\runtime\helpers\superPropGet.js)
+  RCTDeviceEventEmitterImpl#emit (node_modules\react-native\Libraries\EventEmitter\RCTDeviceEventEmitter.js)
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 52ms node_modules\expo-router\entry.js (1 module)
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 36ms node_modules\expo-router\entry.js (1 module)
+ WARN  [Reanimated] Reduced motion setting is enabled on this device. This warning is visible only in the development mode. Some animations will be disabled by default. You can override the behavior for individual animations, see https://docs.swmansion.com/react-native-reanimated/docs/guides/troubleshooting#reduced-motion-setting-is-enabled-on-this-device.
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 36ms node_modules\expo-router\entry.js (1 module)
+ WARN  [Reanimated] Reduced motion setting is enabled on this device. This warning is visible only in the development mode. Some animations will be disabled by default. You can override the behavior for individual animations, see https://docs.swmansion.com/react-native-reanimated/docs/guides/troubleshooting#reduced-motion-setting-is-enabled-on-this-device.
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 40ms node_modules\expo-router\entry.js (1 module)
+ WARN  [Reanimated] Reduced motion setting is enabled on this device. This warning is visible only in the development mode. Some animations will be disabled by default. You can override the behavior for individual animations, see https://docs.swmansion.com/react-native-reanimated/docs/guides/troubleshooting#reduced-motion-setting-is-enabled-on-this-device.
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 91ms node_modules\expo-router\entry.js (1 module)
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 52ms node_modules\expo-router\entry.js (1 module)
+ LOG  [Atlas onboarding] render screen splash
+ LOG  [Atlas onboarding] render screen splash
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 47ms node_modules\expo-router\entry.js (1 module)
+ LOG  [Atlas onboarding] render screen splash
+ LOG  [Atlas onboarding] splash continue pressed
+ LOG  [Atlas onboarding] render screen splash
+ LOG  [Atlas onboarding] render screen splash
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 34ms node_modules\expo-router\entry.js (1 module)
+ LOG  [Atlas onboarding] render screen splash
+ LOG  [Atlas onboarding] splash continue pressed
+ LOG  [Atlas onboarding] render screen intro
+ LOG  [Atlas onboarding] render screen splash
+ LOG  [Atlas onboarding] render screen splash
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 37ms node_modules\expo-router\entry.js (1 module)
+ LOG  [Atlas onboarding] render screen splash
+ LOG  [Atlas onboarding] splash continue pressed
+ LOG  [Atlas onboarding] render screen intro
+ LOG  [Atlas onboarding] goNext intro -> accountMode
+ LOG  [Atlas onboarding] render screen accountMode
+ LOG  [Atlas onboarding] goNext accountMode -> privacyMode
+ LOG  [Atlas onboarding] render screen privacyMode
+ LOG  [Atlas onboarding] goNext privacyMode -> trackType
+ LOG  [Atlas onboarding] render screen trackType
+ LOG  [Atlas onboarding] goNext trackType -> gender
+ LOG  [Atlas onboarding] render screen gender
+ LOG  [Atlas onboarding] goNext gender -> age
+ LOG  [Atlas onboarding] render screen age
+ LOG  [Atlas onboarding] goNext age -> goalWeight
+ LOG  [Atlas onboarding] render screen goalWeight
+ LOG  [Atlas onboarding] goNext goalWeight -> heightWeight
+ LOG  [Atlas onboarding] render screen heightWeight
+ LOG  [Atlas onboarding] goNext heightWeight -> connectApps
+ LOG  [Atlas onboarding] render screen connectApps
+ LOG  [Atlas onboarding] goNext connectApps -> planReady
+ LOG  [Atlas onboarding] render screen planReady
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 37ms node_modules\expo-router\entry.js (1 module)
+ LOG  [Atlas onboarding] render screen splash
+ LOG  [Atlas onboarding] splash continue pressed
+ LOG  [Atlas onboarding] render screen intro
+ LOG  [Atlas onboarding] goNext intro -> accountMode
+ LOG  [Atlas onboarding] render screen accountMode
+ LOG  [Atlas onboarding] goNext accountMode -> privacyMode
+ LOG  [Atlas onboarding] render screen privacyMode
+ LOG  [Atlas onboarding] goNext privacyMode -> trackType
+ LOG  [Atlas onboarding] render screen trackType
+ LOG  [Atlas onboarding] goNext trackType -> gender
+ LOG  [Atlas onboarding] render screen gender
+ LOG  [Atlas onboarding] goNext gender -> age
+ LOG  [Atlas onboarding] render screen age
+ LOG  [Atlas onboarding] goNext age -> goalWeight
+ LOG  [Atlas onboarding] render screen goalWeight
+ LOG  [Atlas onboarding] goNext goalWeight -> heightWeight
+ LOG  [Atlas onboarding] render screen heightWeight
+ LOG  [Atlas onboarding] goNext heightWeight -> connectApps
+ LOG  [Atlas onboarding] render screen connectApps
+ LOG  [Atlas onboarding] goNext connectApps -> planReady
+ LOG  [Atlas onboarding] render screen planReady
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 48ms node_modules\expo-router\entry.js (1 module)
+ LOG  [Atlas onboarding] render screen splash
+ LOG  [Atlas onboarding] splash continue pressed
+ LOG  [Atlas onboarding] render screen intro
+ LOG  [Atlas onboarding] goNext intro -> accountMode
+ LOG  [Atlas onboarding] render screen accountMode
+ LOG  [Atlas onboarding] goNext accountMode -> privacyMode
+ LOG  [Atlas onboarding] render screen privacyMode
+ LOG  [Atlas onboarding] goNext privacyMode -> trackType
+ LOG  [Atlas onboarding] render screen trackType
+ LOG  [Atlas onboarding] goNext trackType -> gender
+ LOG  [Atlas onboarding] render screen gender
+ LOG  [Atlas onboarding] goNext gender -> age
+ LOG  [Atlas onboarding] render screen age
+ LOG  [Atlas onboarding] goNext age -> goalWeight
+ LOG  [Atlas onboarding] render screen goalWeight
+ LOG  [Atlas onboarding] goNext goalWeight -> heightWeight
+ LOG  [Atlas onboarding] render screen heightWeight
+ LOG  [Atlas onboarding] goNext heightWeight -> connectApps
+ LOG  [Atlas onboarding] render screen connectApps
+ LOG  [Atlas onboarding] goNext connectApps -> planReady
+ LOG  [Atlas onboarding] render screen planReady
+Unable to resolve "@/src/libdatabasemappers" from "src\lib\database\repositories\reminder-preference-repository.ts"
+[0m [90m 1 |[39m [36mimport[39m type { [33mDatabaseClient[39m } [36mfrom[39m [32m'@/src/lib/database/client'[39m[33m;[39m
+ [90m 2 |[39m [36mimport[39m { createIsoTimestamp } [36mfrom[39m [32m'@/src/lib/database/id'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 3 |[39m [36mimport[39m {
+ [90m   |[39m [31m[1m^[22m[39m
+ [90m 4 |[39m   mapReminderPreferenceRow[33m,[39m
+ [90m 5 |[39m   toReminderPreferenceRow[33m,[39m
+ [90m 6 |[39m   toSqliteBooleanValue[33m,[39m[0m
+
+Import stack:
+
+ src\lib\database\repositories\reminder-preference-repository.ts
+ | import "@/src/libdatabasemappers"
+
+ src\lib\database\repositories\index.ts
+ | import "@/src/lib/database/repositories/reminder-preference-repository"
+
+ src\features\protocols\service.ts
+ | import "@/src/lib/database/repositories"
+
+ src\features\protocols\hooks.ts
+ | import "@/src/features/protocols/service"
+
+ src\features\timeline\screens\timeline-empty-screen.tsx
+ | import "@/src/features/protocols/hooks"
+
+ app\(app)\(tabs)\timeline\index.tsx
+ | import "@/src/features/timeline/screens/timeline-empty-screen"
+
+ app (require.context)
+
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 48ms node_modules\expo-router\entry.js (1 module)
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 45ms node_modules\expo-router\entry.js (1 module)
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 47ms node_modules\expo-router\entry.js (1 module)
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 46ms node_modules\expo-router\entry.js (1 module)
+ ERROR  [Error: Uncaught (in promise, id: 0) Error: Call to function 'NativeDatabase.execAsync' has been rejected.
+→ Caused by: cannot start a transaction within a transaction] 
+
+Call Stack
+  construct (<native>)
+  apply (<native>)
+  _construct (node_modules\@babel\runtime\helpers\construct.js)
+  Wrapper (node_modules\@babel\runtime\helpers\wrapNativeSuper.js)
+  construct (<native>)
+  _callSuper (node_modules\@babel\runtime\helpers\callSuper.js)
+  constructor (node_modules\expo-modules-core\src\errors\CodedError.ts)
+ ERROR  [Error: Uncaught (in promise, id: 1) Error: Call to function 'NativeDatabase.execAsync' has been rejected.
+→ Caused by: cannot rollback - no transaction is active] 
+
+Call Stack
+  construct (<native>)
+  apply (<native>)
+  _construct (node_modules\@babel\runtime\helpers\construct.js)
+  Wrapper (node_modules\@babel\runtime\helpers\wrapNativeSuper.js)
+  construct (<native>)
+  _callSuper (node_modules\@babel\runtime\helpers\callSuper.js)
+  constructor (node_modules\expo-modules-core\src\errors\CodedError.ts)
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 40ms node_modules\expo-router\entry.js (1 module)
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 47ms node_modules\expo-router\entry.js (1 module)
+Android src\lib\database\index.ts ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 10ms src\lib\database\index.ts (1 module)
+Unable to resolve "@/src/features/insights/screens/insights-empty-screen" from "app\(app)\(tabs)\insights\index.tsx"
+[0m[31m[1m>[22m[39m[90m 1 |[39m [36mimport[39m { [33mInsightsEmptyScreen[39m } [36mfrom[39m [32m'@/src/features/insights/screens/insights-empty-screen'[39m[33m;[39m
+ [90m   |[39m                                      [31m[1m^[22m[39m
+ [90m 2 |[39m
+ [90m 3 |[39m [36mexport[39m [36mdefault[39m [36mfunction[39m [33mInsightsRoute[39m() {
+ [90m 4 |[39m   [36mreturn[39m [33m<[39m[33mInsightsEmptyScreen[39m [33m/[39m[33m>[39m[33m;[39m[0m
+
+Import stack:
+
+ app\(app)\(tabs)\insights\index.tsx
+ | import "@/src/features/insights/screens/insights-empty-screen"
+
+ app (require.context)
+
+ ERROR  SyntaxError: C:\Users\david\Documents\Playground\atlas\src\features\insights\screens\insights-screen.tsx: Nullish coalescing operator(??) requires parens when mixing with logical operators. (82:62)
+
+  80 |     snapshot.customMetricSummaries.find((metric) => metric.metricId === selectedMetricId) ?? null;
+  81 |   const activeMetricValueType = selectedMetric?.valueType ?? metricValueType;
+> 82 |   const activeMetricUnit = selectedMetric?.unit ?? metricUnit || null;
+     |                                                               ^
+  83 |
+  84 |   return (
+  85 |     <AppScreen scroll>
+    at constructor (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:365:19)
+    at TypeScriptParserMixin.raise (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:6599:19)
+    at TypeScriptParserMixin.parseExprOp (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:10951:22)
+    at TypeScriptParserMixin.parseExprOp (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:9306:18)
+    at TypeScriptParserMixin.parseExprOps (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:10908:17)
+    at TypeScriptParserMixin.parseMaybeConditional (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:10881:23)
+    at TypeScriptParserMixin.parseMaybeAssign (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:10831:21)
+    at TypeScriptParserMixin.parseMaybeAssign (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:9786:20)
+    at C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:10800:39
+    at TypeScriptParserMixin.allowInAnd (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:12421:16)
+    at TypeScriptParserMixin.parseMaybeAssignAllowIn (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:10800:17)
+    at TypeScriptParserMixin.parseVar (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:13384:91)
+    at TypeScriptParserMixin.parseVarStatement (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:13230:10)
+    at TypeScriptParserMixin.parseVarStatement (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:9408:31)
+    at TypeScriptParserMixin.parseStatementContent (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:12851:23)
+    at TypeScriptParserMixin.parseStatementContent (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:9508:18)
+    at TypeScriptParserMixin.parseStatementLike (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:12767:17)
+    at TypeScriptParserMixin.parseStatementListItem (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:12747:17)
+    at TypeScriptParserMixin.parseBlockOrModuleBlockBody (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:13316:61)
+    at TypeScriptParserMixin.parseBlockBody (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:13309:10)
+    at TypeScriptParserMixin.parseBlock (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:13297:10)
+    at TypeScriptParserMixin.parseFunctionBody (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:12100:24)
+    at TypeScriptParserMixin.parseFunctionBodyAndFinish (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:12086:10)
+    at TypeScriptParserMixin.parseFunctionBodyAndFinish (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:9172:18)
+    at C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:13445:12
+    at TypeScriptParserMixin.withSmartMixTopicForbiddingContext (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:12403:14)
+    at TypeScriptParserMixin.parseFunction (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:13444:10)
+    at TypeScriptParserMixin.parseFunctionStatement (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:13125:17)
+    at TypeScriptParserMixin.parseStatementContent (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:12791:21)
+    at TypeScriptParserMixin.parseStatementContent (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:9508:18)
+    at TypeScriptParserMixin.parseStatementLike (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:12767:17)
+    at TypeScriptParserMixin.parseStatementListItem (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:12747:17)
+    at TypeScriptParserMixin.parseExportDeclaration (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:13934:17)
+    at TypeScriptParserMixin.parseExportDeclaration (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:9629:85)
+    at TypeScriptParserMixin.maybeParseExportDeclaration (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:13893:31)
+    at TypeScriptParserMixin.parseExport (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:13812:29)
+    at TypeScriptParserMixin.parseExport (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:9385:20)
+    at TypeScriptParserMixin.parseStatementContent (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:12878:27)
+    at TypeScriptParserMixin.parseStatementContent (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:9508:18)
+    at TypeScriptParserMixin.parseStatementLike (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:12767:17)
+    at TypeScriptParserMixin.parseModuleItem (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:12744:17)
+    at TypeScriptParserMixin.parseBlockOrModuleBlockBody (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:13316:36)
+    at TypeScriptParserMixin.parseBlockBody (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:13309:10)
+    at TypeScriptParserMixin.parseProgram (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:12622:10)
+    at TypeScriptParserMixin.parseTopLevel (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:12612:25)
+    at TypeScriptParserMixin.parse (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:14488:25)
+    at TypeScriptParserMixin.parse (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:10126:18)
+    at parse (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:14501:26)
+    at parser (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\core\lib\parser\index.js:41:34)
+    at parser.next (<anonymous>)
+ ERROR  SyntaxError: C:\Users\david\Documents\Playground\atlas\src\features\insights\screens\insights-screen.tsx: Nullish coalescing operator(??) requires parens when mixing with logical operators. (82:62)
+
+  80 |     snapshot.customMetricSummaries.find((metric) => metric.metricId === selectedMetricId) ?? null;
+  81 |   const activeMetricValueType = selectedMetric?.valueType ?? metricValueType;
+> 82 |   const activeMetricUnit = selectedMetric?.unit ?? metricUnit || null;
+     |                                                               ^
+  83 |
+  84 |   return (
+  85 |     <AppScreen scroll>
+    at constructor (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:365:19)
+    at TypeScriptParserMixin.raise (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:6599:19)
+    at TypeScriptParserMixin.parseExprOp (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:10951:22)
+    at TypeScriptParserMixin.parseExprOp (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:9306:18)
+    at TypeScriptParserMixin.parseExprOps (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:10908:17)
+    at TypeScriptParserMixin.parseMaybeConditional (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:10881:23)
+    at TypeScriptParserMixin.parseMaybeAssign (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:10831:21)
+    at TypeScriptParserMixin.parseMaybeAssign (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:9786:20)
+    at C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:10800:39
+    at TypeScriptParserMixin.allowInAnd (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:12421:16)
+    at TypeScriptParserMixin.parseMaybeAssignAllowIn (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:10800:17)
+    at TypeScriptParserMixin.parseVar (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:13384:91)
+    at TypeScriptParserMixin.parseVarStatement (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:13230:10)
+    at TypeScriptParserMixin.parseVarStatement (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:9408:31)
+    at TypeScriptParserMixin.parseStatementContent (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:12851:23)
+    at TypeScriptParserMixin.parseStatementContent (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:9508:18)
+    at TypeScriptParserMixin.parseStatementLike (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:12767:17)
+    at TypeScriptParserMixin.parseStatementListItem (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:12747:17)
+    at TypeScriptParserMixin.parseBlockOrModuleBlockBody (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:13316:61)
+    at TypeScriptParserMixin.parseBlockBody (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:13309:10)
+    at TypeScriptParserMixin.parseBlock (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:13297:10)
+    at TypeScriptParserMixin.parseFunctionBody (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:12100:24)
+    at TypeScriptParserMixin.parseFunctionBodyAndFinish (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:12086:10)
+    at TypeScriptParserMixin.parseFunctionBodyAndFinish (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:9172:18)
+    at C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:13445:12
+    at TypeScriptParserMixin.withSmartMixTopicForbiddingContext (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:12403:14)
+    at TypeScriptParserMixin.parseFunction (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:13444:10)
+    at TypeScriptParserMixin.parseFunctionStatement (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:13125:17)
+    at TypeScriptParserMixin.parseStatementContent (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:12791:21)
+    at TypeScriptParserMixin.parseStatementContent (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:9508:18)
+    at TypeScriptParserMixin.parseStatementLike (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:12767:17)
+    at TypeScriptParserMixin.parseStatementListItem (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:12747:17)
+    at TypeScriptParserMixin.parseExportDeclaration (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:13934:17)
+    at TypeScriptParserMixin.parseExportDeclaration (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:9629:85)
+    at TypeScriptParserMixin.maybeParseExportDeclaration (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:13893:31)
+    at TypeScriptParserMixin.parseExport (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:13812:29)
+    at TypeScriptParserMixin.parseExport (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:9385:20)
+    at TypeScriptParserMixin.parseStatementContent (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:12878:27)
+    at TypeScriptParserMixin.parseStatementContent (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:9508:18)
+    at TypeScriptParserMixin.parseStatementLike (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:12767:17)
+    at TypeScriptParserMixin.parseModuleItem (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:12744:17)
+    at TypeScriptParserMixin.parseBlockOrModuleBlockBody (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:13316:36)
+    at TypeScriptParserMixin.parseBlockBody (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:13309:10)
+    at TypeScriptParserMixin.parseProgram (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:12622:10)
+    at TypeScriptParserMixin.parseTopLevel (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:12612:25)
+    at TypeScriptParserMixin.parse (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:14488:25)
+    at TypeScriptParserMixin.parse (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:10126:18)
+    at parse (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\parser\lib\index.js:14501:26)
+    at parser (C:\Users\david\Documents\Playground\atlas\node_modules\@babel\core\lib\parser\index.js:41:34)
+    at parser.next (<anonymous>)
+ ERROR  [Error: Cannot find native module 'ExpoSharing'] 
+
+Call Stack
+  requireNativeModule (node_modules\expo-modules-core\src\requireNativeModule.ts)
+  <global> (node_modules\expo-sharing\build\ExpoSharing.js)
+  loadModuleImplementation (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  guardedLoadModule (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  metroRequire (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  <global> (node_modules\expo-sharing\build\Sharing.js)
+  loadModuleImplementation (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  guardedLoadModule (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  metroRequire (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  <global> (src\lib\export\service.ts)
+  loadModuleImplementation (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  guardedLoadModule (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  metroRequire (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  <global> (src\features\exports\hooks.ts)
+  loadModuleImplementation (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  guardedLoadModule (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  metroRequire (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  <global> (src\features\settings\screens\settings-screen.tsx)
+  loadModuleImplementation (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  guardedLoadModule (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  metroRequire (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  runUpdatedModule (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  metroHotUpdateModule (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  define (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  eval (http:\10.0.2.2:8081\src\features\settings\screens\settings-screen.bundle)
+  inject (node_modules\metro-runtime\src\modules\HMRClient.js)
+  forEach (<native>)
+  injectUpdate (node_modules\metro-runtime\src\modules\HMRClient.js)
+  on$argument_1 (node_modules\metro-runtime\src\modules\HMRClient.js)
+  call (<native>)
+  emit (node_modules\metro-runtime\src\modules\vendor\eventemitter3.js)
+  _ws.onmessage (node_modules\metro-runtime\src\modules\HMRClient.js)
+  invoke (node_modules\react-native\src\private\webapis\dom\events\EventTarget.js)
+  dispatch (node_modules\react-native\src\private\webapis\dom\events\EventTarget.js)
+  dispatchEvent (node_modules\react-native\src\private\webapis\dom\events\EventTarget.js)
+  _eventEmitter.addListener$argument_1 (node_modules\react-native\Libraries\WebSocket\WebSocket.js)
+  apply (<native>)
+  emit (node_modules\react-native\Libraries\vendor\emitter\EventEmitter.js)
+  apply (<native>)
+  <anonymous> (node_modules\@babel\runtime\helpers\superPropGet.js)
+  RCTDeviceEventEmitterImpl#emit (node_modules\react-native\Libraries\EventEmitter\RCTDeviceEventEmitter.js)
+ ERROR  [Error: Cannot find native module 'ExpoSharing'] 
+
+Call Stack
+  requireNativeModule (node_modules\expo-modules-core\src\requireNativeModule.ts)
+  <global> (node_modules\expo-sharing\build\ExpoSharing.js)
+  loadModuleImplementation (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  guardedLoadModule (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  metroRequire (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  <global> (node_modules\expo-sharing\build\Sharing.js)
+  loadModuleImplementation (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  guardedLoadModule (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  metroRequire (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  <global> (src\lib\export\service.ts)
+  loadModuleImplementation (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  guardedLoadModule (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  metroRequire (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  <global> (src\features\exports\hooks.ts)
+  loadModuleImplementation (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  guardedLoadModule (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  metroRequire (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  <global> (src\features\settings\screens\settings-screen.tsx)
+  loadModuleImplementation (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  guardedLoadModule (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  metroRequire (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  runUpdatedModule (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  metroHotUpdateModule (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  define (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  eval (http:\10.0.2.2:8081\src\features\settings\screens\settings-screen.bundle)
+  inject (node_modules\metro-runtime\src\modules\HMRClient.js)
+  forEach (<native>)
+  injectUpdate (node_modules\metro-runtime\src\modules\HMRClient.js)
+  on$argument_1 (node_modules\metro-runtime\src\modules\HMRClient.js)
+  call (<native>)
+  emit (node_modules\metro-runtime\src\modules\vendor\eventemitter3.js)
+  _ws.onmessage (node_modules\metro-runtime\src\modules\HMRClient.js)
+  invoke (node_modules\react-native\src\private\webapis\dom\events\EventTarget.js)
+  dispatch (node_modules\react-native\src\private\webapis\dom\events\EventTarget.js)
+  dispatchEvent (node_modules\react-native\src\private\webapis\dom\events\EventTarget.js)
+  _eventEmitter.addListener$argument_1 (node_modules\react-native\Libraries\WebSocket\WebSocket.js)
+  apply (<native>)
+  emit (node_modules\react-native\Libraries\vendor\emitter\EventEmitter.js)
+  apply (<native>)
+  <anonymous> (node_modules\@babel\runtime\helpers\superPropGet.js)
+  RCTDeviceEventEmitterImpl#emit (node_modules\react-native\Libraries\EventEmitter\RCTDeviceEventEmitter.js)
+ ERROR  [Error: Cannot find native module 'ExpoSharing'] 
+
+Call Stack
+  requireNativeModule (node_modules\expo-modules-core\src\requireNativeModule.ts)
+  <global> (node_modules\expo-sharing\build\ExpoSharing.js)
+  loadModuleImplementation (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  guardedLoadModule (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  metroRequire (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  <global> (node_modules\expo-sharing\build\Sharing.js)
+  loadModuleImplementation (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  guardedLoadModule (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  metroRequire (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  <global> (src\lib\export\service.ts)
+  loadModuleImplementation (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  guardedLoadModule (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  metroRequire (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  <global> (src\features\exports\hooks.ts)
+  loadModuleImplementation (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  guardedLoadModule (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  metroRequire (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  <global> (src\features\settings\screens\settings-screen.tsx)
+  loadModuleImplementation (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  guardedLoadModule (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  metroRequire (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  runUpdatedModule (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  metroHotUpdateModule (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  define (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  eval (http:\10.0.2.2:8081\src\features\settings\screens\settings-screen.bundle)
+  inject (node_modules\metro-runtime\src\modules\HMRClient.js)
+  forEach (<native>)
+  injectUpdate (node_modules\metro-runtime\src\modules\HMRClient.js)
+  on$argument_1 (node_modules\metro-runtime\src\modules\HMRClient.js)
+  call (<native>)
+  emit (node_modules\metro-runtime\src\modules\vendor\eventemitter3.js)
+  _ws.onmessage (node_modules\metro-runtime\src\modules\HMRClient.js)
+  invoke (node_modules\react-native\src\private\webapis\dom\events\EventTarget.js)
+  dispatch (node_modules\react-native\src\private\webapis\dom\events\EventTarget.js)
+  dispatchEvent (node_modules\react-native\src\private\webapis\dom\events\EventTarget.js)
+  _eventEmitter.addListener$argument_1 (node_modules\react-native\Libraries\WebSocket\WebSocket.js)
+  apply (<native>)
+  emit (node_modules\react-native\Libraries\vendor\emitter\EventEmitter.js)
+  apply (<native>)
+  <anonymous> (node_modules\@babel\runtime\helpers\superPropGet.js)
+  RCTDeviceEventEmitterImpl#emit (node_modules\react-native\Libraries\EventEmitter\RCTDeviceEventEmitter.js)
+ ERROR  [Error: Cannot find native module 'ExpoSharing'] 
+
+Call Stack
+  requireNativeModule (node_modules\expo-modules-core\src\requireNativeModule.ts)
+  <global> (node_modules\expo-sharing\build\ExpoSharing.js)
+  loadModuleImplementation (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  guardedLoadModule (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  metroRequire (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  <global> (node_modules\expo-sharing\build\Sharing.js)
+  loadModuleImplementation (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  guardedLoadModule (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  metroRequire (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  <global> (src\lib\export\service.ts)
+  loadModuleImplementation (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  guardedLoadModule (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  metroRequire (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  <global> (src\features\exports\hooks.ts)
+  loadModuleImplementation (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  guardedLoadModule (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  metroRequire (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  <global> (src\features\settings\screens\settings-screen.tsx)
+  loadModuleImplementation (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  guardedLoadModule (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  metroRequire (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  runUpdatedModule (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  metroHotUpdateModule (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  define (node_modules\expo\node_modules\@expo\cli\build\metro-require\require.js)
+  eval (http:\10.0.2.2:8081\src\features\settings\screens\settings-screen.bundle)
+  inject (node_modules\metro-runtime\src\modules\HMRClient.js)
+  forEach (<native>)
+  injectUpdate (node_modules\metro-runtime\src\modules\HMRClient.js)
+  on$argument_1 (node_modules\metro-runtime\src\modules\HMRClient.js)
+  call (<native>)
+  emit (node_modules\metro-runtime\src\modules\vendor\eventemitter3.js)
+  _ws.onmessage (node_modules\metro-runtime\src\modules\HMRClient.js)
+  invoke (node_modules\react-native\src\private\webapis\dom\events\EventTarget.js)
+  dispatch (node_modules\react-native\src\private\webapis\dom\events\EventTarget.js)
+  dispatchEvent (node_modules\react-native\src\private\webapis\dom\events\EventTarget.js)
+  _eventEmitter.addListener$argument_1 (node_modules\react-native\Libraries\WebSocket\WebSocket.js)
+  apply (<native>)
+  emit (node_modules\react-native\Libraries\vendor\emitter\EventEmitter.js)
+  apply (<native>)
+  <anonymous> (node_modules\@babel\runtime\helpers\superPropGet.js)
+  RCTDeviceEventEmitterImpl#emit (node_modules\react-native\Libraries\EventEmitter\RCTDeviceEventEmitter.js)
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 46ms node_modules\expo-router\entry.js (1 module)
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 66ms node_modules\expo-router\entry.js (1 module)
+Android src\lib\database\index.ts ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 2634ms src\lib\database\index.ts (793 modules)

@@ -1,0 +1,387 @@
+--------- beginning of main
+W/AppSearchIcing(  601): icing-search-engine.cc:321: Error: 5, Message: Document (com.google.android.googlequicksearchbox$OneSearchZeroStateGoogleSuggestions/default, zp) not found.
+D/OneSearchSuggestProvider( 1240): AppSearch 0-state cache not available, fallback to AGA
+D/OneSearchSuggestProvider( 1240): java.util.concurrent.CompletionException: java.util.NoSuchElementException: No value present
+D/OneSearchSuggestProvider( 1240): 	at java.util.concurrent.CompletableFuture.encodeThrowable(CompletableFuture.java:308)
+D/OneSearchSuggestProvider( 1240): 	at java.util.concurrent.CompletableFuture.completeThrowable(CompletableFuture.java:323)
+D/OneSearchSuggestProvider( 1240): 	at java.util.concurrent.CompletableFuture$UniAccept.tryFire(CompletableFuture.java:684)
+D/OneSearchSuggestProvider( 1240): 	at java.util.concurrent.CompletableFuture.postComplete(CompletableFuture.java:486)
+D/OneSearchSuggestProvider( 1240): 	at java.util.concurrent.CompletableFuture.completeExceptionally(CompletableFuture.java:2138)
+D/OneSearchSuggestProvider( 1240): 	at com.google.android.apps.nexuslauncher.allapps.E0.onResult(go/retraceme 31f9979659277bb965985aff1272c33e3c3c9e755b77166d20a2465454178f2c:67)
+D/OneSearchSuggestProvider( 1240): 	at android.app.appsearch.SearchSessionUtil$1.lambda$onResult$0(go/retraceme 64eee9e9f568ff45978879ad2ff83146f2618ee8a88278736fbdf5fae931976e:144)
+D/OneSearchSuggestProvider( 1240): 	at android.app.appsearch.SearchSessionUtil$1.$r8$lambda$CEk3q8sDAQVhU3rQwVueB8FAj_M(go/retraceme 64eee9e9f568ff45978879ad2ff83146f2618ee8a88278736fbdf5fae931976e:1)
+D/OneSearchSuggestProvider( 1240): 	at android.app.appsearch.SearchSessionUtil$1$$ExternalSyntheticLambda0.run(go/retraceme 64eee9e9f568ff45978879ad2ff83146f2618ee8a88278736fbdf5fae931976e:22)
+D/OneSearchSuggestProvider( 1240): 	at android.os.Handler.handleCallback(Handler.java:959)
+D/OneSearchSuggestProvider( 1240): 	at android.os.Handler.dispatchMessage(Handler.java:100)
+D/OneSearchSuggestProvider( 1240): 	at android.os.Looper.loopOnce(Looper.java:232)
+D/OneSearchSuggestProvider( 1240): 	at android.os.Looper.loop(Looper.java:317)
+D/OneSearchSuggestProvider( 1240): 	at android.os.HandlerThread.run(HandlerThread.java:85)
+D/OneSearchSuggestProvider( 1240): Caused by: java.util.NoSuchElementException: No value present
+D/OneSearchSuggestProvider( 1240): 	at java.util.Optional.get(Optional.java:143)
+D/OneSearchSuggestProvider( 1240): 	at com.google.android.apps.nexuslauncher.allapps.E0.onResult(go/retraceme 31f9979659277bb965985aff1272c33e3c3c9e755b77166d20a2465454178f2c:28)
+D/OneSearchSuggestProvider( 1240): 	... 8 more
+D/OneSearchSuggestProvider( 1240): Created the binder channel successfully for end point service =com.google.android.apps.search.googleapp.search.suggest.plugins.onesearch.server.OneSearchSuggestService , mChannel=i1{delegate=f{logId=179, target=directaddress:///AndroidComponentAddress%5BIntent%20%7B%20act=grpc.io.action.BIND%20cmp=com.google.android.googlequicksearchbox/com.google.android.apps.search.googleapp.search.suggest.plugins.onesearch.server.OneSearchSuggestService%20%7D%5D}} , mOneSearchConnection=l2.Z@318d15e
+I/AiAiEcho( 1515): Predicting[0]:  [CONTEXT sampling_count=5 ]
+--------- beginning of system
+D/ActivityManager(  601): sync unfroze 22481 com.google.android.googlequicksearchbox:search for 6
+W/ProcessStats(  601): Tracking association SourceState{13e31ba com.google.android.apps.nexuslauncher/10179 BTop #38930} whose proc state 2 is better than process ProcessState{8e37151 com.google.android.googlequicksearchbox:search/10144 pkg=com.google.android.googlequicksearchbox} proc state 14 (0 skipped)
+I/AiAiEcho( 1515): EchoTargets: 
+I/AiAiEcho( 1515): Filtered by AiAi flag check: 
+I/AiAiEcho( 1515): [CONTEXT ratelimit_period="10 SECONDS" ]
+I/AiAiEcho( 1515): Ranked targets strategy: SORT, count: 0, ranking metadata:  [CONTEXT ratelimit_period="10 SECONDS" ]
+I/AiAiEcho( 1515): #remoteViewsTwiddler: feature disabled.
+I/AiAiEcho( 1515): #postPredictionTargets: Sending updates to UISurface home with targets# 0 (types=[])
+V/WindowManagerShell(  992): onTransitionReady(transaction=2581275387947)
+I/A       (22481): (REDACTED) Created gRPC endpoint for service %s
+D/SsBaseTemplateCard( 1240): No text view can be set up
+D/SsBaseTemplateCard( 1240): Passed-in item info is null
+D/SsBaseTemplateCard( 1240): Passed-in item info is null
+D/SsBaseTemplateCard( 1240): Passed-in item info is null
+V/WindowManager(  601): Sent Transition (#407) createdAt=03-13 20:45:10.121 via request=TransitionRequestInfo { type = CLOSE, triggerTask = TaskInfo{userId=0 taskId=151 displayId=0 isRunning=false baseIntent=Intent { act=android.intent.action.MAIN cat=[android.intent.category.LAUNCHER] flg=0x10200000 cmp=com.david.atlas/.MainActivity } baseActivity=null topActivity=null origActivity=null realActivity=ComponentInfo{com.david.atlas/com.david.atlas.MainActivity} numActivities=0 lastActiveTime=70292094 supportsMultiWindow=true resizeMode=1 isResizeable=true minWidth=-1 minHeight=-1 defaultMinSize=220 token=WCT{RemoteToken{6cb42e0 Task{5127d0a #151 type=standard A=10234:com.david.atlas}}} topActivityType=1 pictureInPictureParams=null shouldDockBigOverlays=false launchIntoPipHostTaskId=-1 lastParentTaskIdBeforePip=-1 displayCutoutSafeInsets=null topActivityInfo=null launchCookies=[] positionInParent=Point(0, 0) parentTaskId=-1 isFocused=true isVisible=true isVisibleRequested=true isSleeping=false locusId=null displayAreaFeatureId=1 isTopActivityTransparent=false appCompatTaskInfo=AppCompatTaskInfo { topActivityInSizeCompat=false topActivityEligibleForLetterboxEducation= falseisLetterboxEducationEnabled= false isLetterboxDoubleTapEnabled= false topActivityEligibleForUserAspectRatioButton= false topActivityBoundsLetterboxed= false isFromLetterboxDoubleTap= false topActivityLetterboxVerticalPosition= -1 topActivityLetterboxHorizontalPosition= -1 topActivityLetterboxWidth=-1 topActivityLetterboxHeight=-1 isUserFullscreenOverrideEnabled=false isSystemFullscreenOverrideEnabled=false cameraCompatTaskInfo=CameraCompatTaskInfo { cameraCompatControlState=hidden freeformCameraCompatMode=inactive}}}, pipTask = null, remoteTransition = null, displayChange = null, flags = 0, debugId = 407 }
+I/SsBaseTemplateCard( 1240): Secondary card pane is null
+V/WindowManager(  601):     startWCT=WindowContainerTransaction { changes = {} hops = [] errorCallbackToken=null taskFragmentOrganizer=null }
+V/WindowManager(  601):     info={id=407 t=CLOSE f=0x0 trk=0 r=[0@Point(0, 0)] c=[
+V/WindowManager(  601):         {WCT{RemoteToken{5133c5f Task{c97a555 #1 type=home}}} m=TO_FRONT f=SHOW_WALLPAPER|MOVE_TO_TOP leash=Surface(name=Task=1)/@0x966b7f0 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0 taskParent=-1},
+V/WindowManager(  601):         {WCT{RemoteToken{6cb42e0 Task{5127d0a #151 type=standard A=10234:com.david.atlas}}} m=CLOSE f=NONE leash=Surface(name=Task=151)/@0x2e9a912 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0 taskParent=-1},
+V/WindowManager(  601):         {null m=TO_FRONT f=IS_WALLPAPER leash=Surface(name=WallpaperWindowToken{506e45e token=android.os.Binder@7c00999})/@0xd2fa8a8 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0}
+V/WindowManager(  601):     ]}
+W/UserManagerService(  601): Requested status bar icon for non-badged user 0
+V/WindowManagerShell(  992): onTransitionReady (#407) android.os.BinderProxy@dd1e641: {id=407 t=CLOSE f=0x0 trk=0 r=[0@Point(0, 0)] c=[{WCT{android.window.IWindowContainerToken$Stub$Proxy@1dc1c79} m=TO_FRONT f=SHOW_WALLPAPER|MOVE_TO_TOP leash=Surface(name=Task=1)/@0x615a57d sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0 taskParent=-1},{WCT{android.window.IWindowContainerToken$Stub$Proxy@9fb2dbe} m=CLOSE f=NONE leash=Surface(name=Task=151)/@0xb51bc72 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0 taskParent=-1},{null m=TO_FRONT f=IS_WALLPAPER leash=Surface(name=WallpaperWindowToken{506e45e token=android.os.Binder@7c00999})/@0xb6428c3 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0}]}
+V/WindowManagerShell(  992): Playing animation for (#407) android.os.BinderProxy@dd1e641@0
+V/WindowManagerShell(  992):  try handler com.android.wm.shell.transition.DefaultMixedHandler@5bd864d
+V/WindowManagerShell(  992):  try handler com.android.wm.shell.keyguard.KeyguardTransitionHandler@d2bd502
+V/WindowManagerShell(  992):  try handler com.android.wm.shell.pip.PipTransition@81c7e13
+V/WindowManagerShell(  992):  try handler com.android.wm.shell.activityembedding.ActivityEmbeddingController@83da850
+V/WindowManagerShell(  992):  try handler com.android.wm.shell.recents.RecentsTransitionHandler@9693a49
+V/ShellRecents(  992): RecentsTransitionHandler.startAnimation: no controller found
+V/WindowManagerShell(  992):  try handler com.android.wm.shell.splitscreen.StageCoordinator@f063f4e
+V/WindowManagerShell(  992):  try handler com.android.wm.shell.transition.RemoteTransitionHandler@146e86f
+V/WindowManagerShell(  992): Transition doesn't have explicit remote, search filters for match for {id=407 t=CLOSE f=0x0 trk=0 r=[0@Point(0, 0)] c=[{WCT{android.window.IWindowContainerToken$Stub$Proxy@1dc1c79} m=TO_FRONT f=SHOW_WALLPAPER|MOVE_TO_TOP leash=Surface(name=Task=1)/@0x615a57d sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0 taskParent=-1},{WCT{android.window.IWindowContainerToken$Stub$Proxy@9fb2dbe} m=CLOSE f=NONE leash=Surface(name=Task=151)/@0xb51bc72 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0 taskParent=-1},{null m=TO_FRONT f=IS_WALLPAPER leash=Surface(name=WallpaperWindowToken{506e45e token=android.os.Binder@7c00999})/@0xb6428c3 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0}]}
+V/WindowManagerShell(  992):  Checking filter Pair{{types=[] flags=0x0] notFlags=0x0 checks=[{atype=undefined independent=true modes=[OPEN,TO_FRONT] flags=IN_TASK_WITH_EMBEDDED_ACTIVITY mustBeTask=false order=ANY topActivity=ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity} launchCookie=null},{atype=undefined independent=true modes=[CLOSE,TO_BACK] flags=IN_TASK_WITH_EMBEDDED_ACTIVITY mustBeTask=false order=ANY topActivity=null launchCookie=null}]} RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@679a977, appThread = android.app.IApplicationThread$Stub$Proxy@c7999e4, debugName = OverlaySwipeBack }}
+V/WindowManagerShell(  992):  Checking filter Pair{{types=[] flags=0x0] notFlags=0x0 checks=[{atype=dream independent=true modes=[OPEN,TO_FRONT] flags=NONE mustBeTask=false order=ANY topActivity=null launchCookie=null},{atype=home independent=true modes=[CLOSE,TO_BACK] flags=NONE mustBeTask=false order=ANY topActivity=null launchCookie=null}]} RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@ccca636, appThread = android.app.IApplicationThread$Stub$Proxy@18b6937, debugName = LauncherToDream }}
+V/WindowManagerShell(  992):  Checking filter Pair{{types=[] flags=0x0] notFlags=0x100 checks=[{atype=home independent=true modes=[OPEN,TO_FRONT] flags=NONE mustBeTask=false order=TOP topActivity=ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity} launchCookie=null},{atype=standard independent=true modes=[CLOSE,TO_BACK] flags=NONE mustBeTask=false order=ANY topActivity=null launchCookie=null}]} RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@9f4bea4, appThread = android.app.IApplicationThread$Stub$Proxy@623540d, debugName = QuickstepLaunchHome }}
+D/RemoteTransitionHandler(  992): Found filterPair{{types=[] flags=0x0] notFlags=0x100 checks=[{atype=home independent=true modes=[OPEN,TO_FRONT] flags=NONE mustBeTask=false order=TOP topActivity=ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity} launchCookie=null},{atype=standard independent=true modes=[CLOSE,TO_BACK] flags=NONE mustBeTask=false order=ANY topActivity=null launchCookie=null}]} RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@9f4bea4, appThread = android.app.IApplicationThread$Stub$Proxy@623540d, debugName = QuickstepLaunchHome }}
+V/WindowManagerShell(  992):  Delegate animation for (#407) to RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@9f4bea4, appThread = android.app.IApplicationThread$Stub$Proxy@623540d, debugName = QuickstepLaunchHome }
+V/WindowManagerShell(  992):  animated by com.android.wm.shell.transition.RemoteTransitionHandler@146e86f
+W/Looper  (  992): Slow delivery took 32ms wmshell.main h=android.os.Handler c=com.android.wm.shell.transition.Transitions$TransitionPlayerImpl$$ExternalSyntheticLambda0@3a2256c m=0
+D/StateManager( 1240): createAtomicAnimation - fromState: Background, toState: Normal, partial trace:
+D/StateManager( 1240): 	at com.android.quickstep.util.StaggeredWorkspaceAnim.prepareToAnimate(go/retraceme 31f9979659277bb965985aff1272c33e3c3c9e755b77166d20a2465454178f2c:22)
+D/StateManager( 1240): 	at com.android.quickstep.util.StaggeredWorkspaceAnim.<init>(go/retraceme 31f9979659277bb965985aff1272c33e3c3c9e755b77166d20a2465454178f2c:4)
+D/StateManager( 1240): 	at com.android.quickstep.util.StaggeredWorkspaceAnim.<init>(go/retraceme 31f9979659277bb965985aff1272c33e3c3c9e755b77166d20a2465454178f2c:1)
+D/EGL_emulation( 1240): app_time_stats: avg=2665.81ms min=0.84ms max=63727.17ms count=24
+I/ChimeraSrvcProxy( 1340): NullBinder for android.net.action.RECOMMEND_NETWORKS triggering remote TransactionTooLargeException due to Service without Chimera impl
+W/.gms.persistent( 1340): Large reply transaction of 1056768 bytes, interface descriptor , code 1
+I/BugleRcsEngine( 3469): handleMessage processing message:[NOTIFY_UPTIME_IGNORE_STATE_CHANGED] with [non-null]:RcsEngineImpl reference [CONTEXT log_prefix="RcsEngineImpl[DUAL_REG]:[b2fea40c-af64]>Handler" thread_id=65 ]
+I/BugleRcsEngine( 3469): Connected state: [1], networkType: [WIFI] [CONTEXT thread_id=60 ]
+I/BugleRcsEngine( 3469): No RCS Configuration was found in Bugle for simID: redacted-pii:sim_id[chars:20,last3:897] [CONTEXT log_prefix="ProvisioningEngineDataRetriever" thread_id=65 ]
+I/ImeTracker(  601): com.google.android.apps.nexuslauncher:4d8972e3: onRequestHide at ORIGIN_SERVER reason HIDE_SAME_WINDOW_FOCUSED_WITHOUT_EDITOR fromUser false
+I/ImeTracker(  601): com.google.android.apps.nexuslauncher:4d8972e3: onCancelled at PHASE_SERVER_SHOULD_HIDE
+I/GoogleInputMethodService( 1355): GoogleInputMethodService.onFinishInput():3157 
+I/GoogleInputMethodService( 1355): GoogleInputMethodService.updateDeviceLockedStatus():2248 repeatCheckTimes = 0, locked = false
+I/GoogleInputMethodService( 1355): GoogleInputMethodService.onStartInput():1986 onStartInput(EditorInfo{EditorInfo{packageName=com.google.android.apps.nexuslauncher, inputType=0, inputTypeString=NULL, enableLearning=false, autoCorrection=false, autoComplete=false, imeOptions=0, privateImeOptions=null, actionName=UNSPECIFIED, actionLabel=null, initialSelStart=-1, initialSelEnd=-1, initialCapsMode=0, label=null, fieldId=0, fieldName=null, extras=null, hintText=null, hintLocales=[]}}, false)
+I/GoogleInputMethodService( 1355): GoogleInputMethodService.updateDeviceLockedStatus():2248 repeatCheckTimes = 1, locked = false
+I/AndroidIME( 1355): InputBundleManager.loadActiveInputBundleId():450 loadActiveInputBundleId: und-Latn-x-password, password
+W/PackageConfigPersister(  601): App-specific configuration not found for packageName: com.google.android.apps.nexuslauncher and userId: 0
+D/SearchTargetUtil( 1240): query= size=15
+W/VsyncModulator(  472): setTransactionSchedule: Unexpected EarlyEnd
+D/SearchTargetUtil( 1240): layoutType=short_icon_row resultType=131072 packageName=com.google.android.googlequicksearchbox extras=Bundle{suggestion_type=33,suggest_truncate_start=false,is_answer=false,is_entity=false,is_personal=false,suggest_raw_text=harley davidson scraps free tool kit,input_query=android.app.search.Query@6818193,group_id=web70355291,response_id=8f94f04e-cff8-411a-8028-0032cb933c62,support_query_builder=false,} searchAction=harley davidson scraps free tool kit searchActionExtras=Bundle{learn_more_url=https://support.google.com/websearch/answer/106230?hl=106230,suggestion_action_text=Report this,should_start_for_result=true,allow_pinning=true,skip_logging_in_target_handler=true,suggestion_action_rpc=2,}ParentID: null targetID: 56e9aff9-bbe7-4c34-81c0-4b509c2a5afa
+D/SearchTargetUtil( 1240): layoutType=short_icon_row resultType=131072 packageName=com.google.android.googlequicksearchbox extras=Bundle{suggestion_type=33,suggest_truncate_start=false,is_answer=false,is_entity=false,is_personal=false,suggest_raw_text=new fallout game,input_query=android.app.search.Query@6818193,group_id=web70355291,response_id=8f94f04e-cff8-411a-8028-0032cb933c62,support_query_builder=false,} searchAction=new fallout game searchActionExtras=Bundle{learn_more_url=https://support.google.com/websearch/answer/106230?hl=106230,suggestion_action_text=Report this,should_start_for_result=true,allow_pinning=true,skip_logging_in_target_handler=true,suggestion_action_rpc=2,}ParentID: null targetID: f4d62cc9-7c40-4428-9aab-243c5e5232cf
+D/SearchTargetUtil( 1240): layoutType=short_icon_row resultType=131072 packageName=com.google.android.googlequicksearchbox extras=Bundle{suggestion_type=33,suggest_truncate_start=false,is_answer=false,is_entity=false,is_personal=false,suggest_raw_text=atlassian layoffs,input_query=android.app.search.Query@6818193,group_id=web70355291,response_id=8f94f04e-cff8-411a-8028-0032cb933c62,support_query_builder=false,} searchAction=atlassian layoffs searchActionExtras=Bundle{learn_more_url=https://support.google.com/websearch/answer/106230?hl=106230,suggestion_action_text=Report this,should_start_for_result=true,allow_pinning=true,skip_logging_in_target_handler=true,suggestion_action_rpc=2,}ParentID: null targetID: b56a1bb8-802f-43c8-a685-5afa690406ad
+D/SearchTargetUtil( 1240): layoutType=short_icon_row resultType=131072 packageName=com.google.android.googlequicksearchbox extras=Bundle{suggestion_type=33,suggest_truncate_start=false,is_answer=false,is_entity=false,is_personal=false,suggest_raw_text=uss gerald ford aircraft carrier fire,input_query=android.app.search.Query@6818193,group_id=web70355291,response_id=8f94f04e-cff8-411a-8028-0032cb933c62,support_query_builder=false,} searchAction=uss gerald ford aircraft carrier fire searchActionExtras=Bundle{learn_more_url=https://support.google.com/websearch/answer/106230?hl=106230,suggestion_action_text=Report this,should_start_for_result=true,allow_pinning=true,skip_logging_in_target_handler=true,suggestion_action_rpc=2,}ParentID: null targetID: 06ca3380-3ff3-49d5-bfcc-1dcffa114c24
+D/SearchTargetUtil( 1240): layoutType=short_icon_row resultType=131072 packageName=com.google.android.googlequicksearchbox extras=Bundle{suggestion_type=33,suggest_truncate_start=false,is_answer=false,is_entity=false,is_personal=false,suggest_raw_text=nyt crossword answers,input_query=android.app.search.Query@6818193,group_id=web70355291,response_id=8f94f04e-cff8-411a-8028-0032cb933c62,support_query_builder=false,} searchAction=nyt crossword answers searchActionExtras=Bundle{learn_more_url=https://support.google.com/websearch/answer/106230?hl=106230,suggestion_action_text=Report this,should_start_for_result=true,allow_pinning=true,skip_logging_in_target_handler=true,suggestion_action_rpc=2,}ParentID: null targetID: 8a0fa65f-a1be-41ea-ab02-2f8de3ba29b4
+D/SearchTargetUtil( 1240): layoutType=short_icon_row resultType=131072 packageName=com.google.android.googlequicksearchbox extras=Bundle{suggestion_type=33,suggest_truncate_start=false,is_answer=false,is_entity=false,is_personal=false,suggest_raw_text=nasa satellite crashes,input_query=android.app.search.Query@6818193,group_id=web70355291,response_id=8f94f04e-cff8-411a-8028-0032cb933c62,support_query_builder=false,} searchAction=nasa satellite crashes searchActionExtras=Bundle{learn_more_url=https://support.google.com/websearch/answer/106230?hl=106230,suggestion_action_text=Report this,should_start_for_result=true,allow_pinning=true,skip_logging_in_target_handler=true,suggestion_action_rpc=2,}ParentID: null targetID: 44abb060-28b5-40e8-b83e-157333ab1dfd
+D/SearchTargetUtil( 1240): layoutType=short_icon_row resultType=131072 packageName=com.google.android.googlequicksearchbox extras=Bundle{suggestion_type=33,suggest_truncate_start=false,is_answer=false,is_entity=false,is_personal=false,suggest_raw_text=champions league real madrid vs man city,input_query=android.app.search.Query@6818193,group_id=web70355291,response_id=8f94f04e-cff8-411a-8028-0032cb933c62,support_query_builder=false,} searchAction=champions league real madrid vs man city searchActionExtras=Bundle{learn_more_url=https://support.google.com/websearch/answer/106230?hl=106230,suggestion_action_text=Report this,should_start_for_result=true,allow_pinning=true,skip_logging_in_target_handler=true,suggestion_action_rpc=2,}ParentID: null targetID: 084ac072-50a6-48ae-8fb5-160910345a3d
+D/SearchTargetUtil( 1240): layoutType=short_icon_row resultType=131072 packageName=com.google.android.googlequicksearchbox extras=Bundle{suggestion_type=33,suggest_truncate_start=false,is_answer=false,is_entity=false,is_personal=false,suggest_raw_text=golden retrievers synchronized dancing,input_query=android.app.search.Query@6818193,group_id=web70355291,response_id=8f94f04e-cff8-411a-8028-0032cb933c62,support_query_builder=false,} searchAction=golden retrievers synchronized dancing searchActionExtras=Bundle{learn_more_url=https://support.google.com/websearch/answer/106230?hl=106230,suggestion_action_text=Report this,should_start_for_result=true,allow_pinning=true,skip_logging_in_target_handler=true,suggestion_action_rpc=2,}ParentID: null targetID: a97a1a83-5f4d-43e9-9293-9b3147989b57
+D/SearchTargetUtil( 1240): layoutType=short_icon_row resultType=131072 packageName=com.google.android.googlequicksearchbox extras=Bundle{suggestion_type=33,suggest_truncate_start=false,is_answer=false,is_entity=false,is_personal=false,suggest_raw_text=taco bell edible sauce packet,input_query=android.app.search.Query@6818193,group_id=web70355291,response_id=8f94f04e-cff8-411a-8028-0032cb933c62,support_query_builder=false,} searchAction=taco bell edible sauce packet searchActionExtras=Bundle{learn_more_url=https://support.google.com/websearch/answer/106230?hl=106230,suggestion_action_text=Report this,should_start_for_result=true,allow_pinning=true,skip_logging_in_target_handler=true,suggestion_action_rpc=2,}ParentID: null targetID: f28c4536-0eed-46cf-8da9-c60adbe17de6
+D/SearchTargetUtil( 1240): layoutType=extra_tall_icon_row resultType=131072 packageName=com.google.android.googlequicksearchbox extras=Bundle{bitmap_url=data:image/jpeg;base64,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,suggestion_type
+D/SearchTargetUtil( 1240): layoutType=short_icon_row resultType=131072 packageName=com.google.android.googlequicksearchbox extras=Bundle{suggestion_type=33,suggest_truncate_start=false,is_answer=false,is_entity=false,is_personal=false,suggest_raw_text=college basketball tournament bracket,input_query=android.app.search.Query@6818193,group_id=web70355291,response_id=8f94f04e-cff8-411a-8028-0032cb933c62,support_query_builder=false,} searchAction=college basketball tournament bracket searchActionExtras=Bundle{learn_more_url=https://support.google.com/websearch/answer/106230?hl=106230,suggestion_action_text=Report this,should_start_for_result=true,allow_pinning=true,skip_logging_in_target_handler=true,suggestion_action_rpc=2,}ParentID: null targetID: 26b9eb39-a62f-4d75-94bf-071a4f0171a2
+D/SearchTargetUtil( 1240): layoutType=short_icon_row resultType=131072 packageName=com.google.android.googlequicksearchbox extras=Bundle{suggestion_type=33,suggest_truncate_start=false,is_answer=false,is_entity=false,is_personal=false,suggest_raw_text=playstation plus games,input_query=android.app.search.Query@6818193,group_id=web70355291,response_id=8f94f04e-cff8-411a-8028-0032cb933c62,support_query_builder=false,} searchAction=playstation plus games searchActionExtras=Bundle{learn_more_url=https://support.google.com/websearch/answer/106230?hl=106230,suggestion_action_text=Report this,should_start_for_result=true,allow_pinning=true,skip_logging_in_target_handler=true,suggestion_action_rpc=2,}ParentID: null targetID: 98cc511f-c44f-481b-bcab-3ff10bba1559
+D/SearchTargetUtil( 1240): layoutType=short_icon_row resultType=131072 packageName=com.google.android.googlequicksearchbox extras=Bundle{suggestion_type=33,suggest_truncate_start=false,is_answer=false,is_entity=false,is_personal=false,suggest_raw_text=the lodge card club raid,input_query=android.app.search.Query@6818193,group_id=web70355291,response_id=8f94f04e-cff8-411a-8028-0032cb933c62,support_query_builder=false,} searchAction=the lodge card club raid searchActionExtras=Bundle{learn_more_url=https://support.google.com/websearch/answer/106230?hl=106230,suggestion_action_text=Report this,should_start_for_result=true,allow_pinning=true,skip_logging_in_target_handler=true,suggestion_action_rpc=2,}ParentID: null targetID: 869a8cbc-9ac0-459e-825d-ba5a4c0cc7e4
+D/SearchTargetUtil( 1240): layoutType=short_icon_row resultType=131072 packageName=com.google.android.googlequicksearchbox extras=Bundle{suggestion_type=33,suggest_truncate_start=false,is_answer=false,is_entity=false,is_personal=false,suggest_raw_text=upcoming taco bell menu items,input_query=android.app.search.Query@6818193,group_id=web70355291,response_id=8f94f04e-cff8-411a-8028-0032cb933c62,support_query_builder=false,} searchAction=upcoming taco bell menu items searchActionExtras=Bundle{learn_more_url=https://support.google.com/websearch/answer/106230?hl=106230,suggestion_action_text=Report this,should_start_for_result=true,allow_pinning=true,skip_logging_in_target_handler=true,suggestion_action_rpc=2,}ParentID: null targetID: 889767b4-9f23-4d30-bd33-cf6ec083cd58
+D/SearchTargetUtil( 1240): layoutType=short_icon_row resultType=131072 packageName=com.google.android.googlequicksearchbox extras=Bundle{suggestion_type=33,suggest_truncate_start=false,is_answer=false,is_entity=false,is_personal=false,suggest_raw_text=nyt connections answers,input_query=android.app.search.Query@6818193,group_id=web70355291,response_id=8f94f04e-cff8-411a-8028-0032cb933c62,support_query_builder=false,} searchAction=nyt connections answers searchActionExtras=Bundle{learn_more_url=https://support.google.com/websearch/answer/106230?hl=106230,suggestion_action_text=Report this,should_start_for_result=true,allow_pinning=true,skip_logging_in_target_handler=true,suggestion_action_rpc=2,}ParentID: null targetID: 974d6e13-5d9c-4ee3-bcfe-cbc71886c8d4
+V/WindowManagerShell(  992): Transition animation finished (aborted=false), notifying core (#407) android.os.BinderProxy@dd1e641@0
+V/WindowManager(  601): Finish Transition (#407): created at 03-13 20:45:10.121 collect-started=0.06ms request-sent=4.108ms started=49.328ms ready=240.409ms sent=260.378ms finished=1000.426ms
+E/BpTransactionCompletedListener(  472): Failed to transact (-32)
+V/WindowManagerShell(  992): Track 0 became idle
+V/WindowManagerShell(  992): All active transition animations finished
+W/Looper  (  992): Drained
+W/UserManagerService(  601): Requested status bar icon for non-badged user 0
+I/TopTaskTracker( 1240): onTaskRemoved: taskId=151
+W/UserManagerService(  601): Requested status bar icon for non-badged user 0
+I/TopTaskTracker( 1240): onTaskRemoved: taskId=151
+I/netd    (  397): tetherGetStats() -> {[]} <1.57ms>
+I/BistoHotwordHelper( 1551): (REDACTED) getHotwordActive::active query: %s, watch: %s, devices connected: %s
+E/TaskPersister(  601): File error accessing recents directory (directory doesn't exist?).
+D/ActivityManager(  601): freezing 1473 com.google.android.gms
+D/ActivityManager(  601): freezing 21223 com.google.android.gms.unstable
+D/AndroidRuntime(24367): >>>>>> START com.android.internal.os.RuntimeInit uid 0 <<<<<<
+I/AndroidRuntime(24367): Using default boot image
+I/AndroidRuntime(24367): Leaving lock profiling enabled
+I/app_process(24367): Core platform API reporting enabled, enforcing=false
+I/app_process(24367): Using CollectorTypeCMC GC.
+D/nativeloader(24367): InitDefaultPublicLibraries for_preload=1: libandroid.so:libaaudio.so:libamidi.so:libbinder_ndk.so:libc.so:libcamera2ndk.so:libdl.so:libEGL.so:libGLESv1_CM.so:libGLESv2.so:libGLESv3.so:libicu.so:libicui18n.so:libicuuc.so:libjnigraphics.so:liblog.so:libmediandk.so:libm.so:libnativehelper.so:libnativewindow.so:libOpenMAXAL.so:libOpenSLES.so:libRS.so:libstdc++.so:libsync.so:libvulkan.so:libwebviewchromium_plat_support.so:libz.so
+D/nativeloader(24367): Load libicu_jni.so using APEX ns com_android_art for caller /apex/com.android.art/javalib/core-oj.jar: ok
+D/app_process(24367): u_setTimeZoneFilesDirectory("/apex/com.android.tzdata/etc/tz/versioned/8/icu") succeeded. 
+D/app_process(24367): I18n APEX ICU file found: /apex/com.android.i18n/etc/icu/icudt75l.dat
+D/nativeloader(24367): Load libjavacore.so using APEX ns com_android_art for caller /apex/com.android.art/javalib/core-oj.jar: ok
+D/nativeloader(24367): Load libopenjdk.so using APEX ns com_android_art for caller /apex/com.android.art/javalib/core-oj.jar: ok
+W/app_process(24367): Unexpected CPU variant for x86: x86_64.
+W/app_process(24367): Known variants: atom, sandybridge, silvermont, goldmont, goldmont-plus, goldmont-without-sha-xsaves, tremont, kabylake, default
+D/nativeloader(24367): Load libframework-connectivity-tiramisu-jni.so using APEX ns com_android_tethering for caller /apex/com.android.tethering/javalib/framework-connectivity-t.jar: ok
+D/AndroidRuntime(24367): Calling main entry com.android.commands.monkey.Monkey
+W/Monkey  (24367): args: [-p, com.david.atlas, -c, android.intent.category.LAUNCHER, 1]
+W/Monkey  (24367):  arg: "-p"
+W/Monkey  (24367):  arg: "com.david.atlas"
+W/Monkey  (24367):  arg: "-c"
+W/Monkey  (24367):  arg: "android.intent.category.LAUNCHER"
+W/Monkey  (24367):  arg: "1"
+W/Monkey  (24367): data="com.david.atlas"
+W/Monkey  (24367): data="android.intent.category.LAUNCHER"
+W/ActivityManager(  601): registerReceiverWithFeature: no app for null
+W/ActivityTaskManager(  601): callingPackage for (uid=0, pid=24367) has no WPC
+W/OptProp (  601): Cannot read opt property android.window.PROPERTY_COMPAT_ALLOW_USER_ASPECT_RATIO_OVERRIDE
+W/OptProp (  601): Cannot read opt property android.window.PROPERTY_COMPAT_ALLOW_USER_ASPECT_RATIO_FULLSCREEN_OVERRIDE
+W/OptProp (  601): Cannot read opt property android.window.PROPERTY_COMPAT_ALLOW_ORIENTATION_OVERRIDE
+V/GrammaticalInflectionUtils(  601): AttributionSource: AttributionSource { uid = 10234, packageName = null, attributionTag = null, token = android.os.Binder@e46dd8e, deviceId = 0, next = null } does not have READ_SYSTEM_GRAMMATICAL_GENDER permission.
+W/OptProp (  601): Cannot read opt property android.window.PROPERTY_COMPAT_ALLOW_RESIZEABLE_ACTIVITY_OVERRIDES
+W/OptProp (  601): Cannot read opt property android.window.PROPERTY_COMPAT_ALLOW_MIN_ASPECT_RATIO_OVERRIDE
+V/WindowManagerShell(  992): Transition requested (#408): android.os.BinderProxy@f90735 TransitionRequestInfo { type = OPEN, triggerTask = TaskInfo{userId=0 taskId=152 displayId=0 isRunning=true baseIntent=Intent { act=android.intent.action.MAIN cat=[android.intent.category.LAUNCHER] flg=0x10200000 cmp=com.david.atlas/.MainActivity } baseActivity=ComponentInfo{com.david.atlas/com.david.atlas.MainActivity} topActivity=ComponentInfo{com.david.atlas/com.david.atlas.MainActivity} origActivity=null realActivity=ComponentInfo{com.david.atlas/com.david.atlas.MainActivity} numActivities=1 lastActiveTime=70365579 supportsMultiWindow=true resizeMode=1 isResizeable=true minWidth=-1 minHeight=-1 defaultMinSize=220 token=WCT{android.window.IWindowContainerToken$Stub$Proxy@23867ca} topActivityType=1 pictureInPictureParams=null shouldDockBigOverlays=false launchIntoPipHostTaskId=-1 lastParentTaskIdBeforePip=-1 displayCutoutSafeInsets=Rect(0, 132 - 0, 0) topActivityInfo=ActivityInfo{1dfed3b com.david.atlas.MainActivity} launchCookies=[] positionInParent=Point(0, 0) parentTaskId=-1 isFocused=false isVisible=false isVisibleRequested=false isSleeping=false locusId=null displayAreaFeatureId=1 isTopActivityTransparent=false appCompatTaskInfo=AppCompatTaskInfo { topActivityInSizeCompat=false topActivityEligibleForLetterboxEducation= falseisLetterboxEducationEnabled= true isLetterboxDoubleTapEnabled= false topActivityEligibleForUserAspectRatioButton= false topActivityBoundsLetterboxed= false isFromLetterboxDoubleTap= false topActivityLetterboxVerticalPosition= -1 topActivityLetterboxHorizontalPosition= -1 topActivityLetterboxWidth=1080 topActivityLetterboxHeight=2400 isUserFullscreenOverrideEnabled=false isSystemFullscreenOverrideEnabled=false cameraCompatTaskInfo=CameraCompatTaskInfo { cameraCompatControlState=hidden freeformCameraCompatMode=inactive}}}, pipTask = null, remoteTransition = null, displayChange = null, flags = 0, debugId = 408 }
+I/ActivityTaskManager(  601): START u0 {act=android.intent.action.MAIN cat=[android.intent.category.LAUNCHER] flg=0x10200000 cmp=com.david.atlas/.MainActivity} with LAUNCH_SINGLE_TASK from uid 0 (BAL_ALLOW_ALLOWLISTED_UID) result code=0
+I/Monkey  (24367): Events injected: 1
+D/SplashScreenView(  992): Build android.window.SplashScreenView{177a65d V.E...... ......ID 0,0-0,0}
+D/SplashScreenView(  992): Icon: view: android.widget.ImageView{d905bd2 V.ED..... ......I. 0,0-0,0 #1020504 android:id/splashscreen_icon_view} drawable: com.android.wm.shell.startingsurface.SplashscreenIconDrawableFactory$ImmobileIconDrawable@8dd44a3 size: 504
+D/SplashScreenView(  992): Branding: view: android.view.View{a3213a0 G.ED..... ......I. 0,0-0,0 #1020503 android:id/splashscreen_branding_view} drawable: null size w: 0 h: 0
+V/GrammaticalInflectionUtils(  601): AttributionSource: AttributionSource { uid = 10234, packageName = null, attributionTag = null, token = android.os.Binder@e46dd8e, deviceId = 0, next = null } does not have READ_SYSTEM_GRAMMATICAL_GENDER permission.
+W/SplitSelectStateCtor( 1240): Missing session instanceIds
+D/StatsLog( 1240): LAUNCHER_SPLIT_SELECTION_EXIT_INTERRUPTED
+W/Looper  (  992): Slow dispatch took 30ms wmshell.main h=android.os.Handler c=com.android.wm.shell.transition.Transitions$TransitionPlayerImpl$$ExternalSyntheticLambda1@d74631e m=0
+D/WindowManagerShell(  992): setLauncherKeepClearAreaHeight: visible=false, height=527
+W/IPCThreadState(  518): Sending oneway calls to frozen process.
+I/BpBinder(  472): onLastStrongRef automatically unlinking death recipients: 
+D/Zygote  (  398): Forked child process 24378
+I/Monkey  (24367): ## Network stats: elapsed time=61ms (0ms mobile, 0ms wifi, 61ms not connected)
+I/app_process(24367): System.exit called, status: 0
+I/AndroidRuntime(24367): VM exiting with result code 0.
+I/ActivityManager(  601): Start proc 24378:com.david.atlas/u0a234 for next-top-activity {com.david.atlas/com.david.atlas.MainActivity}
+I/netd    (  397): tetherGetStats() -> {[]} <0.27ms>
+D/CoreBackPreview(  601): Window{962f816 u0 Splash Screen com.david.atlas}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@7dbe433, mPriority=0, mIsAnimationCallback=false}
+I/com.david.atlas(24378): Late-enabling -Xcheck:jni
+I/AppsFilter(  601): interaction: PackageSetting{7159225 com.android.microdroid.empty_payload/10200} -> PackageSetting{a99e3f0 com.david.atlas/10234} BLOCKED
+I/AppsFilter(  601): interaction: PackageSetting{b0949ab com.placeholder.boyfriendcam/10209} -> PackageSetting{a99e3f0 com.david.atlas/10234} BLOCKED
+I/com.david.atlas(24378): Using CollectorTypeCMC GC.
+W/com.david.atlas(24378): Unexpected CPU variant for x86: x86_64.
+W/com.david.atlas(24378): Known variants: atom, sandybridge, silvermont, goldmont, goldmont-plus, goldmont-without-sha-xsaves, tremont, kabylake, default
+I/TopTaskTracker( 1240): onTaskMovedToFront: (moved taskInfo to front) taskId=152, baseIntent=Intent { act=android.intent.action.MAIN cat=[android.intent.category.LAUNCHER] flg=0x10200000 cmp=com.david.atlas/.MainActivity }
+W/ProcessStats(  601): Tracking association SourceState{13e31ba com.google.android.apps.nexuslauncher/10179 BTop #38942} whose proc state 2 is better than process ProcessState{8e37151 com.google.android.googlequicksearchbox:search/10144 pkg=com.google.android.googlequicksearchbox} proc state 14 (4 skipped)
+I/adbd    (18880): jdwp connection from 24378
+D/nativeloader(24378): Load libframework-connectivity-tiramisu-jni.so using APEX ns com_android_tethering for caller /apex/com.android.tethering/javalib/framework-connectivity-t.jar: ok
+I/AppWidgetServiceImpl(  601): Received broadcast: android.intent.action.PACKAGE_UNSTOPPED on user 0
+I/AppWidgetServiceImpl(  601): Updating package stopped masked state for uid 10234 package com.david.atlas isStopped false
+V/WindowManagerShell(  992): onTransitionReady(transaction=2581275387984)
+D/EGL_emulation( 1240): app_time_stats: avg=652.64ms min=5.45ms max=9733.59ms count=16
+V/WindowManager(  601): Sent Transition (#408) createdAt=03-13 20:45:20.612 via request=TransitionRequestInfo { type = OPEN, triggerTask = TaskInfo{userId=0 taskId=152 displayId=0 isRunning=true baseIntent=Intent { act=android.intent.action.MAIN cat=[android.intent.category.LAUNCHER] flg=0x10200000 cmp=com.david.atlas/.MainActivity } baseActivity=ComponentInfo{com.david.atlas/com.david.atlas.MainActivity} topActivity=ComponentInfo{com.david.atlas/com.david.atlas.MainActivity} origActivity=null realActivity=ComponentInfo{com.david.atlas/com.david.atlas.MainActivity} numActivities=1 lastActiveTime=70365579 supportsMultiWindow=true resizeMode=1 isResizeable=true minWidth=-1 minHeight=-1 defaultMinSize=220 token=WCT{RemoteToken{1e64023 Task{5dd114a #152 type=standard A=10234:com.david.atlas}}} topActivityType=1 pictureInPictureParams=null shouldDockBigOverlays=false launchIntoPipHostTaskId=-1 lastParentTaskIdBeforePip=-1 displayCutoutSafeInsets=Rect(0, 132 - 0, 0) topActivityInfo=ActivityInfo{4a62920 com.david.atlas.MainActivity} launchCookies=[] positionInParent=Point(0, 0) parentTaskId=-1 isFocused=false isVisible=false isVisibleRequested=false isSleeping=false locusId=null displayAreaFeatureId=1 isTopActivityTransparent=false appCompatTaskInfo=AppCompatTaskInfo { topActivityInSizeCompat=false topActivityEligibleForLetterboxEducation= falseisLetterboxEducationEnabled= true isLetterboxDoubleTapEnabled= false topActivityEligibleForUserAspectRatioButton= false topActivityBoundsLetterboxed= false isFromLetterboxDoubleTap= false topActivityLetterboxVerticalPosition= -1 topActivityLetterboxHorizontalPosition= -1 topActivityLetterboxWidth=1080 topActivityLetterboxHeight=2400 isUserFullscreenOverrideEnabled=false isSystemFullscreenOverrideEnabled=false cameraCompatTaskInfo=CameraCompatTaskInfo { cameraCompatControlState=hidden freeformCameraCompatMode=inactive}}}, pipTask = null, remoteTransition = null, displayChange = null, flags = 0, debugId = 408 }
+V/WindowManager(  601):     startWCT=WindowContainerTransaction { changes = {} hops = [] errorCallbackToken=null taskFragmentOrganizer=null }
+V/WindowManager(  601):     info={id=408 t=OPEN f=0x0 trk=0 r=[0@Point(0, 0)] c=[
+V/WindowManager(  601):         {WCT{RemoteToken{1e64023 Task{5dd114a #152 type=standard A=10234:com.david.atlas}}} m=OPEN f=NONE leash=Surface(name=Task=152)/@0x4ae65b4 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0 taskParent=-1},
+V/WindowManager(  601):         {WCT{RemoteToken{5133c5f Task{c97a555 #1 type=home}}} m=TO_BACK f=SHOW_WALLPAPER leash=Surface(name=Task=1)/@0x966b7f0 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0 taskParent=-1}
+V/WindowManager(  601):     ]}
+W/UserManagerService(  601): Requested status bar icon for non-badged user 0
+W/Looper  (  992): Slow dispatch took 103ms wmshell.main h=android.os.Handler c=com.android.wm.shell.common.ShellExecutor$$ExternalSyntheticLambda1@e835d82 m=0
+W/Looper  (  992): Slow delivery took 94ms wmshell.main h=android.os.Handler c=com.android.wm.shell.pip.phone.PipController$$ExternalSyntheticLambda4@55d9941 m=0
+W/ziparchive(24378): Unable to open '/data/app/~~quKe8orDfeTtvAO20_axaQ==/com.david.atlas-D6nHb0f8Z4OJWYb1GuEqFw==/base.dm': No such file or directory
+W/ziparchive(24378): Unable to open '/data/app/~~quKe8orDfeTtvAO20_axaQ==/com.david.atlas-D6nHb0f8Z4OJWYb1GuEqFw==/base.dm': No such file or directory
+V/WindowManagerShell(  992): onTransitionReady (#408) android.os.BinderProxy@f90735: {id=408 t=OPEN f=0x0 trk=0 r=[0@Point(0, 0)] c=[{WCT{android.window.IWindowContainerToken$Stub$Proxy@e41a4d0} m=OPEN f=NONE leash=Surface(name=Task=152)/@0xe5bb7f6 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0 taskParent=-1},{WCT{android.window.IWindowContainerToken$Stub$Proxy@b0abcc9} m=TO_BACK f=SHOW_WALLPAPER leash=Surface(name=Task=1)/@0xd5e77f7 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0 taskParent=-1}]}
+V/WindowManagerShell(  992): Playing animation for (#408) android.os.BinderProxy@f90735@0
+V/WindowManagerShell(  992):  try handler com.android.wm.shell.transition.DefaultMixedHandler@5bd864d
+V/WindowManagerShell(  992):  try handler com.android.wm.shell.keyguard.KeyguardTransitionHandler@d2bd502
+V/WindowManagerShell(  992):  try handler com.android.wm.shell.pip.PipTransition@81c7e13
+V/WindowManagerShell(  992):  try handler com.android.wm.shell.activityembedding.ActivityEmbeddingController@83da850
+V/WindowManagerShell(  992):  try handler com.android.wm.shell.recents.RecentsTransitionHandler@9693a49
+V/ShellRecents(  992): RecentsTransitionHandler.startAnimation: no controller found
+V/WindowManagerShell(  992):  try handler com.android.wm.shell.splitscreen.StageCoordinator@f063f4e
+V/WindowManagerShell(  992):  try handler com.android.wm.shell.transition.RemoteTransitionHandler@146e86f
+V/WindowManagerShell(  992): Transition doesn't have explicit remote, search filters for match for {id=408 t=OPEN f=0x0 trk=0 r=[0@Point(0, 0)] c=[{WCT{android.window.IWindowContainerToken$Stub$Proxy@e41a4d0} m=OPEN f=NONE leash=Surface(name=Task=152)/@0xe5bb7f6 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0 taskParent=-1},{WCT{android.window.IWindowContainerToken$Stub$Proxy@b0abcc9} m=TO_BACK f=SHOW_WALLPAPER leash=Surface(name=Task=1)/@0xd5e77f7 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0 taskParent=-1}]}
+V/WindowManagerShell(  992):  Checking filter Pair{{types=[] flags=0x0] notFlags=0x0 checks=[{atype=undefined independent=true modes=[OPEN,TO_FRONT] flags=IN_TASK_WITH_EMBEDDED_ACTIVITY mustBeTask=false order=ANY topActivity=ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity} launchCookie=null},{atype=undefined independent=true modes=[CLOSE,TO_BACK] flags=IN_TASK_WITH_EMBEDDED_ACTIVITY mustBeTask=false order=ANY topActivity=null launchCookie=null}]} RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@679a977, appThread = android.app.IApplicationThread$Stub$Proxy@c7999e4, debugName = OverlaySwipeBack }}
+V/WindowManagerShell(  992):  Checking filter Pair{{types=[] flags=0x0] notFlags=0x0 checks=[{atype=dream independent=true modes=[OPEN,TO_FRONT] flags=NONE mustBeTask=false order=ANY topActivity=null launchCookie=null},{atype=home independent=true modes=[CLOSE,TO_BACK] flags=NONE mustBeTask=false order=ANY topActivity=null launchCookie=null}]} RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@ccca636, appThread = android.app.IApplicationThread$Stub$Proxy@18b6937, debugName = LauncherToDream }}
+V/WindowManagerShell(  992):  Checking filter Pair{{types=[] flags=0x0] notFlags=0x100 checks=[{atype=home independent=true modes=[OPEN,TO_FRONT] flags=NONE mustBeTask=false order=TOP topActivity=ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity} launchCookie=null},{atype=standard independent=true modes=[CLOSE,TO_BACK] flags=NONE mustBeTask=false order=ANY topActivity=null launchCookie=null}]} RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@9f4bea4, appThread = android.app.IApplicationThread$Stub$Proxy@623540d, debugName = QuickstepLaunchHome }}
+V/WindowManagerShell(  992):  Delegate animation for (#408) to null
+V/WindowManagerShell(  992):  try handler com.android.wm.shell.transition.DefaultTransitionHandler@666ea26
+V/WindowManagerShell(  992): start default transition animation, info = {id=408 t=OPEN f=0x0 trk=0 r=[0@Point(0, 0)] c=[{WCT{android.window.IWindowContainerToken$Stub$Proxy@e41a4d0} m=OPEN f=NONE leash=Surface(name=Task=152)/@0xe5bb7f6 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0 taskParent=-1},{WCT{android.window.IWindowContainerToken$Stub$Proxy@b0abcc9} m=TO_BACK f=SHOW_WALLPAPER leash=Surface(name=Task=1)/@0xd5e77f7 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0 taskParent=-1}]}
+V/WindowManagerShell(  992): loadAnimation: anim=android.view.animation.AnimationSet@58dcfce animAttr=0x13 type=OPEN isEntrance=false
+V/WindowManagerShell(  992): loadAnimation: anim=android.view.animation.AnimationSet@a066eef animAttr=0x12 type=OPEN isEntrance=true
+V/WindowManagerShell(  992):  animated by com.android.wm.shell.transition.DefaultTransitionHandler@666ea26
+D/EGL_emulation(  992): app_time_stats: avg=20937.80ms min=20937.80ms max=20937.80ms count=1
+D/EGL_emulation( 1240): app_time_stats: avg=1162.03ms min=8.87ms max=9991.92ms count=9
+W/Looper  (  992): Slow delivery took 84ms wmshell.anim h=android.view.Choreographer$FrameHandler c=android.view.Choreographer$FrameDisplayEventReceiver@46675c3 m=0
+W/Looper  (  992): Drained
+W/Looper  (  992): Drained
+V/WindowManagerShell(  992): Transition animation finished (aborted=false), notifying core (#408) android.os.BinderProxy@f90735@0
+D/nativeloader(24378): Configuring clns-7 for other apk /data/app/~~quKe8orDfeTtvAO20_axaQ==/com.david.atlas-D6nHb0f8Z4OJWYb1GuEqFw==/base.apk. target_sdk_version=36, uses_libraries=, library_path=/data/app/~~quKe8orDfeTtvAO20_axaQ==/com.david.atlas-D6nHb0f8Z4OJWYb1GuEqFw==/lib/x86_64:/data/app/~~quKe8orDfeTtvAO20_axaQ==/com.david.atlas-D6nHb0f8Z4OJWYb1GuEqFw==/base.apk!/lib/x86_64, permitted_path=/data:/mnt/expand:/data/user/0/com.david.atlas
+V/WindowManagerShell(  992): Track 0 became idle
+V/WindowManager(  601): Finish Transition (#408): created at 03-13 20:45:20.612 collect-started=0.07ms request-sent=14.965ms started=39.819ms ready=238.154ms sent=255.233ms finished=678.312ms
+W/UserManagerService(  601): Requested status bar icon for non-badged user 0
+W/UserManagerService(  601): Requested status bar icon for non-badged user 0
+V/WindowManagerShell(  992): All active transition animations finished
+V/GraphicsEnvironment(24378): Currently set values for:
+V/GraphicsEnvironment(24378):   angle_gl_driver_selection_pkgs=[]
+V/GraphicsEnvironment(24378):   angle_gl_driver_selection_values=[]
+V/GraphicsEnvironment(24378): Global.Settings values are invalid: number of packages: 0, number of values: 0
+V/GraphicsEnvironment(24378): Neither updatable production driver nor prerelease driver is supported.
+D/VRI[NexusLauncherActivity]( 1240): visibilityChanged oldVisibility=true newVisibility=false
+D/NexusLauncherModelDelegate( 1240): notifySmartspaceEvent: SmartspaceTargetEvent{mSmartspaceTarget=null, mSmartspaceActionId='null', mEventType=7}
+W/FirebaseApp(24378): Default FirebaseApp failed to initialize because no default options were found. This usually means that com.google.gms:google-services was not applied to your gradle project.
+I/FirebaseInitProvider(24378): FirebaseApp initialization unsuccessful
+W/SoLoader(24378): Initializing SoLoader: 0
+W/SoLoader(24378): Recording new base apk path: /data/app/~~quKe8orDfeTtvAO20_axaQ==/com.david.atlas-D6nHb0f8Z4OJWYb1GuEqFw==/base.apk
+W/SoLoader(24378): Previously recorded 0 base apk paths.
+I/SoLoader(24378): Preparing SO source: DirectorySoSource[root = /vendor/lib64 flags = 2]
+I/SoLoader(24378): Preparing SO source: DirectorySoSource[root = /system/lib64 flags = 2]
+I/SoLoader(24378): Preparing SO source: DirectApkSoSource[root = [/data/app/~~quKe8orDfeTtvAO20_axaQ==/com.david.atlas-D6nHb0f8Z4OJWYb1GuEqFw==/base.apk!/lib/x86_64]]
+I/SoLoader(24378): Preparing SO source: ApplicationSoSource[DirectorySoSource[root = /data/app/~~quKe8orDfeTtvAO20_axaQ==/com.david.atlas-D6nHb0f8Z4OJWYb1GuEqFw==/lib/x86_64 flags = 0]]
+I/SoLoader(24378): init finish: 4 SO sources prepared
+W/SoLoader(24378): SoLoader initialized: 8
+D/nativeloader(24378): Load /data/app/~~quKe8orDfeTtvAO20_axaQ==/com.david.atlas-D6nHb0f8Z4OJWYb1GuEqFw==/base.apk!/lib/x86_64/libc++_shared.so using ns clns-7 from class loader (caller=/data/app/~~quKe8orDfeTtvAO20_axaQ==/com.david.atlas-D6nHb0f8Z4OJWYb1GuEqFw==/base.apk!classes20.dex): ok
+D/nativeloader(24378): Load /data/app/~~quKe8orDfeTtvAO20_axaQ==/com.david.atlas-D6nHb0f8Z4OJWYb1GuEqFw==/base.apk!/lib/x86_64/libjsi.so using ns clns-7 from class loader (caller=/data/app/~~quKe8orDfeTtvAO20_axaQ==/com.david.atlas-D6nHb0f8Z4OJWYb1GuEqFw==/base.apk!classes20.dex): ok
+D/nativeloader(24378): Load /data/app/~~quKe8orDfeTtvAO20_axaQ==/com.david.atlas-D6nHb0f8Z4OJWYb1GuEqFw==/base.apk!/lib/x86_64/libfbjni.so using ns clns-7 from class loader (caller=/data/app/~~quKe8orDfeTtvAO20_axaQ==/com.david.atlas-D6nHb0f8Z4OJWYb1GuEqFw==/base.apk!classes20.dex): ok
+D/nativeloader(24378): Load /data/app/~~quKe8orDfeTtvAO20_axaQ==/com.david.atlas-D6nHb0f8Z4OJWYb1GuEqFw==/base.apk!/lib/x86_64/libreactnative.so using ns clns-7 from class loader (caller=/data/app/~~quKe8orDfeTtvAO20_axaQ==/com.david.atlas-D6nHb0f8Z4OJWYb1GuEqFw==/base.apk!classes20.dex): ok
+D/jni_lib_merge(24378): Entering merged library JNI_OnLoad.
+D/jni_lib_merge(24378): Preparing 12 pre-merged libs (including stub)
+D/jni_lib_merge(24378): Preparing to register libfabricjni_so.  onload_func: 0x7adea69a9550
+D/jni_lib_merge(24378): Preparing to register libreact_devsupportjni_so.  onload_func: 0x7adea6b96c30
+D/jni_lib_merge(24378): Preparing to register libreact_featureflagsjni_so.  onload_func: 0x7adea6ba4780
+D/jni_lib_merge(24378): Preparing to register libreact_newarchdefaults_so.  onload_func: 0x7adea6c091f0
+D/jni_lib_merge(24378): Preparing to register libreactnativeblob_so.  onload_func: 0x7adea6df1400
+D/jni_lib_merge(24378): Preparing to register libreactnativejni_so.  onload_func: 0x7adea6e3bcb0
+D/jni_lib_merge(24378): Preparing to register libreactnativejni_common_so.  onload_func: 0x7adea6e4bab0
+D/jni_lib_merge(24378): Preparing to register librninstance_so.  onload_func: 0x7adea6e91920
+D/jni_lib_merge(24378): Preparing to register libturbomodulejsijni_so.  onload_func: 0x7adea6fb06a0
+D/jni_lib_merge(24378): Preparing to register libuimanagerjni_so.  onload_func: 0x7adea6fc8920
+D/jni_lib_merge(24378): Preparing to register libyoga_so.  onload_func: 0x7adea6fd78b0
+D/jni_lib_merge(24378): About to register 11 actual methods.
+D/nativeloader(24378): Load /data/app/~~quKe8orDfeTtvAO20_axaQ==/com.david.atlas-D6nHb0f8Z4OJWYb1GuEqFw==/base.apk!/lib/x86_64/libreact_codegen_rnscreens.so using ns clns-7 from class loader (caller=/data/app/~~quKe8orDfeTtvAO20_axaQ==/com.david.atlas-D6nHb0f8Z4OJWYb1GuEqFw==/base.apk!classes20.dex): ok
+D/jni_lib_merge(24378): Entering merged library JNI_OnLoad.
+D/jni_lib_merge(24378): Preparing 12 pre-merged libs (including stub)
+D/jni_lib_merge(24378): Preparing to register libfabricjni_so.  onload_func: 0x7adea69a9550
+D/jni_lib_merge(24378): Preparing to register libreact_devsupportjni_so.  onload_func: 0x7adea6b96c30
+D/jni_lib_merge(24378): Preparing to register libreact_featureflagsjni_so.  onload_func: 0x7adea6ba4780
+D/jni_lib_merge(24378): Preparing to register libreact_newarchdefaults_so.  onload_func: 0x7adea6c091f0
+D/jni_lib_merge(24378): Preparing to register libreactnativeblob_so.  onload_func: 0x7adea6df1400
+D/jni_lib_merge(24378): Preparing to register libreactnativejni_so.  onload_func: 0x7adea6e3bcb0
+D/jni_lib_merge(24378): Preparing to register libreactnativejni_common_so.  onload_func: 0x7adea6e4bab0
+D/jni_lib_merge(24378): Preparing to register librninstance_so.  onload_func: 0x7adea6e91920
+D/jni_lib_merge(24378): Preparing to register libturbomodulejsijni_so.  onload_func: 0x7adea6fb06a0
+D/jni_lib_merge(24378): Preparing to register libuimanagerjni_so.  onload_func: 0x7adea6fc8920
+D/jni_lib_merge(24378): Preparing to register libyoga_so.  onload_func: 0x7adea6fd78b0
+D/jni_lib_merge(24378): About to register 11 actual methods.
+D/nativeloader(24378): Load /data/app/~~quKe8orDfeTtvAO20_axaQ==/com.david.atlas-D6nHb0f8Z4OJWYb1GuEqFw==/base.apk!/lib/x86_64/libreact_codegen_safeareacontext.so using ns clns-7 from class loader (caller=/data/app/~~quKe8orDfeTtvAO20_axaQ==/com.david.atlas-D6nHb0f8Z4OJWYb1GuEqFw==/base.apk!classes20.dex): ok
+D/nativeloader(24378): Load /data/app/~~quKe8orDfeTtvAO20_axaQ==/com.david.atlas-D6nHb0f8Z4OJWYb1GuEqFw==/base.apk!/lib/x86_64/libappmodules.so using ns clns-7 from class loader (caller=/data/app/~~quKe8orDfeTtvAO20_axaQ==/com.david.atlas-D6nHb0f8Z4OJWYb1GuEqFw==/base.apk!classes20.dex): ok
+W/OptProp (  601): Cannot read opt property android.window.PROPERTY_COMPAT_ENABLE_FAKE_FOCUS
+I/BroadcastQueue(  601): BOOT_COMPLETED_BROADCAST_COMPLETION_LATENCY_REPORTED action:android.intent.action.BOOT_COMPLETED dispatchLatency:15 completeLatency:1305 dispatchRealLatency:15 completeRealLatency:1305 receiversSize:1 userId:0 userType:android.os.usertype.full.SYSTEM
+D/AppCompatDelegate(24378): Checking for metadata for AppLocalesMetadataHolderService : Service not found
+W/com.david.atlas(24378): Accessing hidden method Landroid/view/ViewGroup;->makeOptionalFitsSystemWindows()V (unsupported, reflection, allowed)
+W/unknown:BridgelessReact(24378): ReactHost{0}.startSurface(surfaceId = 0): Schedule
+W/unknown:BridgelessReact(24378): ReactHost{0}.attachSurface(surfaceId = 0)
+W/unknown:BridgelessReact(24378): ReactHost{0}.getOrCreateReactInstanceTask()
+W/unknown:BridgelessReact(24378): ReactHost{0}.getOrCreateReactInstanceTask(): Start
+W/unknown:BridgelessReact(24378): ReactHost{0}.getJSBundleLoader()
+W/unknown:BridgelessReact(24378): ReactHost{0}.isMetroRunning()
+W/unknown:BridgelessReact(24378): ReactHost{0}.onHostResume(activity)
+W/unknown:ReactNative(24378): Packager connection already open, nooping.
+W/HWUI    (24378): Unknown dataspace 0
+D/TrafficStats(24378): tagSocket(99) with statsTag=0xffffffff, statsUid=-1
+D/TrafficStats(24378): tagSocket(98) with statsTag=0xffffffff, statsUid=-1
+D/CoreBackPreview(  601): Window{c5a8b7c u0 com.david.atlas/com.david.atlas.MainActivity}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@95fe45a, mPriority=0, mIsAnimationCallback=false}
+I/EGL_emulation(24378): Opening libGLESv1_CM_emulation.so
+I/EGL_emulation(24378): Opening libGLESv2_emulation.so
+W/HWUI    (24378): Failed to choose config with EGL_SWAP_BEHAVIOR_PRESERVED, retrying without...
+W/HWUI    (24378): Failed to initialize 101010-2 format, error = EGL_SUCCESS
+W/unknown:BridgelessReact(24378): ReactHost{0}.isMetroRunning(): Async result = true
+W/unknown:BridgelessReact(24378): ReactHost{0}.loadJSBundleFromMetro()
+--------- beginning of kernel
+I/servicemanager(    0): Caller(pid=24378,uid=10234,sid=u:r:untrusted_app:s0:c234,c256,c512,c768) Could not find android.hardware.graphics.allocator.IAllocator/default in the VINTF manifest. No alternative instances declared in VINTF.
+I/hwservicemanager(  177): getTransport: Cannot find entry android.hardware.graphics.mapper@4.0::IMapper/default in either framework or device VINTF manifest.
+I/Gralloc4(24378): mapper 4.x is not supported
+D/CoreBackPreview(  601): Window{256ce14 u0 PopupWindow:d208d73}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@216a4b2, mPriority=0, mIsAnimationCallback=false}
+D/SplashScreenView(24378): Building from parcel drawable: android.graphics.drawable.BitmapDrawable@d5667c7
+D/SplashScreenView(24378): Build android.window.SplashScreenView{a85d1d V.E...... ......ID 0,0-0,0}
+D/SplashScreenView(24378): Icon: view: androidx.appcompat.widget.AppCompatImageView{57cab92 V.ED..... ......I. 0,0-0,0 #1020504 android:id/splashscreen_icon_view} drawable: android.graphics.drawable.BitmapDrawable@d5667c7 size: 504
+D/SplashScreenView(24378): Branding: view: android.view.View{747b963 G.ED..... ......I. 0,0-0,0 #1020503 android:id/splashscreen_branding_view} drawable: null size w: 0 h: 0
+W/ContentProviderHelper(  601): Slow operation: 55ms so far, now at getContentProviderImpl: done!
+I/FontLog ( 1340): Received query Noto Color Emoji Compat, URI content://com.google.android.gms.fonts [CONTEXT service_id=132 ]
+I/FontLog ( 1340): Query [emojicompat-emoji-font] resolved to {Noto Color Emoji Compat, wdth 100.0, wght 400, ital 0.0, bestEffort false} [CONTEXT service_id=132 ]
+W/Looper  (  992): Slow delivery took 39ms wmshell.main h=android.os.Handler c=android.window.TaskOrganizer$1$$ExternalSyntheticLambda3@7e74ce7 m=0
+I/FontLog ( 1340): Fetch {Noto Color Emoji Compat, wdth 100.0, wght 400, ital 0.0, bestEffort false} end status Status{statusCode=SUCCESS, resolution=null} [CONTEXT service_id=132 ]
+W/WindowOnBackDispatcher(  992): sendCancelIfRunning: isInProgress=false callback=android.view.ViewRootImpl$$ExternalSyntheticLambda11@8be4415
+D/CoreBackPreview(  601): Window{962f816 u0 Splash Screen com.david.atlas}: Setting back callback null
+W/InputManager-JNI(  601): Input channel object '962f816 Splash Screen com.david.atlas (client)' was disposed without first being removed with the input manager!
+W/IPCThreadState(  518): Sending oneway calls to frozen process.
+I/FontLog ( 1340): Pulling font file for id = 155, cache size = 5 [CONTEXT service_id=132 ]
+I/netd    (  397): tetherGetStats() -> {[]} <0.81ms>
+I/FontLog ( 1340): Pulling font file for id = 155, cache size = 5 [CONTEXT service_id=132 ]
+D/EGL_emulation(  992): app_time_stats: avg=445.02ms min=2.84ms max=2995.31ms count=7
+D/SplashScreenView(24378): remove starting view
+E/TaskPersister(  601): File error accessing recents directory (directory doesn't exist?).
+D/EGL_emulation(  992): app_time_stats: avg=348.87ms min=20.53ms max=1185.65ms count=4
+I/com.david.atlas(24378): Compiler allocated 5174KB to compile void android.view.ViewRootImpl.performTraversals()
+I/netd    (  397): tetherGetStats() -> {[]} <11.62ms>
+D/ProfileInstaller(24378): Installing profile for com.david.atlas
+D/MddListenableWorkerFactory(16314): createWorker for class: com.google.apps.tiktok.contrib.work.TikTokListenableWorker
+I/SyncManagerImpl(16314): #sync(). Running Synclets and scheduling next sync.
+I/SyncManagerImpl(16314): Starting synclet: CobaltSynclet
+I/.apps.messaging(16314): WaitForGcToComplete blocked ProfileSaver on None for 5.384ms
+I/BugleCobalt(16314): logging the cobalt app install metric
+I/MobaltLoggerImpl(16314): Mobalt: schedule recording occurrence metric
+I/LogWriter(16314): Mobalt: start logging 8 metric
+W/.apps.messaging(16314): Long monitor contention with owner GoogleApiHandler (16339) at boolean cfqa.b(cfpw, android.content.ServiceConnection, java.lang.String)(PG:68) waiters=0 in void cfpy.onServiceConnected(android.content.ComponentName, android.os.IBinder) for 127ms
+I/SyncManagerImpl(16314): Completed sync. Scheduling next wakeup
+I/SyncManagerImpl(16314): #sync() complete
+I/SyncWorkManagerOneTimeS(16314): Scheduling next onetime WorkManager workers
+I/WM-WorkerWrapper(16314): Worker result SUCCESS for Work [ id=e8ee43f3-3ce2-4185-afda-384d9c2cfd1d, tags={ com.google.apps.tiktok.contrib.work.TikTokListenableWorker,com.google.apps.tiktok.sync.impl.workmanager.SyncWorker,TikTokWorker#com.google.apps.tiktok.sync.impl.workmanager.SyncWorker } ]
+I/com.david.atlas(24378): Compiler allocated 4219KB to compile void android.widget.TextView.<init>(android.content.Context, android.util.AttributeSet, int, int)
+I/LogWriter(16314): Mobalt: logged event to 3 reports
+W/Looper  (  601): Slow dispatch took 131ms main h=android.app.ActivityThread$H c=android.app.LoadedApk$ServiceDispatcher$RunConnection@e540e5 m=0
+I/SyncWorkManagerOneTimeS(16314): Successfully scheduled next onetime workers
+W/WM-Processor(16314): Didn't find WorkSpec for id WorkGenerationalId(workSpecId=e8ee43f3-3ce2-4185-afda-384d9c2cfd1d, generation=0)
+W/JobScheduler(  601): Job didn't exist in JobStore: bafda71 {androidx.work.systemjobscheduler} #u0a137/1189 @androidx.work.systemjobscheduler@com.google.android.apps.messaging/androidx.work.impl.background.systemjob.SystemJobService
+W/ActivityTaskManager(  601): Launch timeout has expired, giving up wake lock!
+I/netd    (  397): tetherGetStats() -> {[]} <3.28ms>
+I/netd    (  397): bandwidthSetGlobalAlert(2097152) <0.47ms>
+I/netd    (  397): bandwidthRemoveInterfaceQuota(eth0) <24.27ms>
+I/netd    (  397): bandwidthSetInterfaceQuota(eth0, 9223372036854775807) <10.60ms>
+I/com.david.atlas(24378): Background concurrent mark compact GC freed 5627KB AllocSpace bytes, 17(1076KB) LOS objects, 49% free, 6745KB/13MB, paused 29.434ms,15.084ms total 225.795ms
+W/System  (24378): A resource failed to call release. 
+D/ZenModeController(  992): Added callback class com.android.systemui.qs.tiles.DndTile$3
+I/QuickAccessWalletTile(  992): QAW service is unavailable, recreating the wallet client.
+D/ControlsListingControllerImpl(  992): Subscribing callback, service count: 0
+D/ZenModeController(  992): Removed callback class com.android.systemui.qs.tiles.DndTile$3
+D/ControlsListingControllerImpl(  992): Unsubscribing callback
+D/BaseDepthController( 1240): setSurface:
+D/BaseDepthController( 1240): 	mWaitingOnSurfaceValidity: false
+D/BaseDepthController( 1240): 	mSurface: null
+D/BaseDepthController( 1240): mSurface is null and mCurrentBlur is: 0
+D/StateManager( 1240): goToState - fromState: Normal, toState: Normal, partial trace:
+D/StateManager( 1240): 	at com.android.launcher3.statemanager.StateManager.moveToRestState(go/retraceme 31f9979659277bb965985aff1272c33e3c3c9e755b77166d20a2465454178f2c:4)
+D/StateManager( 1240): 	at com.android.launcher3.statemanager.StateManager.moveToRestState(go/retraceme 31f9979659277bb965985aff1272c33e3c3c9e755b77166d20a2465454178f2c:1)
+D/StateManager( 1240): 	at com.android.launcher3.statemanager.StatefulActivity.onStop(go/retraceme 31f9979659277bb965985aff1272c33e3c3c9e755b77166d20a2465454178f2c:34)
+D/StatsLog( 1240): LAUNCHER_ONSTOP
+I/AppWidgetServiceImpl(  601): setAppWidgetHidden() 0
+D/OneSearchSuggestProvider( 1240): Shut down the binder channel
+I/IPCThreadState( 1240): oneway function results for code 2 on binder at 0x7ae0bf946d90 will be dropped but finished with status UNKNOWN_TRANSACTION
+D/StatsLog( 1240): LAUNCHER_GOOGLE_SEARCH_RESTORE_LIST_SIZE_AFTER_ACTIVITY_RESTART
+W/ProcessStats(  601): Tracking association SourceState{13e31ba com.google.android.apps.nexuslauncher/10179 BFgs #38959} whose proc state 4 is better than process ProcessState{8e37151 com.google.android.googlequicksearchbox:search/10144 pkg=com.google.android.googlequicksearchbox} proc state 14 (0 skipped)
+W/Looper  (  992): Drained
+I/netd    (  397): tetherGetStats() -> {[]} <0.50ms>
+W/BpBinder(24426): Linking to death on android.gui.ISurfaceComposer but there are no threads (yet?) listening to incoming transactions. See ProcessState::startThreadPool and ProcessState::setThreadPoolMaxThreadCount. Generally you should setup the binder threadpool before other initialization steps.
+W/ProcessState(24426): Extra binder thread started, but 0 threads requested. Do not use *startThreadPool when zero threads are requested.
+I/servicemanager(    0): Caller(pid=24426,uid=0,sid=u:r:su:s0) Could not find android.hardware.graphics.allocator.IAllocator/default in the VINTF manifest. No alternative instances declared in VINTF.
+I/hwservicemanager(  177): getTransport: Cannot find entry android.hardware.graphics.mapper@4.0::IMapper/default in either framework or device VINTF manifest.
+I/Gralloc4(24426): mapper 4.x is not supported
+I/netd    (  397): tetherGetStats() -> {[]} <0.54ms>
+I/netd    (  397): bandwidthSetGlobalAlert(2097152) <0.21ms>
+I/com.david.atlas(24378): Background concurrent mark compact GC freed 1560KB AllocSpace bytes, 0(0B) LOS objects, 49% free, 11MB/23MB, paused 891us,12.593ms total 280.709ms
+I/netd    (  397): tetherGetStats() -> {[]} <5.86ms>
+I/netd    (  397): bandwidthSetGlobalAlert(2097152) <10.81ms>
+I/netd    (  397): bandwidthRemoveInterfaceQuota(eth0) <0.96ms>
+I/netd    (  397): bandwidthSetInterfaceQuota(eth0, 9223372036854775807) <13.31ms>
+D/ActivityManager(  601): freezing 22481 com.google.android.googlequicksearchbox:search
+I/logd    (    0): logdr: UID=0 GID=0 PID=24428 n tail=0 logMask=99 pid=0 start=0ns deadline=0ns

@@ -1,0 +1,6 @@
+0: Future saved amount | android.widget.EditText | center=541,170 | bounds=[129,132][953,208]
+1: mg | android.widget.EditText | center=541,381 | bounds=[129,312][953,449]
+2: 7 days | android.widget.Button | center=540,803 | bounds=[129,726][951,879]
+3: 14 days | android.widget.Button | center=540,986 | bounds=[129,910][951,1062]
+4: 30 days | android.widget.Button | center=540,1170 | bounds=[129,1094][951,1246]
+5: Cancel | android.widget.Button | center=540,2146 | bounds=[63,2080][1017,2212]
