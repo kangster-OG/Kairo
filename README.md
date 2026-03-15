@@ -1,50 +1,72 @@
-# Welcome to your Expo app 👋
+# Atlas
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Atlas is a local-first, privacy-first tracker for injectable routines.
 
-## Get started
+The current product is primarily a native iPhone app under `atlas-ios/`. The legacy React Native app remains in the repo as:
+- the product oracle for semantics
+- the Android path
+- the migration/export source
 
-1. Install dependencies
+React Native Atlas is frozen except for:
+- critical bug fixes
+- Atlas export-contract fixes required for migration
+- Android-only stability fixes
 
-   ```bash
-   npm install
-   ```
+## Current status
+- Native parity is complete in code.
+- Universal Migration + Provider Handoff is complete in code.
+- Review Mode is complete in code.
+- Episode Intelligence is complete in code.
+- Final release hardening is complete in code.
+- Release readiness is currently `CONDITIONAL` pending physical-device QA and signed TestFlight smoke.
 
-2. Start the app
+See:
+- [atlas-ios/README.md](atlas-ios/README.md)
+- [docs/native-release-readiness.md](docs/native-release-readiness.md)
+- [PLANS.md](PLANS.md)
 
-   ```bash
-   npx expo start
-   ```
+## Repo layout
+- `atlas-ios/`
+  - native iOS app, local Swift packages, Xcode project, tests
+- `src/`, `app/`, Expo config
+  - legacy React Native app and Android path
+- `docs/`
+  - architecture, privacy, export spec, migration history, release docs
+- `qa/`
+  - manual QA scripts and release checklists
 
-In the output, you'll find options to open the app in a
+## Source of truth order
+When repo docs disagree, use this order:
+1. native iOS code in `atlas-ios/`
+2. `atlas-ios/README.md`
+3. `docs/native-release-readiness.md`
+4. `docs/ios-architecture.md`
+5. `docs/privacy-security-spec.md`
+6. `docs/atlas-export-v1-spec.md`
+7. `PLANS.md`
+8. older migration/history docs and legacy RN docs
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+## Native product surface
+The native app currently includes:
+- onboarding and guest/account boundary
+- Today, Timeline, Library, Insights, and Settings
+- protocol creation/edit
+- Protocol Change Studio
+- local reminders and quick logging
+- immutable history
+- inventory, vials, depletion, and manual corrections
+- reconstitution calculator and saved profiles
+- site tracking
+- Trust Vault, alias/discreet rendering, and biometric gating
+- selective sharing and raw exports
+- universal import and provider handoff
+- Review Mode
+- metrics, custom metrics, and insights
+- deterministic Episode Intelligence
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+## Build and verification
+Primary native build/test instructions live in:
+- [atlas-ios/README.md](atlas-ios/README.md)
 
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
-```
-
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
-
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+Primary manual beta checklist lives in:
+- [qa/native-ios-release-manual-checklist.md](qa/native-ios-release-manual-checklist.md)

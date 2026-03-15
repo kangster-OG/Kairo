@@ -1,68 +1,47 @@
 # Atlas Native iOS Migration Plan
 
-## Summary
-Atlas now has a real local-first React Native beta, not just an onboarding prototype. The native iOS app should be built in parallel under `atlas-ios/` while the React Native app remains:
-- the product oracle
-- the Android path
-- the migration/export source
+## Current state
+This document is now primarily a migration history and status record.
 
-Phase 1 is foundation only. It establishes the native app shell, module boundaries, and extension scaffolding without porting the full product logic yet.
+The migration from a React Native beta app to a native iPhone-first Atlas product has already been executed in code. Native parity and the currently planned second-order features are complete in the repo.
 
-## Current React Native product surface
-Implemented in the React Native app today:
-- onboarding with privacy and track-type branching
-- guest/account boundary
-- Today, Timeline, Library, Insights, and Settings shell
-- protocol creation
-- weekly and every-N-days scheduling
-- quick logging for taken, skipped, and rescheduled actions
-- immutable log events
-- reminders with privacy-aware copy
-- inventory, vials, low-stock thresholds, and manual corrections
-- site tracking
-- calculator profiles
-- weight, symptom, and custom metrics
-- insights
-- exports
-- Trust Vault, aliases, selective sharing, and privacy audits
+## Strategic result
+- React Native Atlas remains:
+  - the product oracle
+  - the Android path
+  - the migration/export source
+- Native iOS under `atlas-ios/` is the primary iOS product path.
 
-## Port first
-- app shell and navigation
-- local module boundaries and DI
-- native persistence boundary
-- Atlas Export import bridge
-- protocols, revisions, schedule/day loop
-- reminders and quick logging
-- inventory, calculator, and site tracking
-- Timeline and Insights
+## What was migrated
+Native Atlas now includes:
+- onboarding and guest/account boundary
+- Today, Timeline, Library, Insights, and Settings
+- protocol creation/edit
+- revision-aware schedule/day-loop behavior
+- local reminders
+- quick logging and immutable history
+- inventory, vials, calculator profiles, and site tracking
+- Protocol Change Studio
 - Trust Vault and selective sharing
+- raw exports
+- universal import and provider handoff
+- Review Mode
+- metrics and custom metrics
+- deterministic Episode Intelligence
 
-## Port later
-- sync execution
-- provider handoff
-- review mode
-- episode intelligence
-- richer HealthKit behavior
-- ActivityKit implementation beyond scaffold review
+## Migration architecture that remains in force
+- React Native semantics remain the oracle when native behavior is questioned.
+- Atlas JSON export remains the canonical migration-grade interchange format.
+- Local-first SQLite/GRDB remains the native source of truth.
+- Shared projection data remains separate from the canonical store for extensions.
+- Historical logs remain immutable.
 
-## Phase sequence
-### Phase 1
-- native project and targets
-- local Swift packages
-- SwiftUI shell
-- settings and Trust Vault shells
-- extension and system scaffolds
+## Remaining migration-era work
+The remaining work is not feature migration. It is release and operational hardening:
+- physical-device QA
+- TestFlight archive/upload smoke
+- documentation truth-alignment
+- beta rollout discipline
 
-### Phase 2
-- GRDB persistence
-- Atlas Export v1 staging and import bridge
-- first data-backed native screens
-
-### Later parity phases
-- schedule/day loop parity
-- reminders/logging parity
-- inventory/calculator/site parity
-- Trust Vault/export parity
-
-## Freeze rule
-No new second-order feature work should resume until native parity through Trust Vault is complete.
+## Historical note
+Earlier versions of this document described Phase 1 shell work, Phase 2 persistence, and later parity phases. Those phases are complete and should no longer be interpreted as the current native product status.

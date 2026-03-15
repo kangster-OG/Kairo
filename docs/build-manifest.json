@@ -3,16 +3,35 @@
   "project": "atlas",
   "artifacts": [
     {
-      "id": "foundation",
-      "status": "scaffolded",
+      "id": "legacy-react-native-oracle",
+      "status": "frozen",
       "routes": ["/", "/onboarding", "/auth", "/today"],
       "state": "zustand",
       "forms": "react-hook-form + zod",
-      "persistence": "AsyncStorage via onboarding storage adapter",
+      "persistence": "React Native local layers plus export source behavior",
       "notes": [
-        "Onboarding is the first routed vertical slice.",
-        "Supabase is isolated behind a client boundary for future cloud auth work.",
-        "Protocol engine is intentionally deferred."
+        "React Native Atlas remains the product oracle, Android path, and migration/export source.",
+        "It is no longer the future primary iOS codebase.",
+        "It is in feature freeze except for critical fixes and export-contract fixes."
+      ]
+    },
+    {
+      "id": "native-ios-primary",
+      "status": "feature_complete_in_code",
+      "routes": [
+        "Today",
+        "Timeline",
+        "Library",
+        "Insights",
+        "Settings"
+      ],
+      "state": "SwiftUI + Observation",
+      "forms": "SwiftUI forms",
+      "persistence": "GRDB + SQLite local-first source of truth",
+      "notes": [
+        "Native iOS is now the primary iOS product path.",
+        "Native parity, Review Mode, Universal Migration + Provider Handoff, and Episode Intelligence are complete in code.",
+        "Remaining work is release hardening and physical-device/TestFlight verification."
       ]
     }
   ]

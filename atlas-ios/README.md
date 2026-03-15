@@ -71,4 +71,4 @@ Notes:
 - the app is local-first and guest-first by default
 - widgets and intents compile, but business logic stays intentionally narrow compared with the main app
 - HealthKit remains scaffold-only
-- see `/Users/donghokang/Documents/New project 4/Atlas/docs/native-release-readiness.md` for final release status and `/Users/donghokang/Documents/New project 4/Atlas/qa/native-ios-release-manual-checklist.md` for manual beta QA
+- see `../docs/native-release-readiness.md` for final release status and `../qa/native-ios-release-manual-checklist.md` for manual beta QA

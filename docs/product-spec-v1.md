@@ -1,21 +1,22 @@
 # Atlas Product Spec v1
 
 ## Status and intent
-Atlas is now a local-first, privacy-first beta for injectable routine tracking. The implemented surface today includes:
+Atlas is now a local-first, privacy-first native iPhone product with the current roadmap implemented in code.
+
+The implemented surface today includes:
 - first-run onboarding with privacy and track-type branching
-- a real post-onboarding app shell
-- protocol creation
-- generated next-due and upcoming schedule views
-- Today and Timeline daily-use loop
-- local reminders with discreet-mode behavior
-- inventory, vials, calculator profiles, and optional site tracking
-- insights, exports, guest mode, and auth/sync foundations
+- guest/account boundary
+- Today, Timeline, Library, Insights, and Settings
+- protocol creation/edit plus Protocol Change Studio
+- generated next-due, overdue, and upcoming schedule views
+- local reminders with privacy-aware behavior
+- immutable log history
+- inventory, vials, calculator profiles, and site tracking
+- Trust Vault, selective sharing, raw exports, and sensitive-action audits
+- universal import, provider handoff, and Review Mode
+- metrics, custom metrics, and deterministic Episode Intelligence
 
-The next moat-building phases are:
-- safe protocol change handling
-- Trust Vault + Selective Sharing
-
-Both phases must preserve local-first behavior, immutable historical truth, and guest-mode usability.
+Current near-term work is release hardening, device QA, and beta rollout discipline, not filling major product-surface gaps.
 
 ## Product positioning
 Atlas helps users stay organized around injectable routines with:
@@ -55,9 +56,9 @@ Meaning:
 - no cloud dependency in the live loop
 
 ### Cloud account mode
-- deferred until after the local-first MVP
-- used for optional sync, backup, and multi-device continuity
-- must not be required to use the core product
+- optional and additive
+- never required for the core product
+- full sync execution remains intentionally incomplete by design
 
 ## Current app baseline
 The current codebase accurately supports:
@@ -75,14 +76,14 @@ The current codebase accurately supports:
 - descriptive insights and local exports
 - guest mode, auth scaffolding, and additive sync foundation
 
-The current codebase does not yet support:
-- safe effective-dated protocol revision workflows
-- preview-before-commit protocol changes
-- robust pause/resume, titration, and rest-period editing
-- travel/timezone-aware protocol editing
-- vial switch-over planning
+The current codebase intentionally still defers:
 - full cloud sync execution
-- production-certified iOS runtime QA
+- richer HealthKit behavior beyond the current scaffold
+- expanded widget/App Intents business logic beyond the current compile-ready scaffolding
+
+The current release process still requires:
+- physical-device QA
+- signed TestFlight/archive smoke
 
 ## Real MVP scope
 ### Included
@@ -99,7 +100,6 @@ The current codebase does not yet support:
 ### Excluded
 - dosage advice or optimization
 - treatment recommendations
-- provider workflows
 - sourcing or shopping
 - social/community features
 - cloud-required functionality
@@ -122,7 +122,7 @@ User-managed definitions of what they are tracking. Supports:
 - multiple protocols over time
 - active, paused, archived states
 
-Next phase:
+Includes:
 - Protocol Change Studio for future-only edits, pause/resume, titration, rest periods, timezone changes, vial handoff planning, and preview-before-commit behavior
 
 ### Trust Vault
@@ -149,11 +149,13 @@ Chronological history combining:
 - reminder events when useful
 
 ### Insights
-Small, descriptive summaries only, for example:
-- streaks
-- completion rate
-- missed vs logged counts
-- inventory runway estimate
+Small, descriptive summaries only, including:
+- weight trend
+- symptom trend
+- adherence trend
+- inventory burn-down
+- amount-in-system estimate with disclaimers
+- deterministic Episode Intelligence summaries
 
 No insight should cross into medical recommendation territory.
 
@@ -173,48 +175,30 @@ No insight should cross into medical recommendation territory.
 - Inventory changes should be reconstructable from event history plus explicit adjustments.
 
 ## Storage model
-### AsyncStorage stays responsible for
-- onboarding draft state
-- lightweight UI preferences
-- non-relational feature flags
-- small session and presentation preferences
+### Native local source of truth
+- GRDB + SQLite stores protocol definitions, effective-dated revisions, generated future occurrences, immutable logs, inventory state, reminders state, metrics, privacy state, selective-share/export metadata, review metadata, and episode-analysis inputs
+- app-group projection storage remains separate from the canonical database for extension-safe read models
 
-### Database layer becomes responsible for
-- protocol definitions
-- generated occurrence cache
-- immutable log events
-- inventory lots or balances
-- reminder jobs and history
-- timeline feed records or query materialization
-- insight snapshots if needed for performance
+### Lightweight local preferences
+- onboarding completion state
+- non-sensitive presentation preferences
+- feature flags that do not belong in the canonical product database
 
-### SecureStore becomes responsible for
-- auth tokens
+### Protected local storage
+- auth/session tokens when present
 - device secrets
-- future biometric unlock keys or encrypted-key references
+- biometric-gate key references and other sensitive local credentials
 
-## Privacy model direction
-Atlas privacy must be explicit and surface-aware.
+## Privacy model
+Atlas privacy is explicit and surface-aware.
 
 ### Current baseline
-- discreet notifications exist
-- sensitive labels can be hidden in several app surfaces
-- reminder privacy already supports full-detail, generic, and silent-oriented modes
-
-### Next phase
-- add protocol alias / codename mode
-- centralize privacy rendering policy for:
-  - Today
-  - Timeline
-  - Library
-  - Insights
-  - Settings
-  - notifications
-  - exports and selective sharing
-- add Trust Vault as the user-facing privacy control center
-- add bounded selective sharing with preview-before-export
-- add local encrypted share bundles with manifest versioning
-- add visible audit history for sensitive actions
+- full, alias, and discreet rendering modes exist natively
+- reminder privacy supports detailed, generic, and quiet/silent-safe behavior
+- privacy rendering is centralized across Today, Timeline, Library, Insights, Settings, notifications, exports, provider handoff, and Review Mode
+- Trust Vault is the user-facing privacy control center
+- selective sharing is preview-first, bounded, encrypted, and versioned
+- sensitive actions write visible audit history
 
 ## Health integrations
 Health app connection remains:
@@ -224,29 +208,10 @@ Health app connection remains:
 
 No health integration should block the core local-first MVP.
 
-## Success criteria for the next phase
-- a guest user can finish onboarding and create a real protocol
-- Today shows a real next due item
-- the app can remind locally
-- the user can log an occurrence
-- inventory updates after logging
-- timeline reflects reality
-- the app offers basic non-medical insights
-
-## Success criteria for Trust Vault + Selective Sharing V1
-- a guest or signed-in user can enable alias mode without corrupting underlying data
-- privacy rendering is consistent across core surfaces
-- a user can preview a bounded share/export scope before commit
-- exported/share bundles contain only the selected scope
-- bundles can be encrypted locally
-- sensitive actions appear in a visible audit trail
-- biometric gating protects sensitive actions where the device supports it
-- no cloud account is required for any V1 privacy or sharing flow
-
-## Next six implementation milestones
-1. Protocol setup and local database foundation
-2. Schedule engine and next due computation
-3. Reminder pipeline and discreet notification behavior
-4. Logging flow and inventory mutation rules
-5. Timeline and insight surfaces
-6. Optional auth and sync foundation
+## Current release criteria
+- a guest or imported user can complete or bypass onboarding appropriately
+- Today, Timeline, Library, Insights, and Settings all render correctly
+- reminders, Trust Vault, sharing, provider handoff, Review Mode, and Episode Intelligence remain privacy-safe
+- import/export paths remain deterministic and transactional
+- immutable history remains intact
+- final physical-device QA and TestFlight smoke pass before broader beta
