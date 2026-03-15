@@ -2,9 +2,18 @@
 
 ## Current direction
 - Atlas React Native remains the product oracle, Android path, and migration source.
-- Native iOS now moves forward in parallel under `atlas-ios/`.
+- Native iOS under `atlas-ios/` is the shipped primary iPhone product path.
 - React Native is in feature freeze except for isolated export-contract improvements or critical fixes.
 - Native parity, second-order features, and release-hardening work are now complete in code.
+
+## How to read this file
+- The top sections describe current repo state and release posture.
+- The lower phase sections are a historical implementation record.
+- If this file disagrees with current native code or the native release docs, prefer:
+  - `atlas-ios/`
+  - `atlas-ios/README.md`
+  - `docs/native-release-readiness.md`
+  - `docs/ios-architecture.md`
 
 ## Active milestone
 ### Final Native Hardening + QA + Release Readiness
@@ -57,6 +66,9 @@ Verification notes:
 
 Next queued milestone:
 - Final Native Hardening + QA + Release Readiness
+
+## Historical milestone record
+The following sections record what was implemented and verified during the native rebuild. They are not the current roadmap unless a section is explicitly reopened.
 
 ## Next milestone
 ### Phase 2: Native persistence + Atlas Export import bridge
