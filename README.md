@@ -21,6 +21,7 @@ React Native Atlas is frozen except for:
 - Release readiness is currently `CONDITIONAL` pending physical-device QA and signed TestFlight smoke.
 
 See:
+- [docs/repo-truth-map.md](docs/repo-truth-map.md)
 - [atlas-ios/README.md](atlas-ios/README.md)
 - [docs/native-release-readiness.md](docs/native-release-readiness.md)
 - [PLANS.md](PLANS.md)
@@ -31,7 +32,7 @@ See:
 - `src/`, `app/`, Expo config
   - legacy React Native app and Android path
 - `docs/`
-  - architecture, privacy, export spec, migration history, release docs
+  - current native truth docs plus historical architecture/spec/migration records
 - `qa/`
   - manual QA scripts and release checklists
 
@@ -45,6 +46,9 @@ When repo docs disagree, use this order:
 6. `docs/atlas-export-v1-spec.md`
 7. `PLANS.md`
 8. older migration/history docs and legacy RN docs
+
+For a fast repo map of what is current versus historical, start with:
+- [docs/repo-truth-map.md](docs/repo-truth-map.md)
 
 ## Native product surface
 The native app currently includes:

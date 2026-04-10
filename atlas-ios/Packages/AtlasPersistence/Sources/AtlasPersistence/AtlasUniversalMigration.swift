@@ -22,11 +22,13 @@ extension GRDBImportExportBridge {
                     datasetDiffs: prepared.dryRun.datasetDiffs,
                     recordsToCreate: prepared.dryRun.recordsToCreate,
                     recordsToUpdate: prepared.dryRun.recordsToUpdate,
+                    lintFindings: prepared.dryRun.lintFindings,
                     warnings: prepared.dryRun.warnings,
                     conflicts: [],
                     unsupportedRows: prepared.dryRun.validation.unsupportedDatasets,
                     privacyNotes: prepared.dryRun.privacyNotes,
-                    backfillNotes: prepared.dryRun.backfillNotes
+                    backfillNotes: prepared.dryRun.backfillNotes,
+                    plainLanguageSummary: prepared.dryRun.plainLanguageSummary
                 )
             )
         case .atlasCSV:
@@ -79,8 +81,11 @@ extension GRDBImportExportBridge {
         _ request: AtlasProviderHandoffRequest,
         now: Date
     ) async throws -> AtlasProviderHandoffPreview {
-        let canonical = try await stack.canonical.read { db in
-            try sortExportSnapshot(canonicalSnapshot(from: db))
+        let (canonical, summarySettings) = try await stack.canonical.read { db in
+            (
+                try sortExportSnapshot(canonicalSnapshot(from: db)),
+                try readSummarySettings(db: db, featureFlags: featureFlags)
+            )
         }
         let renderMode: AtlasPrivacyRenderMode = request.aliasModeEnabled ? .alias : .full
         let subset = sanitizeExportSnapshot(
@@ -88,15 +93,23 @@ extension GRDBImportExportBridge {
             renderMode: renderMode,
             privacyFormatter: privacyFormatter
         )
-        return buildProviderHandoffPreview(snapshot: subset, request: request, now: now)
+        return buildProviderHandoffPreview(
+            snapshot: subset,
+            request: request,
+            now: now,
+            summarySettings: summarySettings
+        )
     }
 
     public func createProviderHandoff(
         _ request: AtlasProviderHandoffRequest,
         now: Date
     ) async throws -> AtlasProviderHandoffResult {
-        let canonical = try await stack.canonical.read { db in
-            try sortExportSnapshot(canonicalSnapshot(from: db))
+        let (canonical, summarySettings) = try await stack.canonical.read { db in
+            (
+                try sortExportSnapshot(canonicalSnapshot(from: db)),
+                try readSummarySettings(db: db, featureFlags: featureFlags)
+            )
         }
         let renderMode: AtlasPrivacyRenderMode = request.aliasModeEnabled ? .alias : .full
         let subset = sanitizeExportSnapshot(
@@ -104,7 +117,12 @@ extension GRDBImportExportBridge {
             renderMode: renderMode,
             privacyFormatter: privacyFormatter
         )
-        let preview = buildProviderHandoffPreview(snapshot: subset, request: request, now: now)
+        let preview = buildProviderHandoffPreview(
+            snapshot: subset,
+            request: request,
+            now: now,
+            summarySettings: summarySettings
+        )
         let directoryURL = try exportDirectoryURL()
             .appendingPathComponent("atlas-provider-handoff-\(sanitizedFileTimestamp(atlasTimestamp(from: now)))", isDirectory: true)
         try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
@@ -170,7 +188,10 @@ extension GRDBImportExportBridge {
         _ snapshot: AtlasExportSnapshot,
         mode: AtlasImportMode,
         sourceSummary: String,
-        now: Date
+        now: Date,
+        auditEventType: AtlasSensitiveActionAuditEventType = .importCommitted,
+        auditSurface: String = "import_center",
+        destructiveActionKind: AtlasRestorePointActionKind = .replaceImport
     ) async throws -> AtlasImportCommitResult {
         let existingRowCount = try await stack.canonical.read { db in
             try countUserRows(in: db)
@@ -180,9 +201,13 @@ extension GRDBImportExportBridge {
             throw AtlasImportError.replaceImportRequired
         }
 
-        let backupURL = existingRowCount > 0 ? try await backupSnapshotForReplace() : nil
-        let occurrenceProjections = buildOccurrenceProjections(from: snapshot)
-
+        let restorePoint = existingRowCount > 0
+            ? try await createRestorePoint(
+                actionKind: destructiveActionKind,
+                sourceSummary: sourceSummary,
+                now: now
+            )
+            : nil
         try await stack.canonical.writeWithoutTransaction { db in
             try db.inTransaction {
                 if existingRowCount > 0 {
@@ -190,11 +215,51 @@ extension GRDBImportExportBridge {
                 }
 
                 try writeSnapshot(snapshot, to: db)
-                try replaceOccurrenceProjections(occurrenceProjections, in: db)
+                if let restorePoint {
+                    try writeSensitiveActionAudit(
+                        db: db,
+                        eventType: .restorePointCreated,
+                        surface: "restore_points",
+                        protocolId: nil,
+                        scopeKind: restorePoint.actionKind.rawValue,
+                        renderMode: privacyFormatter.renderMode(for: snapshot.privacyProfile),
+                        manifestVersion: 1,
+                        payloadJson: trustVaultPayload([
+                            "sourceSummary": restorePoint.sourceSummary,
+                            "rowCount": "\(restorePoint.rowCount)",
+                            "fileName": restorePoint.fileURL.lastPathComponent
+                        ]),
+                        now: now
+                    )
+                }
+                try replaceOccurrenceProjections([], in: db)
+                let importedContext = try loadCoreLoopContext(db: db)
+                let schedulableProtocolIDs: [String] = importedContext.protocols.values.compactMap { protocolRecord -> String? in
+                    let revisionSlices = importedContext.revisionSlices[protocolRecord.id] ?? []
+                    let fallbackRules = importedContext.protocolRules[protocolRecord.id] ?? []
+                    if protocolRecord.status == .archived {
+                        return nil
+                    }
+                    if revisionSlices.contains(where: { $0.revision.lifecycleState == .active && $0.rules.isEmpty == false }) {
+                        return protocolRecord.id
+                    }
+                    if revisionSlices.isEmpty, protocolRecord.status == .active, fallbackRules.isEmpty == false {
+                        return protocolRecord.id
+                    }
+                    return nil
+                }
+                if schedulableProtocolIDs.isEmpty == false {
+                    try regenerateFutureOccurrences(
+                        db: db,
+                        protocolIDs: schedulableProtocolIDs,
+                        referenceDate: now,
+                        preserveManualReschedules: false
+                    )
+                }
                 try writeSensitiveActionAudit(
                     db: db,
-                    eventType: .importCommitted,
-                    surface: "import_center",
+                    eventType: auditEventType,
+                    surface: auditSurface,
                     protocolId: nil,
                     scopeKind: sourceSummary,
                     renderMode: privacyFormatter.renderMode(for: snapshot.privacyProfile),
@@ -210,20 +275,11 @@ extension GRDBImportExportBridge {
             }
         }
 
-        let projectionState = buildProjectionStateFromSnapshot(
-            snapshot: snapshot,
-            occurrenceProjections: occurrenceProjections
-        )
-        try await projectionWriter.writeImportedProjection(
-            nextDue: projectionState.nextDue,
-            timeline: projectionState.timeline,
-            labels: projectionState.labels,
-            quickActions: projectionState.quickActions,
-            featureFlags: projectionState.featureFlags
-        )
+        try await projectionWriter.refreshProjection(referenceDate: now)
+        let projectionState = try await projectionWriter.loadProjectionDebugState()
 
         return AtlasImportCommitResult(
-            backupURL: backupURL,
+            backupURL: restorePoint?.fileURL,
             importedProtocolCount: snapshot.protocols.count,
             importedLogEventCount: snapshot.logEvents.count,
             nextDue: projectionState.nextDue
@@ -233,6 +289,7 @@ extension GRDBImportExportBridge {
 
 private struct AtlasUniversalImportStaging {
     var snapshot: AtlasExportSnapshot
+    var lintFindings: [AtlasImportLintItem]
     var warnings: [String]
     var conflicts: [String]
     var unsupportedRows: [String]
@@ -273,13 +330,38 @@ private extension GRDBImportExportBridge {
         sourceSummary: String,
         staged: AtlasUniversalImportStaging
     ) async throws -> AtlasUniversalImportDryRunSummary {
-        let datasetDiffs = try await stack.canonical.read { db in
-            try AtlasImportDataset.allCases.map { dataset in
+        let (datasetDiffs, lintFindings, plainLanguageSummary) = try await stack.canonical.read { db in
+            let datasetDiffs = try AtlasImportDataset.allCases.map { dataset in
                 let incomingIDs = datasetIdentifiers(from: staged.snapshot, for: dataset)
                 let existingIDs = try existingIdentifiers(in: db, for: dataset)
                 let updates = incomingIDs.filter(existingIDs.contains).count
                 return AtlasDatasetDiff(dataset: dataset.rawValue, creates: incomingIDs.count - updates, updates: updates)
             }
+            let existingProtocolNames: [String] = try String.fetchAll(db, sql: "SELECT name FROM protocols")
+            let lintFindings = try Self.lintImportSnapshot(
+                snapshot: staged.snapshot,
+                datasetDiffs: datasetDiffs,
+                existingProtocolNames: Set(existingProtocolNames.map { Self.normalizedProtocolName($0) }),
+                supplemental: staged.lintFindings
+            )
+            let summarySettings = try readSummarySettings(db: db, featureFlags: featureFlags)
+            let plainLanguageSummary = buildImportDiffSummaryRequest(
+                sourceLabel: sourceSummary,
+                datasetDiffs: datasetDiffs,
+                recordsToCreate: datasetDiffs.reduce(0) { $0 + $1.creates },
+                recordsToUpdate: datasetDiffs.reduce(0) { $0 + $1.updates },
+                lintFindings: lintFindings,
+                warnings: staged.warnings,
+                privacyNotes: staged.privacyNotes,
+                backfillNotes: staged.backfillNotes,
+                referenceDate: Date()
+            ).flatMap {
+                AtlasSummaryService(
+                    featureFlags: featureFlags,
+                    settings: summarySettings
+                ).generate($0)
+            }
+            return (datasetDiffs, lintFindings, plainLanguageSummary)
         }
 
         return AtlasUniversalImportDryRunSummary(
@@ -288,11 +370,13 @@ private extension GRDBImportExportBridge {
             datasetDiffs: datasetDiffs,
             recordsToCreate: datasetDiffs.reduce(0) { $0 + $1.creates },
             recordsToUpdate: datasetDiffs.reduce(0) { $0 + $1.updates },
+            lintFindings: lintFindings,
             warnings: staged.warnings,
             conflicts: staged.conflicts,
             unsupportedRows: staged.unsupportedRows,
             privacyNotes: staged.privacyNotes,
-            backfillNotes: staged.backfillNotes
+            backfillNotes: staged.backfillNotes,
+            plainLanguageSummary: plainLanguageSummary
         )
     }
 
@@ -355,7 +439,7 @@ private extension GRDBImportExportBridge {
                         protocolId: primary,
                         ruleType: ruleType,
                         intervalCount: ruleType == .everyNDays ? 1 : 1,
-                        weekday: weekdayNumber(from: notes),
+                        weekday: csvWeekday(from: notes, ruleType: ruleType),
                         timeOfDay: secondary.nilIfBlank,
                         anchorDate: notes.nilIfBlank,
                         isActive: true,
@@ -394,7 +478,10 @@ private extension GRDBImportExportBridge {
                         phaseOrder: snapshot.protocolRevisionRules.filter { $0.revisionId == primary }.count,
                         ruleType: AtlasProtocolRuleType(rawValue: value) ?? .weekly,
                         intervalCount: 1,
-                        weekday: weekdayNumber(from: notes),
+                        weekday: csvWeekday(
+                            from: notes,
+                            ruleType: AtlasProtocolRuleType(rawValue: value) ?? .weekly
+                        ),
                         timeOfDay: nil,
                         anchorDate: notes.nilIfBlank,
                         phaseStartDayOffset: 0,
@@ -645,6 +732,7 @@ private extension GRDBImportExportBridge {
         )
         return AtlasUniversalImportStaging(
             snapshot: finalized,
+            lintFindings: [],
             warnings: warnings,
             conflicts: conflicts,
             unsupportedRows: unsupportedRows,
@@ -744,6 +832,7 @@ private extension GRDBImportExportBridge {
         )
         return AtlasUniversalImportStaging(
             snapshot: finalized,
+            lintFindings: [],
             warnings: warnings,
             conflicts: conflicts,
             unsupportedRows: unsupportedRows,
@@ -834,6 +923,7 @@ private extension GRDBImportExportBridge {
         )
         return AtlasUniversalImportStaging(
             snapshot: finalized,
+            lintFindings: [],
             warnings: warnings,
             conflicts: conflicts,
             unsupportedRows: unsupportedRows,
@@ -881,6 +971,24 @@ private extension GRDBImportExportBridge {
             }
         }
 
+        let primaryRulesByProtocolID = Dictionary(
+            uniqueKeysWithValues: finalized.protocolRules.map { ($0.protocolId, $0) }
+        )
+        finalized.protocolRevisions = finalized.protocolRevisions.map { revision in
+            var value = revision
+            if value.defaultTimeOfDay?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
+                value.defaultTimeOfDay = primaryRulesByProtocolID[revision.protocolId]?.timeOfDay
+                    ?? protocolsById[revision.protocolId]?.defaultTimeOfDay
+            }
+            if value.doseAmount == nil {
+                value.doseAmount = protocolsById[revision.protocolId]?.doseAmount
+            }
+            if value.doseUnit?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
+                value.doseUnit = protocolsById[revision.protocolId]?.doseUnit
+            }
+            return value
+        }
+
         if finalized.protocolRevisionRules.isEmpty {
             let revisionLookup = Dictionary(uniqueKeysWithValues: finalized.protocolRevisions.map { ($0.protocolId, $0.id) })
             finalized.protocolRevisionRules = finalized.protocolRules.enumerated().compactMap { offset, rule in
@@ -905,6 +1013,26 @@ private extension GRDBImportExportBridge {
                     updatedAt: rule.updatedAt
                 )
             }
+        }
+
+        let revisionsByID = Dictionary(uniqueKeysWithValues: finalized.protocolRevisions.map { ($0.id, $0) })
+        finalized.protocolRevisionRules = finalized.protocolRevisionRules.map { rule in
+            var value = rule
+            let revision = revisionsByID[rule.revisionId]
+            let protocolID = revision?.protocolId
+            let fallbackRule = protocolID.flatMap { primaryRulesByProtocolID[$0] }
+            if value.timeOfDay?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
+                value.timeOfDay = fallbackRule?.timeOfDay ?? revision?.defaultTimeOfDay
+            }
+            if value.anchorDate?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
+                value.anchorDate = fallbackRule?.anchorDate ?? protocolID.flatMap { protocolsById[$0]?.startDate }
+            }
+            if value.ruleType == .weekly, value.weekday == nil {
+                value.weekday = fallbackRule?.weekday
+                    ?? fallbackRule?.anchorDate.flatMap(weekdayNumber(fromAnchorDate:))
+                    ?? value.anchorDate.flatMap(weekdayNumber(fromAnchorDate:))
+            }
+            return value
         }
 
         let validRevisionIDs = Set(finalized.protocolRevisions.map(\.id))
@@ -935,6 +1063,7 @@ private extension GRDBImportExportBridge {
         finalized.logEvents = finalized.logEvents.sorted { $0.id < $1.id }
         finalized.customMetrics = finalized.customMetrics.sorted { $0.id < $1.id }
         finalized.metricValueLogs = finalized.metricValueLogs.sorted { $0.id < $1.id }
+        finalized.contextLogs = finalized.contextLogs.sorted { $0.id < $1.id }
         finalized.sensitiveActionAudits = finalized.sensitiveActionAudits.sorted { $0.id < $1.id }
         finalized.vials = finalized.vials.sorted { $0.id < $1.id }
         finalized.sites = finalized.sites.sorted { $0.id < $1.id }
@@ -1028,6 +1157,20 @@ private extension GRDBImportExportBridge {
         return mapping.first(where: { lower.contains($0.key) })?.value
     }
 
+    func weekdayNumber(fromAnchorDate value: String) -> Int? {
+        guard let date = atlasParseLocalDateTime(dateValue: value, timeOfDay: "00:00") else {
+            return nil
+        }
+        return Calendar.current.component(.weekday, from: date) - 1
+    }
+
+    func csvWeekday(from value: String, ruleType: AtlasProtocolRuleType) -> Int? {
+        guard ruleType == .weekly else {
+            return nil
+        }
+        return weekdayNumber(from: value) ?? weekdayNumber(fromAnchorDate: value)
+    }
+
     func csvStartDate(from timestamp: String) -> String {
         if timestamp.count >= 10 {
             return String(timestamp.prefix(10))
@@ -1045,8 +1188,12 @@ private extension GRDBImportExportBridge {
         return formatter.string(from: date)
     }
 
-    func backupSnapshotForReplace() async throws -> URL {
-        let generatedAt = atlasTimestamp(from: Date())
+    func createRestorePoint(
+        actionKind: AtlasRestorePointActionKind,
+        sourceSummary: String,
+        now: Date
+    ) async throws -> AtlasRestorePointSummary {
+        let generatedAt = atlasTimestamp(from: now)
         let snapshot = try await stack.canonical.read { db in
             try canonicalSnapshot(from: db)
         }
@@ -1064,7 +1211,33 @@ private extension GRDBImportExportBridge {
         try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
         let url = directoryURL.appendingPathComponent("atlas-native-backup-\(generatedAt.replacingOccurrences(of: ":", with: "-")).json")
         try data.write(to: url)
-        return url
+        let summary = AtlasRestorePointSummary(
+            id: "restore_point_\(UUID().uuidString.lowercased())",
+            title: restorePointTitle(actionKind: actionKind, sourceSummary: sourceSummary),
+            actionKind: actionKind,
+            sourceSummary: sourceSummary,
+            fileURL: url,
+            rowCount: snapshotRowCount(snapshot),
+            createdAt: now
+        )
+
+        try await stack.canonical.write { db in
+            try AtlasRestorePointDBRecord(summary: summary).insert(db)
+        }
+
+        return summary
+    }
+
+    func restorePointTitle(
+        actionKind: AtlasRestorePointActionKind,
+        sourceSummary: String
+    ) -> String {
+        switch actionKind {
+        case .replaceImport:
+            return "Before replace import: \(sourceSummary)"
+        case .restoreCommit:
+            return "Before restore: \(sourceSummary)"
+        }
     }
 
     func buildProjectionStateFromSnapshot(
@@ -1095,7 +1268,9 @@ private extension GRDBImportExportBridge {
                     mode: extensionMode
                 ),
                 dueLabel: relativeDueLabel(for: atlasDate(from: projection.scheduledAt)),
-                scheduledAt: projection.scheduledAt
+                scheduledAt: projection.scheduledAt,
+                state: .upcoming,
+                statusSummary: relativeDueLabel(for: atlasDate(from: projection.scheduledAt))
             )
         }
 
@@ -1151,7 +1326,9 @@ private extension GRDBImportExportBridge {
                     canonical: protocolRecord.name,
                     alias: aliases[projection.protocolId]?.aliasLabel,
                     mode: extensionMode
-                )
+                ),
+                dueLabel: relativeDueLabel(for: atlasDate(from: projection.scheduledAt)),
+                state: .upcoming
             )
         }
 
@@ -1249,7 +1426,8 @@ private extension GRDBImportExportBridge {
     func buildProviderHandoffPreview(
         snapshot: AtlasExportSnapshot,
         request: AtlasProviderHandoffRequest,
-        now: Date
+        now: Date,
+        summarySettings: AtlasSummarySettingsSnapshot
     ) -> AtlasProviderHandoffPreview {
         let datasets = selectiveShareDatasetSummaries(snapshot: snapshot).map {
             AtlasProviderHandoffDatasetSummary(dataset: $0.dataset, rowCount: $0.rowCount)
@@ -1283,10 +1461,24 @@ private extension GRDBImportExportBridge {
                 )
             )
         }
+        let plainLanguageSummary = buildProviderHandoffSummaryRequest(
+            scopeSummary: providerHandoffScopeSummary(request.scopeKind),
+            renderMode: renderMode,
+            rowCount: snapshotRowCount(snapshot),
+            datasets: datasets,
+            episodeInsights: episodeInsights,
+            referenceDate: now
+        ).flatMap {
+            AtlasSummaryService(
+                featureFlags: featureFlags,
+                settings: summarySettings
+            ).generate($0)
+        }
         return AtlasProviderHandoffPreview(
             scopeKind: request.scopeKind,
             renderMode: renderMode,
             summary: "Previewing \(providerHandoffScopeSummary(request.scopeKind).lowercased()) as a static snapshot with \(snapshotRowCount(snapshot)) row(s).",
+            plainLanguageSummary: plainLanguageSummary,
             datasets: datasets,
             sections: sections,
             rowCount: snapshotRowCount(snapshot)
@@ -1323,6 +1515,24 @@ private extension GRDBImportExportBridge {
                 """
                 ## Episode summary
                 \(episodePreviewLines(from: episodeInsights).map { "- \($0)" }.joined(separator: "\n"))
+                """
+            )
+        }
+        if let summary = preview.plainLanguageSummary {
+            let sourceSections = summary.sourceSections.map { section in
+                """
+                ### \(section.title)
+                \(section.facts.map { "- \($0.label): \($0.value)" }.joined(separator: "\n"))
+                """
+            }.joined(separator: "\n\n")
+            sections.append(
+                """
+                ## Plain-language recap
+                \(summary.summary)
+
+                \(summary.disclaimer)
+
+                \(sourceSections)
                 """
             )
         }

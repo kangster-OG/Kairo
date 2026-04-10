@@ -108,17 +108,101 @@ public struct AtlasUniversalImportRequest: Sendable, Equatable {
     }
 }
 
+public struct AtlasImportTemplateDraft: Sendable, Equatable {
+    public var name: String
+    public var importer: AtlasImporterKind
+    public var genericCsvMapping: AtlasGenericCsvMapping?
+    public var manualOptions: AtlasManualImportOptions?
+
+    public init(
+        name: String,
+        importer: AtlasImporterKind,
+        genericCsvMapping: AtlasGenericCsvMapping? = nil,
+        manualOptions: AtlasManualImportOptions? = nil
+    ) {
+        self.name = name
+        self.importer = importer
+        self.genericCsvMapping = genericCsvMapping
+        self.manualOptions = manualOptions
+    }
+}
+
+public struct AtlasSavedImportTemplate: Codable, Sendable, Equatable, Identifiable {
+    public var id: String
+    public var name: String
+    public var importer: AtlasImporterKind
+    public var genericCsvMapping: AtlasGenericCsvMapping?
+    public var manualOptions: AtlasManualImportOptions?
+    public var createdAt: Date
+    public var updatedAt: Date
+
+    public init(
+        id: String,
+        name: String,
+        importer: AtlasImporterKind,
+        genericCsvMapping: AtlasGenericCsvMapping? = nil,
+        manualOptions: AtlasManualImportOptions? = nil,
+        createdAt: Date,
+        updatedAt: Date
+    ) {
+        self.id = id
+        self.name = name
+        self.importer = importer
+        self.genericCsvMapping = genericCsvMapping
+        self.manualOptions = manualOptions
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+}
+
+public enum AtlasImportLintSeverity: String, Codable, CaseIterable, Sendable {
+    case info
+    case warning
+    case error
+}
+
+public enum AtlasImportLintCategory: String, Codable, CaseIterable, Sendable {
+    case duplicateProtocolName = "duplicate_protocol_name"
+    case stableIDOverlap = "stable_id_overlap"
+    case dateTimeParsingCollision = "date_time_parsing_collision"
+    case ambiguousUnitMapping = "ambiguous_unit_mapping"
+}
+
+public struct AtlasImportLintItem: Codable, Sendable, Equatable, Identifiable {
+    public var id: String
+    public var category: AtlasImportLintCategory
+    public var severity: AtlasImportLintSeverity
+    public var summary: String
+    public var detail: String
+
+    public init(
+        id: String,
+        category: AtlasImportLintCategory,
+        severity: AtlasImportLintSeverity,
+        summary: String,
+        detail: String
+    ) {
+        self.id = id
+        self.category = category
+        self.severity = severity
+        self.summary = summary
+        self.detail = detail
+    }
+}
+
 public struct AtlasUniversalImportDryRunSummary: Sendable, Equatable {
     public var importer: AtlasImporterKind
     public var sourceSummary: String
     public var datasetDiffs: [AtlasDatasetDiff]
     public var recordsToCreate: Int
     public var recordsToUpdate: Int
+    public var lintFindings: [AtlasImportLintItem]
     public var warnings: [String]
     public var conflicts: [String]
     public var unsupportedRows: [String]
     public var privacyNotes: [String]
     public var backfillNotes: [String]
+    public var plainLanguageSummary: AtlasGeneratedSummary?
 
     public init(
         importer: AtlasImporterKind,
@@ -126,22 +210,26 @@ public struct AtlasUniversalImportDryRunSummary: Sendable, Equatable {
         datasetDiffs: [AtlasDatasetDiff],
         recordsToCreate: Int,
         recordsToUpdate: Int,
+        lintFindings: [AtlasImportLintItem],
         warnings: [String],
         conflicts: [String],
         unsupportedRows: [String],
         privacyNotes: [String],
-        backfillNotes: [String]
+        backfillNotes: [String],
+        plainLanguageSummary: AtlasGeneratedSummary? = nil
     ) {
         self.importer = importer
         self.sourceSummary = sourceSummary
         self.datasetDiffs = datasetDiffs
         self.recordsToCreate = recordsToCreate
         self.recordsToUpdate = recordsToUpdate
+        self.lintFindings = lintFindings
         self.warnings = warnings
         self.conflicts = conflicts
         self.unsupportedRows = unsupportedRows
         self.privacyNotes = privacyNotes
         self.backfillNotes = backfillNotes
+        self.plainLanguageSummary = plainLanguageSummary
     }
 }
 
@@ -158,6 +246,146 @@ public struct AtlasUniversalPreparedImport: Sendable {
         self.request = request
         self.stagedSnapshot = stagedSnapshot
         self.dryRun = dryRun
+    }
+}
+
+public enum AtlasRestorePointActionKind: String, Codable, CaseIterable, Sendable {
+    case replaceImport = "replace_import"
+    case restoreCommit = "restore_commit"
+}
+
+public struct AtlasRestorePointSummary: Codable, Sendable, Equatable, Identifiable {
+    public var id: String
+    public var title: String
+    public var actionKind: AtlasRestorePointActionKind
+    public var sourceSummary: String
+    public var fileURL: URL
+    public var rowCount: Int
+    public var createdAt: Date
+
+    public init(
+        id: String,
+        title: String,
+        actionKind: AtlasRestorePointActionKind,
+        sourceSummary: String,
+        fileURL: URL,
+        rowCount: Int,
+        createdAt: Date
+    ) {
+        self.id = id
+        self.title = title
+        self.actionKind = actionKind
+        self.sourceSummary = sourceSummary
+        self.fileURL = fileURL
+        self.rowCount = rowCount
+        self.createdAt = createdAt
+    }
+}
+
+public struct AtlasRestorePointPreview: Sendable, Equatable {
+    public var restorePoint: AtlasRestorePointSummary
+    public var datasetDiffs: [AtlasDatasetDiff]
+    public var recordsToCreate: Int
+    public var recordsToUpdate: Int
+    public var warnings: [String]
+    public var notes: [String]
+    public var rowCount: Int
+
+    public init(
+        restorePoint: AtlasRestorePointSummary,
+        datasetDiffs: [AtlasDatasetDiff],
+        recordsToCreate: Int,
+        recordsToUpdate: Int,
+        warnings: [String],
+        notes: [String],
+        rowCount: Int
+    ) {
+        self.restorePoint = restorePoint
+        self.datasetDiffs = datasetDiffs
+        self.recordsToCreate = recordsToCreate
+        self.recordsToUpdate = recordsToUpdate
+        self.warnings = warnings
+        self.notes = notes
+        self.rowCount = rowCount
+    }
+}
+
+public struct AtlasRestoreCommitResult: Sendable, Equatable {
+    public var restoredPoint: AtlasRestorePointSummary
+    public var backupURL: URL?
+    public var restoredProtocolCount: Int
+    public var restoredLogEventCount: Int
+    public var nextDue: AtlasSharedNextDueSnapshot?
+
+    public init(
+        restoredPoint: AtlasRestorePointSummary,
+        backupURL: URL?,
+        restoredProtocolCount: Int,
+        restoredLogEventCount: Int,
+        nextDue: AtlasSharedNextDueSnapshot?
+    ) {
+        self.restoredPoint = restoredPoint
+        self.backupURL = backupURL
+        self.restoredProtocolCount = restoredProtocolCount
+        self.restoredLogEventCount = restoredLogEventCount
+        self.nextDue = nextDue
+    }
+}
+
+public enum AtlasProviderHandoffPreset: String, Codable, CaseIterable, Sendable, Identifiable {
+    case clinicianSummary = "clinician_summary"
+    case coachSummary = "coach_summary"
+    case partnerReview = "partner_review"
+    case selfArchive = "self_archive"
+
+    public var id: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .clinicianSummary:
+            return "Clinician summary"
+        case .coachSummary:
+            return "Coach summary"
+        case .partnerReview:
+            return "Partner review"
+        case .selfArchive:
+            return "Self archive"
+        }
+    }
+
+    public var subtitle: String {
+        switch self {
+        case .clinicianSummary:
+            return "Current protocol snapshot with canonical labels."
+        case .coachSummary:
+            return "Selected protocol timeline context with bounded rows."
+        case .partnerReview:
+            return "Alias-safe summary with minimal surface area."
+        case .selfArchive:
+            return "Static date-range archive for your own records."
+        }
+    }
+
+    public var scopeKind: AtlasProviderHandoffScopeKind {
+        switch self {
+        case .clinicianSummary:
+            return .currentProtocolOnly
+        case .coachSummary:
+            return .selectedProtocols
+        case .partnerReview:
+            return .summaryOnly
+        case .selfArchive:
+            return .customDateRange
+        }
+    }
+
+    public var aliasModeEnabled: Bool {
+        switch self {
+        case .partnerReview:
+            return true
+        default:
+            return false
+        }
     }
 }
 
@@ -219,6 +447,7 @@ public struct AtlasProviderHandoffPreview: Sendable, Equatable {
     public var scopeKind: AtlasProviderHandoffScopeKind
     public var renderMode: AtlasPrivacyRenderMode
     public var summary: String
+    public var plainLanguageSummary: AtlasGeneratedSummary?
     public var datasets: [AtlasProviderHandoffDatasetSummary]
     public var sections: [AtlasProviderHandoffPreviewSection]
     public var rowCount: Int
@@ -227,6 +456,7 @@ public struct AtlasProviderHandoffPreview: Sendable, Equatable {
         scopeKind: AtlasProviderHandoffScopeKind,
         renderMode: AtlasPrivacyRenderMode,
         summary: String,
+        plainLanguageSummary: AtlasGeneratedSummary? = nil,
         datasets: [AtlasProviderHandoffDatasetSummary],
         sections: [AtlasProviderHandoffPreviewSection],
         rowCount: Int
@@ -234,6 +464,7 @@ public struct AtlasProviderHandoffPreview: Sendable, Equatable {
         self.scopeKind = scopeKind
         self.renderMode = renderMode
         self.summary = summary
+        self.plainLanguageSummary = plainLanguageSummary
         self.datasets = datasets
         self.sections = sections
         self.rowCount = rowCount
@@ -259,5 +490,31 @@ public struct AtlasProviderHandoffResult: Sendable, Equatable {
         self.attachmentURL = attachmentURL
         self.preview = preview
         self.manifestVersion = manifestVersion
+    }
+}
+
+public extension AtlasProviderHandoffPreset {
+    func makeRequest(
+        protocolID: String?,
+        protocolIDs: [String],
+        dateRange: AtlasDateRange?,
+        now: Date = Date()
+    ) -> AtlasProviderHandoffRequest {
+        let fallbackRange = AtlasDateRange(
+            start: Calendar.current.date(byAdding: .day, value: -30, to: now) ?? now,
+            end: now
+        )
+
+        return AtlasProviderHandoffRequest(
+            scopeKind: scopeKind,
+            protocolID: scopeKind == .currentProtocolOnly || scopeKind == .summaryOnly || scopeKind == .inventoryOnly
+                ? protocolID
+                : nil,
+            protocolIDs: scopeKind == .selectedProtocols || scopeKind == .customDateRange
+                ? protocolIDs
+                : [],
+            dateRange: scopeKind == .customDateRange ? (dateRange ?? fallbackRange) : nil,
+            aliasModeEnabled: aliasModeEnabled
+        )
     }
 }

@@ -27,7 +27,18 @@ public protocol CoreLoopRepository: Sendable {
 
 public protocol SettingsRepository: Sendable {
     func currentSettingsSnapshot() async throws -> AtlasSettingsSnapshot
+    func updateAccountMode(_ accountMode: AtlasAccountMode, now: Date) async throws -> AtlasSettingsSnapshot
     func updateTrustVaultRenderMode(_ renderMode: AtlasPrivacyRenderMode, now: Date) async throws -> AtlasSettingsSnapshot
+    func updateSummarySettings(_ update: AtlasSummarySettingsUpdate, now: Date) async throws -> AtlasSettingsSnapshot
+    func updateRetentionSettings(_ update: AtlasRetentionSettingsUpdate, now: Date) async throws -> AtlasSettingsSnapshot
+    func updateHealthConnection(
+        provider: AtlasHealthProviderKey,
+        enabled: Bool,
+        connected: Bool,
+        lastSyncAt: Date?,
+        lastError: String?,
+        now: Date
+    ) async throws -> AtlasSettingsSnapshot
 }
 
 public protocol OnboardingRepository: Sendable {
@@ -58,8 +69,11 @@ public protocol ReminderRepository: Sendable {
 public protocol InventoryRepository: Sendable {
     func fetchInventorySnapshot(referenceDate: Date) async throws -> AtlasInventorySnapshot
     func fetchVialDetail(id: String, referenceDate: Date) async throws -> AtlasVialDetailSnapshot?
+    func fetchConsumableDetail(id: String, referenceDate: Date) async throws -> AtlasConsumableDetailSnapshot?
     func saveVial(_ draft: AtlasVialDraft, now: Date) async throws -> AtlasVialDetailSnapshot
+    func saveConsumable(_ draft: AtlasConsumableDraft, now: Date) async throws -> AtlasConsumableDetailSnapshot
     func archiveVial(id: String, now: Date) async throws
+    func setConsumableArchived(id: String, isArchived: Bool, now: Date) async throws
     func updateProtocolInventorySettings(
         _ update: AtlasProtocolInventorySettingsUpdate,
         now: Date
@@ -68,6 +82,10 @@ public protocol InventoryRepository: Sendable {
         _ correction: AtlasInventoryCorrectionDraft,
         now: Date
     ) async throws -> AtlasInventoryCorrectionResult
+    func applyConsumableAdjustment(
+        _ adjustment: AtlasConsumableAdjustmentDraft,
+        now: Date
+    ) async throws -> AtlasConsumableAdjustmentResult
     func fetchProtocolSiteOptions(protocolID: String) async throws -> AtlasProtocolSiteOptions
     func listSites() async throws -> [AtlasSiteSummary]
     func saveSite(_ draft: AtlasSiteDraft, now: Date) async throws -> AtlasSiteSummary
@@ -81,6 +99,7 @@ public protocol CalculatorRepository: Sendable {
 
 public protocol MetricsRepository: Sendable {
     func fetchInsightsSnapshot(referenceDate: Date) async throws -> AtlasInsightsSnapshot
+    func saveContextEntry(_ draft: AtlasContextEntryDraft, now: Date) async throws -> AtlasContextLogRecord
     func saveWeightEntry(_ draft: AtlasWeightEntryDraft, now: Date) async throws -> AtlasWeightLogRecord
     func saveSymptomEntry(_ draft: AtlasSymptomEntryDraft, now: Date) async throws -> AtlasSymptomLogRecord
     func saveMetricDefinition(_ draft: AtlasMetricDefinitionDraft, now: Date) async throws -> AtlasCustomMetricRecord
@@ -107,6 +126,12 @@ public protocol ReviewModeRepository: Sendable {
     func fetchOwnerSnapshot(now: Date) async throws -> AtlasReviewOwnerSnapshot
     func createReview(_ request: AtlasReviewRequest, now: Date) async throws -> AtlasReviewCreationResult
     func loadWorkspace(from fileURL: URL, now: Date) async throws -> AtlasReviewWorkspace
+    func revokeReviewSession(id: String, now: Date) async throws -> AtlasReviewOwnerSnapshot
+}
+
+public protocol RetentionRepository: Sendable {
+    func fetchRetentionSnapshot(referenceDate: Date) async throws -> AtlasRetentionSnapshot
+    func markWeeklyReviewComplete(now: Date) async throws -> AtlasRetentionSnapshot
 }
 
 public protocol ReminderCoordinating: Sendable {
@@ -137,6 +162,7 @@ public struct AtlasPersistenceContainer: Sendable {
     public var metrics: any MetricsRepository
     public var changeStudio: any ProtocolChangeStudioRepository
     public var reviewMode: any ReviewModeRepository
+    public var retention: any RetentionRepository
 
     public init(
         onboarding: any OnboardingRepository,
@@ -151,7 +177,8 @@ public struct AtlasPersistenceContainer: Sendable {
         calculator: any CalculatorRepository,
         metrics: any MetricsRepository,
         changeStudio: any ProtocolChangeStudioRepository,
-        reviewMode: any ReviewModeRepository
+        reviewMode: any ReviewModeRepository,
+        retention: any RetentionRepository
     ) {
         self.onboarding = onboarding
         self.protocols = protocols
@@ -166,6 +193,7 @@ public struct AtlasPersistenceContainer: Sendable {
         self.metrics = metrics
         self.changeStudio = changeStudio
         self.reviewMode = reviewMode
+        self.retention = retention
     }
 }
 
@@ -199,11 +227,19 @@ public struct AtlasPersistenceController: Sendable {
         let locations = try AtlasDatabaseLocations.live(appGroupIdentifier: appGroupIdentifier)
         let stack = try AtlasDatabaseStack(locations: locations)
         let healthKit = AtlasHealthKitManager()
-        let writer = GRDBSharedProjectionWriter(stack: stack)
+        let writer = GRDBSharedProjectionWriter(
+            stack: stack,
+            featureFlags: featureFlags,
+            privacyFormatter: privacyFormatter
+        )
         let reminderRepository = GRDBReminderRepository(stack: stack)
         let inventoryRepository = GRDBInventoryRepository(stack: stack)
         let calculatorRepository = GRDBCalculatorRepository(stack: stack)
-        let metricsRepository = GRDBMetricsRepository(stack: stack)
+        let metricsRepository = GRDBMetricsRepository(
+            stack: stack,
+            featureFlags: featureFlags,
+            privacyFormatter: privacyFormatter
+        )
         let trustVaultRepository = GRDBTrustVaultRepository(
             stack: stack,
             privacyFormatter: privacyFormatter
@@ -217,6 +253,10 @@ public struct AtlasPersistenceController: Sendable {
             featureFlags: featureFlags,
             privacyFormatter: privacyFormatter
         )
+        let retentionRepository = GRDBRetentionRepository(
+            stack: stack,
+            featureFlags: featureFlags
+        )
         let container = AtlasPersistenceContainer(
             onboarding: GRDBOnboardingRepository(
                 stack: stack,
@@ -226,14 +266,19 @@ public struct AtlasPersistenceController: Sendable {
             timeline: GRDBTimelineRepository(stack: stack, privacyFormatter: privacyFormatter),
             today: GRDBTodayRepository(stack: stack),
             coreLoop: GRDBCoreLoopRepository(stack: stack),
-            settings: GRDBSettingsRepository(stack: stack, healthKit: healthKit),
+            settings: GRDBSettingsRepository(
+                stack: stack,
+                healthKit: healthKit,
+                featureFlags: featureFlags
+            ),
             trustVault: trustVaultRepository,
             reminders: reminderRepository,
             inventory: inventoryRepository,
             calculator: calculatorRepository,
             metrics: metricsRepository,
             changeStudio: changeStudioRepository,
-            reviewMode: reviewModeRepository
+            reviewMode: reviewModeRepository,
+            retention: retentionRepository
         )
         let bridge = GRDBImportExportBridge(
             stack: stack,
@@ -263,11 +308,19 @@ public struct AtlasPersistenceController: Sendable {
     ) throws -> AtlasPersistenceController {
         let stack = try AtlasDatabaseStack.inMemory()
         let healthKit = AtlasHealthKitManager()
-        let writer = GRDBSharedProjectionWriter(stack: stack)
+        let writer = GRDBSharedProjectionWriter(
+            stack: stack,
+            featureFlags: featureFlags,
+            privacyFormatter: privacyFormatter
+        )
         let reminderRepository = GRDBReminderRepository(stack: stack)
         let inventoryRepository = GRDBInventoryRepository(stack: stack)
         let calculatorRepository = GRDBCalculatorRepository(stack: stack)
-        let metricsRepository = GRDBMetricsRepository(stack: stack)
+        let metricsRepository = GRDBMetricsRepository(
+            stack: stack,
+            featureFlags: featureFlags,
+            privacyFormatter: privacyFormatter
+        )
         let trustVaultRepository = GRDBTrustVaultRepository(
             stack: stack,
             privacyFormatter: privacyFormatter
@@ -281,6 +334,10 @@ public struct AtlasPersistenceController: Sendable {
             featureFlags: featureFlags,
             privacyFormatter: privacyFormatter
         )
+        let retentionRepository = GRDBRetentionRepository(
+            stack: stack,
+            featureFlags: featureFlags
+        )
         let container = AtlasPersistenceContainer(
             onboarding: GRDBOnboardingRepository(
                 stack: stack,
@@ -290,14 +347,19 @@ public struct AtlasPersistenceController: Sendable {
             timeline: GRDBTimelineRepository(stack: stack, privacyFormatter: privacyFormatter),
             today: GRDBTodayRepository(stack: stack),
             coreLoop: GRDBCoreLoopRepository(stack: stack),
-            settings: GRDBSettingsRepository(stack: stack, healthKit: healthKit),
+            settings: GRDBSettingsRepository(
+                stack: stack,
+                healthKit: healthKit,
+                featureFlags: featureFlags
+            ),
             trustVault: trustVaultRepository,
             reminders: reminderRepository,
             inventory: inventoryRepository,
             calculator: calculatorRepository,
             metrics: metricsRepository,
             changeStudio: changeStudioRepository,
-            reviewMode: reviewModeRepository
+            reviewMode: reviewModeRepository,
+            retention: retentionRepository
         )
         let bridge = GRDBImportExportBridge(
             stack: stack,
@@ -334,11 +396,19 @@ public struct AtlasPersistenceController: Sendable {
         )
         let stack = try AtlasDatabaseStack(locations: locations)
         let healthKit = AtlasHealthKitManager()
-        let writer = GRDBSharedProjectionWriter(stack: stack)
+        let writer = GRDBSharedProjectionWriter(
+            stack: stack,
+            featureFlags: featureFlags,
+            privacyFormatter: privacyFormatter
+        )
         let reminderRepository = GRDBReminderRepository(stack: stack)
         let inventoryRepository = GRDBInventoryRepository(stack: stack)
         let calculatorRepository = GRDBCalculatorRepository(stack: stack)
-        let metricsRepository = GRDBMetricsRepository(stack: stack)
+        let metricsRepository = GRDBMetricsRepository(
+            stack: stack,
+            featureFlags: featureFlags,
+            privacyFormatter: privacyFormatter
+        )
         let trustVaultRepository = GRDBTrustVaultRepository(
             stack: stack,
             privacyFormatter: privacyFormatter
@@ -352,6 +422,10 @@ public struct AtlasPersistenceController: Sendable {
             featureFlags: featureFlags,
             privacyFormatter: privacyFormatter
         )
+        let retentionRepository = GRDBRetentionRepository(
+            stack: stack,
+            featureFlags: featureFlags
+        )
         let container = AtlasPersistenceContainer(
             onboarding: GRDBOnboardingRepository(
                 stack: stack,
@@ -361,14 +435,19 @@ public struct AtlasPersistenceController: Sendable {
             timeline: GRDBTimelineRepository(stack: stack, privacyFormatter: privacyFormatter),
             today: GRDBTodayRepository(stack: stack),
             coreLoop: GRDBCoreLoopRepository(stack: stack),
-            settings: GRDBSettingsRepository(stack: stack, healthKit: healthKit),
+            settings: GRDBSettingsRepository(
+                stack: stack,
+                healthKit: healthKit,
+                featureFlags: featureFlags
+            ),
             trustVault: trustVaultRepository,
             reminders: reminderRepository,
             inventory: inventoryRepository,
             calculator: calculatorRepository,
             metrics: metricsRepository,
             changeStudio: changeStudioRepository,
-            reviewMode: reviewModeRepository
+            reviewMode: reviewModeRepository,
+            retention: retentionRepository
         )
         let bridge = GRDBImportExportBridge(
             stack: stack,

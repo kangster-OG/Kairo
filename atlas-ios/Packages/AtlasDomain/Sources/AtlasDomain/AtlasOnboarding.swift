@@ -200,23 +200,6 @@ public struct AtlasOnboardingDraft: Codable, Equatable, Sendable {
         if healthConnectionPromptSeen == false {
             missing.append("healthConnectionPromptSeen")
         }
-        if needsGlpSetup {
-            if glp.medication?.isEmpty != false { missing.append("glp.medication") }
-            if glp.frequency?.isEmpty != false { missing.append("glp.frequency") }
-            if glp.injectionDay?.isEmpty != false { missing.append("glp.injectionDay") }
-            if glp.dose?.isEmpty != false { missing.append("glp.dose") }
-            if glp.duration?.isEmpty != false { missing.append("glp.duration") }
-            if glp.goal?.isEmpty != false { missing.append("glp.goal") }
-            if glp.challenge?.isEmpty != false { missing.append("glp.challenge") }
-        }
-        if needsPeptideSetup {
-            if peptide.selections.isEmpty { missing.append("peptide.selections") }
-            if peptide.frequency?.isEmpty != false { missing.append("peptide.frequency") }
-            if peptide.experience?.isEmpty != false { missing.append("peptide.experience") }
-            if peptide.usualTime?.isEmpty != false { missing.append("peptide.usualTime") }
-            if peptide.dose?.isEmpty != false { missing.append("peptide.dose") }
-            if peptide.goal?.isEmpty != false { missing.append("peptide.goal") }
-        }
 
         return missing
     }

@@ -1,5 +1,0 @@
-0: Open calculator | android.widget.Button | center=540,1150 | bounds=[129,1084][951,1215]
-1: Starter pen | android.widget.EditText | center=541,1673 | bounds=[129,1605][953,1741]
-2: Not linked yet | android.widget.Button | center=540,1954 | bounds=[129,1878][951,2030]
-3: Wegovy | android.widget.Button | center=540,2138 | bounds=[129,2062][951,2214]
-4: 4 | android.widget.EditText | center=541,2334 | bounds=[129,2330][953,2337]

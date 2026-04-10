@@ -265,6 +265,30 @@ func sanitizeExportSnapshot(
         )
         return value
     }
+    sanitized.consumables = snapshot.consumables.map { record in
+        var value = record
+        value.name = privacyFormatter.exportConsumableTitle(
+            canonical: record.name,
+            category: record.category,
+            mode: renderMode
+        )
+        if renderMode != .full {
+            value.vendorLabel = nil
+            value.purchaseNotes = nil
+            value.lotNumber = nil
+            value.sizeDescription = nil
+            value.notes = nil
+        }
+        return value
+    }
+    sanitized.contextLogs = snapshot.contextLogs.map { record in
+        var value = record
+        if renderMode != .full {
+            value.note = nil
+            value.tags = []
+        }
+        return value
+    }
     sanitized.customMetrics = snapshot.customMetrics.map { record in
         var value = record
         value.label = privacyFormatter.metricLabel(
@@ -280,6 +304,9 @@ func sortExportSnapshot(_ snapshot: AtlasExportSnapshot) -> AtlasExportSnapshot 
     AtlasExportSnapshot(
         calculatorProfiles: snapshot.calculatorProfiles.sorted { $0.id < $1.id },
         compounds: snapshot.compounds.sorted { $0.id < $1.id },
+        consumableAdjustments: snapshot.consumableAdjustments.sorted { $0.id < $1.id },
+        consumables: snapshot.consumables.sorted { $0.id < $1.id },
+        contextLogs: snapshot.contextLogs.sorted { $0.id < $1.id },
         customMetrics: snapshot.customMetrics.sorted { $0.id < $1.id },
         healthConnections: snapshot.healthConnections.sorted { $0.providerKey.rawValue < $1.providerKey.rawValue },
         logEvents: snapshot.logEvents.sorted { $0.id < $1.id },
@@ -302,26 +329,51 @@ func sortExportSnapshot(_ snapshot: AtlasExportSnapshot) -> AtlasExportSnapshot 
 }
 
 func snapshotRowCount(_ snapshot: AtlasExportSnapshot) -> Int {
-    snapshot.calculatorProfiles.count
-        + snapshot.compounds.count
-        + snapshot.customMetrics.count
-        + snapshot.healthConnections.count
-        + snapshot.logEvents.count
-        + snapshot.metricValueLogs.count
+    let profileCount = snapshot.calculatorProfiles.count
+    let compoundCount = snapshot.compounds.count
+    let consumableAdjustmentCount = snapshot.consumableAdjustments.count
+    let consumableCount = snapshot.consumables.count
+    let contextCount = snapshot.contextLogs.count
+    let customMetricCount = snapshot.customMetrics.count
+    let connectionCount = snapshot.healthConnections.count
+    let logCount = snapshot.logEvents.count
+    let metricValueCount = snapshot.metricValueLogs.count
+    let auditCount = snapshot.protocolChangeAudits.count
+    let protocolCount = snapshot.protocols.count
+    let aliasCount = snapshot.protocolAliases.count
+    let revisionRuleCount = snapshot.protocolRevisionRules.count
+    let revisionCount = snapshot.protocolRevisions.count
+    let protocolRuleCount = snapshot.protocolRules.count
+    let reminderCount = snapshot.reminders.count
+    let sensitiveAuditCount = snapshot.sensitiveActionAudits.count
+    let siteCount = snapshot.sites.count
+    let symptomCount = snapshot.symptomLogs.count
+    let vialCount = snapshot.vials.count
+    let weightCount = snapshot.weightLogs.count
+
+    return profileCount
+        + compoundCount
+        + consumableAdjustmentCount
+        + consumableCount
+        + contextCount
+        + customMetricCount
+        + connectionCount
+        + logCount
+        + metricValueCount
         + 1
         + 1
-        + snapshot.protocolChangeAudits.count
-        + snapshot.protocols.count
-        + snapshot.protocolAliases.count
-        + snapshot.protocolRevisionRules.count
-        + snapshot.protocolRevisions.count
-        + snapshot.protocolRules.count
-        + snapshot.reminders.count
-        + snapshot.sensitiveActionAudits.count
-        + snapshot.sites.count
-        + snapshot.symptomLogs.count
-        + snapshot.vials.count
-        + snapshot.weightLogs.count
+        + auditCount
+        + protocolCount
+        + aliasCount
+        + revisionRuleCount
+        + revisionCount
+        + protocolRuleCount
+        + reminderCount
+        + sensitiveAuditCount
+        + siteCount
+        + symptomCount
+        + vialCount
+        + weightCount
 }
 
 private func buildAtlasCsvContents(snapshot: AtlasExportSnapshot) -> String {
@@ -346,6 +398,23 @@ private func buildAtlasCsvContents(snapshot: AtlasExportSnapshot) -> String {
         },
         buildCsvRows(snapshot.vials) {
             buildCsvRow("vial", $0.id, $0.label, $0.updatedAt, $0.remainingQuantity, $0.quantityUnit, $0.lowStockThreshold)
+        },
+        buildCsvRows(snapshot.consumables) {
+            buildCsvRow("consumable", $0.id, $0.name, $0.updatedAt, $0.quantityOnHand, $0.unit, $0.category)
+        },
+        buildCsvRows(snapshot.consumableAdjustments) {
+            buildCsvRow("consumable_adjustment", $0.id, $0.consumableId, $0.recordedAt, $0.deltaQuantity, $0.quantityUnit, $0.kind.rawValue)
+        },
+        buildCsvRows(snapshot.contextLogs) {
+            buildCsvRow(
+                "context_log",
+                $0.id,
+                $0.protocolId,
+                $0.loggedAt,
+                $0.mealTiming?.rawValue,
+                $0.fedState?.rawValue ?? $0.appetite?.rawValue ?? $0.hydration?.rawValue,
+                $0.note ?? $0.tags.joined(separator: "|")
+            )
         },
         buildCsvRows(snapshot.weightLogs) {
             buildCsvRow("weight_log", $0.id, $0.unit.rawValue, $0.loggedAt, $0.value, $0.source.rawValue, $0.notes)
@@ -487,8 +556,21 @@ func selectiveShareSnapshot(
         let vials = snapshot.vials.filter { vial in
             vial.protocolId.map(protocolIDs.contains) ?? false
         }
+        let consumables = snapshot.consumables.filter { consumable in
+            consumable.protocolId.map(protocolIDs.contains) ?? false
+        }
+        let contextLogs = includeLogs
+            ? snapshot.contextLogs.filter {
+                ($0.protocolId.map(protocolIDs.contains) ?? false) && matchesRange($0.loggedAt, range: requestedRange)
+            }
+            : []
         let logEvents = includeLogs
             ? snapshot.logEvents.filter { protocolIDs.contains($0.protocolId) && matchesRange($0.loggedAt, range: requestedRange) }
+            : []
+        let consumableAdjustments = includeLogs
+            ? snapshot.consumableAdjustments.filter {
+                ($0.protocolId.map(protocolIDs.contains) ?? false) && matchesRange($0.recordedAt, range: requestedRange)
+            }
             : []
         let customMetrics = snapshot.customMetrics.filter { metric in
             metric.protocolId.map(protocolIDs.contains) ?? false
@@ -511,6 +593,9 @@ func selectiveShareSnapshot(
             compounds: snapshot.compounds.filter { compound in
                 protocols.contains(where: { $0.compoundId == compound.id })
             },
+            consumableAdjustments: consumableAdjustments,
+            consumables: consumables,
+            contextLogs: contextLogs,
             customMetrics: customMetrics,
             healthConnections: [],
             logEvents: logEvents,
@@ -542,6 +627,7 @@ func selectiveShareSnapshot(
         rawSubset = protocolScopedSnapshot(protocolIDs: Set(request.protocolID.map { [$0] } ?? []), includeLogs: true)
     case .last30DaysLogs:
         let logs = snapshot.logEvents.filter { matchesRange($0.loggedAt, range: range30) }
+        let consumableAdjustments = snapshot.consumableAdjustments.filter { matchesRange($0.recordedAt, range: range30) }
         let metricValueLogs = snapshot.metricValueLogs.filter { matchesRange($0.loggedAt, range: range30) }
         let metricIDs = Set(metricValueLogs.map(\.metricId))
         let protocolIDs = Set(logs.map(\.protocolId))
@@ -550,6 +636,9 @@ func selectiveShareSnapshot(
             compounds: snapshot.compounds.filter { compound in
                 snapshot.protocols.contains(where: { protocolIDs.contains($0.id) && $0.compoundId == compound.id })
             },
+            consumableAdjustments: consumableAdjustments,
+            consumables: snapshot.consumables.filter { $0.protocolId.map(protocolIDs.contains) ?? false },
+            contextLogs: snapshot.contextLogs.filter { matchesRange($0.loggedAt, range: range30) },
             customMetrics: snapshot.customMetrics.filter { metricIDs.contains($0.id) },
             healthConnections: [],
             logEvents: logs,
@@ -577,15 +666,20 @@ func selectiveShareSnapshot(
         )
     case .symptomsOnly:
         rawSubset = AtlasExportSnapshot(
+            contextLogs: snapshot.contextLogs.filter { matchesRange($0.loggedAt, range: requestedRange) },
             privacyProfile: snapshot.privacyProfile,
             reminderPreference: snapshot.reminderPreference,
             symptomLogs: snapshot.symptomLogs.filter { matchesRange($0.loggedAt, range: requestedRange) }
         )
     case .inventoryOnly:
-        let protocolIDs = Set(request.protocolID.map { [$0] } ?? snapshot.vials.compactMap(\.protocolId))
+        let protocolIDs = Set(request.protocolID.map { [$0] } ?? (snapshot.vials.compactMap(\.protocolId) + snapshot.consumables.compactMap(\.protocolId)))
         let vials = snapshot.vials.filter { vial in
             request.protocolID == nil ? true : vial.protocolId == request.protocolID
         }
+        let consumables = snapshot.consumables.filter { consumable in
+            request.protocolID == nil ? true : consumable.protocolId == request.protocolID
+        }
+        let consumableIDs = Set(consumables.map(\.id))
         rawSubset = AtlasExportSnapshot(
             calculatorProfiles: snapshot.calculatorProfiles.filter { profile in
                 vials.contains(where: { $0.calculatorProfileId == profile.id })
@@ -593,6 +687,10 @@ func selectiveShareSnapshot(
             compounds: snapshot.compounds.filter { compound in
                 snapshot.protocols.contains(where: { protocolIDs.contains($0.id) && $0.compoundId == compound.id })
             },
+            consumableAdjustments: snapshot.consumableAdjustments.filter { adjustment in
+                consumableIDs.contains(adjustment.consumableId)
+            },
+            consumables: consumables,
             privacyProfile: snapshot.privacyProfile,
             protocolAliases: snapshot.protocolAliases.filter { protocolIDs.contains($0.protocolId) },
             protocolRevisions: snapshot.protocolRevisions.filter { protocolIDs.contains($0.protocolId) },
@@ -620,6 +718,20 @@ func selectiveShareSnapshot(
             compounds: snapshot.compounds.filter { compound in
                 snapshot.protocols.contains(where: { selectedProtocolIDs.contains($0.id) && $0.compoundId == compound.id })
             },
+            consumableAdjustments: request.include.contains(.inventory)
+                ? snapshot.consumableAdjustments.filter {
+                    ($0.protocolId.map(selectedProtocolIDs.contains) ?? false) && matchesRange($0.recordedAt, range: requestedRange)
+                }
+                : [],
+            consumables: request.include.contains(.inventory)
+                ? snapshot.consumables.filter { $0.protocolId.map(selectedProtocolIDs.contains) ?? false }
+                : [],
+            contextLogs: (request.include.contains(.logs) || request.include.contains(.symptoms))
+                ? snapshot.contextLogs.filter {
+                    (($0.protocolId.map(selectedProtocolIDs.contains) ?? false) || $0.protocolId == nil)
+                        && matchesRange($0.loggedAt, range: requestedRange)
+                }
+                : [],
             customMetrics: [],
             healthConnections: [],
             logEvents: request.include.contains(.logs)
@@ -741,6 +853,9 @@ func selectiveShareDatasetSummaries(snapshot: AtlasExportSnapshot) -> [AtlasSele
         ("protocolChangeAudits", snapshot.protocolChangeAudits.count),
         ("protocolAliases", snapshot.protocolAliases.count),
         ("logEvents", snapshot.logEvents.count),
+        ("consumables", snapshot.consumables.count),
+        ("consumableAdjustments", snapshot.consumableAdjustments.count),
+        ("contextLogs", snapshot.contextLogs.count),
         ("customMetrics", snapshot.customMetrics.count),
         ("metricValueLogs", snapshot.metricValueLogs.count),
         ("sensitiveActionAudits", snapshot.sensitiveActionAudits.count),

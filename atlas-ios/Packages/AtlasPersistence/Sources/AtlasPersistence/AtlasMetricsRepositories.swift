@@ -7,6 +7,7 @@ private let atlasInsightsTrendWindowDays = 30
 private let atlasInsightsSymptomWindowDays = 14
 
 enum AtlasMetricsRepositoryError: LocalizedError {
+    case invalidContextEntry
     case invalidWeightValue
     case invalidSymptomKey
     case invalidSeverity
@@ -19,6 +20,8 @@ enum AtlasMetricsRepositoryError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
+        case .invalidContextEntry:
+            return "Add at least one context detail before saving."
         case .invalidWeightValue:
             return "Weight values must be greater than zero."
         case .invalidSymptomKey:
@@ -43,14 +46,52 @@ enum AtlasMetricsRepositoryError: LocalizedError {
 
 public struct GRDBMetricsRepository: MetricsRepository, Sendable {
     let stack: AtlasDatabaseStack
+    let featureFlags: AtlasFeatureFlagState
+    let privacyFormatter: AtlasPrivacyFormatter
 
-    init(stack: AtlasDatabaseStack) {
+    init(
+        stack: AtlasDatabaseStack,
+        featureFlags: AtlasFeatureFlagState,
+        privacyFormatter: AtlasPrivacyFormatter
+    ) {
         self.stack = stack
+        self.featureFlags = featureFlags
+        self.privacyFormatter = privacyFormatter
     }
 
     public func fetchInsightsSnapshot(referenceDate: Date) async throws -> AtlasInsightsSnapshot {
         try await stack.canonical.read { db in
-            try buildInsightsSnapshot(db: db, referenceDate: referenceDate)
+            try buildInsightsSnapshot(
+                db: db,
+                referenceDate: referenceDate,
+                featureFlags: featureFlags,
+                privacyFormatter: privacyFormatter
+            )
+        }
+    }
+
+    public func saveContextEntry(_ draft: AtlasContextEntryDraft, now: Date) async throws -> AtlasContextLogRecord {
+        try await stack.canonical.write { db in
+            let normalized = try normalize(contextDraft: draft)
+            let timestamp = atlasTimestamp(from: now)
+            let existing = normalized.id.flatMap { try? AtlasContextLogDBRecord.fetchOne(db, key: $0)?.domain }
+            let record = AtlasContextLogRecord.make(
+                id: existing?.id ?? normalized.id ?? UUID().uuidString,
+                protocolId: normalized.protocolID,
+                loggedAt: atlasTimestamp(from: normalized.loggedAt),
+                mealTiming: normalized.mealTiming,
+                fedState: normalized.fedState,
+                appetite: normalized.appetite,
+                hydration: normalized.hydration,
+                giTags: normalized.giTags,
+                note: normalized.note.flatMap(stringNilIfEmpty),
+                tags: normalized.tags,
+                source: .manual,
+                createdAt: existing?.createdAt ?? timestamp,
+                updatedAt: timestamp
+            )
+            try AtlasContextLogDBRecord(record: record).save(db)
+            return record
         }
     }
 
@@ -174,6 +215,48 @@ public struct GRDBMetricsRepository: MetricsRepository, Sendable {
     }
 }
 
+private func normalize(contextDraft: AtlasContextEntryDraft) throws -> AtlasContextEntryDraft {
+    let protocolID = contextDraft.protocolID?.trimmingCharacters(in: .whitespacesAndNewlines)
+    let note = contextDraft.note?.trimmingCharacters(in: .whitespacesAndNewlines)
+    let tags = Array(
+        Set(
+            contextDraft.tags
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+                .filter { $0.isEmpty == false }
+        )
+    ).sorted()
+    var giTags = Array(Set(contextDraft.giTags)).sorted { $0.rawValue < $1.rawValue }
+    if giTags.contains(.calm), giTags.count > 1 {
+        giTags.removeAll { $0 == .calm }
+    }
+
+    let hasMeaningfulContent =
+        contextDraft.mealTiming != nil
+        || contextDraft.fedState != nil
+        || contextDraft.appetite != nil
+        || contextDraft.hydration != nil
+        || giTags.isEmpty == false
+        || (note?.isEmpty == false)
+        || tags.isEmpty == false
+
+    guard hasMeaningfulContent else {
+        throw AtlasMetricsRepositoryError.invalidContextEntry
+    }
+
+    return AtlasContextEntryDraft(
+        id: contextDraft.id,
+        protocolID: protocolID?.isEmpty == true ? nil : protocolID,
+        loggedAt: contextDraft.loggedAt,
+        mealTiming: contextDraft.mealTiming,
+        fedState: contextDraft.fedState,
+        appetite: contextDraft.appetite,
+        hydration: contextDraft.hydration,
+        giTags: giTags,
+        note: note,
+        tags: tags
+    )
+}
+
 private func normalize(weightDraft: AtlasWeightEntryDraft) throws -> AtlasWeightEntryDraft {
     guard weightDraft.value > 0 else {
         throw AtlasMetricsRepositoryError.invalidWeightValue
@@ -295,10 +378,16 @@ private func normalize(
 
 func buildInsightsSnapshot(
     db: Database,
-    referenceDate: Date
+    referenceDate: Date,
+    featureFlags: AtlasFeatureFlagState = .init(),
+    privacyFormatter: AtlasPrivacyFormatter = .init()
 ) throws -> AtlasInsightsSnapshot {
     let customMetrics = try AtlasCustomMetricDBRecord.fetchAll(db).map(\.domain)
     let metricLogs = try AtlasMetricValueLogDBRecord
+        .order(Column("logged_at").desc)
+        .fetchAll(db)
+        .map(\.domain)
+    let contextLogs = try AtlasContextLogDBRecord
         .order(Column("logged_at").desc)
         .fetchAll(db)
         .map(\.domain)
@@ -322,6 +411,14 @@ func buildInsightsSnapshot(
         .map(\.domain)
     let inventory = try buildInventorySnapshot(db: db, referenceDate: referenceDate)
     let context = try loadCoreLoopContext(db: db)
+    let renderMode = privacyFormatter.renderMode(
+        for: try AtlasPrivacyProfileDBRecord.fetchOne(db)?.domain ?? .default()
+    )
+    let summarySettings = try readSummarySettings(db: db, featureFlags: featureFlags)
+    let summaryService = AtlasSummaryService(
+        featureFlags: featureFlags,
+        settings: summarySettings
+    )
     let episodeIntelligence = buildEpisodeInsightsSnapshot(
         source: AtlasEpisodeSourceSnapshot(
             protocols: context.protocols,
@@ -329,6 +426,7 @@ func buildInsightsSnapshot(
             protocolRules: context.protocolRules,
             revisionSlices: context.revisionSlices,
             logEvents: logEvents,
+            contextLogs: contextLogs,
             symptomLogs: symptomLogs,
             weightLogs: weightLogs,
             metricValueLogs: metricLogs,
@@ -345,6 +443,26 @@ func buildInsightsSnapshot(
         metricLogs: metricLogs,
         context: context
     )
+    let recentContextEntries = contextLogs
+        .prefix(5)
+        .map { log in
+            let protocolRecord = log.protocolId.flatMap { context.protocols[$0] }
+            let alias = log.protocolId.flatMap { context.aliases[$0]?.aliasLabel }
+            return AtlasContextEntrySummary(
+                id: log.id,
+                protocolID: log.protocolId,
+                canonicalProtocolTitle: protocolRecord?.name,
+                aliasProtocolTitle: alias,
+                loggedAt: atlasDate(from: log.loggedAt),
+                mealTiming: log.mealTiming,
+                fedState: log.fedState,
+                appetite: log.appetite,
+                hydration: log.hydration,
+                giTags: log.giTags,
+                note: log.note,
+                tags: log.tags
+            )
+        }
     let recentWeightEntries = weightLogs
         .prefix(5)
         .map {
@@ -371,14 +489,38 @@ func buildInsightsSnapshot(
         metricsByID: Dictionary(uniqueKeysWithValues: customMetrics.map { ($0.id, $0) }),
         context: context
     )
+    let weeklyRecapSummary = buildWeeklyRecapSummaryRequest(
+        context: context,
+        logEvents: logEvents,
+        contextLogs: contextLogs,
+        symptomLogs: symptomLogs,
+        weightLogs: weightLogs,
+        referenceDate: referenceDate,
+        renderMode: renderMode,
+        privacyFormatter: privacyFormatter
+    ).flatMap(summaryService.generate)
+    let episodeRecapSummary = buildEpisodeRecapSummaryRequest(
+        snapshot: episodeIntelligence,
+        referenceDate: referenceDate,
+        renderMode: renderMode
+    ).flatMap(summaryService.generate)
 
     return AtlasInsightsSnapshot(
         weightTrend: buildWeightTrend(weightLogs: weightLogs),
         symptomTrend: buildSymptomTrend(symptomLogs: symptomLogs, now: referenceDate),
+        contextTrend: buildContextTrend(contextLogs: contextLogs, now: referenceDate),
         inventoryBurnDown: inventory.vials.map {
             AtlasInventoryBurnDownInsight(
                 id: $0.id,
                 label: $0.label,
+                quantityLabel: $0.quantityLabel,
+                projectedDepletionLabel: $0.projectedDepletionLabel,
+                isLowStock: $0.isLowStock
+            )
+        } + inventory.consumables.map {
+            AtlasInventoryBurnDownInsight(
+                id: $0.id,
+                label: $0.name,
                 quantityLabel: $0.quantityLabel,
                 projectedDepletionLabel: $0.projectedDepletionLabel,
                 isLowStock: $0.isLowStock
@@ -388,10 +530,14 @@ func buildInsightsSnapshot(
         amountInSystem: buildAmountEstimateItems(context: context, logEvents: logEvents, now: referenceDate),
         episodeIntelligence: episodeIntelligence,
         customMetricDefinitions: definitions,
+        recentContextEntries: recentContextEntries,
         recentWeightEntries: recentWeightEntries,
         recentSymptomEntries: recentSymptomEntries,
         recentMetricEntries: recentMetricEntries,
-        hasAnyInsightData: weightLogs.isEmpty == false
+        weeklyRecapSummary: weeklyRecapSummary,
+        episodeRecapSummary: episodeRecapSummary,
+        hasAnyInsightData: contextLogs.isEmpty == false
+            || weightLogs.isEmpty == false
             || symptomLogs.isEmpty == false
             || metricLogs.isEmpty == false
             || episodeIntelligence.hasAnyEpisodeData
@@ -448,6 +594,24 @@ private func buildSymptomTrend(
     .sorted { Double($0.averageSeverityLabel) ?? 0 > Double($1.averageSeverityLabel) ?? 0 }
     .prefix(4)
     .map { $0 }
+}
+
+private func buildContextTrend(
+    contextLogs: [AtlasContextLogRecord],
+    now: Date
+) -> AtlasContextTrendSummary {
+    let windowStart = Calendar.current.date(byAdding: .day, value: -atlasInsightsSymptomWindowDays, to: now) ?? now
+    let recent = contextLogs.filter { atlasDate(from: $0.loggedAt) >= windowStart }
+    let latest = recent.first ?? contextLogs.first
+
+    return AtlasContextTrendSummary(
+        recentEntryCount: recent.count,
+        latestLabel: latest.map { "Latest \(formatDateLabel($0.loggedAt))" },
+        fastedEntryCount: recent.filter { $0.fedState == .fasted }.count,
+        fedEntryCount: recent.filter { $0.fedState == .fed }.count,
+        lowHydrationEntryCount: recent.filter { $0.hydration == .low }.count,
+        giEntryCount: recent.filter { $0.giTags.isEmpty == false && $0.giTags != [.calm] }.count
+    )
 }
 
 private func buildAdherenceTrend(

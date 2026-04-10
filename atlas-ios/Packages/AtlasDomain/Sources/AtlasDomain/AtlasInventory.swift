@@ -3,20 +3,23 @@ import Foundation
 public struct AtlasInventorySnapshot: Equatable, Sendable {
     public var protocolSettings: [AtlasProtocolInventorySetting]
     public var vials: [AtlasVialSummary]
+    public var consumables: [AtlasConsumableSummary]
     public var sites: [AtlasSiteSummary]
 
     public init(
         protocolSettings: [AtlasProtocolInventorySetting] = [],
         vials: [AtlasVialSummary] = [],
+        consumables: [AtlasConsumableSummary] = [],
         sites: [AtlasSiteSummary] = []
     ) {
         self.protocolSettings = protocolSettings
         self.vials = vials
+        self.consumables = consumables
         self.sites = sites
     }
 
     public var lowStockCount: Int {
-        vials.filter(\.isLowStock).count
+        vials.filter(\.isLowStock).count + consumables.filter(\.isLowStock).count
     }
 }
 
@@ -112,6 +115,64 @@ public struct AtlasVialSummary: Identifiable, Hashable, Sendable {
     }
 }
 
+public struct AtlasConsumableSummary: Identifiable, Hashable, Sendable {
+    public var id: String
+    public var name: String
+    public var category: String?
+    public var linkedProtocolID: String?
+    public var linkedProtocolCanonicalTitle: String?
+    public var linkedProtocolAliasTitle: String?
+    public var vendorLabel: String?
+    public var quantityLabel: String
+    public var lowStockLabel: String?
+    public var projectedDepletionLabel: String?
+    public var usageLabel: String?
+    public var reorderLeadTimeLabel: String?
+    public var quantityOnHand: Double
+    public var quantityUnit: String
+    public var reorderThreshold: Double?
+    public var isLowStock: Bool
+    public var archivedAt: Date?
+
+    public init(
+        id: String,
+        name: String,
+        category: String?,
+        linkedProtocolID: String?,
+        linkedProtocolCanonicalTitle: String?,
+        linkedProtocolAliasTitle: String?,
+        vendorLabel: String?,
+        quantityLabel: String,
+        lowStockLabel: String?,
+        projectedDepletionLabel: String?,
+        usageLabel: String?,
+        reorderLeadTimeLabel: String?,
+        quantityOnHand: Double,
+        quantityUnit: String,
+        reorderThreshold: Double?,
+        isLowStock: Bool,
+        archivedAt: Date?
+    ) {
+        self.id = id
+        self.name = name
+        self.category = category
+        self.linkedProtocolID = linkedProtocolID
+        self.linkedProtocolCanonicalTitle = linkedProtocolCanonicalTitle
+        self.linkedProtocolAliasTitle = linkedProtocolAliasTitle
+        self.vendorLabel = vendorLabel
+        self.quantityLabel = quantityLabel
+        self.lowStockLabel = lowStockLabel
+        self.projectedDepletionLabel = projectedDepletionLabel
+        self.usageLabel = usageLabel
+        self.reorderLeadTimeLabel = reorderLeadTimeLabel
+        self.quantityOnHand = quantityOnHand
+        self.quantityUnit = quantityUnit
+        self.reorderThreshold = reorderThreshold
+        self.isLowStock = isLowStock
+        self.archivedAt = archivedAt
+    }
+}
+
 public struct AtlasInventoryCorrectionEntry: Identifiable, Equatable, Sendable {
     public var id: String
     public var deltaLabel: String
@@ -127,6 +188,39 @@ public struct AtlasInventoryCorrectionEntry: Identifiable, Equatable, Sendable {
         self.id = id
         self.deltaLabel = deltaLabel
         self.note = note
+        self.recordedAt = recordedAt
+    }
+}
+
+public enum AtlasInventoryMovementKind: String, Equatable, Sendable {
+    case created
+    case takenLog = "taken_log"
+    case manualCorrection = "manual_correction"
+    case vialHandoff = "vial_handoff"
+    case archived
+}
+
+public struct AtlasInventoryMovementEntry: Identifiable, Equatable, Sendable {
+    public var id: String
+    public var kind: AtlasInventoryMovementKind
+    public var title: String
+    public var detail: String
+    public var deltaLabel: String?
+    public var recordedAt: Date
+
+    public init(
+        id: String,
+        kind: AtlasInventoryMovementKind,
+        title: String,
+        detail: String,
+        deltaLabel: String? = nil,
+        recordedAt: Date
+    ) {
+        self.id = id
+        self.kind = kind
+        self.title = title
+        self.detail = detail
+        self.deltaLabel = deltaLabel
         self.recordedAt = recordedAt
     }
 }
@@ -184,15 +278,142 @@ public struct AtlasVialDetailSnapshot: Equatable, Sendable {
     public var summary: AtlasVialSummary
     public var editableDraft: AtlasVialDraft
     public var correctionHistory: [AtlasInventoryCorrectionEntry]
+    public var movementHistory: [AtlasInventoryMovementEntry]
 
     public init(
         summary: AtlasVialSummary,
         editableDraft: AtlasVialDraft,
-        correctionHistory: [AtlasInventoryCorrectionEntry]
+        correctionHistory: [AtlasInventoryCorrectionEntry],
+        movementHistory: [AtlasInventoryMovementEntry] = []
     ) {
         self.summary = summary
         self.editableDraft = editableDraft
         self.correctionHistory = correctionHistory
+        self.movementHistory = movementHistory
+    }
+}
+
+public enum AtlasConsumableAdjustmentKind: String, Codable, Equatable, Sendable {
+    case created
+    case manualAdjustment = "manual_adjustment"
+    case protocolUse = "protocol_use"
+    case archived
+    case unarchived
+}
+
+public struct AtlasConsumableAdjustmentEntry: Identifiable, Equatable, Sendable {
+    public var id: String
+    public var kind: AtlasConsumableAdjustmentKind
+    public var title: String
+    public var detail: String
+    public var deltaLabel: String?
+    public var resultingQuantityLabel: String
+    public var recordedAt: Date
+
+    public init(
+        id: String,
+        kind: AtlasConsumableAdjustmentKind,
+        title: String,
+        detail: String,
+        deltaLabel: String?,
+        resultingQuantityLabel: String,
+        recordedAt: Date
+    ) {
+        self.id = id
+        self.kind = kind
+        self.title = title
+        self.detail = detail
+        self.deltaLabel = deltaLabel
+        self.resultingQuantityLabel = resultingQuantityLabel
+        self.recordedAt = recordedAt
+    }
+}
+
+public struct AtlasConsumableDraft: Equatable, Sendable {
+    public var id: String?
+    public var protocolID: String?
+    public var name: String
+    public var category: String?
+    public var quantityOnHand: Double
+    public var unit: String
+    public var reorderThreshold: Double?
+    public var reorderLeadTimeDays: Int?
+    public var quantityPerUse: Double?
+    public var lotNumber: String?
+    public var sizeDescription: String?
+    public var notes: String?
+    public var vendorLabel: String?
+    public var purchaseNotes: String?
+    public var archivedAt: Date?
+
+    public init(
+        id: String? = nil,
+        protocolID: String? = nil,
+        name: String = "",
+        category: String? = nil,
+        quantityOnHand: Double = 0,
+        unit: String = "item",
+        reorderThreshold: Double? = nil,
+        reorderLeadTimeDays: Int? = nil,
+        quantityPerUse: Double? = nil,
+        lotNumber: String? = nil,
+        sizeDescription: String? = nil,
+        notes: String? = nil,
+        vendorLabel: String? = nil,
+        purchaseNotes: String? = nil,
+        archivedAt: Date? = nil
+    ) {
+        self.id = id
+        self.protocolID = protocolID
+        self.name = name
+        self.category = category
+        self.quantityOnHand = quantityOnHand
+        self.unit = unit
+        self.reorderThreshold = reorderThreshold
+        self.reorderLeadTimeDays = reorderLeadTimeDays
+        self.quantityPerUse = quantityPerUse
+        self.lotNumber = lotNumber
+        self.sizeDescription = sizeDescription
+        self.notes = notes
+        self.vendorLabel = vendorLabel
+        self.purchaseNotes = purchaseNotes
+        self.archivedAt = archivedAt
+    }
+}
+
+public struct AtlasConsumableDetailSnapshot: Equatable, Sendable {
+    public var summary: AtlasConsumableSummary
+    public var editableDraft: AtlasConsumableDraft
+    public var adjustmentHistory: [AtlasConsumableAdjustmentEntry]
+
+    public init(
+        summary: AtlasConsumableSummary,
+        editableDraft: AtlasConsumableDraft,
+        adjustmentHistory: [AtlasConsumableAdjustmentEntry]
+    ) {
+        self.summary = summary
+        self.editableDraft = editableDraft
+        self.adjustmentHistory = adjustmentHistory
+    }
+}
+
+public struct AtlasConsumableAdjustmentDraft: Equatable, Sendable {
+    public var consumableID: String
+    public var nextQuantityOnHand: Double
+    public var note: String?
+
+    public init(consumableID: String, nextQuantityOnHand: Double, note: String? = nil) {
+        self.consumableID = consumableID
+        self.nextQuantityOnHand = nextQuantityOnHand
+        self.note = note
+    }
+}
+
+public struct AtlasConsumableAdjustmentResult: Equatable, Sendable {
+    public var consumable: AtlasConsumableDetailSnapshot
+
+    public init(consumable: AtlasConsumableDetailSnapshot) {
+        self.consumable = consumable
     }
 }
 
@@ -303,6 +524,15 @@ public struct AtlasProtocolSiteOptions: Equatable, Sendable {
         self.sites = sites
         self.suggestedSiteID = suggestedSiteID
         self.lastUsedSiteID = lastUsedSiteID
+    }
+}
+
+public struct AtlasConsumableCategorySuggestion: Identifiable, Equatable, Sendable {
+    public var id: String { value }
+    public var value: String
+
+    public init(value: String) {
+        self.value = value
     }
 }
 

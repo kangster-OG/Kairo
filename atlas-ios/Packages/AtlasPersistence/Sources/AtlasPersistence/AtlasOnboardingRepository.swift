@@ -78,7 +78,7 @@ public struct GRDBOnboardingRepository: OnboardingRepository, Sendable {
             profile.updatedAt = atlasTimestamp(from: now)
             try AtlasPrivacyProfileDBRecord(record: profile).save(db)
 
-            var health = try AtlasHealthConnectionDBRecord
+            _ = try AtlasHealthConnectionDBRecord
                 .filter(Column("provider_key") == AtlasHealthProviderKey.appleHealth.rawValue)
                 .fetchOne(db)?.domain ?? AtlasHealthConnectionRecord.make(
                     providerKey: .appleHealth,
@@ -89,10 +89,15 @@ public struct GRDBOnboardingRepository: OnboardingRepository, Sendable {
                     createdAt: atlasTimestamp(from: now),
                     updatedAt: atlasTimestamp(from: now)
                 )
-            health.enabled = false
-            health.connected = false
-            health.updatedAt = atlasTimestamp(from: now)
-            try AtlasHealthConnectionDBRecord(record: health).save(db)
+            try writeHealthConnection(
+                db: db,
+                provider: .appleHealth,
+                enabled: false,
+                connected: false,
+                lastSyncAt: nil,
+                lastError: nil,
+                now: now
+            )
 
             return try buildBootstrapSnapshot(
                 db: db,
@@ -160,7 +165,8 @@ func buildBootstrapSnapshot(
 
 func buildSettingsSnapshot(
     db: Database,
-    healthKit: any HealthKitManaging
+    healthKit: any HealthKitManaging,
+    featureFlags: AtlasFeatureFlagState
 ) throws -> AtlasSettingsSnapshot {
     let accountModeRaw = try String.fetchOne(
         db,
@@ -182,6 +188,8 @@ func buildSettingsSnapshot(
         $0.providerKey.rawValue < $1.providerKey.rawValue
     }
     let syncStatus: AtlasSyncScaffoldStatus = accountMode == .guest ? .localOnly : .accountBoundary
+    let summarySettings = try readSummarySettings(db: db, featureFlags: featureFlags)
+    let retentionSettings = try readRetentionSettings(db: db, featureFlags: featureFlags)
 
     return AtlasSettingsSnapshot(
         accountMode: accountMode,
@@ -195,7 +203,60 @@ func buildSettingsSnapshot(
         trustVaultStatus: TrustVaultStatus(
             renderMode: profile.renderMode ?? (profile.aliasModeEnabled ? .alias : .full),
             biometricLockEnabled: profile.biometricLockEnabled
-        )
+        ),
+        summarySettings: summarySettings,
+        retentionSettings: retentionSettings
+    )
+}
+
+func readSummarySettings(
+    db: Database,
+    featureFlags: AtlasFeatureFlagState
+) throws -> AtlasSummarySettingsSnapshot {
+    let onDeviceValue = try String.fetchOne(
+        db,
+        sql: "SELECT value FROM atlas_app_settings WHERE key = 'summary_on_device_enabled'"
+    )
+    let externalValue = try String.fetchOne(
+        db,
+        sql: "SELECT value FROM atlas_app_settings WHERE key = 'summary_external_provider_enabled'"
+    )
+    let consentAtValue = try String.fetchOne(
+        db,
+        sql: "SELECT value FROM atlas_app_settings WHERE key = 'summary_external_provider_consent_at'"
+    )
+
+    let onDeviceEnabled = featureFlags.boundedSummaries && onDeviceValue == "1"
+    let externalProviderEnabled = featureFlags.externalSummaryProviders && externalValue == "1"
+
+    return AtlasSummarySettingsSnapshot(
+        onDeviceEnabled: onDeviceEnabled,
+        externalProviderEnabled: externalProviderEnabled,
+        externalProviderConsentRecordedAt: consentAtValue.map(atlasDate(from:))
+    )
+}
+
+func readRetentionSettings(
+    db: Database,
+    featureFlags: AtlasFeatureFlagState
+) throws -> AtlasRetentionSettingsSnapshot {
+    let progressValue = try String.fetchOne(
+        db,
+        sql: "SELECT value FROM atlas_app_settings WHERE key = 'retention_progress_enabled'"
+    )
+    let companionValue = try String.fetchOne(
+        db,
+        sql: "SELECT value FROM atlas_app_settings WHERE key = 'retention_companion_enabled'"
+    )
+
+    let progressEnabled = featureFlags.calmRetention && progressValue == "1"
+    let companionEnabled = featureFlags.calmRetention
+        && featureFlags.companionSkin
+        && companionValue == "1"
+
+    return AtlasRetentionSettingsSnapshot(
+        progressEnabled: progressEnabled,
+        companionEnabled: companionEnabled
     )
 }
 
@@ -217,13 +278,41 @@ func ensureDefaultHealthConnection(db: Database) throws {
     try AtlasHealthConnectionDBRecord(record: record).insert(db)
 }
 
+func writeHealthConnection(
+    db: Database,
+    provider: AtlasHealthProviderKey,
+    enabled: Bool,
+    connected: Bool,
+    lastSyncAt: Date?,
+    lastError: String?,
+    now: Date
+) throws {
+    let timestamp = atlasTimestamp(from: now)
+    let existing = try AtlasHealthConnectionDBRecord
+        .filter(Column("provider_key") == provider.rawValue)
+        .fetchOne(db)?.domain
+
+    let record = AtlasHealthConnectionRecord.make(
+        providerKey: provider,
+        enabled: enabled,
+        connected: connected,
+        lastSyncAt: lastSyncAt.map { atlasTimestamp(from: $0) },
+        lastError: lastError,
+        createdAt: existing?.createdAt ?? timestamp,
+        updatedAt: timestamp
+    )
+    try AtlasHealthConnectionDBRecord(record: record).save(db)
+}
+
 private func hasCanonicalLocalData(db: Database) throws -> Bool {
     let protocolCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM protocols") ?? 0
     let logCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM log_events") ?? 0
     let vialCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM vials") ?? 0
+    let consumableCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM consumables") ?? 0
     let weightCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM weight_logs") ?? 0
     let symptomCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM symptom_logs") ?? 0
-    return protocolCount + logCount + vialCount + weightCount + symptomCount > 0
+    let contextCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM context_logs") ?? 0
+    return protocolCount + logCount + vialCount + consumableCount + weightCount + symptomCount + contextCount > 0
 }
 
 private func readDraft(db: Database) throws -> AtlasOnboardingDraft? {

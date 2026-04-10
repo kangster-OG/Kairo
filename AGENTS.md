@@ -3,14 +3,17 @@
 ## Read first
 Before making changes, read:
 1. `README.md`
-2. `PLANS.md`
-3. `atlas-ios/README.md`
-4. `docs/native-release-readiness.md`
-5. `docs/ios-architecture.md`
-6. `docs/privacy-security-spec.md`
-7. `docs/atlas-export-v1-spec.md`
+2. `docs/repo-truth-map.md`
+3. `PLANS.md`
+4. `atlas-ios/README.md`
+5. `docs/native-release-readiness.md`
+6. `docs/ios-architecture.md`
+7. `docs/privacy-security-spec.md`
+8. `docs/atlas-export-v1-spec.md`
 
 Use the native iOS codebase plus those docs as the primary source of truth.
+
+If you need to distinguish current native docs from historical migration/spec docs quickly, use `docs/repo-truth-map.md`.
 
 ## Source-of-truth rule
 If repo docs disagree, use this order:

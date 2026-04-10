@@ -1,16 +1,43 @@
 import AtlasFeatures
+import AtlasDesignSystem
 import SwiftUI
+import WidgetKit
 
 @main
 struct AtlasApp: App {
+    @Environment(\.scenePhase) private var scenePhase
     @State private var bootstrapState = AtlasAppBootstrap.makeState()
+
+    init() {
+        AtlasPlatformAppearance.configure()
+    }
 
     var body: some Scene {
         WindowGroup {
             switch bootstrapState {
             case .ready(let model):
                 AtlasRootView(model: model)
+                    .preferredColorScheme(.light)
                     .tint(.blue)
+                    .task {
+                        model.dependencies.diagnostics.markLaunchCompleted()
+                    }
+                    .onOpenURL { url in
+                        Task {
+                            await model.handleIncomingURL(url)
+                        }
+                    }
+                    .onChange(of: model.widgetProjectionVersion) { _, _ in
+                        WidgetCenter.shared.reloadAllTimelines()
+                    }
+                    .onChange(of: scenePhase) { _, newPhase in
+                        guard newPhase == .active else {
+                            return
+                        }
+                        Task {
+                            await model.consumePendingExtensionActionIfNeeded()
+                        }
+                    }
             case .failed(let message):
                 AtlasBootstrapFailureView(message: message) {
                     bootstrapState = AtlasAppBootstrap.makeState()
@@ -19,7 +46,6 @@ struct AtlasApp: App {
         }
     }
 }
-
 private struct AtlasBootstrapFailureView: View {
     let message: String
     let retry: () -> Void
@@ -43,5 +69,6 @@ private struct AtlasBootstrapFailureView: View {
             Spacer()
         }
         .padding(24)
+        .preferredColorScheme(.light)
     }
 }

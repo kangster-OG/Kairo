@@ -1,5 +1,32 @@
 import Foundation
 
+public struct AtlasExplainerFact: Identifiable, Hashable, Sendable {
+    public var id: String { label }
+    public var label: String
+    public var value: String
+
+    public init(label: String, value: String) {
+        self.label = label
+        self.value = value
+    }
+}
+
+public struct AtlasOccurrenceExplanation: Equatable, Hashable, Sendable {
+    public var summary: String
+    public var facts: [AtlasExplainerFact]
+    public var notes: [String]
+
+    public init(
+        summary: String,
+        facts: [AtlasExplainerFact],
+        notes: [String] = []
+    ) {
+        self.summary = summary
+        self.facts = facts
+        self.notes = notes
+    }
+}
+
 public struct AtlasProtocolDraft: Equatable, Sendable {
     public var name: String
     public var kind: AtlasProtocolKind
@@ -34,7 +61,7 @@ public struct AtlasProtocolDraft: Equatable, Sendable {
     }
 }
 
-public enum AtlasOccurrenceDisplayState: String, Equatable, Sendable {
+public enum AtlasOccurrenceDisplayState: String, Codable, Equatable, Sendable {
     case overdue
     case due
     case upcoming
@@ -53,6 +80,7 @@ public struct AtlasScheduledOccurrence: Identifiable, Hashable, Sendable {
     public var doseLabel: String?
     public var scheduledAt: Date
     public var state: AtlasOccurrenceDisplayState
+    public var explanation: AtlasOccurrenceExplanation?
 
     public init(
         id: String,
@@ -63,7 +91,8 @@ public struct AtlasScheduledOccurrence: Identifiable, Hashable, Sendable {
         cadenceLabel: String,
         doseLabel: String?,
         scheduledAt: Date,
-        state: AtlasOccurrenceDisplayState
+        state: AtlasOccurrenceDisplayState,
+        explanation: AtlasOccurrenceExplanation? = nil
     ) {
         self.id = id
         self.protocolID = protocolID
@@ -74,6 +103,7 @@ public struct AtlasScheduledOccurrence: Identifiable, Hashable, Sendable {
         self.doseLabel = doseLabel
         self.scheduledAt = scheduledAt
         self.state = state
+        self.explanation = explanation
     }
 }
 
@@ -107,6 +137,7 @@ public struct AtlasProtocolDetailSnapshot: Identifiable, Equatable, Sendable {
     public var notes: String?
     public var editableDraft: AtlasProtocolDraft
     public var nextOccurrence: AtlasScheduledOccurrence?
+    public var recentChanges: [AtlasProtocolChangeExplanation]
 
     public init(
         id: String,
@@ -118,7 +149,8 @@ public struct AtlasProtocolDetailSnapshot: Identifiable, Equatable, Sendable {
         doseLabel: String?,
         notes: String?,
         editableDraft: AtlasProtocolDraft,
-        nextOccurrence: AtlasScheduledOccurrence?
+        nextOccurrence: AtlasScheduledOccurrence?,
+        recentChanges: [AtlasProtocolChangeExplanation] = []
     ) {
         self.id = id
         self.canonicalTitle = canonicalTitle
@@ -130,6 +162,7 @@ public struct AtlasProtocolDetailSnapshot: Identifiable, Equatable, Sendable {
         self.notes = notes
         self.editableDraft = editableDraft
         self.nextOccurrence = nextOccurrence
+        self.recentChanges = recentChanges
     }
 }
 
@@ -159,6 +192,7 @@ public enum AtlasTimelineEntryType: String, Equatable, Sendable {
     case protocolEdited
     case weightLogged
     case symptomLogged
+    case contextLogged
     case customMetricLogged
 }
 
@@ -182,6 +216,8 @@ public struct AtlasTimelineEntry: Identifiable, Hashable, Sendable {
     public var type: AtlasTimelineEntryType
     public var summary: String
     public var recordedAt: Date
+    public var occurrenceExplanation: AtlasOccurrenceExplanation?
+    public var changeExplanation: AtlasProtocolChangeExplanation?
 
     public init(
         id: String,
@@ -190,7 +226,9 @@ public struct AtlasTimelineEntry: Identifiable, Hashable, Sendable {
         aliasTitle: String?,
         type: AtlasTimelineEntryType,
         summary: String,
-        recordedAt: Date
+        recordedAt: Date,
+        occurrenceExplanation: AtlasOccurrenceExplanation? = nil,
+        changeExplanation: AtlasProtocolChangeExplanation? = nil
     ) {
         self.id = id
         self.protocolID = protocolID
@@ -199,6 +237,8 @@ public struct AtlasTimelineEntry: Identifiable, Hashable, Sendable {
         self.type = type
         self.summary = summary
         self.recordedAt = recordedAt
+        self.occurrenceExplanation = occurrenceExplanation
+        self.changeExplanation = changeExplanation
     }
 }
 

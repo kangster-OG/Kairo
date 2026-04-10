@@ -405,7 +405,8 @@ public struct GRDBProtocolChangeStudioRepository: ProtocolChangeStudioRepository
         return AtlasProtocolChangeCommitResult(
             detail: detail,
             preview: preview,
-            auditRecord: audit
+            auditRecord: audit,
+            impactSummary: buildProtocolChangeImpactSummary(preview: preview)
         )
     }
 }
@@ -1098,7 +1099,9 @@ private func buildInventoryForecastLabel(
         aliases: [:],
         protocolRules: [:],
         revisionSlices: [protocolRecord.id: revisionSlices],
-        pendingOccurrences: [:]
+        occurrencesByID: [:],
+        pendingOccurrences: [:],
+        remindersByOccurrenceID: [:]
     )
 
     var rollingVial = vial
@@ -1126,6 +1129,239 @@ private func buildInventoryForecastLabel(
     }
 
     return nil
+}
+
+func buildProtocolChangeExplanation(
+    audit: AtlasProtocolChangeAuditRecord,
+    context: AtlasCoreLoopContext,
+    renderMode: AtlasPrivacyRenderMode,
+    privacyFormatter: AtlasPrivacyFormatter
+) -> AtlasProtocolChangeExplanation {
+    let protocolRecord = context.protocols[audit.protocolId]
+    let alias = context.aliases[audit.protocolId]?.aliasLabel
+    let currentSlice = atlasFindRevisionSlice(context.revisionSlices[audit.protocolId] ?? [], revisionID: audit.revisionId)
+    let previousSlice = audit.previousRevisionId.flatMap { previousRevisionID in
+        atlasFindRevisionSlice(context.revisionSlices[audit.protocolId] ?? [], revisionID: previousRevisionID)
+    }
+    let currentRule = currentSlice.flatMap { firstNonRestRule($0.rules) }
+    let previousRule = previousSlice.flatMap { firstNonRestRule($0.rules) }
+    let payload = decodePayload(audit.payloadJson)
+    let effectiveAt = atlasDate(from: audit.effectiveFrom)
+
+    var facts: [AtlasExplainerFact] = [
+        AtlasExplainerFact(label: "Effective from", value: atlasExplanationDateLabel(effectiveAt)),
+        AtlasExplainerFact(label: "Change type", value: audit.changeType.explanationTitle)
+    ]
+
+    switch audit.changeType {
+    case .futureDoseChanged:
+        facts.append(
+            AtlasExplainerFact(
+                label: "Saved amount",
+                value: atlasBeforeAfterValue(
+                    previous: formatDoseLabel(
+                        amount: previousRule?.doseAmountOverride ?? previousSlice?.revision.doseAmount,
+                        unit: previousRule?.doseUnitOverride ?? previousSlice?.revision.doseUnit
+                    ) ?? "Not set",
+                    next: formatDoseLabel(
+                        amount: currentRule?.doseAmountOverride ?? currentSlice?.revision.doseAmount,
+                        unit: currentRule?.doseUnitOverride ?? currentSlice?.revision.doseUnit
+                    ) ?? "Not set"
+                )
+            )
+        )
+    case .timeChanged:
+        facts.append(
+            AtlasExplainerFact(
+                label: "Time of day",
+                value: atlasBeforeAfterValue(
+                    previous: previousRule?.timeOfDay ?? previousSlice?.revision.defaultTimeOfDay ?? "Not set",
+                    next: currentRule?.timeOfDay ?? currentSlice?.revision.defaultTimeOfDay ?? "Not set"
+                )
+            )
+        )
+    case .cadenceChanged:
+        facts.append(
+            AtlasExplainerFact(
+                label: "Cadence",
+                value: atlasBeforeAfterValue(
+                    previous: formatCadenceLabel(
+                        ruleType: previousRule?.ruleType,
+                        intervalCount: previousRule?.intervalCount,
+                        weekday: previousRule?.weekday,
+                        timeOfDay: previousRule?.timeOfDay ?? previousSlice?.revision.defaultTimeOfDay
+                    ),
+                    next: formatCadenceLabel(
+                        ruleType: currentRule?.ruleType,
+                        intervalCount: currentRule?.intervalCount,
+                        weekday: currentRule?.weekday,
+                        timeOfDay: currentRule?.timeOfDay ?? currentSlice?.revision.defaultTimeOfDay
+                    )
+                )
+            )
+        )
+    case .paused, .resumed:
+        facts.append(
+            AtlasExplainerFact(
+                label: "Revision state",
+                value: atlasBeforeAfterValue(
+                    previous: previousSlice?.revision.lifecycleState.explanationTitle ?? "Unknown",
+                    next: currentSlice?.revision.lifecycleState.explanationTitle ?? "Unknown"
+                )
+            )
+        )
+    case .titrationChanged:
+        facts.append(
+            AtlasExplainerFact(
+                label: "Titration phase",
+                value: "\(payload["titrationDoseAmount"] ?? "Unknown") \(payload["titrationDoseUnit"] ?? "").trimmingCharacters(in: .whitespaces) for \(payload["titrationLengthDays"] ?? "0") day(s)"
+            )
+        )
+        if let currentRule {
+            facts.append(AtlasExplainerFact(label: "Future cadence", value: atlasRuleExplanationLabel(currentRule)))
+        }
+    case .restPeriodChanged:
+        facts.append(
+            AtlasExplainerFact(
+                label: "Rest window",
+                value: "\(payload["restLengthDays"] ?? "0") day(s)"
+            )
+        )
+    case .missedDosePolicyChanged:
+        facts.append(
+            AtlasExplainerFact(
+                label: "Missed-dose handling",
+                value: atlasBeforeAfterValue(
+                    previous: previousSlice?.revision.missedDosePolicy.explanationTitle ?? "Unknown",
+                    next: currentSlice?.revision.missedDosePolicy.explanationTitle ?? "Unknown"
+                )
+            )
+        )
+    case .timezoneChanged:
+        let previousTimezone = previousSlice.map {
+            "\($0.revision.timezone) · \($0.revision.timezoneStrategy.explanationTitle)"
+        } ?? "Unknown"
+        let nextTimezone = currentSlice.map {
+            "\($0.revision.timezone) · \($0.revision.timezoneStrategy.explanationTitle)"
+        } ?? "Unknown"
+        facts.append(
+            AtlasExplainerFact(
+                label: "Timezone handling",
+                value: atlasBeforeAfterValue(previous: previousTimezone, next: nextTimezone)
+            )
+        )
+    case .vialHandoffPlanned:
+        facts.append(
+            AtlasExplainerFact(
+                label: "Linked vial",
+                value: atlasBeforeAfterValue(
+                    previous: atlasChangeVialLabel(
+                        vialID: previousSlice?.revision.linkedVialId,
+                        context: context,
+                        renderMode: renderMode,
+                        privacyFormatter: privacyFormatter
+                    ),
+                    next: atlasChangeVialLabel(
+                        vialID: currentSlice?.revision.linkedVialId,
+                        context: context,
+                        renderMode: renderMode,
+                        privacyFormatter: privacyFormatter
+                    )
+                )
+            )
+        )
+    case .revisionReverted:
+        facts.append(AtlasExplainerFact(label: "Revision", value: "Future plan reverted to an earlier saved state."))
+    }
+
+    return AtlasProtocolChangeExplanation(
+        id: audit.id,
+        changeType: audit.changeType,
+        summary: privacyFormatter.protocolChangeAuditSummary(
+            canonical: protocolRecord?.name ?? "Protocol",
+            alias: alias,
+            auditSummary: audit.summary,
+            mode: renderMode
+        ),
+        effectiveDateLabel: atlasExplanationDateLabel(effectiveAt),
+        recordedAt: atlasDate(from: audit.createdAt),
+        facts: facts,
+        notes: [
+            "Historical logs stayed unchanged.",
+            "Future occurrences and reminders follow the committed revision only."
+        ]
+    )
+}
+
+private func buildProtocolChangeImpactSummary(
+    preview: AtlasProtocolChangePreview
+) -> AtlasProtocolChangeImpactSummary {
+    let occurrenceValue: String
+    if preview.occurrenceChanges.isEmpty {
+        occurrenceValue = "Regenerated with no visible changes inside the \(preview.previewWindow.title) window."
+    } else {
+        occurrenceValue = "Regenerated with \(preview.occurrenceChanges.count) visible change(s) inside the \(preview.previewWindow.title) window."
+    }
+
+    let reminderValue = preview.currentReminderLabel == preview.draftReminderLabel
+        ? "Reminder timing is unchanged in the visible window."
+        : atlasBeforeAfterValue(
+            previous: preview.currentReminderLabel ?? "No upcoming reminder",
+            next: preview.draftReminderLabel ?? "No upcoming reminder"
+        )
+    let inventoryValue = preview.inventoryForecastBefore == preview.inventoryForecastAfter
+        ? "Inventory projection is unchanged in the visible window."
+        : atlasBeforeAfterValue(
+            previous: preview.inventoryForecastBefore ?? "No depletion forecast yet",
+            next: preview.inventoryForecastAfter ?? "No depletion forecast yet"
+        )
+
+    return AtlasProtocolChangeImpactSummary(
+        title: "Future plan updated",
+        facts: [
+            AtlasExplainerFact(label: "Future occurrences", value: occurrenceValue),
+            AtlasExplainerFact(label: "Reminders", value: reminderValue),
+            AtlasExplainerFact(label: "Inventory projection", value: inventoryValue),
+            AtlasExplainerFact(label: "Historical logs", value: "Unchanged")
+        ],
+        notes: [
+            "Atlas regenerated future occurrences from the committed revision.",
+            "Reminder updates now follow the committed future plan."
+        ]
+    )
+}
+
+private func atlasBeforeAfterValue(previous: String, next: String) -> String {
+    previous == next ? previous : "\(previous) -> \(next)"
+}
+
+private func atlasChangeVialLabel(
+    vialID: String?,
+    context: AtlasCoreLoopContext,
+    renderMode: AtlasPrivacyRenderMode,
+    privacyFormatter: AtlasPrivacyFormatter
+) -> String {
+    guard vialID != nil else {
+        return "No linked vial"
+    }
+    return privacyFormatter.vialTitle(canonical: "Linked vial", mode: renderMode)
+}
+
+private func atlasFindRevisionSlice(
+    _ slices: [AtlasRevisionSlice],
+    revisionID: String
+) -> AtlasRevisionSlice? {
+    slices.first(where: { $0.revision.id == revisionID })
+}
+
+private func decodePayload(_ payload: String) -> [String: String] {
+    guard
+        let data = payload.data(using: .utf8),
+        let object = try? JSONSerialization.jsonObject(with: data) as? [String: String]
+    else {
+        return [:]
+    }
+    return object
 }
 
 private func occurrenceSnapshot(

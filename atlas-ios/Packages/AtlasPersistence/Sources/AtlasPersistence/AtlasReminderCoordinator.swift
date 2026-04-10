@@ -270,33 +270,29 @@ private func buildReminderSyncPlan(
     var requests: [AtlasReminderPlanRequest] = []
 
     for protocolID in activeProtocolIDs {
-        guard let occurrenceRecord = (context.pendingOccurrences[protocolID] ?? [])
+        let pendingOccurrences = (context.pendingOccurrences[protocolID] ?? [])
             .sorted(by: { atlasDate(from: $0.scheduledAt) < atlasDate(from: $1.scheduledAt) })
-            .first
-        else {
-            continue
-        }
 
-        let occurrence = buildScheduledOccurrence(
-            occurrence: occurrenceRecord,
-            context: context,
-            now: referenceDate
-        )
-        let triggerAt = occurrence.scheduledAt.addingTimeInterval(TimeInterval(preference.leadTimeMinutes * -60))
+        guard let planned = pendingOccurrences.compactMap({ occurrenceRecord -> AtlasReminderPlanRequest? in
+            let occurrence = buildScheduledOccurrence(
+                occurrence: occurrenceRecord,
+                context: context,
+                now: referenceDate
+            )
+            let triggerAt = occurrence.scheduledAt.addingTimeInterval(TimeInterval(preference.leadTimeMinutes * -60))
 
-        guard triggerAt.timeIntervalSince(referenceDate) > atlasReminderScheduleSkew else {
-            continue
-        }
+            guard triggerAt.timeIntervalSince(referenceDate) > atlasReminderScheduleSkew else {
+                return nil
+            }
 
-        let preview = privacyFormatter.reminderPreview(
-            occurrence: occurrence,
-            selectedMode: preference.privacyMode,
-            renderMode: renderMode,
-            now: referenceDate
-        )
-        let reminderID = "reminder:\(occurrence.id)"
-        requests.append(
-            AtlasReminderPlanRequest(
+            let preview = privacyFormatter.reminderPreview(
+                occurrence: occurrence,
+                selectedMode: preference.privacyMode,
+                renderMode: renderMode,
+                now: referenceDate
+            )
+            let reminderID = "reminder:\(occurrence.id)"
+            return AtlasReminderPlanRequest(
                 reminderID: reminderID,
                 offsetMinutes: preference.leadTimeMinutes * -1,
                 preview: preview,
@@ -311,7 +307,10 @@ private func buildReminderSyncPlan(
                 ),
                 timestamp: timestamp
             )
-        )
+        }).first else {
+            continue
+        }
+        requests.append(planned)
     }
 
     return AtlasReminderSyncPlan(

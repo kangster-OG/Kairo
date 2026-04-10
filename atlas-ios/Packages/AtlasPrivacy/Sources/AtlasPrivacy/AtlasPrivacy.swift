@@ -60,6 +60,19 @@ public struct AtlasPrivacyFormatter: Sendable {
         }
     }
 
+    public func consumableTitle(
+        canonical: String,
+        category: String? = nil,
+        mode: AtlasPrivacyRenderMode
+    ) -> String {
+        switch mode {
+        case .full:
+            return canonical
+        case .discreet, .alias:
+            return category?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank.map { "\($0) supply" } ?? "Supply item"
+        }
+    }
+
     public func timelineSummary(
         eventType: AtlasLogEventType,
         canonical: String,
@@ -239,6 +252,14 @@ public struct AtlasPrivacyFormatter: Sendable {
         mode == .full ? canonical : "Private vial"
     }
 
+    public func exportConsumableTitle(
+        canonical: String,
+        category: String?,
+        mode: AtlasPrivacyRenderMode
+    ) -> String {
+        consumableTitle(canonical: canonical, category: category, mode: mode)
+    }
+
     public func metricLabel(
         canonical: String,
         mode: AtlasPrivacyRenderMode
@@ -299,6 +320,125 @@ public struct AtlasPrivacyFormatter: Sendable {
         }
     }
 
+    public func contextTimelineSummary(
+        mealTiming: AtlasContextMealTiming?,
+        fedState: AtlasContextFedState?,
+        appetite: AtlasContextAppetiteState?,
+        hydration: AtlasContextHydrationState?,
+        giTags: [AtlasContextGITag],
+        mode: AtlasPrivacyRenderMode
+    ) -> String {
+        switch mode {
+        case .discreet:
+            return "Logged private context"
+        case .full, .alias:
+            let details = contextDescriptorList(
+                mealTiming: mealTiming,
+                fedState: fedState,
+                appetite: appetite,
+                hydration: hydration,
+                giTags: giTags,
+                mode: mode
+            )
+            guard details.isEmpty == false else {
+                return "Logged context"
+            }
+            return "Logged \(details.prefix(2).joined(separator: ", ").lowercased())"
+        }
+    }
+
+    public func contextEntryTitle(
+        mealTiming: AtlasContextMealTiming?,
+        fedState: AtlasContextFedState?,
+        appetite: AtlasContextAppetiteState?,
+        hydration: AtlasContextHydrationState?,
+        giTags: [AtlasContextGITag],
+        mode: AtlasPrivacyRenderMode
+    ) -> String {
+        switch mode {
+        case .discreet:
+            return "Private context"
+        case .full, .alias:
+            let details = contextDescriptorList(
+                mealTiming: mealTiming,
+                fedState: fedState,
+                appetite: appetite,
+                hydration: hydration,
+                giTags: giTags,
+                mode: mode
+            )
+            return details.isEmpty ? "Context entry" : details.prefix(3).joined(separator: " • ")
+        }
+    }
+
+    public func contextEntryDetail(
+        note: String?,
+        tags: [String],
+        canonicalProtocol: String?,
+        aliasProtocol: String?,
+        mode: AtlasPrivacyRenderMode
+    ) -> String? {
+        switch mode {
+        case .discreet:
+            return nil
+        case .alias:
+            guard let canonicalProtocol else {
+                return nil
+            }
+            let title = title(canonical: canonicalProtocol, alias: aliasProtocol, mode: mode)
+            return "Linked to \(title)"
+        case .full:
+            var parts: [String] = []
+            if let canonicalProtocol {
+                parts.append("Linked to \(canonicalProtocol)")
+            }
+            if tags.isEmpty == false {
+                parts.append(tags.prefix(3).joined(separator: " • "))
+            }
+            if let note, note.isEmpty == false {
+                parts.append(note)
+            }
+            return parts.isEmpty ? nil : parts.joined(separator: " • ")
+        }
+    }
+
+    private func contextDescriptorList(
+        mealTiming: AtlasContextMealTiming?,
+        fedState: AtlasContextFedState?,
+        appetite: AtlasContextAppetiteState?,
+        hydration: AtlasContextHydrationState?,
+        giTags: [AtlasContextGITag],
+        mode: AtlasPrivacyRenderMode
+    ) -> [String] {
+        switch mode {
+        case .discreet:
+            return ["Private context"]
+        case .full, .alias:
+            var parts: [String] = []
+            if let mealTiming {
+                parts.append(mealTiming.title)
+            }
+            if let fedState {
+                parts.append(fedState.title)
+            }
+            if let appetite {
+                parts.append(appetite.title)
+            }
+            if let hydration {
+                parts.append(hydration.title)
+            }
+            let visibleGITags = giTags
+                .filter { $0 != .calm }
+                .map(\.title)
+            if visibleGITags.isEmpty == false {
+                parts.append(visibleGITags.prefix(2).joined(separator: " + "))
+            } else if giTags == [.calm] {
+                parts.append(AtlasContextGITag.calm.title)
+            }
+            return parts
+        }
+    }
+
     private func notificationWhenLabel(for date: Date, now: Date) -> String {
         let calendar = Calendar.current
         let timeFormatter = DateFormatter()
@@ -330,6 +470,10 @@ public struct AtlasPrivacyFormatter: Sendable {
             return "Updated protocol alias"
         case .importCommitted:
             return "Committed import into Atlas"
+        case .restorePointCreated:
+            return "Created restore point"
+        case .restoreCommitted:
+            return "Restored local Atlas data"
         case .privacyModeChanged:
             return "Changed privacy mode"
         case .biometricLockChanged:
@@ -340,6 +484,8 @@ public struct AtlasPrivacyFormatter: Sendable {
             return "Created selective share bundle"
         case .providerHandoffCreated:
             return "Created provider handoff snapshot"
+        case .summaryGeneratedOffDevice:
+            return "Generated off-device summary"
         case .reviewPackCreated:
             return "Created review pack"
         case .exportCreated:
@@ -361,6 +507,12 @@ public struct AtlasPrivacyFormatter: Sendable {
             return "Created alias-safe share bundle"
         case .providerHandoffCreated:
             return "Created alias-safe provider handoff"
+        case .summaryGeneratedOffDevice:
+            return "Generated alias-safe off-device summary"
+        case .restorePointCreated:
+            return "Created restore point"
+        case .restoreCommitted:
+            return "Restored alias-safe Atlas data"
         case .reviewPackCreated:
             return "Created alias-safe review pack"
         default:
@@ -378,12 +530,25 @@ public struct AtlasPrivacyFormatter: Sendable {
             return "Created private share bundle"
         case .providerHandoffCreated:
             return "Created private provider handoff"
+        case .summaryGeneratedOffDevice:
+            return "Generated private off-device summary"
         case .reviewPackCreated:
             return "Created private review pack"
         case .exportCreated:
             return "Created private export"
+        case .restorePointCreated:
+            return "Created private restore point"
+        case .restoreCommitted:
+            return "Restored private Atlas data"
         default:
             return "Updated private controls"
         }
+    }
+}
+
+private extension String {
+    var nilIfBlank: String? {
+        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }

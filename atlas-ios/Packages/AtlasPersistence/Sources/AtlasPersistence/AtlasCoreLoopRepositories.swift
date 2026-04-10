@@ -41,7 +41,9 @@ struct AtlasCoreLoopContext {
     var aliases: [String: AtlasProtocolAliasRecord]
     var protocolRules: [String: [AtlasProtocolRuleRecord]]
     var revisionSlices: [String: [AtlasRevisionSlice]]
+    var occurrencesByID: [String: AtlasOccurrenceProjectionRecord]
     var pendingOccurrences: [String: [AtlasOccurrenceProjectionRecord]]
+    var remindersByOccurrenceID: [String: [AtlasReminderRecord]]
 }
 
 struct AtlasGeneratedOccurrence {
@@ -324,6 +326,10 @@ extension GRDBTimelineRepository {
                 .order(Column("logged_at").desc)
                 .fetchAll(db)
                 .map(\.domain)
+            let contextLogs = try AtlasContextLogDBRecord
+                .order(Column("logged_at").desc)
+                .fetchAll(db)
+                .map(\.domain)
             let symptomLogs = try AtlasSymptomLogDBRecord
                 .order(Column("logged_at").desc)
                 .fetchAll(db)
@@ -383,7 +389,13 @@ extension GRDBTimelineRepository {
                             auditSummary: audit.summary,
                             mode: renderMode
                         ),
-                        recordedAt: atlasDate(from: audit.createdAt)
+                        recordedAt: atlasDate(from: audit.createdAt),
+                        changeExplanation: buildProtocolChangeExplanation(
+                            audit: audit,
+                            context: context,
+                            renderMode: renderMode,
+                            privacyFormatter: privacyFormatter
+                        )
                     )
                 )
             }
@@ -422,7 +434,17 @@ extension GRDBTimelineRepository {
                             alias: alias,
                             mode: renderMode
                         ),
-                        recordedAt: atlasDate(from: log.loggedAt)
+                        recordedAt: atlasDate(from: log.loggedAt),
+                        occurrenceExplanation: log.occurrenceId.flatMap { occurrenceID in
+                            context.occurrencesByID[occurrenceID].map { occurrence in
+                                buildOccurrenceExplanation(
+                                    occurrence: occurrence,
+                                    protocolRecord: protocolRecord,
+                                    context: context,
+                                    now: atlasDate(from: log.loggedAt)
+                                )
+                            }
+                        }
                     )
                 )
             }
@@ -436,6 +458,32 @@ extension GRDBTimelineRepository {
                         aliasTitle: nil,
                         type: .weightLogged,
                         summary: privacyFormatter.weightTimelineSummary(mode: renderMode),
+                        recordedAt: atlasDate(from: log.loggedAt)
+                    )
+                )
+            }
+
+            for log in contextLogs {
+                guard query.protocolID == nil || query.protocolID == log.protocolId else {
+                    continue
+                }
+                let protocolRecord = log.protocolId.flatMap { context.protocols[$0] }
+                let alias = log.protocolId.flatMap { context.aliases[$0]?.aliasLabel }
+                entries.append(
+                    AtlasTimelineEntry(
+                        id: "context:\(log.id)",
+                        protocolID: log.protocolId ?? "insights",
+                        canonicalTitle: protocolRecord?.name ?? "Context",
+                        aliasTitle: alias,
+                        type: .contextLogged,
+                        summary: privacyFormatter.contextTimelineSummary(
+                            mealTiming: log.mealTiming,
+                            fedState: log.fedState,
+                            appetite: log.appetite,
+                            hydration: log.hydration,
+                            giTags: log.giTags,
+                            mode: renderMode
+                        ),
                         recordedAt: atlasDate(from: log.loggedAt)
                     )
                 )
@@ -493,7 +541,10 @@ extension GRDBTimelineRepository {
                     case .changes:
                         return entry.type == .protocolCreated || entry.type == .protocolEdited
                     case .wellness:
-                        return entry.type == .weightLogged || entry.type == .symptomLogged || entry.type == .customMetricLogged
+                        return entry.type == .weightLogged
+                            || entry.type == .contextLogged
+                            || entry.type == .symptomLogged
+                            || entry.type == .customMetricLogged
                     }
                 }
                 .sorted { $0.recordedAt > $1.recordedAt }
@@ -617,6 +668,33 @@ public struct GRDBCoreLoopRepository: CoreLoopRepository, Sendable {
                 try AtlasVialDBRecord(record: vial).update(db)
             }
 
+            if request.action == .taken {
+                let consumables = try AtlasConsumableDBRecord
+                    .filter(Column("protocol_id") == request.protocolID && Column("archived_at") == nil)
+                    .fetchAll(db)
+                    .map(\.domain)
+
+                for var consumable in consumables {
+                    guard let quantityPerUse = consumable.quantityPerUse, quantityPerUse > 0 else {
+                        continue
+                    }
+
+                    consumable.quantityOnHand = max(consumable.quantityOnHand - quantityPerUse, 0)
+                    consumable.updatedAt = timestamp
+                    try AtlasConsumableDBRecord(record: consumable).update(db)
+                    try appendConsumableAdjustment(
+                        db: db,
+                        consumable: consumable,
+                        protocolID: request.protocolID,
+                        occurrenceID: request.occurrenceID,
+                        kind: .protocolUse,
+                        deltaQuantity: -quantityPerUse,
+                        note: "Linked taken log updated this supply count.",
+                        recordedAt: timestamp
+                    )
+                }
+            }
+
             if request.action == .rescheduled, let rescheduledAt = request.rescheduledAt {
                 let replacement = AtlasOccurrenceProjectionRecord.make(
                     id: "manual:\(UUID().uuidString)",
@@ -728,15 +806,14 @@ func loadCoreLoopContext(db: Database) throws -> AtlasCoreLoopContext {
     let rules = try AtlasProtocolRuleDBRecord.fetchAll(db).map(\.domain)
     let revisions = try AtlasProtocolRevisionDBRecord.fetchAll(db).map(\.domain)
     let revisionRules = try AtlasProtocolRevisionRuleDBRecord.fetchAll(db).map(\.domain)
+    let reminders = try AtlasReminderDBRecord.fetchAll(db).map(\.domain)
+    let allOccurrences = try AtlasOccurrenceProjectionDBRecord.fetchAll(db).map(\.domain)
     let pendingStates: [String] = [
         AtlasOccurrenceState.upcoming.rawValue,
         AtlasOccurrenceState.due.rawValue,
         AtlasOccurrenceState.missed.rawValue
     ]
-    let pendingOccurrences = try AtlasOccurrenceProjectionDBRecord
-        .filter(sql: "state IN (?, ?, ?)", arguments: StatementArguments(pendingStates))
-        .fetchAll(db)
-        .map(\.domain)
+    let pendingOccurrences = allOccurrences.filter { pendingStates.contains($0.state.rawValue) }
 
     let revisionRulesByRevisionID = Dictionary(grouping: revisionRules, by: \.revisionId)
     let revisionSlices = Dictionary(grouping: revisions, by: \.protocolId).mapValues { revisions in
@@ -763,7 +840,9 @@ func loadCoreLoopContext(db: Database) throws -> AtlasCoreLoopContext {
         aliases: Dictionary(uniqueKeysWithValues: aliases.map { ($0.protocolId, $0) }),
         protocolRules: Dictionary(grouping: rules, by: \.protocolId),
         revisionSlices: revisionSlices,
-        pendingOccurrences: Dictionary(grouping: pendingOccurrences, by: \.protocolId)
+        occurrencesByID: Dictionary(uniqueKeysWithValues: allOccurrences.map { ($0.id, $0) }),
+        pendingOccurrences: Dictionary(grouping: pendingOccurrences, by: \.protocolId),
+        remindersByOccurrenceID: Dictionary(grouping: reminders, by: \.occurrenceId)
     )
 }
 
@@ -809,6 +888,9 @@ private func buildProtocolDetailSnapshot(
     now: Date
 ) throws -> AtlasProtocolDetailSnapshot? {
     let context = try loadCoreLoopContext(db: db)
+    let renderMode = AtlasPrivacyFormatter().renderMode(
+        for: try AtlasPrivacyProfileDBRecord.fetchOne(db)?.domain ?? .default()
+    )
     guard let protocolRecord = context.protocols[protocolID] else {
         return nil
     }
@@ -854,7 +936,21 @@ private func buildProtocolDetailSnapshot(
         doseLabel: doseAmount.flatMap { amount in doseUnit.map { "\(amount.cleanAtlasNumber) \($0)" } },
         notes: activeSlice?.revision.notes ?? protocolRecord.notes,
         editableDraft: draft,
-        nextOccurrence: nextOccurrence
+        nextOccurrence: nextOccurrence,
+        recentChanges: try AtlasProtocolChangeAuditDBRecord
+            .filter(Column("protocol_id") == protocolID)
+            .order(Column("created_at").desc)
+            .limit(6)
+            .fetchAll(db)
+            .map(\.domain)
+            .map {
+                buildProtocolChangeExplanation(
+                    audit: $0,
+                    context: context,
+                    renderMode: renderMode,
+                    privacyFormatter: AtlasPrivacyFormatter()
+                )
+            }
     )
 }
 
@@ -904,8 +1000,162 @@ func buildScheduledOccurrence(
         cadenceLabel: cadence,
         doseLabel: doseAmount.flatMap { amount in doseUnit.map { "\(amount.cleanAtlasNumber) \($0)" } },
         scheduledAt: scheduledDate,
-        state: displayState(for: occurrence, now: now)
+        state: displayState(for: occurrence, now: now),
+        explanation: buildOccurrenceExplanation(
+            occurrence: occurrence,
+            protocolRecord: protocolRecord,
+            context: context,
+            now: now
+        )
     )
+}
+
+func buildOccurrenceExplanation(
+    occurrence: AtlasOccurrenceProjectionRecord,
+    protocolRecord: AtlasProtocolRecord,
+    context: AtlasCoreLoopContext,
+    now: Date
+) -> AtlasOccurrenceExplanation {
+    let scheduledDate = atlasDate(from: occurrence.scheduledAt)
+    let slice = effectiveRevisionSlice(context.revisionSlices[occurrence.protocolId] ?? [], at: scheduledDate)
+    let rule = slice.flatMap { ruleForOccurrence(slice: $0, occurrenceID: occurrence.id, scheduledAt: scheduledDate) }
+    let baseRule = (context.protocolRules[occurrence.protocolId] ?? []).first(where: \.isActive)
+        ?? context.protocolRules[occurrence.protocolId]?.first
+    let cadence = formatCadenceLabel(
+        ruleType: rule?.ruleType ?? baseRule?.ruleType,
+        intervalCount: rule?.intervalCount ?? baseRule?.intervalCount,
+        weekday: rule?.weekday ?? baseRule?.weekday,
+        timeOfDay: rule?.timeOfDay ?? slice?.revision.defaultTimeOfDay ?? protocolRecord.defaultTimeOfDay
+    )
+    let reminderRows = (context.remindersByOccurrenceID[occurrence.id] ?? [])
+        .sorted { atlasDate(from: $0.scheduledFor) < atlasDate(from: $1.scheduledFor) }
+
+    var facts: [AtlasExplainerFact] = []
+    if let slice {
+        facts.append(
+            AtlasExplainerFact(
+                label: "Revision",
+                value: "Revision \(slice.revision.revisionNumber) effective \(atlasExplanationDateLabel(atlasDate(from: slice.revision.effectiveFrom)))"
+            )
+        )
+        facts.append(
+            AtlasExplainerFact(
+                label: "Revision state",
+                value: slice.revision.lifecycleState.explanationTitle
+            )
+        )
+        facts.append(
+            AtlasExplainerFact(
+                label: "Timezone",
+                value: "\(slice.revision.timezone) · \(slice.revision.timezoneStrategy.explanationTitle)"
+            )
+        )
+        if let rule {
+            facts.append(
+                AtlasExplainerFact(
+                    label: "Rule",
+                    value: atlasRuleExplanationLabel(rule)
+                )
+            )
+        }
+    }
+    facts.append(AtlasExplainerFact(label: "Cadence", value: cadence))
+    facts.append(
+        AtlasExplainerFact(
+            label: "Occurrence",
+            value: atlasOccurrenceStateExplanation(occurrence, now: now)
+        )
+    )
+    if let reminder = reminderRows.first {
+        facts.append(
+            AtlasExplainerFact(
+                label: "Reminder",
+                value: "\(reminder.status == .scheduled ? "Scheduled" : "Cancelled") · \(atlasExplanationDateTimeLabel(atlasDate(from: reminder.scheduledFor)))"
+            )
+        )
+    } else if occurrence.state == .upcoming || occurrence.state == .due || occurrence.state == .missed {
+        facts.append(
+            AtlasExplainerFact(
+                label: "Reminder",
+                value: "No reminder row is scheduled for this occurrence."
+            )
+        )
+    }
+
+    var notes: [String] = []
+    if occurrence.id.hasPrefix("manual:") {
+        notes.append("This occurrence was created after an earlier scheduled item was rescheduled.")
+    }
+    if occurrence.state == .superseded {
+        notes.append("This original occurrence stayed in history and was superseded instead of being rewritten.")
+    }
+
+    let summary: String
+    if occurrence.id.hasPrefix("manual:") {
+        summary = "This occurrence comes from a manual reschedule and still uses the saved future plan that applies at the new time."
+    } else {
+        summary = "This occurrence comes from the saved future plan that was active at its scheduled time."
+    }
+
+    return AtlasOccurrenceExplanation(summary: summary, facts: facts, notes: notes)
+}
+
+private func atlasOccurrenceStateExplanation(
+    _ occurrence: AtlasOccurrenceProjectionRecord,
+    now: Date
+) -> String {
+    if occurrence.id.hasPrefix("manual:") {
+        return "Manual reschedule"
+    }
+
+    switch displayState(for: occurrence, now: now) {
+    case .overdue:
+        return "Generated future occurrence that is now overdue"
+    case .due:
+        return "Generated future occurrence that is currently due"
+    case .upcoming:
+        return "Generated future occurrence"
+    case .completed:
+        return "Resolved as taken without rewriting history"
+    case .skipped:
+        return "Resolved as skipped without rewriting history"
+    case .superseded:
+        return "Superseded after a reschedule"
+    }
+}
+
+func atlasRuleExplanationLabel(_ rule: AtlasProtocolRevisionRuleRecord) -> String {
+    let phase: String
+    switch rule.phaseType {
+    case .base:
+        phase = "Base phase"
+    case .titration:
+        phase = "Titration phase"
+    case .rest:
+        phase = "Rest phase"
+    }
+
+    let cadence = formatCadenceLabel(
+        ruleType: rule.ruleType,
+        intervalCount: rule.intervalCount,
+        weekday: rule.weekday,
+        timeOfDay: rule.timeOfDay
+    )
+    return "\(phase) · \(cadence)"
+}
+
+func atlasExplanationDateLabel(_ date: Date) -> String {
+    let formatter = DateFormatter()
+    formatter.dateStyle = .medium
+    formatter.timeStyle = .none
+    return formatter.string(from: date)
+}
+
+func atlasExplanationDateTimeLabel(_ date: Date) -> String {
+    let formatter = DateFormatter()
+    formatter.dateStyle = .medium
+    formatter.timeStyle = .short
+    return formatter.string(from: date)
 }
 
 func regenerateFutureOccurrences(

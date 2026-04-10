@@ -1,6 +1,11 @@
 import AtlasDomain
 import Foundation
+import LocalAuthentication
+import OSLog
 import UserNotifications
+#if canImport(HealthKit)
+import HealthKit
+#endif
 
 public protocol AtlasFeatureFlagProviding: Sendable {
     var flags: AtlasFeatureFlagState { get }
@@ -17,16 +22,31 @@ public protocol NotificationManaging: Sendable {
 }
 
 public protocol BiometricGating: Sendable {
+    func isAvailable() async -> Bool
     func authorize(reason: String) async -> Bool
 }
 
 public protocol HealthKitManaging: Sendable {
     func isAvailable() -> Bool
+    func isConnected() async -> Bool
+    func requestAuthorization() async throws -> Bool
+    func disconnect() async
+    func saveWeightSample(value: Double, unit: AtlasWeightUnit, recordedAt: Date) async throws
     func connectionDescription() -> String
+}
+
+public protocol DiagnosticsReporting: Sendable {
+    func markLaunchStarted()
+    func markLaunchCompleted()
+    func recordError(_ message: String, context: String, metadata: [String: String]) async
+    func statusDescription() -> String
 }
 
 public protocol ImportExportBridging: Sendable {
     func importerDescriptors() -> [AtlasImporterDescriptor]
+    func listImportTemplates(importer: AtlasImporterKind?) async throws -> [AtlasSavedImportTemplate]
+    func saveImportTemplate(_ draft: AtlasImportTemplateDraft, now: Date) async throws -> AtlasSavedImportTemplate
+    func deleteImportTemplate(id: String) async throws
     func validateImport(at url: URL) async throws -> AtlasImportValidationResult
     func prepareImport(at url: URL) async throws -> AtlasPreparedImport
     func commitPreparedImport(
@@ -42,6 +62,9 @@ public protocol ImportExportBridging: Sendable {
         mode: AtlasImportMode
     ) async throws -> AtlasImportCommitResult
     func cancelUniversalImport(_ prepared: AtlasUniversalPreparedImport) async
+    func listRestorePoints() async throws -> [AtlasRestorePointSummary]
+    func previewRestorePoint(id: String) async throws -> AtlasRestorePointPreview
+    func restoreRestorePoint(id: String, now: Date) async throws -> AtlasRestoreCommitResult
     func createRawExport(
         _ request: AtlasRawExportRequest,
         now: Date
@@ -74,7 +97,9 @@ public protocol SharedProjectionWriting: Sendable {
         quickActions: [AtlasSharedQuickAction],
         featureFlags: AtlasSharedFeatureFlagProjection
     ) async throws
+    func refreshProjection(referenceDate: Date) async throws
     func loadProjectionDebugState() async throws -> AtlasProjectionDebugState
+    func loadExtensionProjectionSnapshot() async throws -> AtlasSharedExtensionProjectionSnapshot?
     func projectionDescription() -> String
 }
 
@@ -179,9 +204,43 @@ public actor AtlasNotificationManager: NotificationManaging {
 public actor AtlasBiometricGate: BiometricGating {
     public init() {}
 
+    public func isAvailable() async -> Bool {
+        let context = makeContext()
+        return biometricPolicy(for: context) != nil
+    }
+
     public func authorize(reason: String) async -> Bool {
-        _ = reason
-        return true
+        let context = makeContext()
+        guard let policy = biometricPolicy(for: context) else {
+            return false
+        }
+
+        return await withCheckedContinuation { continuation in
+            context.evaluatePolicy(policy, localizedReason: reason) { success, _ in
+                continuation.resume(returning: success)
+            }
+        }
+    }
+
+    private func makeContext() -> LAContext {
+        let context = LAContext()
+        context.localizedCancelTitle = "Cancel"
+        return context
+    }
+
+    private func biometricPolicy(for context: LAContext) -> LAPolicy? {
+        var error: NSError?
+        if context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) {
+            return .deviceOwnerAuthenticationWithBiometrics
+        }
+
+        if let error,
+           LAError.Code(rawValue: error.code) == .biometryLockout,
+           context.canEvaluatePolicy(.deviceOwnerAuthentication, error: nil) {
+            return .deviceOwnerAuthentication
+        }
+
+        return nil
     }
 }
 
@@ -189,11 +248,231 @@ public struct AtlasHealthKitManager: HealthKitManaging {
     public init() {}
 
     public func isAvailable() -> Bool {
-        true
+        #if canImport(HealthKit)
+        HKHealthStore.isHealthDataAvailable()
+        #else
+        false
+        #endif
+    }
+
+    public func isConnected() async -> Bool {
+        #if canImport(HealthKit)
+        guard let store = makeStore(),
+              let quantityType = HKObjectType.quantityType(forIdentifier: .bodyMass) else {
+            return false
+        }
+        return store.authorizationStatus(for: quantityType) == .sharingAuthorized
+        #else
+        return false
+        #endif
+    }
+
+    public func requestAuthorization() async throws -> Bool {
+        #if canImport(HealthKit)
+        guard let store = makeStore(),
+              let weightType = HKObjectType.quantityType(forIdentifier: .bodyMass) else {
+            return false
+        }
+
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Bool, Error>) in
+            store.requestAuthorization(toShare: Set([weightType]), read: Set([weightType])) { success, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume(returning: success)
+                }
+            }
+        }
+        #else
+        return false
+        #endif
+    }
+
+    public func disconnect() async {
+        // HealthKit permissions are managed by the system. Atlas can clear its local
+        // connection state, but revocation still happens in the Health app / Settings.
+    }
+
+    public func saveWeightSample(value: Double, unit: AtlasWeightUnit, recordedAt: Date) async throws {
+        #if canImport(HealthKit)
+        guard let store = makeStore(),
+              let quantityType = HKQuantityType.quantityType(forIdentifier: .bodyMass) else {
+            return
+        }
+
+        let quantityUnit: HKUnit = unit == .kg ? .gramUnit(with: .kilo) : .pound()
+        let sample = HKQuantitySample(
+            type: quantityType,
+            quantity: HKQuantity(unit: quantityUnit, doubleValue: value),
+            start: recordedAt,
+            end: recordedAt
+        )
+
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            store.save(sample) { success, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else if success {
+                    continuation.resume(returning: ())
+                } else {
+                    continuation.resume(throwing: AtlasSystemError.healthKitSaveFailed)
+                }
+            }
+        }
+        #endif
     }
 
     public func connectionDescription() -> String {
-        "Health connection remains scaffold-only in Phase 6."
+        guard isAvailable() else {
+            return "Apple Health is unavailable on this device."
+        }
+        return "Apple Health can read and write weight data when you connect it. Atlas remains fully usable without it."
+    }
+
+    #if canImport(HealthKit)
+    private func makeStore() -> HKHealthStore? {
+        guard HKHealthStore.isHealthDataAvailable() else {
+            return nil
+        }
+        return HKHealthStore()
+    }
+    #endif
+}
+
+public final class AtlasDiagnosticsReporter: DiagnosticsReporting, @unchecked Sendable {
+    private let logger = Logger(subsystem: "com.dkang2000.Atlas", category: "diagnostics")
+    private let defaults: UserDefaults
+    private let launchMarkerKey = "atlas.launch.inflight"
+    private let lastCrashKey = "atlas.launch.lastCrashDetected"
+    private let eventStoreKey = "atlas.diagnostics.events"
+
+    public init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        if defaults.bool(forKey: launchMarkerKey) {
+            defaults.set(true, forKey: lastCrashKey)
+            appendEvent(
+                StoredDiagnosticsEvent(
+                    kind: "launch_recovered_after_incomplete_exit",
+                    message: "Atlas detected an incomplete previous launch.",
+                    context: "lifecycle",
+                    metadata: [:],
+                    recordedAt: Date()
+                )
+            )
+        }
+    }
+
+    public func markLaunchStarted() {
+        defaults.set(true, forKey: launchMarkerKey)
+        logger.log("Atlas launch started")
+        appendEvent(
+            StoredDiagnosticsEvent(
+                kind: "launch_started",
+                message: "Atlas launch started.",
+                context: "lifecycle",
+                metadata: [:],
+                recordedAt: Date()
+            )
+        )
+    }
+
+    public func markLaunchCompleted() {
+        defaults.set(false, forKey: launchMarkerKey)
+        logger.log("Atlas launch completed")
+        appendEvent(
+            StoredDiagnosticsEvent(
+                kind: "launch_completed",
+                message: "Atlas launch completed.",
+                context: "lifecycle",
+                metadata: [:],
+                recordedAt: Date()
+            )
+        )
+    }
+
+    public func recordError(_ message: String, context: String, metadata: [String: String]) async {
+        let metadataSummary = metadata
+            .sorted { $0.key < $1.key }
+            .map { "\($0.key)=\($0.value)" }
+            .joined(separator: ", ")
+        logger.error("Atlas error [\(context, privacy: .public)]: \(message, privacy: .public) \(metadataSummary, privacy: .public)")
+        appendEvent(
+            StoredDiagnosticsEvent(
+                kind: "runtime_error",
+                message: message,
+                context: context,
+                metadata: metadata,
+                recordedAt: Date()
+            )
+        )
+    }
+
+    public func statusDescription() -> String {
+        let events = storedEvents()
+        let latestEvent = events.last
+        if defaults.bool(forKey: lastCrashKey) {
+            let latest = latestEvent.map { " Latest event: \($0.kindLabel) at \(formatted($0.recordedAt))." } ?? ""
+            return "Reliability logging is active. Atlas detected an incomplete previous launch and is keeping a local diagnostics trail.\(latest)"
+        }
+        if let latestEvent {
+            return "Reliability logging is active for launch and runtime errors on this device. Latest event: \(latestEvent.kindLabel) at \(formatted(latestEvent.recordedAt))."
+        }
+        return "Reliability logging is active for launch and runtime errors on this device."
+    }
+
+    private func appendEvent(_ event: StoredDiagnosticsEvent) {
+        var events = storedEvents()
+        events.append(event)
+        if events.count > 50 {
+            events.removeFirst(events.count - 50)
+        }
+        if let data = try? JSONEncoder().encode(events) {
+            defaults.set(data, forKey: eventStoreKey)
+        }
+    }
+
+    private func storedEvents() -> [StoredDiagnosticsEvent] {
+        guard let data = defaults.data(forKey: eventStoreKey),
+              let events = try? JSONDecoder().decode([StoredDiagnosticsEvent].self, from: data) else {
+            return []
+        }
+        return events
+    }
+
+    private func formatted(_ date: Date) -> String {
+        date.formatted(date: .abbreviated, time: .shortened)
+    }
+}
+
+private struct StoredDiagnosticsEvent: Codable {
+    var kind: String
+    var message: String
+    var context: String
+    var metadata: [String: String]
+    var recordedAt: Date
+
+    var kindLabel: String {
+        switch kind {
+        case "launch_started":
+            return "launch started"
+        case "launch_completed":
+            return "launch completed"
+        case "launch_recovered_after_incomplete_exit":
+            return "recovered after incomplete exit"
+        default:
+            return "runtime error"
+        }
+    }
+}
+
+private enum AtlasSystemError: LocalizedError {
+    case healthKitSaveFailed
+
+    var errorDescription: String? {
+        switch self {
+        case .healthKitSaveFailed:
+            return "Atlas couldn't save the Health sample."
+        }
     }
 }
 

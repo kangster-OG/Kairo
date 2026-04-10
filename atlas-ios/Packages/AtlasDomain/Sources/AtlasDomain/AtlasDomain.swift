@@ -60,6 +60,10 @@ public enum AtlasFeatureFlag: String, CaseIterable, Sendable {
     case importShell
     case reviewMode
     case liveReviewSessions
+    case boundedSummaries
+    case externalSummaryProviders
+    case calmRetention
+    case companionSkin
 }
 
 public struct AtlasFeatureFlagState: Codable, Sendable, Equatable {
@@ -69,6 +73,10 @@ public struct AtlasFeatureFlagState: Codable, Sendable, Equatable {
     public var importShell: Bool
     public var reviewMode: Bool
     public var liveReviewSessions: Bool
+    public var boundedSummaries: Bool
+    public var externalSummaryProviders: Bool
+    public var calmRetention: Bool
+    public var companionSkin: Bool
 
     public init(
         nativeWidgets: Bool = true,
@@ -76,7 +84,11 @@ public struct AtlasFeatureFlagState: Codable, Sendable, Equatable {
         trustVaultShell: Bool = true,
         importShell: Bool = true,
         reviewMode: Bool = true,
-        liveReviewSessions: Bool = false
+        liveReviewSessions: Bool = true,
+        boundedSummaries: Bool = true,
+        externalSummaryProviders: Bool = false,
+        calmRetention: Bool = true,
+        companionSkin: Bool = true
     ) {
         self.nativeWidgets = nativeWidgets
         self.nativeIntents = nativeIntents
@@ -84,6 +96,10 @@ public struct AtlasFeatureFlagState: Codable, Sendable, Equatable {
         self.importShell = importShell
         self.reviewMode = reviewMode
         self.liveReviewSessions = liveReviewSessions
+        self.boundedSummaries = boundedSummaries
+        self.externalSummaryProviders = externalSummaryProviders
+        self.calmRetention = calmRetention
+        self.companionSkin = companionSkin
     }
 
     public func isEnabled(_ flag: AtlasFeatureFlag) -> Bool {
@@ -94,6 +110,10 @@ public struct AtlasFeatureFlagState: Codable, Sendable, Equatable {
         case .importShell: importShell
         case .reviewMode: reviewMode
         case .liveReviewSessions: liveReviewSessions
+        case .boundedSummaries: boundedSummaries
+        case .externalSummaryProviders: externalSummaryProviders
+        case .calmRetention: calmRetention
+        case .companionSkin: companionSkin
         }
     }
 }
@@ -193,7 +213,10 @@ public enum AtlasSensitiveActionAuditEventType: String, Codable, CaseIterable, S
     case exportCreated = "export_created"
     case selectiveShareCreated = "selective_share_created"
     case providerHandoffCreated = "provider_handoff_created"
+    case summaryGeneratedOffDevice = "summary_generated_off_device"
     case importCommitted = "import_committed"
+    case restorePointCreated = "restore_point_created"
+    case restoreCommitted = "restore_committed"
     case reviewPackCreated = "review_pack_created"
     case aliasChanged = "alias_changed"
     case privacyModeChanged = "privacy_mode_changed"
@@ -213,10 +236,186 @@ public enum AtlasWeightUnit: String, Codable, CaseIterable, Sendable {
     case kg
 }
 
+public enum AtlasContextMealTiming: String, Codable, CaseIterable, Sendable {
+    case breakfast
+    case lunch
+    case dinner
+    case snack
+    case lateNight = "late_night"
+}
+
+public enum AtlasContextFedState: String, Codable, CaseIterable, Sendable {
+    case fasted
+    case fed
+    case unsure
+}
+
+public enum AtlasContextAppetiteState: String, Codable, CaseIterable, Sendable {
+    case low
+    case typical
+    case high
+}
+
+public enum AtlasContextHydrationState: String, Codable, CaseIterable, Sendable {
+    case low
+    case typical
+    case high
+}
+
+public enum AtlasContextGITag: String, Codable, CaseIterable, Sendable {
+    case calm
+    case nausea
+    case bloating
+    case cramping
+    case reflux
+    case bowelChange = "bowel_change"
+}
+
 public enum AtlasHealthDataSource: String, Codable, CaseIterable, Sendable {
     case manual
     case health
     case `import`
+}
+
+public extension AtlasProtocolRevisionLifecycle {
+    var explanationTitle: String {
+        switch self {
+        case .active:
+            return "Active"
+        case .paused:
+            return "Paused"
+        case .resting:
+            return "Resting"
+        }
+    }
+}
+
+public extension AtlasProtocolTimezoneStrategy {
+    var explanationTitle: String {
+        switch self {
+        case .keepLocalClock:
+            return "Keep local clock"
+        case .keepHomeTimezone:
+            return "Keep home timezone"
+        }
+    }
+}
+
+public extension AtlasMissedDosePolicy {
+    var explanationTitle: String {
+        switch self {
+        case .skipAndContinue:
+            return "Skip and continue"
+        case .takeNowKeepCadence:
+            return "Take now and keep cadence"
+        case .takeNowShiftFuture:
+            return "Take now and shift future doses"
+        }
+    }
+}
+
+public extension AtlasContextMealTiming {
+    var title: String {
+        switch self {
+        case .breakfast:
+            return "Breakfast"
+        case .lunch:
+            return "Lunch"
+        case .dinner:
+            return "Dinner"
+        case .snack:
+            return "Snack"
+        case .lateNight:
+            return "Late-night"
+        }
+    }
+}
+
+public extension AtlasContextFedState {
+    var title: String {
+        switch self {
+        case .fasted:
+            return "Fasted"
+        case .fed:
+            return "Fed"
+        case .unsure:
+            return "Not sure"
+        }
+    }
+}
+
+public extension AtlasContextAppetiteState {
+    var title: String {
+        switch self {
+        case .low:
+            return "Low appetite"
+        case .typical:
+            return "Typical appetite"
+        case .high:
+            return "High appetite"
+        }
+    }
+}
+
+public extension AtlasContextHydrationState {
+    var title: String {
+        switch self {
+        case .low:
+            return "Low hydration"
+        case .typical:
+            return "Hydration felt steady"
+        case .high:
+            return "Hydrated"
+        }
+    }
+}
+
+public extension AtlasContextGITag {
+    var title: String {
+        switch self {
+        case .calm:
+            return "GI calm"
+        case .nausea:
+            return "Nausea"
+        case .bloating:
+            return "Bloating"
+        case .cramping:
+            return "Cramping"
+        case .reflux:
+            return "Reflux"
+        case .bowelChange:
+            return "Bowel change"
+        }
+    }
+}
+
+public extension AtlasProtocolChangeAuditType {
+    var explanationTitle: String {
+        switch self {
+        case .futureDoseChanged:
+            return "Future dose changed"
+        case .timeChanged:
+            return "Future time changed"
+        case .cadenceChanged:
+            return "Cadence changed"
+        case .paused:
+            return "Future plan paused"
+        case .resumed:
+            return "Future plan resumed"
+        case .titrationChanged:
+            return "Titration updated"
+        case .restPeriodChanged:
+            return "Rest period updated"
+        case .missedDosePolicyChanged:
+            return "Missed-dose policy updated"
+        case .timezoneChanged:
+            return "Timezone handling updated"
+        case .vialHandoffPlanned:
+            return "Vial handoff planned"
+        case .revisionReverted:
+            return "Revision reverted"
+        }
+    }
 }
 
 public enum AtlasHealthProviderKey: String, Codable, CaseIterable, Sendable {
@@ -326,6 +525,8 @@ public struct AtlasSettingsSnapshot: Sendable, Equatable {
     public var syncStatus: AtlasSyncScaffoldStatus
     public var healthScaffold: AtlasHealthScaffoldSnapshot
     public var trustVaultStatus: TrustVaultStatus
+    public var summarySettings: AtlasSummarySettingsSnapshot
+    public var retentionSettings: AtlasRetentionSettingsSnapshot
 
     public init(
         accountMode: AtlasAccountMode = .guest,
@@ -333,7 +534,9 @@ public struct AtlasSettingsSnapshot: Sendable, Equatable {
         onboardingCompleted: Bool = false,
         syncStatus: AtlasSyncScaffoldStatus = .localOnly,
         healthScaffold: AtlasHealthScaffoldSnapshot = .init(),
-        trustVaultStatus: TrustVaultStatus = .init()
+        trustVaultStatus: TrustVaultStatus = .init(),
+        summarySettings: AtlasSummarySettingsSnapshot = .init(),
+        retentionSettings: AtlasRetentionSettingsSnapshot = .init()
     ) {
         self.accountMode = accountMode
         self.accountStartMode = accountStartMode
@@ -341,6 +544,8 @@ public struct AtlasSettingsSnapshot: Sendable, Equatable {
         self.syncStatus = syncStatus
         self.healthScaffold = healthScaffold
         self.trustVaultStatus = trustVaultStatus
+        self.summarySettings = summarySettings
+        self.retentionSettings = retentionSettings
     }
 }
 
@@ -350,19 +555,28 @@ public struct AtlasSharedNextDueSnapshot: Codable, Equatable, Sendable {
     public var displayTitle: String
     public var dueLabel: String
     public var scheduledAt: String
+    public var state: AtlasOccurrenceDisplayState
+    public var statusSummary: String
+    public var overdueCount: Int
 
     public init(
         occurrenceID: String,
         protocolID: String,
         displayTitle: String,
         dueLabel: String,
-        scheduledAt: String
+        scheduledAt: String,
+        state: AtlasOccurrenceDisplayState,
+        statusSummary: String,
+        overdueCount: Int = 0
     ) {
         self.occurrenceID = occurrenceID
         self.protocolID = protocolID
         self.displayTitle = displayTitle
         self.dueLabel = dueLabel
         self.scheduledAt = scheduledAt
+        self.state = state
+        self.statusSummary = statusSummary
+        self.overdueCount = overdueCount
     }
 }
 
@@ -412,12 +626,66 @@ public struct AtlasSharedQuickAction: Codable, Equatable, Sendable, Identifiable
     public var protocolID: String
     public var occurrenceID: String
     public var title: String
+    public var dueLabel: String
+    public var state: AtlasOccurrenceDisplayState
 
-    public init(id: String, protocolID: String, occurrenceID: String, title: String) {
+    public init(
+        id: String,
+        protocolID: String,
+        occurrenceID: String,
+        title: String,
+        dueLabel: String,
+        state: AtlasOccurrenceDisplayState
+    ) {
         self.id = id
         self.protocolID = protocolID
         self.occurrenceID = occurrenceID
         self.title = title
+        self.dueLabel = dueLabel
+        self.state = state
+    }
+}
+
+public enum AtlasSharedInventoryItemKind: String, Codable, Equatable, Sendable {
+    case vial
+    case consumable
+}
+
+public struct AtlasSharedLowStockItem: Codable, Equatable, Sendable, Identifiable {
+    public var id: String
+    public var kind: AtlasSharedInventoryItemKind
+    public var displayTitle: String
+    public var detail: String
+
+    public init(
+        id: String,
+        kind: AtlasSharedInventoryItemKind,
+        displayTitle: String,
+        detail: String
+    ) {
+        self.id = id
+        self.kind = kind
+        self.displayTitle = displayTitle
+        self.detail = detail
+    }
+}
+
+public struct AtlasSharedLowStockSnapshot: Codable, Equatable, Sendable {
+    public var lowStockCount: Int
+    public var summary: String
+    public var items: [AtlasSharedLowStockItem]
+    public var updatedAt: String
+
+    public init(
+        lowStockCount: Int,
+        summary: String,
+        items: [AtlasSharedLowStockItem],
+        updatedAt: String
+    ) {
+        self.lowStockCount = lowStockCount
+        self.summary = summary
+        self.items = items
+        self.updatedAt = updatedAt
     }
 }
 
@@ -429,25 +697,53 @@ public struct AtlasSharedFeatureFlagProjection: Codable, Equatable, Sendable {
     }
 }
 
+public struct AtlasSharedExtensionProjectionSnapshot: Codable, Equatable, Sendable {
+    public var generatedAt: String
+    public var renderMode: AtlasPrivacyRenderMode
+    public var nextDue: AtlasSharedNextDueSnapshot?
+    public var quickActions: [AtlasSharedQuickAction]
+    public var lowStock: AtlasSharedLowStockSnapshot
+    public var featureFlags: AtlasSharedFeatureFlagProjection
+
+    public init(
+        generatedAt: String,
+        renderMode: AtlasPrivacyRenderMode,
+        nextDue: AtlasSharedNextDueSnapshot?,
+        quickActions: [AtlasSharedQuickAction],
+        lowStock: AtlasSharedLowStockSnapshot,
+        featureFlags: AtlasSharedFeatureFlagProjection
+    ) {
+        self.generatedAt = generatedAt
+        self.renderMode = renderMode
+        self.nextDue = nextDue
+        self.quickActions = quickActions
+        self.lowStock = lowStock
+        self.featureFlags = featureFlags
+    }
+}
+
 public struct AtlasProjectionDebugState: Equatable, Sendable {
     public var nextDue: AtlasSharedNextDueSnapshot?
     public var timeline: [AtlasSharedTimelineSummary]
     public var labels: [AtlasSharedLabelProjection]
     public var quickActions: [AtlasSharedQuickAction]
     public var featureFlags: AtlasSharedFeatureFlagProjection
+    public var extensionSnapshot: AtlasSharedExtensionProjectionSnapshot?
 
     public init(
         nextDue: AtlasSharedNextDueSnapshot?,
         timeline: [AtlasSharedTimelineSummary],
         labels: [AtlasSharedLabelProjection],
         quickActions: [AtlasSharedQuickAction],
-        featureFlags: AtlasSharedFeatureFlagProjection
+        featureFlags: AtlasSharedFeatureFlagProjection,
+        extensionSnapshot: AtlasSharedExtensionProjectionSnapshot? = nil
     ) {
         self.nextDue = nextDue
         self.timeline = timeline
         self.labels = labels
         self.quickActions = quickActions
         self.featureFlags = featureFlags
+        self.extensionSnapshot = extensionSnapshot
     }
 }
 
@@ -797,6 +1093,56 @@ public struct AtlasSiteRecord: Codable, Equatable, Sendable, Identifiable {
     public var archivedAt: String?
 }
 
+public struct AtlasConsumableRecord: Codable, Equatable, Sendable, Identifiable {
+    public var id: String
+    public var protocolId: String?
+    public var name: String
+    public var category: String?
+    public var quantityOnHand: Double
+    public var unit: String
+    public var reorderThreshold: Double?
+    public var reorderLeadTimeDays: Int?
+    public var quantityPerUse: Double?
+    public var lotNumber: String?
+    public var sizeDescription: String?
+    public var notes: String?
+    public var vendorLabel: String?
+    public var purchaseNotes: String?
+    public var createdAt: String
+    public var updatedAt: String
+    public var archivedAt: String?
+}
+
+public struct AtlasConsumableAdjustmentRecord: Codable, Equatable, Sendable, Identifiable {
+    public var id: String
+    public var consumableId: String
+    public var protocolId: String?
+    public var occurrenceId: String?
+    public var kind: AtlasConsumableAdjustmentKind
+    public var deltaQuantity: Double
+    public var resultingQuantity: Double
+    public var quantityUnit: String
+    public var note: String?
+    public var recordedAt: String
+    public var createdAt: String
+}
+
+public struct AtlasContextLogRecord: Codable, Equatable, Sendable, Identifiable {
+    public var id: String
+    public var protocolId: String?
+    public var loggedAt: String
+    public var mealTiming: AtlasContextMealTiming?
+    public var fedState: AtlasContextFedState?
+    public var appetite: AtlasContextAppetiteState?
+    public var hydration: AtlasContextHydrationState?
+    public var giTags: [AtlasContextGITag]
+    public var note: String?
+    public var tags: [String]
+    public var source: AtlasHealthDataSource
+    public var createdAt: String
+    public var updatedAt: String
+}
+
 public struct AtlasSymptomLogRecord: Codable, Equatable, Sendable, Identifiable {
     public var id: String
     public var loggedAt: String
@@ -963,6 +1309,112 @@ public extension AtlasSiteRecord {
     }
 }
 
+public extension AtlasConsumableRecord {
+    static func make(
+        id: String,
+        protocolId: String?,
+        name: String,
+        category: String?,
+        quantityOnHand: Double,
+        unit: String,
+        reorderThreshold: Double?,
+        reorderLeadTimeDays: Int?,
+        quantityPerUse: Double?,
+        lotNumber: String?,
+        sizeDescription: String?,
+        notes: String?,
+        vendorLabel: String?,
+        purchaseNotes: String?,
+        createdAt: String,
+        updatedAt: String,
+        archivedAt: String? = nil
+    ) -> Self {
+        .init(
+            id: id,
+            protocolId: protocolId,
+            name: name,
+            category: category,
+            quantityOnHand: quantityOnHand,
+            unit: unit,
+            reorderThreshold: reorderThreshold,
+            reorderLeadTimeDays: reorderLeadTimeDays,
+            quantityPerUse: quantityPerUse,
+            lotNumber: lotNumber,
+            sizeDescription: sizeDescription,
+            notes: notes,
+            vendorLabel: vendorLabel,
+            purchaseNotes: purchaseNotes,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            archivedAt: archivedAt
+        )
+    }
+}
+
+public extension AtlasConsumableAdjustmentRecord {
+    static func make(
+        id: String,
+        consumableId: String,
+        protocolId: String?,
+        occurrenceId: String?,
+        kind: AtlasConsumableAdjustmentKind,
+        deltaQuantity: Double,
+        resultingQuantity: Double,
+        quantityUnit: String,
+        note: String?,
+        recordedAt: String,
+        createdAt: String
+    ) -> Self {
+        .init(
+            id: id,
+            consumableId: consumableId,
+            protocolId: protocolId,
+            occurrenceId: occurrenceId,
+            kind: kind,
+            deltaQuantity: deltaQuantity,
+            resultingQuantity: resultingQuantity,
+            quantityUnit: quantityUnit,
+            note: note,
+            recordedAt: recordedAt,
+            createdAt: createdAt
+        )
+    }
+}
+
+public extension AtlasContextLogRecord {
+    static func make(
+        id: String,
+        protocolId: String?,
+        loggedAt: String,
+        mealTiming: AtlasContextMealTiming?,
+        fedState: AtlasContextFedState?,
+        appetite: AtlasContextAppetiteState?,
+        hydration: AtlasContextHydrationState?,
+        giTags: [AtlasContextGITag],
+        note: String?,
+        tags: [String],
+        source: AtlasHealthDataSource,
+        createdAt: String,
+        updatedAt: String
+    ) -> Self {
+        .init(
+            id: id,
+            protocolId: protocolId,
+            loggedAt: loggedAt,
+            mealTiming: mealTiming,
+            fedState: fedState,
+            appetite: appetite,
+            hydration: hydration,
+            giTags: giTags,
+            note: note,
+            tags: tags,
+            source: source,
+            createdAt: createdAt,
+            updatedAt: updatedAt
+        )
+    }
+}
+
 public extension AtlasSymptomLogRecord {
     static func make(id: String, loggedAt: String, symptomKey: String, severity: Int, notes: String?, source: AtlasHealthDataSource, createdAt: String, updatedAt: String) -> Self {
         .init(id: id, loggedAt: loggedAt, symptomKey: symptomKey, severity: severity, notes: notes, source: source, createdAt: createdAt, updatedAt: updatedAt)
@@ -990,6 +1442,9 @@ public extension AtlasOccurrenceProjectionRecord {
 public struct AtlasExportSnapshot: Codable, Equatable, Sendable {
     public var calculatorProfiles: [AtlasCalculatorProfileRecord]
     public var compounds: [AtlasCompoundRecord]
+    public var consumableAdjustments: [AtlasConsumableAdjustmentRecord]
+    public var consumables: [AtlasConsumableRecord]
+    public var contextLogs: [AtlasContextLogRecord]
     public var customMetrics: [AtlasCustomMetricRecord]
     public var healthConnections: [AtlasHealthConnectionRecord]
     public var logEvents: [AtlasLogEventRecord]
@@ -1012,6 +1467,9 @@ public struct AtlasExportSnapshot: Codable, Equatable, Sendable {
     public init(
         calculatorProfiles: [AtlasCalculatorProfileRecord] = [],
         compounds: [AtlasCompoundRecord] = [],
+        consumableAdjustments: [AtlasConsumableAdjustmentRecord] = [],
+        consumables: [AtlasConsumableRecord] = [],
+        contextLogs: [AtlasContextLogRecord] = [],
         customMetrics: [AtlasCustomMetricRecord] = [],
         healthConnections: [AtlasHealthConnectionRecord] = [],
         logEvents: [AtlasLogEventRecord] = [],
@@ -1033,6 +1491,9 @@ public struct AtlasExportSnapshot: Codable, Equatable, Sendable {
     ) {
         self.calculatorProfiles = calculatorProfiles
         self.compounds = compounds
+        self.consumableAdjustments = consumableAdjustments
+        self.consumables = consumables
+        self.contextLogs = contextLogs
         self.customMetrics = customMetrics
         self.healthConnections = healthConnections
         self.logEvents = logEvents
@@ -1056,6 +1517,9 @@ public struct AtlasExportSnapshot: Codable, Equatable, Sendable {
     enum CodingKeys: String, CodingKey {
         case calculatorProfiles
         case compounds
+        case consumableAdjustments
+        case consumables
+        case contextLogs
         case customMetrics
         case healthConnections
         case logEvents
@@ -1081,6 +1545,9 @@ public struct AtlasExportSnapshot: Codable, Equatable, Sendable {
         self.init(
             calculatorProfiles: try container.decodeIfPresent([AtlasCalculatorProfileRecord].self, forKey: .calculatorProfiles) ?? [],
             compounds: try container.decodeIfPresent([AtlasCompoundRecord].self, forKey: .compounds) ?? [],
+            consumableAdjustments: try container.decodeIfPresent([AtlasConsumableAdjustmentRecord].self, forKey: .consumableAdjustments) ?? [],
+            consumables: try container.decodeIfPresent([AtlasConsumableRecord].self, forKey: .consumables) ?? [],
+            contextLogs: try container.decodeIfPresent([AtlasContextLogRecord].self, forKey: .contextLogs) ?? [],
             customMetrics: try container.decodeIfPresent([AtlasCustomMetricRecord].self, forKey: .customMetrics) ?? [],
             healthConnections: try container.decodeIfPresent([AtlasHealthConnectionRecord].self, forKey: .healthConnections) ?? [],
             logEvents: try container.decodeIfPresent([AtlasLogEventRecord].self, forKey: .logEvents) ?? [],
@@ -1188,26 +1655,32 @@ public struct AtlasImportDryRunSummary: Equatable, Sendable {
     public var datasetDiffs: [AtlasDatasetDiff]
     public var recordsToCreate: Int
     public var recordsToUpdate: Int
+    public var lintFindings: [AtlasImportLintItem]
     public var warnings: [String]
     public var privacyNotes: [String]
     public var backfillNotes: [String]
+    public var plainLanguageSummary: AtlasGeneratedSummary?
 
     public init(
         validation: AtlasImportValidationResult,
         datasetDiffs: [AtlasDatasetDiff],
         recordsToCreate: Int,
         recordsToUpdate: Int,
+        lintFindings: [AtlasImportLintItem],
         warnings: [String],
         privacyNotes: [String],
-        backfillNotes: [String]
+        backfillNotes: [String],
+        plainLanguageSummary: AtlasGeneratedSummary? = nil
     ) {
         self.validation = validation
         self.datasetDiffs = datasetDiffs
         self.recordsToCreate = recordsToCreate
         self.recordsToUpdate = recordsToUpdate
+        self.lintFindings = lintFindings
         self.warnings = warnings
         self.privacyNotes = privacyNotes
         self.backfillNotes = backfillNotes
+        self.plainLanguageSummary = plainLanguageSummary
     }
 }
 

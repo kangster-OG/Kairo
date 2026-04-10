@@ -9,10 +9,10 @@ extension AtlasAppModel {
         do {
             return try await dependencies.persistence.changeStudio.loadStudio(
                 protocolID: protocolID,
-                referenceDate: Date()
+                referenceDate: currentDate()
             )
         } catch {
-            loadErrorMessage = error.localizedDescription
+            setLoadErrorMessage(error.localizedDescription)
             return nil
         }
     }
@@ -25,10 +25,10 @@ extension AtlasAppModel {
             return try await dependencies.persistence.changeStudio.buildPreview(
                 protocolID: protocolID,
                 draft: draft,
-                referenceDate: Date()
+                referenceDate: currentDate()
             )
         } catch {
-            loadErrorMessage = error.localizedDescription
+            setLoadErrorMessage(error.localizedDescription)
             return nil
         }
     }
@@ -38,7 +38,7 @@ extension AtlasAppModel {
         draft: AtlasProtocolChangeDraft
     ) async -> AtlasProtocolChangeCommitResult? {
         do {
-            let now = Date()
+            let now = currentDate()
             let result = try await dependencies.persistence.changeStudio.commitChange(
                 protocolID: protocolID,
                 draft: draft,
@@ -49,7 +49,7 @@ extension AtlasAppModel {
             await refreshShellData()
             return result
         } catch {
-            loadErrorMessage = error.localizedDescription
+            setLoadErrorMessage(error.localizedDescription)
             return nil
         }
     }
@@ -66,6 +66,7 @@ public struct AtlasProtocolChangeStudioScreen: View {
     @State private var isLoading = true
     @State private var isSubmitting = false
     @State private var showingCommitConfirmation = false
+    @State private var committedResult: AtlasProtocolChangeCommitResult?
 
     public var body: some View {
         List {
@@ -142,6 +143,7 @@ public struct AtlasProtocolChangeStudioScreen: View {
                 Section {
                     Button(preview == nil ? "Build preview" : "Refresh preview") {
                         Task {
+                            committedResult = nil
                             preview = await model.previewProtocolChange(protocolID: protocolID, draft: draft)
                         }
                     }
@@ -223,6 +225,38 @@ public struct AtlasProtocolChangeStudioScreen: View {
                         .disabled(isSubmitting)
                     }
                 }
+
+                if let committedResult {
+                    Section("Commit summary") {
+                        VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+                            Text(committedResult.impactSummary.title)
+                                .font(.headline)
+                            ForEach(committedResult.impactSummary.facts) { fact in
+                                VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
+                                    Text(fact.label)
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(AtlasPalette.primary)
+                                    Text(fact.value)
+                                        .font(.caption)
+                                        .foregroundStyle(AtlasPalette.textSecondary)
+                                }
+                            }
+                            ForEach(committedResult.impactSummary.notes, id: \.self) { note in
+                                Text(note)
+                                    .font(.caption)
+                                    .foregroundStyle(AtlasPalette.textSecondary)
+                            }
+                        }
+                        .padding(.vertical, AtlasSpacing.xSmall)
+                    }
+
+                    Section {
+                        Button("Done") {
+                            dismiss()
+                        }
+                        .buttonStyle(AtlasPrimaryButtonStyle())
+                    }
+                }
             } else {
                 Section {
                     Text("Atlas could not load this protocol yet.")
@@ -230,8 +264,8 @@ public struct AtlasProtocolChangeStudioScreen: View {
                 }
             }
         }
-        .scrollContentBackground(.hidden)
-        .background(AtlasPalette.canvas)
+        .atlasFormSurface()
+        .listStyle(.plain)
         .navigationTitle("Change Studio")
         .changeStudioInlineNavigationTitle()
         .task {
@@ -242,7 +276,7 @@ public struct AtlasProtocolChangeStudioScreen: View {
             if let context {
                 draft = AtlasProtocolChangeDraft(
                     changeType: .futureDose,
-                    effectiveDate: Date(),
+                    effectiveDate: model.currentDate(),
                     doseAmount: context.doseLabel.flatMap(parseLeadingNumber),
                     doseUnit: context.doseLabel.flatMap(parseTrailingUnit) ?? "",
                     timeOfDay: context.effectiveTimeOfDay ?? "08:00",
@@ -271,8 +305,10 @@ public struct AtlasProtocolChangeStudioScreen: View {
                 Task {
                     isSubmitting = true
                     defer { isSubmitting = false }
-                    if await model.commitProtocolChange(protocolID: protocolID, draft: draft) != nil {
-                        dismiss()
+                    if let result = await model.commitProtocolChange(protocolID: protocolID, draft: draft) {
+                        preview = result.preview
+                        committedResult = result
+                        context = await model.changeStudioContext(protocolID: protocolID)
                     }
                 }
             }
@@ -383,7 +419,7 @@ public struct AtlasProtocolChangeStudioScreen: View {
                 atlasParseLocalDateTime(
                     dateValue: changeStudioLocalDateString(draft.effectiveDate),
                     timeOfDay: draft.timeOfDay
-                ) ?? Date()
+                ) ?? model.currentDate()
             },
             set: { newValue in
                 let formatter = DateFormatter()

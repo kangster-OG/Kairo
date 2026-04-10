@@ -25,6 +25,7 @@ public enum AtlasEpisodePatternType: String, Codable, CaseIterable, Sendable {
     case lateLogging = "late_logging"
     case weightShift = "weight_shift"
     case siteObservation = "site_observation"
+    case contextCluster = "context_cluster"
 }
 
 public enum AtlasEpisodeConfidence: String, Codable, CaseIterable, Sendable {
@@ -52,6 +53,7 @@ public struct AtlasDoseEpisodeSummary: Identifiable, Equatable, Sendable {
     public var adherenceLabel: String
     public var symptomEntryCount: Int
     public var weightEntryCount: Int
+    public var contextEntryCount: Int
     public var metricEntryCount: Int
 
     public init(
@@ -65,6 +67,7 @@ public struct AtlasDoseEpisodeSummary: Identifiable, Equatable, Sendable {
         adherenceLabel: String,
         symptomEntryCount: Int,
         weightEntryCount: Int,
+        contextEntryCount: Int,
         metricEntryCount: Int
     ) {
         self.id = id
@@ -77,6 +80,7 @@ public struct AtlasDoseEpisodeSummary: Identifiable, Equatable, Sendable {
         self.adherenceLabel = adherenceLabel
         self.symptomEntryCount = symptomEntryCount
         self.weightEntryCount = weightEntryCount
+        self.contextEntryCount = contextEntryCount
         self.metricEntryCount = metricEntryCount
     }
 }
@@ -87,6 +91,7 @@ public struct AtlasEpisodeWindowCompareRow: Identifiable, Equatable, Sendable {
     public var episodeCount: Int
     public var symptomEntryCount: Int
     public var weightEntryCount: Int
+    public var contextEntryCount: Int
     public var metricEntryCount: Int
     public var summaryLabel: String
 
@@ -95,6 +100,7 @@ public struct AtlasEpisodeWindowCompareRow: Identifiable, Equatable, Sendable {
         episodeCount: Int,
         symptomEntryCount: Int,
         weightEntryCount: Int,
+        contextEntryCount: Int,
         metricEntryCount: Int,
         summaryLabel: String
     ) {
@@ -102,6 +108,7 @@ public struct AtlasEpisodeWindowCompareRow: Identifiable, Equatable, Sendable {
         self.episodeCount = episodeCount
         self.symptomEntryCount = symptomEntryCount
         self.weightEntryCount = weightEntryCount
+        self.contextEntryCount = contextEntryCount
         self.metricEntryCount = metricEntryCount
         self.summaryLabel = summaryLabel
     }
@@ -152,7 +159,7 @@ public struct AtlasEpisodeInsightsSnapshot: Equatable, Sendable {
     public var hasAnyEpisodeData: Bool
 
     public init(
-        disclaimer: String = "Episode patterns are descriptive only. Atlas groups logged data around dose windows to help you review timing and changes over time. It does not provide medical guidance or tell you how to change a protocol.",
+        disclaimer: String = "Episode patterns are descriptive only. Atlas groups logged context, symptom, weight, and metric data around dose windows to help you review timing and changes over time. It does not provide medical guidance or tell you how to change a protocol.",
         recentEpisodes: [AtlasDoseEpisodeSummary] = [],
         compareWindows: [AtlasEpisodeWindowCompareRow] = [],
         patternCards: [AtlasEpisodePatternCard] = [],

@@ -3,6 +3,9 @@ import Foundation
 public enum AtlasImportDataset: String, CaseIterable, Sendable {
     case calculatorProfiles
     case compounds
+    case consumableAdjustments
+    case consumables
+    case contextLogs
     case customMetrics
     case healthConnections
     case logEvents

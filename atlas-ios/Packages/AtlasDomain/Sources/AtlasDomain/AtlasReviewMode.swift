@@ -15,6 +15,74 @@ public enum AtlasReviewDeliveryKind: String, Codable, CaseIterable, Sendable {
     case liveSession = "live_session"
 }
 
+public enum AtlasReviewPreset: String, Codable, CaseIterable, Sendable, Identifiable {
+    case clinicianSummary = "clinician_summary"
+    case coachSummary = "coach_summary"
+    case partnerReview = "partner_review"
+    case selfArchive = "self_archive"
+
+    public var id: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .clinicianSummary:
+            return "Clinician summary"
+        case .coachSummary:
+            return "Coach summary"
+        case .partnerReview:
+            return "Partner review"
+        case .selfArchive:
+            return "Self archive"
+        }
+    }
+
+    public var subtitle: String {
+        switch self {
+        case .clinicianSummary:
+            return "Current protocol snapshot with canonical labels."
+        case .coachSummary:
+            return "Selected protocol context in a read-only pack."
+        case .partnerReview:
+            return "Alias-safe summary with minimal scope."
+        case .selfArchive:
+            return "Static date-range archive for your own records."
+        }
+    }
+
+    public var scopeKind: AtlasReviewScopeKind {
+        switch self {
+        case .clinicianSummary:
+            return .currentProtocol
+        case .coachSummary:
+            return .selectedProtocols
+        case .partnerReview:
+            return .summaryOnly
+        case .selfArchive:
+            return .customDateRange
+        }
+    }
+
+    public var aliasModeEnabled: Bool {
+        switch self {
+        case .partnerReview:
+            return true
+        default:
+            return false
+        }
+    }
+
+    public var defaultExpirationDays: Int? {
+        switch self {
+        case .partnerReview:
+            return 14
+        case .coachSummary:
+            return 14
+        default:
+            return nil
+        }
+    }
+}
+
 public enum AtlasReviewSessionStatus: String, Codable, CaseIterable, Sendable {
     case active
     case expired
@@ -186,5 +254,36 @@ public struct AtlasReviewCreationResult: Sendable, Equatable {
         self.summaryURL = summaryURL
         self.packURL = packURL
         self.manifestVersion = manifestVersion
+    }
+}
+
+public extension AtlasReviewPreset {
+    func makeRequest(
+        protocolID: String?,
+        protocolIDs: [String],
+        dateRange: AtlasDateRange?,
+        now: Date = Date()
+    ) -> AtlasReviewRequest {
+        let fallbackRange = AtlasDateRange(
+            start: Calendar.current.date(byAdding: .day, value: -30, to: now) ?? now,
+            end: now
+        )
+        let expiration = defaultExpirationDays.flatMap {
+            Calendar.current.date(byAdding: .day, value: $0, to: now)
+        }
+
+        return AtlasReviewRequest(
+            scopeKind: scopeKind,
+            protocolID: scopeKind == .currentProtocol || scopeKind == .inventoryOnly || scopeKind == .summaryOnly
+                ? protocolID
+                : nil,
+            protocolIDs: scopeKind == .selectedProtocols || scopeKind == .customDateRange
+                ? protocolIDs
+                : [],
+            dateRange: scopeKind == .customDateRange ? (dateRange ?? fallbackRange) : nil,
+            aliasModeEnabled: aliasModeEnabled,
+            expiresAt: expiration,
+            deliveryKind: .staticPack
+        )
     }
 }

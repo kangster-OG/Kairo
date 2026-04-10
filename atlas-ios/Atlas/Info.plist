@@ -14,11 +14,38 @@
 	<string>$(PRODUCT_NAME)</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.dkang2000.Atlas</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>atlas</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleShortVersionString</key>
 	<string>1.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
 	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<key>NSHealthShareUsageDescription</key>
+	<string>Atlas can read your Apple Health weight history so your logs stay consistent across Atlas and Health.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>Atlas can write weight entries to Apple Health when you choose to keep Atlas and Health in sync.</string>
+	<key>ATLAS_SUPABASE_URL</key>
+	<string>https://nppqywaxawvvdhiedpxc.supabase.co</string>
+	<key>ATLAS_SUPABASE_ANON_KEY</key>
+	<string>eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5wcHF5d2F4YXd2dmRoaWVkcHhjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3NzcyODAsImV4cCI6MjA5MTM1MzI4MH0.ixg-MlNUNezbNzQKk92_JwabE7efONYUqV065RMlIP4</string>
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
+	<key>UIRequiresFullScreen</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>
 	<dict>

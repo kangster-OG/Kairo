@@ -6,6 +6,9 @@ public struct AtlasDatabaseLocations: Sendable, Equatable {
     public var canonicalDatabaseURL: URL
     public var projectionDatabaseURL: URL
     public var backupDirectoryURL: URL
+    public var extensionProjectionSnapshotURL: URL {
+        projectionDatabaseURL.deletingLastPathComponent().appendingPathComponent("atlas-extension-projection.json")
+    }
 
     public init(
         canonicalDatabaseURL: URL,
@@ -90,6 +93,26 @@ final class AtlasDatabaseStack: @unchecked Sendable {
                 table.column("key", .text).primaryKey()
                 table.column("value", .text).notNull()
                 table.column("updated_at", .text).notNull()
+            }
+
+            try db.create(table: "import_templates") { table in
+                table.column("id", .text).primaryKey()
+                table.column("name", .text).notNull()
+                table.column("importer", .text).notNull()
+                table.column("generic_csv_mapping_json", .text)
+                table.column("manual_options_json", .text)
+                table.column("created_at", .text).notNull()
+                table.column("updated_at", .text).notNull()
+            }
+
+            try db.create(table: "restore_points") { table in
+                table.column("id", .text).primaryKey()
+                table.column("title", .text).notNull()
+                table.column("action_kind", .text).notNull()
+                table.column("source_summary", .text).notNull()
+                table.column("file_url", .text).notNull()
+                table.column("row_count", .integer).notNull()
+                table.column("created_at", .text).notNull()
             }
 
             try db.create(table: "calculator_profiles") { table in
@@ -473,6 +496,88 @@ final class AtlasDatabaseStack: @unchecked Sendable {
                 table.column("created_at", .text).notNull()
                 table.column("updated_at", .text).notNull()
             }
+        }
+
+        migrator.registerMigration("v8_add_import_templates_and_restore_points") { db in
+            try db.create(table: "import_templates", ifNotExists: true) { table in
+                table.column("id", .text).primaryKey()
+                table.column("name", .text).notNull()
+                table.column("importer", .text).notNull()
+                table.column("generic_csv_mapping_json", .text)
+                table.column("manual_options_json", .text)
+                table.column("created_at", .text).notNull()
+                table.column("updated_at", .text).notNull()
+            }
+
+            try db.create(table: "restore_points", ifNotExists: true) { table in
+                table.column("id", .text).primaryKey()
+                table.column("title", .text).notNull()
+                table.column("action_kind", .text).notNull()
+                table.column("source_summary", .text).notNull()
+                table.column("file_url", .text).notNull()
+                table.column("row_count", .integer).notNull()
+                table.column("created_at", .text).notNull()
+            }
+        }
+
+        migrator.registerMigration("v9_add_consumables") { db in
+            try db.create(table: "consumables") { table in
+                table.column("id", .text).primaryKey()
+                table.column("protocol_id", .text).references("protocols", onDelete: .setNull)
+                table.column("name", .text).notNull()
+                table.column("category", .text)
+                table.column("quantity_on_hand", .double).notNull()
+                table.column("unit", .text).notNull()
+                table.column("reorder_threshold", .double)
+                table.column("reorder_lead_time_days", .integer)
+                table.column("quantity_per_use", .double)
+                table.column("lot_number", .text)
+                table.column("size_description", .text)
+                table.column("notes", .text)
+                table.column("vendor_label", .text)
+                table.column("purchase_notes", .text)
+                table.column("created_at", .text).notNull()
+                table.column("updated_at", .text).notNull()
+                table.column("archived_at", .text)
+            }
+
+            try db.create(table: "consumable_adjustments") { table in
+                table.column("id", .text).primaryKey()
+                table.column("consumable_id", .text).notNull().references("consumables", onDelete: .cascade)
+                table.column("protocol_id", .text).references("protocols", onDelete: .setNull)
+                table.column("occurrence_id", .text)
+                table.column("kind", .text).notNull()
+                table.column("delta_quantity", .double).notNull()
+                table.column("resulting_quantity", .double).notNull()
+                table.column("quantity_unit", .text).notNull()
+                table.column("note", .text)
+                table.column("recorded_at", .text).notNull()
+                table.column("created_at", .text).notNull()
+            }
+
+            try db.create(index: "idx_consumables_protocol_id", on: "consumables", columns: ["protocol_id", "updated_at"])
+            try db.create(index: "idx_consumable_adjustments_consumable_id", on: "consumable_adjustments", columns: ["consumable_id", "recorded_at"])
+        }
+
+        migrator.registerMigration("v10_add_context_logs") { db in
+            try db.create(table: "context_logs") { table in
+                table.column("id", .text).primaryKey()
+                table.column("protocol_id", .text).references("protocols", onDelete: .setNull)
+                table.column("logged_at", .text).notNull()
+                table.column("meal_timing", .text)
+                table.column("fed_state", .text)
+                table.column("appetite", .text)
+                table.column("hydration", .text)
+                table.column("gi_context_json", .text).notNull()
+                table.column("note", .text)
+                table.column("tags_json", .text).notNull()
+                table.column("source", .text).notNull()
+                table.column("created_at", .text).notNull()
+                table.column("updated_at", .text).notNull()
+            }
+
+            try db.create(index: "idx_context_logs_logged_at", on: "context_logs", columns: ["logged_at"])
+            try db.create(index: "idx_context_logs_protocol_id", on: "context_logs", columns: ["protocol_id", "logged_at"])
         }
 
         return migrator

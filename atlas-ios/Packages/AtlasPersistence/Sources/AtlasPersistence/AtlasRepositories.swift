@@ -100,18 +100,36 @@ public struct GRDBTodayRepository: TodayRepository, Sendable {
 public struct GRDBSettingsRepository: SettingsRepository, Sendable {
     let stack: AtlasDatabaseStack
     let healthKit: any HealthKitManaging
+    let featureFlags: AtlasFeatureFlagState
 
     init(
         stack: AtlasDatabaseStack,
-        healthKit: any HealthKitManaging
+        healthKit: any HealthKitManaging,
+        featureFlags: AtlasFeatureFlagState
     ) {
         self.stack = stack
         self.healthKit = healthKit
+        self.featureFlags = featureFlags
     }
 
     public func currentSettingsSnapshot() async throws -> AtlasSettingsSnapshot {
         try await stack.canonical.read { db in
-            try buildSettingsSnapshot(db: db, healthKit: healthKit)
+            try buildSettingsSnapshot(
+                db: db,
+                healthKit: healthKit,
+                featureFlags: featureFlags
+            )
+        }
+    }
+
+    public func updateAccountMode(_ accountMode: AtlasAccountMode, now: Date) async throws -> AtlasSettingsSnapshot {
+        try await stack.canonical.write { db in
+            try writeAppSetting(db: db, key: "account_mode", value: accountMode.rawValue, now: now)
+            return try buildSettingsSnapshot(
+                db: db,
+                healthKit: healthKit,
+                featureFlags: featureFlags
+            )
         }
     }
 
@@ -141,16 +159,118 @@ public struct GRDBSettingsRepository: SettingsRepository, Sendable {
                 )
             }
 
-            return try buildSettingsSnapshot(db: db, healthKit: healthKit)
+            return try buildSettingsSnapshot(
+                db: db,
+                healthKit: healthKit,
+                featureFlags: featureFlags
+            )
+        }
+    }
+
+    public func updateSummarySettings(_ update: AtlasSummarySettingsUpdate, now: Date) async throws -> AtlasSettingsSnapshot {
+        try await stack.canonical.write { db in
+            let current = try readSummarySettings(db: db, featureFlags: featureFlags)
+
+            let nextOnDeviceEnabled = update.onDeviceEnabled ?? current.onDeviceEnabled
+            let nextExternalEnabled = update.externalProviderEnabled ?? current.externalProviderEnabled
+            let consentAt = update.externalProviderConsentRecordedAt ?? current.externalProviderConsentRecordedAt
+
+            try writeAppSetting(
+                db: db,
+                key: "summary_on_device_enabled",
+                value: nextOnDeviceEnabled ? "1" : "0",
+                now: now
+            )
+            try writeAppSetting(
+                db: db,
+                key: "summary_external_provider_enabled",
+                value: nextExternalEnabled ? "1" : "0",
+                now: now
+            )
+            try writeAppSetting(
+                db: db,
+                key: "summary_external_provider_consent_at",
+                value: consentAt.map(atlasTimestamp(from:)),
+                now: now
+            )
+
+            return try buildSettingsSnapshot(
+                db: db,
+                healthKit: healthKit,
+                featureFlags: featureFlags
+            )
+        }
+    }
+
+    public func updateRetentionSettings(_ update: AtlasRetentionSettingsUpdate, now: Date) async throws -> AtlasSettingsSnapshot {
+        try await stack.canonical.write { db in
+            let current = try readRetentionSettings(db: db, featureFlags: featureFlags)
+            let nextProgressEnabled = update.progressEnabled ?? current.progressEnabled
+            let nextCompanionEnabled = (update.companionEnabled ?? current.companionEnabled) && nextProgressEnabled
+
+            try writeAppSetting(
+                db: db,
+                key: "retention_progress_enabled",
+                value: nextProgressEnabled ? "1" : "0",
+                now: now
+            )
+            try writeAppSetting(
+                db: db,
+                key: "retention_companion_enabled",
+                value: nextCompanionEnabled ? "1" : "0",
+                now: now
+            )
+
+            return try buildSettingsSnapshot(
+                db: db,
+                healthKit: healthKit,
+                featureFlags: featureFlags
+            )
+        }
+    }
+
+    public func updateHealthConnection(
+        provider: AtlasHealthProviderKey,
+        enabled: Bool,
+        connected: Bool,
+        lastSyncAt: Date?,
+        lastError: String?,
+        now: Date
+    ) async throws -> AtlasSettingsSnapshot {
+        try await stack.canonical.write { db in
+            try ensureDefaultHealthConnection(db: db)
+            try writeHealthConnection(
+                db: db,
+                provider: provider,
+                enabled: enabled,
+                connected: connected,
+                lastSyncAt: lastSyncAt,
+                lastError: lastError,
+                now: now
+            )
+
+            return try buildSettingsSnapshot(
+                db: db,
+                healthKit: healthKit,
+                featureFlags: featureFlags
+            )
         }
     }
 }
 
 public actor GRDBSharedProjectionWriter: SharedProjectionWriting {
     private let stack: AtlasDatabaseStack
+    private let featureFlags: AtlasFeatureFlagState
+    private let privacyFormatter: AtlasPrivacyFormatter
 
-    init(stack: AtlasDatabaseStack) {
+    init(
+        stack: AtlasDatabaseStack,
+        featureFlags: AtlasFeatureFlagState,
+        privacyFormatter: AtlasPrivacyFormatter
+    ) {
         self.stack = stack
+        self.featureFlags = featureFlags
+        self.privacyFormatter = privacyFormatter
     }
 
     public func writeImportedProjection(
@@ -160,46 +280,44 @@ public actor GRDBSharedProjectionWriter: SharedProjectionWriting {
         quickActions: [AtlasSharedQuickAction],
         featureFlags: AtlasSharedFeatureFlagProjection
     ) async throws {
-        try await stack.projections.write { db in
-            try db.execute(sql: "DELETE FROM next_due_snapshot")
-            try db.execute(sql: "DELETE FROM widget_timeline_summary")
-            try db.execute(sql: "DELETE FROM label_projection")
-            try db.execute(sql: "DELETE FROM quick_action_projection")
-            try db.execute(sql: "DELETE FROM feature_flag_projection")
+        let state = AtlasProjectionWriteState(
+            nextDue: nextDue,
+            timeline: timeline,
+            labels: labels,
+            quickActions: quickActions,
+            featureFlags: featureFlags,
+            extensionSnapshot: AtlasSharedExtensionProjectionSnapshot(
+                generatedAt: atlasTimestamp(from: Date()),
+                renderMode: .discreet,
+                nextDue: nextDue,
+                quickActions: quickActions,
+                lowStock: AtlasSharedLowStockSnapshot(
+                    lowStockCount: 0,
+                    summary: "No low-stock items in the current projection.",
+                    items: [],
+                    updatedAt: atlasTimestamp(from: Date())
+                ),
+                featureFlags: featureFlags
+            )
+        )
+        try await writeProjectionState(state)
+    }
 
-            if let nextDue {
-                try AtlasNextDueProjectionDBRecord(snapshot: nextDue).insert(db)
-            }
-
-            for item in timeline {
-                try AtlasTimelineProjectionDBRecord(summary: item).insert(db)
-            }
-
-            for item in labels {
-                try AtlasLabelProjectionDBRecord(projection: item).insert(db)
-            }
-
-            for item in quickActions {
-                try AtlasQuickActionProjectionDBRecord(projection: item).insert(db)
-            }
-
-            let allFlags: [(AtlasFeatureFlag, Bool)] = [
-                (.nativeWidgets, featureFlags.flags.nativeWidgets),
-                (.nativeIntents, featureFlags.flags.nativeIntents),
-                (.trustVaultShell, featureFlags.flags.trustVaultShell),
-                (.importShell, featureFlags.flags.importShell),
-                (.reviewMode, featureFlags.flags.reviewMode),
-                (.liveReviewSessions, featureFlags.flags.liveReviewSessions)
-            ]
-
-            for flag in allFlags {
-                try AtlasFeatureFlagProjectionDBRecord(flag: flag.0.rawValue, isEnabled: flag.1).insert(db)
-            }
+    public func refreshProjection(referenceDate: Date) async throws {
+        let state = try await stack.canonical.read { db in
+            try buildProjectionWriteState(
+                db: db,
+                referenceDate: referenceDate,
+                privacyFormatter: privacyFormatter,
+                featureFlags: featureFlags
+            )
         }
+        try await writeProjectionState(state)
     }
 
     public func loadProjectionDebugState() async throws -> AtlasProjectionDebugState {
-        try await stack.projections.read { db in
+        let extensionSnapshot = try await loadExtensionProjectionSnapshot()
+        return try await stack.projections.read { db in
             let nextDue = try AtlasNextDueProjectionDBRecord.fetchOne(db).map(\.domain)
             let timeline = try AtlasTimelineProjectionDBRecord.fetchAll(db).map(\.domain)
             let labels = try AtlasLabelProjectionDBRecord.fetchAll(db).map(\.domain)
@@ -211,7 +329,11 @@ public actor GRDBSharedProjectionWriter: SharedProjectionWriting {
                 trustVaultShell: true,
                 importShell: true,
                 reviewMode: true,
-                liveReviewSessions: false
+                liveReviewSessions: false,
+                boundedSummaries: true,
+                externalSummaryProviders: false,
+                calmRetention: true,
+                companionSkin: true
             )
 
             for row in featureFlagRows {
@@ -232,6 +354,10 @@ public actor GRDBSharedProjectionWriter: SharedProjectionWriting {
                     state.reviewMode = row.isEnabled
                 case .liveReviewSessions:
                     state.liveReviewSessions = row.isEnabled
+                case .boundedSummaries, .externalSummaryProviders:
+                    continue
+                case .calmRetention, .companionSkin:
+                    continue
                 }
             }
 
@@ -240,12 +366,291 @@ public actor GRDBSharedProjectionWriter: SharedProjectionWriting {
                 timeline: timeline,
                 labels: labels,
                 quickActions: quickActions,
-                featureFlags: AtlasSharedFeatureFlagProjection(flags: state)
+                featureFlags: AtlasSharedFeatureFlagProjection(flags: state),
+                extensionSnapshot: extensionSnapshot
             )
         }
     }
 
+    public func loadExtensionProjectionSnapshot() async throws -> AtlasSharedExtensionProjectionSnapshot? {
+        guard let url = stack.locations?.extensionProjectionSnapshotURL,
+              FileManager.default.fileExists(atPath: url.path) else {
+            return nil
+        }
+
+        let data = try Data(contentsOf: url)
+        return try JSONDecoder().decode(AtlasSharedExtensionProjectionSnapshot.self, from: data)
+    }
+
     nonisolated public func projectionDescription() -> String {
         "Extensions read privacy-safe app-group projections, never the canonical database."
+    }
+
+    private func writeProjectionState(_ state: AtlasProjectionWriteState) async throws {
+        try await stack.projections.write { db in
+            try db.execute(sql: "DELETE FROM next_due_snapshot")
+            try db.execute(sql: "DELETE FROM widget_timeline_summary")
+            try db.execute(sql: "DELETE FROM label_projection")
+            try db.execute(sql: "DELETE FROM quick_action_projection")
+            try db.execute(sql: "DELETE FROM feature_flag_projection")
+
+            if let nextDue = state.nextDue {
+                try AtlasNextDueProjectionDBRecord(snapshot: nextDue).insert(db)
+            }
+
+            for item in state.timeline {
+                try AtlasTimelineProjectionDBRecord(summary: item).insert(db)
+            }
+
+            for item in state.labels {
+                try AtlasLabelProjectionDBRecord(projection: item).insert(db)
+            }
+
+            for item in state.quickActions {
+                try AtlasQuickActionProjectionDBRecord(projection: item).insert(db)
+            }
+
+            let allFlags: [(AtlasFeatureFlag, Bool)] = [
+                (.nativeWidgets, state.featureFlags.flags.nativeWidgets),
+                (.nativeIntents, state.featureFlags.flags.nativeIntents),
+                (.trustVaultShell, state.featureFlags.flags.trustVaultShell),
+                (.importShell, state.featureFlags.flags.importShell),
+                (.reviewMode, state.featureFlags.flags.reviewMode),
+                (.liveReviewSessions, state.featureFlags.flags.liveReviewSessions),
+                (.boundedSummaries, state.featureFlags.flags.boundedSummaries),
+                (.externalSummaryProviders, state.featureFlags.flags.externalSummaryProviders),
+                (.calmRetention, state.featureFlags.flags.calmRetention),
+                (.companionSkin, state.featureFlags.flags.companionSkin)
+            ]
+
+            for flag in allFlags {
+                try AtlasFeatureFlagProjectionDBRecord(flag: flag.0.rawValue, isEnabled: flag.1).insert(db)
+            }
+        }
+        if let url = stack.locations?.extensionProjectionSnapshotURL {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.sortedKeys]
+            let data = try encoder.encode(state.extensionSnapshot)
+            try data.write(to: url, options: .atomic)
+        }
+    }
+}
+
+private struct AtlasProjectionWriteState {
+    var nextDue: AtlasSharedNextDueSnapshot?
+    var timeline: [AtlasSharedTimelineSummary]
+    var labels: [AtlasSharedLabelProjection]
+    var quickActions: [AtlasSharedQuickAction]
+    var featureFlags: AtlasSharedFeatureFlagProjection
+    var extensionSnapshot: AtlasSharedExtensionProjectionSnapshot
+}
+
+private func buildProjectionWriteState(
+    db: Database,
+    referenceDate: Date,
+    privacyFormatter: AtlasPrivacyFormatter,
+    featureFlags: AtlasFeatureFlagState
+) throws -> AtlasProjectionWriteState {
+    let context = try loadCoreLoopContext(db: db)
+    let privacyProfile = try AtlasPrivacyProfileDBRecord.fetchOne(db)?.domain ?? .default()
+    let renderMode = privacyFormatter.renderMode(for: privacyProfile)
+    let pending = context.pendingOccurrences.values
+        .flatMap { $0 }
+        .map { occurrence in
+            buildScheduledOccurrence(
+                occurrence: occurrence,
+                context: context,
+                now: referenceDate
+            )
+        }
+        .sorted { $0.scheduledAt < $1.scheduledAt }
+    let overdue = pending.filter { $0.state == .overdue }
+    let dueAndUpcoming = pending.filter { $0.state == .due || $0.state == .upcoming }
+    let primaryOccurrence = overdue.first ?? dueAndUpcoming.first
+
+    let nextDue = primaryOccurrence.map { occurrence in
+        AtlasSharedNextDueSnapshot(
+            occurrenceID: occurrence.id,
+            protocolID: occurrence.protocolID,
+            displayTitle: privacyFormatter.title(
+                canonical: occurrence.canonicalTitle,
+                alias: occurrence.aliasTitle,
+                mode: renderMode
+            ),
+            dueLabel: relativeDueLabel(for: occurrence.scheduledAt),
+            scheduledAt: atlasTimestamp(from: occurrence.scheduledAt),
+            state: occurrence.state,
+            statusSummary: sharedProjectionStatusSummary(
+                primaryOccurrence: occurrence,
+                overdueCount: overdue.count
+            ),
+            overdueCount: overdue.count
+        )
+    }
+
+    let logs = try AtlasLogEventDBRecord
+        .order(Column("logged_at").desc)
+        .fetchAll(db)
+        .map(\.domain)
+    let timeline = logs.prefix(10).compactMap { event -> AtlasSharedTimelineSummary? in
+        guard let protocolRecord = context.protocols[event.protocolId] else {
+            return nil
+        }
+        let alias = context.aliases[event.protocolId]?.aliasLabel
+        return AtlasSharedTimelineSummary(
+            id: event.id,
+            protocolID: event.protocolId,
+            displayTitle: privacyFormatter.title(
+                canonical: protocolRecord.name,
+                alias: alias,
+                mode: renderMode
+            ),
+            summary: privacyFormatter.timelineSummary(
+                eventType: event.eventType,
+                canonical: protocolRecord.name,
+                alias: alias,
+                mode: renderMode
+            ),
+            recordedAt: event.loggedAt
+        )
+    }
+
+    let labels = context.protocols.values
+        .sorted { $0.createdAt > $1.createdAt }
+        .map { protocolRecord in
+            AtlasSharedLabelProjection(
+                id: protocolRecord.id,
+                canonicalTitle: protocolRecord.name,
+                aliasTitle: context.aliases[protocolRecord.id]?.aliasLabel,
+                discreetTitle: privacyFormatter.title(
+                    canonical: protocolRecord.name,
+                    alias: context.aliases[protocolRecord.id]?.aliasLabel,
+                    mode: .discreet
+                )
+            )
+        }
+
+    let quickActionOccurrences = Array((overdue + dueAndUpcoming).uniquePreservingOrder(by: \.id).prefix(3))
+    let quickActions = quickActionOccurrences.map { occurrence in
+        AtlasSharedQuickAction(
+            id: "quick_\(occurrence.id)",
+            protocolID: occurrence.protocolID,
+            occurrenceID: occurrence.id,
+            title: privacyFormatter.title(
+                canonical: occurrence.canonicalTitle,
+                alias: occurrence.aliasTitle,
+                mode: renderMode
+            ),
+            dueLabel: relativeDueLabel(for: occurrence.scheduledAt),
+            state: occurrence.state
+        )
+    }
+
+    let inventorySnapshot = try buildInventorySnapshot(db: db, referenceDate: referenceDate)
+    let lowStockItems = buildLowStockProjectionItems(
+        inventorySnapshot: inventorySnapshot,
+        renderMode: renderMode,
+        privacyFormatter: privacyFormatter
+    )
+    let lowStockSnapshot = AtlasSharedLowStockSnapshot(
+        lowStockCount: inventorySnapshot.lowStockCount,
+        summary: lowStockSummary(for: inventorySnapshot.lowStockCount),
+        items: lowStockItems,
+        updatedAt: atlasTimestamp(from: referenceDate)
+    )
+    let featureFlagProjection = AtlasSharedFeatureFlagProjection(flags: featureFlags)
+
+    return AtlasProjectionWriteState(
+        nextDue: nextDue,
+        timeline: timeline,
+        labels: labels,
+        quickActions: quickActions,
+        featureFlags: featureFlagProjection,
+        extensionSnapshot: AtlasSharedExtensionProjectionSnapshot(
+            generatedAt: atlasTimestamp(from: referenceDate),
+            renderMode: renderMode,
+            nextDue: nextDue,
+            quickActions: quickActions,
+            lowStock: lowStockSnapshot,
+            featureFlags: featureFlagProjection
+        )
+    )
+}
+
+private func sharedProjectionStatusSummary(
+    primaryOccurrence: AtlasScheduledOccurrence,
+    overdueCount: Int
+) -> String {
+    if overdueCount > 1 {
+        return "\(overdueCount) overdue"
+    }
+
+    switch primaryOccurrence.state {
+    case .overdue:
+        return "Overdue"
+    case .due:
+        return "Due now"
+    case .upcoming:
+        return "Up next"
+    case .completed:
+        return "Completed"
+    case .skipped:
+        return "Skipped"
+    case .superseded:
+        return "Updated"
+    }
+}
+
+private func buildLowStockProjectionItems(
+    inventorySnapshot: AtlasInventorySnapshot,
+    renderMode: AtlasPrivacyRenderMode,
+    privacyFormatter: AtlasPrivacyFormatter
+) -> [AtlasSharedLowStockItem] {
+    let vialItems = inventorySnapshot.vials
+        .filter { $0.isLowStock && $0.archivedAt == nil }
+        .map { vial in
+            AtlasSharedLowStockItem(
+                id: vial.id,
+                kind: .vial,
+                displayTitle: privacyFormatter.vialTitle(canonical: vial.label, mode: renderMode),
+                detail: vial.lowStockLabel ?? vial.projectedDepletionLabel ?? vial.quantityLabel
+            )
+        }
+    let consumableItems = inventorySnapshot.consumables
+        .filter { $0.isLowStock && $0.archivedAt == nil }
+        .map { consumable in
+            AtlasSharedLowStockItem(
+                id: consumable.id,
+                kind: .consumable,
+                displayTitle: privacyFormatter.consumableTitle(
+                    canonical: consumable.name,
+                    category: consumable.category,
+                    mode: renderMode
+                ),
+                detail: consumable.lowStockLabel ?? consumable.projectedDepletionLabel ?? consumable.quantityLabel
+            )
+        }
+
+    return Array((vialItems + consumableItems).prefix(4))
+}
+
+private func lowStockSummary(for count: Int) -> String {
+    switch count {
+    case 0:
+        return "Inventory looks steady."
+    case 1:
+        return "1 item is below threshold."
+    default:
+        return "\(count) items are below threshold."
+    }
+}
+
+private extension Array {
+    func uniquePreservingOrder<ID: Hashable>(by keyPath: KeyPath<Element, ID>) -> [Element] {
+        var seen: Set<ID> = []
+        return filter { element in
+            let id = element[keyPath: keyPath]
+            return seen.insert(id).inserted
+        }
     }
 }

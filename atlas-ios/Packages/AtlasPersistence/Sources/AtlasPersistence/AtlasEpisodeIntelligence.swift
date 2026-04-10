@@ -12,6 +12,7 @@ struct AtlasEpisodeSourceSnapshot {
     var protocolRules: [String: [AtlasProtocolRuleRecord]]
     var revisionSlices: [String: [AtlasRevisionSlice]]
     var logEvents: [AtlasLogEventRecord]
+    var contextLogs: [AtlasContextLogRecord]
     var symptomLogs: [AtlasSymptomLogRecord]
     var weightLogs: [AtlasWeightLogRecord]
     var metricValueLogs: [AtlasMetricValueLogRecord]
@@ -22,6 +23,7 @@ struct AtlasEpisodeSourceSnapshot {
 }
 
 private struct AtlasEpisodeWindowObservation {
+    var contexts: [AtlasContextLogRecord] = []
     var symptoms: [AtlasSymptomLogRecord] = []
     var weights: [AtlasWeightLogRecord] = []
     var metricLogs: [AtlasMetricValueLogRecord] = []
@@ -46,6 +48,12 @@ private struct AtlasEpisodeSymptomKey: Hashable {
     var window: AtlasEpisodeWindowKind
 }
 
+private struct AtlasEpisodeContextPatternKey: Hashable {
+    var protocolID: String
+    var descriptor: String
+    var window: AtlasEpisodeWindowKind
+}
+
 func buildEpisodeInsightsSnapshot(
     source: AtlasEpisodeSourceSnapshot,
     now: Date
@@ -56,12 +64,14 @@ func buildEpisodeInsightsSnapshot(
     }
 
     let compareRows = AtlasEpisodeWindowKind.allCases.map { windowKind in
+        let contextCount = observations.reduce(0) { $0 + ($1.windowObservations[windowKind]?.contexts.count ?? 0) }
         let symptomCount = observations.reduce(0) { $0 + ($1.windowObservations[windowKind]?.symptoms.count ?? 0) }
         let weightCount = observations.reduce(0) { $0 + ($1.windowObservations[windowKind]?.weights.count ?? 0) }
         let metricCount = observations.reduce(0) { $0 + ($1.windowObservations[windowKind]?.metricLogs.count ?? 0) }
         let episodeCount = observations.filter {
             let observation = $0.windowObservations[windowKind]
-            return (observation?.symptoms.isEmpty == false)
+            return (observation?.contexts.isEmpty == false)
+                || (observation?.symptoms.isEmpty == false)
                 || (observation?.weights.isEmpty == false)
                 || (observation?.metricLogs.isEmpty == false)
         }.count
@@ -71,11 +81,13 @@ func buildEpisodeInsightsSnapshot(
             episodeCount: episodeCount,
             symptomEntryCount: symptomCount,
             weightEntryCount: weightCount,
+            contextEntryCount: contextCount,
             metricEntryCount: metricCount,
             summaryLabel: compareSummaryLabel(
                 episodeCount: episodeCount,
                 symptomCount: symptomCount,
                 weightCount: weightCount,
+                contextCount: contextCount,
                 metricCount: metricCount
             )
         )
@@ -98,6 +110,7 @@ func buildEpisodeInsightsSnapshot(
                     : "Logged \(observation.loggedDelayMinutes) minute(s) after the scheduled dose time",
                 symptomEntryCount: observation.windowObservations.values.reduce(0) { $0 + $1.symptoms.count },
                 weightEntryCount: observation.windowObservations.values.reduce(0) { $0 + $1.weights.count },
+                contextEntryCount: observation.windowObservations.values.reduce(0) { $0 + $1.contexts.count },
                 metricEntryCount: observation.windowObservations.values.reduce(0) { $0 + $1.metricLogs.count }
             )
         }
@@ -128,6 +141,7 @@ func buildEpisodeInsightsSnapshot(
         protocolRules: Dictionary(grouping: snapshot.protocolRules, by: \.protocolId),
         revisionSlices: revisionSlices,
         logEvents: snapshot.logEvents,
+        contextLogs: snapshot.contextLogs,
         symptomLogs: snapshot.symptomLogs,
         weightLogs: snapshot.weightLogs,
         metricValueLogs: snapshot.metricValueLogs,
@@ -178,6 +192,11 @@ private func buildEpisodeObservations(
                 let loggedAt = atlasDate(from: entry.loggedAt)
                 return loggedAt >= doseAt && loggedAt <= episodeEnd
             }
+            let contextEntries = source.contextLogs.filter { entry in
+                let loggedAt = atlasDate(from: entry.loggedAt)
+                let matchesProtocol = entry.protocolId == nil || entry.protocolId == event.protocolId
+                return matchesProtocol && loggedAt >= doseAt && loggedAt <= episodeEnd
+            }
             let weightEntries = source.weightLogs.filter { entry in
                 let loggedAt = atlasDate(from: entry.loggedAt)
                 return loggedAt >= doseAt && loggedAt <= episodeEnd
@@ -188,6 +207,16 @@ private func buildEpisodeObservations(
                 }
                 let loggedAt = atlasDate(from: entry.loggedAt)
                 return loggedAt >= doseAt && loggedAt <= episodeEnd
+            }
+
+            for entry in contextEntries {
+                if let windowKind = classifyEpisodeWindow(
+                    loggedAt: atlasDate(from: entry.loggedAt),
+                    doseAt: doseAt,
+                    intervalHours: intervalHours
+                ) {
+                    windows[windowKind, default: AtlasEpisodeWindowObservation()].contexts.append(entry)
+                }
             }
 
             for entry in symptomEntries {
@@ -308,6 +337,7 @@ private func detectEpisodePatterns(
 
     cards.append(contentsOf: detectWeightShiftPatterns(observations: observations, source: source))
     cards.append(contentsOf: detectSiteObservationPatterns(observations: observations))
+    cards.append(contentsOf: detectContextPatterns(observations: observations))
 
     return cards
         .sorted {
@@ -318,6 +348,71 @@ private func detectEpisodePatterns(
         }
         .prefix(6)
         .map { $0 }
+}
+
+private func detectContextPatterns(
+    observations: [AtlasEpisodeObservation]
+) -> [AtlasEpisodePatternCard] {
+    var buckets: [AtlasEpisodeContextPatternKey: [AtlasEpisodeObservation]] = [:]
+
+    for observation in observations {
+        for windowKind in AtlasEpisodeWindowKind.allCases {
+            let contexts = observation.windowObservations[windowKind]?.contexts ?? []
+            for context in contexts {
+                if context.fedState == .fasted {
+                    buckets[
+                        AtlasEpisodeContextPatternKey(
+                            protocolID: observation.protocolID,
+                            descriptor: "Fasted context",
+                            window: windowKind
+                        ),
+                        default: []
+                    ].append(observation)
+                }
+                if context.hydration == .low {
+                    buckets[
+                        AtlasEpisodeContextPatternKey(
+                            protocolID: observation.protocolID,
+                            descriptor: "Low hydration context",
+                            window: windowKind
+                        ),
+                        default: []
+                    ].append(observation)
+                }
+                for tag in context.giTags where tag != .calm {
+                    buckets[
+                        AtlasEpisodeContextPatternKey(
+                            protocolID: observation.protocolID,
+                            descriptor: tag.title,
+                            window: windowKind
+                        ),
+                        default: []
+                    ].append(observation)
+                }
+            }
+        }
+    }
+
+    return buckets.compactMap { key, supportingEpisodes in
+        let uniqueEpisodeIDs = Set(supportingEpisodes.map(\.id))
+        guard uniqueEpisodeIDs.count >= 3 else {
+            return nil
+        }
+        let protocolTitle = supportingEpisodes.first?.canonicalProtocolTitle
+        let aliasTitle = supportingEpisodes.first?.aliasProtocolTitle
+        return AtlasEpisodePatternCard(
+            id: "context:\(key.protocolID):\(key.window.rawValue):\(key.descriptor.lowercased().replacingOccurrences(of: " ", with: "_"))",
+            protocolID: key.protocolID,
+            canonicalProtocolTitle: protocolTitle,
+            aliasProtocolTitle: aliasTitle,
+            type: .contextCluster,
+            windowKind: key.window,
+            confidence: uniqueEpisodeIDs.count >= 4 ? .high : .medium,
+            title: "\(key.descriptor) often appeared in \(key.window.title.lowercased())",
+            detail: "\(key.descriptor) was logged in \(uniqueEpisodeIDs.count) recent dose-centered episode(s). Atlas is describing timing only, not cause.",
+            supportingEpisodeCount: uniqueEpisodeIDs.count
+        )
+    }
 }
 
 private func detectWeightShiftPatterns(
@@ -558,9 +653,10 @@ private func compareSummaryLabel(
     episodeCount: Int,
     symptomCount: Int,
     weightCount: Int,
+    contextCount: Int,
     metricCount: Int
 ) -> String {
-    "\(episodeCount) episode(s) • \(symptomCount) symptom entr\(symptomCount == 1 ? "y" : "ies") • \(weightCount) weight entr\(weightCount == 1 ? "y" : "ies") • \(metricCount) metric entr\(metricCount == 1 ? "y" : "ies")"
+    "\(episodeCount) episode(s) • \(contextCount) context entr\(contextCount == 1 ? "y" : "ies") • \(symptomCount) symptom entr\(symptomCount == 1 ? "y" : "ies") • \(weightCount) weight entr\(weightCount == 1 ? "y" : "ies") • \(metricCount) metric entr\(metricCount == 1 ? "y" : "ies")"
 }
 
 private func reminderTimingLabel(observation: AtlasEpisodeObservation) -> String {

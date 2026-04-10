@@ -126,6 +126,7 @@ public struct GRDBReviewModeRepository: ReviewModeRepository, Sendable {
             createdAt: now,
             sourceDescription: request.deliveryKind == .staticPack ? "Static local review pack" : "Live review session"
         )
+        let title = reviewTitle(for: request.scopeKind)
 
         let exportBase = try reviewExportDirectoryURL()
         let timestamp = sanitizedFileTimestamp(atlasTimestamp(from: now))
@@ -171,7 +172,7 @@ public struct GRDBReviewModeRepository: ReviewModeRepository, Sendable {
         ) ?? "{}"
         let record = AtlasReviewSessionDBRecord(
             id: "review_\(UUID().uuidString.lowercased())",
-            title: reviewTitle(for: request.scopeKind),
+            title: title,
             scopeKind: request.scopeKind,
             deliveryKind: request.deliveryKind,
             renderMode: workspace.renderMode,
@@ -224,6 +225,30 @@ public struct GRDBReviewModeRepository: ReviewModeRepository, Sendable {
         }
         _ = now
         return envelope.workspace
+    }
+
+    public func revokeReviewSession(id: String, now: Date) async throws -> AtlasReviewOwnerSnapshot {
+        try await stack.canonical.write { db in
+            guard var record = try AtlasReviewSessionDBRecord.fetchOne(db, key: id) else {
+                return AtlasReviewOwnerSnapshot(
+                    sessions: [],
+                    liveReviewEnabled: featureFlags.liveReviewSessions
+                )
+            }
+
+            record.revokedAt = atlasTimestamp(from: now)
+            record.updatedAt = atlasTimestamp(from: now)
+            try record.save(db)
+
+            let rows = try AtlasReviewSessionDBRecord
+                .order(Column("created_at").desc)
+                .fetchAll(db)
+
+            return AtlasReviewOwnerSnapshot(
+                sessions: rows.map { reviewSessionSummary(from: $0, now: now) },
+                liveReviewEnabled: featureFlags.liveReviewSessions
+            )
+        }
     }
 }
 
@@ -344,14 +369,17 @@ private extension GRDBReviewModeRepository {
                 lines: reviewTimelineLines(from: snapshot)
             ),
             AtlasReviewSection(
-                title: "Symptoms and metrics",
+                title: "Context, symptoms, and metrics",
                 lines: reviewHealthLines(from: snapshot)
             ),
             AtlasReviewSection(
                 title: "Inventory summary",
-                lines: snapshot.vials.prefix(6).map { vial in
+                lines: snapshot.vials.prefix(3).map { vial in
                     let quantity = "\(vial.remainingQuantity.formatted(.number.precision(.fractionLength(0...2)))) \(vial.quantityUnit)"
                     return "\(vial.label): \(quantity)"
+                } + snapshot.consumables.prefix(3).map { consumable in
+                    let quantity = "\(consumable.quantityOnHand.formatted(.number.precision(.fractionLength(0...2)))) \(consumable.unit)"
+                    return "\(consumable.name): \(quantity)"
                 }
             )
         ]
@@ -422,6 +450,33 @@ private extension GRDBReviewModeRepository {
 
     func reviewHealthLines(from snapshot: AtlasExportSnapshot) -> [String] {
         var lines: [String] = []
+        if snapshot.contextLogs.isEmpty == false {
+            let recentContexts = snapshot.contextLogs
+                .sorted(by: { $0.loggedAt > $1.loggedAt })
+                .prefix(3)
+                .map { context in
+                    let details = [
+                        context.mealTiming?.title,
+                        context.fedState?.title,
+                        context.appetite?.title,
+                        context.hydration?.title
+                    ]
+                    .compactMap { $0 }
+                    let giLabel = context.giTags
+                        .filter { $0 != .calm }
+                        .map(\.title)
+                        .joined(separator: ", ")
+                    let giDetail = {
+                        let trimmed = giLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+                        return trimmed.isEmpty ? nil : trimmed
+                    }()
+                    return ([details.isEmpty ? "Context entry" : details.joined(separator: " • ")]
+                        + [giDetail])
+                        .compactMap { $0 }
+                        .joined(separator: " • ")
+                }
+            lines.append(contentsOf: recentContexts)
+        }
         if let latestWeight = snapshot.weightLogs.sorted(by: { $0.loggedAt > $1.loggedAt }).first {
             lines.append("Latest weight: \(latestWeight.value.formatted(.number.precision(.fractionLength(0...1)))) \(latestWeight.unit.rawValue)")
         }

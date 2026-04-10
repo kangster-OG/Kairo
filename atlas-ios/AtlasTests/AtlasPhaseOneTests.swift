@@ -40,21 +40,8 @@ final class AtlasPhaseOneTests: XCTestCase {
         let prepared = try await controller.importExportBridge.prepareImport(at: url)
 
         _ = try await controller.importExportBridge.commitPreparedImport(prepared, mode: .replaceExisting)
-
         let model = await MainActor.run {
-            AtlasAppModel(
-                dependencies: AtlasAppDependencies(
-                    featureFlags: AtlasFeatureFlags(),
-                    notifications: TestNotificationManager(),
-                    biometrics: AtlasBiometricGate(),
-                    healthKit: AtlasHealthKitManager(),
-                    importExport: controller.importExportBridge,
-                    sharedProjectionWriter: controller.sharedProjectionWriter,
-                    persistence: controller.container,
-                    reminders: controller.reminderCoordinator,
-                    privacyFormatter: AtlasPrivacyFormatter()
-                )
-            )
+            makeAppModel(controller: controller, referenceDate: importedFixtureReferenceDate)
         }
 
         await model.refreshShellData()
@@ -139,6 +126,540 @@ final class AtlasPhaseOneTests: XCTestCase {
         XCTAssertFalse(debugState.quickActions.isEmpty)
     }
 
+    @MainActor
+    func testRefreshShellDataWritesExtensionProjectionSnapshot() async throws {
+        let directory = try makeTemporaryDirectory()
+        let controller = try AtlasPersistenceController.temporary(
+            baseURL: directory,
+            featureFlags: AtlasFeatureFlagState(),
+            privacyFormatter: AtlasPrivacyFormatter(),
+            notifications: TestNotificationManager()
+        )
+        let model = makeAppModel(controller: controller)
+        let now = Date(timeIntervalSince1970: 1_773_950_400)
+
+        _ = try await controller.container.protocols.createProtocol(
+            AtlasProtocolDraft(
+                name: "Widget protocol",
+                kind: .glp,
+                cadenceType: .daily,
+                intervalDays: 1,
+                weekday: nil,
+                defaultTimeOfDay: "09:00",
+                doseAmount: 1,
+                doseUnit: "mg"
+            ),
+            now: now
+        )
+
+        await model.refreshShellData()
+        let snapshot = try await controller.sharedProjectionWriter.loadExtensionProjectionSnapshot()
+
+        XCTAssertEqual(snapshot?.renderMode, .full)
+        XCTAssertEqual(snapshot?.nextDue?.displayTitle, "Widget protocol")
+        XCTAssertFalse(snapshot?.quickActions.isEmpty ?? true)
+    }
+
+    @MainActor
+    func testDiscreetPrivacyModeRefreshesExtensionProjectionSnapshot() async throws {
+        let directory = try makeTemporaryDirectory()
+        let controller = try AtlasPersistenceController.temporary(
+            baseURL: directory,
+            featureFlags: AtlasFeatureFlagState(),
+            privacyFormatter: AtlasPrivacyFormatter(),
+            notifications: TestNotificationManager()
+        )
+        let model = makeAppModel(controller: controller)
+        let now = Date(timeIntervalSince1970: 1_773_950_400)
+
+        _ = try await controller.container.protocols.createProtocol(
+            AtlasProtocolDraft(
+                name: "Sensitive protocol",
+                kind: .glp,
+                cadenceType: .daily,
+                intervalDays: 1,
+                weekday: nil,
+                defaultTimeOfDay: "09:00",
+                doseAmount: 1,
+                doseUnit: "mg"
+            ),
+            now: now
+        )
+
+        _ = try await controller.container.settings.updateTrustVaultRenderMode(.discreet, now: now.addingTimeInterval(60))
+        await model.refreshShellData()
+        let snapshot = try await controller.sharedProjectionWriter.loadExtensionProjectionSnapshot()
+
+        XCTAssertEqual(snapshot?.renderMode, .discreet)
+        XCTAssertEqual(snapshot?.nextDue?.displayTitle, "Private protocol")
+    }
+
+    @MainActor
+    func testRefreshShellDataOnEmptyTemporaryStoreDoesNotSurfaceStartupError() async throws {
+        let directory = try makeTemporaryDirectory()
+        let controller = try AtlasPersistenceController.temporary(
+            baseURL: directory,
+            featureFlags: AtlasFeatureFlagState(),
+            privacyFormatter: AtlasPrivacyFormatter(),
+            notifications: TestNotificationManager()
+        )
+        let now = Date(timeIntervalSince1970: 1_773_950_400)
+        let model = makeAppModel(controller: controller, referenceDate: now)
+
+        await model.refreshShellData()
+        await model.refreshShellData()
+
+        XCTAssertFalse(model.isLoading)
+        XCTAssertNil(model.loadErrorMessage)
+        XCTAssertFalse(model.todaySnapshot.hasProtocols)
+        XCTAssertNil(model.todaySnapshot.nextDue)
+    }
+
+    @MainActor
+    func testRefreshShellDataIgnoresReminderSyncFailures() async throws {
+        let controller = try makeInMemoryController()
+        let now = Date(timeIntervalSince1970: 1_773_950_400)
+        let model = makeAppModel(
+            controller: controller,
+            reminders: FailingReminderCoordinator(),
+            referenceDate: now
+        )
+
+        await model.refreshShellData()
+
+        XCTAssertNil(model.loadErrorMessage)
+        XCTAssertFalse(model.todaySnapshot.hasProtocols)
+        XCTAssertEqual(model.reminderSettings, AtlasReminderSettingsSnapshot())
+    }
+
+    @MainActor
+    func testCreateProtocolSucceedsWhenReminderSyncFails() async throws {
+        let controller = try makeInMemoryController()
+        let now = Date(timeIntervalSince1970: 1_773_950_400)
+        let model = makeAppModel(
+            controller: controller,
+            reminders: FailingReminderCoordinator(),
+            referenceDate: now
+        )
+
+        let detail = await model.createProtocol(
+            AtlasProtocolDraft(
+                name: "Reminder fallback",
+                kind: .peptide,
+                cadenceType: .daily,
+                intervalDays: 1,
+                weekday: nil,
+                defaultTimeOfDay: "09:00",
+                doseAmount: 1,
+                doseUnit: "mg",
+                notes: nil
+            )
+        )
+
+        XCTAssertEqual(detail?.canonicalTitle, "Reminder fallback")
+        XCTAssertNil(model.loadErrorMessage)
+        XCTAssertEqual(model.libraryProtocols.count, 1)
+    }
+
+    @MainActor
+    func testHandleIncomingQuickLogURLLogsOccurrenceAndRefreshesProjection() async throws {
+        let directory = try makeTemporaryDirectory()
+        let controller = try AtlasPersistenceController.temporary(
+            baseURL: directory,
+            featureFlags: AtlasFeatureFlagState(),
+            privacyFormatter: AtlasPrivacyFormatter(),
+            notifications: TestNotificationManager()
+        )
+        let now = Date(timeIntervalSince1970: 1_773_950_400)
+        let model = makeAppModel(controller: controller, referenceDate: now)
+        let detail = try await controller.container.protocols.createProtocol(
+            AtlasProtocolDraft(
+                name: "Quick log protocol",
+                kind: .custom,
+                cadenceType: .daily,
+                intervalDays: 1,
+                weekday: nil,
+                defaultTimeOfDay: "09:00",
+                doseAmount: 1,
+                doseUnit: "mg"
+            ),
+            now: now
+        )
+
+        await model.refreshShellData()
+        let occurrence = try XCTUnwrap(model.todaySnapshot.nextDue)
+        try await controller.sharedProjectionWriter.refreshProjection(referenceDate: now)
+        let previousSnapshot = try await controller.sharedProjectionWriter.loadExtensionProjectionSnapshot()
+
+        let url = try XCTUnwrap(
+            URL(string: "atlas://quick-log?action=taken&occurrenceId=\(occurrence.id)&protocolId=\(detail.id)")
+        )
+        await model.handleIncomingURL(url)
+
+        let history = try await controller.container.timeline.fetchTimeline(
+            AtlasTimelineQuery(filter: .dosing, protocolID: detail.id, limit: 20)
+        )
+        let refreshedToday = try await controller.container.today.fetchTodaySnapshot(referenceDate: now)
+        let updatedSnapshot = try await controller.sharedProjectionWriter.loadExtensionProjectionSnapshot()
+
+        XCTAssertTrue(history.contains(where: { $0.type == .doseTaken }))
+        XCTAssertNotEqual(refreshedToday.nextDue?.id, occurrence.id)
+        XCTAssertTrue(previousSnapshot?.quickActions.contains(where: { $0.occurrenceID == occurrence.id }) ?? false)
+        XCTAssertFalse(updatedSnapshot?.quickActions.contains(where: { $0.occurrenceID == occurrence.id }) ?? true)
+    }
+
+    @MainActor
+    func testHandleIncomingMetricURLsWriteWeightAndSymptomEntries() async throws {
+        let controller = try makeInMemoryController()
+        let model = makeAppModel(controller: controller)
+        try await completeOnboardingIfNeeded(controller: controller)
+
+        await model.handleIncomingURL(URL(string: "atlas://weight-entry?value=182.4&unit=lb&notes=Morning")!)
+        await model.handleIncomingURL(URL(string: "atlas://symptom-entry?symptom=Energy&severity=4&notes=Steady")!)
+
+        XCTAssertEqual(model.insightsSnapshot.recentWeightEntries.first?.valueLabel, "182.4 lb")
+        XCTAssertEqual(model.insightsSnapshot.recentSymptomEntries.first?.symptomKey, "energy")
+        XCTAssertEqual(model.insightsSnapshot.recentSymptomEntries.first?.severity, 4)
+    }
+
+    func testContextEntryPersistenceTimelineAndDiscreetPrivacyStayCalm() async throws {
+        let controller = try makeInMemoryController()
+        let now = Date(timeIntervalSince1970: 1_773_950_400)
+        let protocolDetail = try await controller.container.protocols.createProtocol(
+            AtlasProtocolDraft(
+                name: "Context protocol",
+                kind: .custom,
+                cadenceType: .daily,
+                defaultTimeOfDay: "09:00",
+                doseAmount: 1,
+                doseUnit: "mg"
+            ),
+            now: now
+        )
+
+        _ = try await controller.container.metrics.saveContextEntry(
+            AtlasContextEntryDraft(
+                protocolID: protocolDetail.id,
+                loggedAt: now.addingTimeInterval(1800),
+                mealTiming: .breakfast,
+                fedState: .fasted,
+                appetite: .low,
+                hydration: .low,
+                giTags: [.nausea],
+                note: "Coffee only",
+                tags: ["travel", "pre-dose"]
+            ),
+            now: now.addingTimeInterval(1800)
+        )
+
+        let insights = try await controller.container.metrics.fetchInsightsSnapshot(referenceDate: now.addingTimeInterval(1800))
+        let timeline = try await controller.container.timeline.fetchTimeline(
+            AtlasTimelineQuery(filter: .wellness, protocolID: protocolDetail.id, limit: 20)
+        )
+
+        XCTAssertEqual(insights.contextTrend.recentEntryCount, 1)
+        XCTAssertEqual(insights.recentContextEntries.first?.mealTiming, .breakfast)
+        XCTAssertEqual(insights.recentContextEntries.first?.fedState, .fasted)
+        XCTAssertEqual(insights.recentContextEntries.first?.hydration, .low)
+        XCTAssertEqual(timeline.first?.type, .contextLogged)
+        XCTAssertTrue(timeline.first?.summary.lowercased().contains("breakfast") ?? false)
+
+        _ = try await controller.container.settings.updateTrustVaultRenderMode(.discreet, now: now.addingTimeInterval(3600))
+        let discreetTimeline = try await controller.container.timeline.fetchTimeline(
+            AtlasTimelineQuery(filter: .wellness, protocolID: protocolDetail.id, limit: 20)
+        )
+
+        XCTAssertEqual(discreetTimeline.first?.summary, "Logged private context")
+    }
+
+    func testContextLogsRoundTripThroughJsonExportAndImport() async throws {
+        let directory = try makeTemporaryDirectory()
+        let sourceController = try AtlasPersistenceController.temporary(
+            baseURL: directory.appendingPathComponent("source", isDirectory: true),
+            featureFlags: AtlasFeatureFlagState(),
+            privacyFormatter: AtlasPrivacyFormatter(),
+            notifications: TestNotificationManager()
+        )
+        let now = Date(timeIntervalSince1970: 1_773_950_400)
+        let protocolDetail = try await sourceController.container.protocols.createProtocol(
+            AtlasProtocolDraft(
+                name: "Round-trip protocol",
+                kind: .glp,
+                cadenceType: .weekly,
+                weekday: 1,
+                defaultTimeOfDay: "08:00",
+                doseAmount: 1,
+                doseUnit: "mg"
+            ),
+            now: now
+        )
+
+        _ = try await sourceController.container.metrics.saveContextEntry(
+            AtlasContextEntryDraft(
+                protocolID: protocolDetail.id,
+                loggedAt: now,
+                mealTiming: .dinner,
+                fedState: .fed,
+                appetite: .typical,
+                hydration: .high,
+                giTags: [.calm],
+                note: "Felt steady",
+                tags: ["routine"]
+            ),
+            now: now
+        )
+
+        let export = try await sourceController.importExportBridge.createRawExport(
+            AtlasRawExportRequest(format: .json, renderMode: .full),
+            now: now
+        )
+        let decoded = try JSONDecoder().decode(AtlasExportBundle.self, from: Data(contentsOf: export.fileURL))
+        let exportedContext = try XCTUnwrap(decoded.snapshot.contextLogs.first)
+        XCTAssertEqual(exportedContext.mealTiming, .dinner)
+        XCTAssertEqual(exportedContext.note, "Felt steady")
+        XCTAssertEqual(exportedContext.tags, ["routine"])
+
+        let targetController = try AtlasPersistenceController.temporary(
+            baseURL: directory.appendingPathComponent("target", isDirectory: true),
+            featureFlags: AtlasFeatureFlagState(),
+            privacyFormatter: AtlasPrivacyFormatter(),
+            notifications: TestNotificationManager()
+        )
+        let prepared = try await targetController.importExportBridge.prepareImport(at: export.fileURL)
+        _ = try await targetController.importExportBridge.commitPreparedImport(prepared, mode: .replaceExisting)
+        let importedInsights = try await targetController.container.metrics.fetchInsightsSnapshot(referenceDate: now)
+
+        XCTAssertEqual(importedInsights.recentContextEntries.count, 1)
+        XCTAssertEqual(importedInsights.recentContextEntries.first?.mealTiming, .dinner)
+        XCTAssertEqual(importedInsights.recentContextEntries.first?.note, "Felt steady")
+        XCTAssertEqual(importedInsights.recentContextEntries.first?.tags, ["routine"])
+    }
+
+    func testContextLogsFeedEpisodeWindowCountsAndPatterns() async throws {
+        let controller = try makeInMemoryController()
+        var bundle = makeEpisodeIntelligenceBundle(aliasModeEnabled: false, includeSecondProtocol: false, sparse: false)
+        bundle.snapshot.contextLogs = [
+            AtlasContextLogRecord.make(
+                id: "context_episode_1",
+                protocolId: "p1",
+                loggedAt: "2026-02-22T09:10:00.000Z",
+                mealTiming: .breakfast,
+                fedState: .fasted,
+                appetite: .low,
+                hydration: .low,
+                giTags: [.nausea],
+                note: nil,
+                tags: [],
+                source: .manual,
+                createdAt: "2026-02-22T09:10:00.000Z",
+                updatedAt: "2026-02-22T09:10:00.000Z"
+            ),
+            AtlasContextLogRecord.make(
+                id: "context_episode_2",
+                protocolId: "p1",
+                loggedAt: "2026-03-01T09:20:00.000Z",
+                mealTiming: .breakfast,
+                fedState: .fasted,
+                appetite: .low,
+                hydration: .low,
+                giTags: [.nausea],
+                note: nil,
+                tags: [],
+                source: .manual,
+                createdAt: "2026-03-01T09:20:00.000Z",
+                updatedAt: "2026-03-01T09:20:00.000Z"
+            ),
+            AtlasContextLogRecord.make(
+                id: "context_episode_3",
+                protocolId: "p1",
+                loggedAt: "2026-03-08T09:25:00.000Z",
+                mealTiming: .breakfast,
+                fedState: .fasted,
+                appetite: .low,
+                hydration: .low,
+                giTags: [.nausea],
+                note: nil,
+                tags: [],
+                source: .manual,
+                createdAt: "2026-03-08T09:25:00.000Z",
+                updatedAt: "2026-03-08T09:25:00.000Z"
+            )
+        ]
+        let prepared = try await controller.importExportBridge.prepareImport(at: writeBundleURL(bundle))
+        _ = try await controller.importExportBridge.commitPreparedImport(prepared, mode: .replaceExisting)
+
+        let snapshot = try await controller.container.metrics.fetchInsightsSnapshot(referenceDate: Date())
+        let earlyWindow = try XCTUnwrap(
+            snapshot.episodeIntelligence.compareWindows.first(where: { $0.windowKind == .postDose0To12Hours })
+        )
+
+        XCTAssertGreaterThanOrEqual(earlyWindow.contextEntryCount, 3)
+        XCTAssertTrue(snapshot.episodeIntelligence.patternCards.contains(where: { $0.type == .contextCluster }))
+        XCTAssertGreaterThanOrEqual(snapshot.episodeIntelligence.recentEpisodes.first?.contextEntryCount ?? 0, 1)
+    }
+
+    func testDiscreetExportStripsContextNotesAndTags() async throws {
+        let controller = try makeInMemoryController()
+        let now = Date(timeIntervalSince1970: 1_773_950_400)
+
+        _ = try await controller.container.metrics.saveContextEntry(
+            AtlasContextEntryDraft(
+                loggedAt: now,
+                mealTiming: .snack,
+                fedState: .fed,
+                giTags: [.bloating],
+                note: "Very specific context note",
+                tags: ["private-tag"]
+            ),
+            now: now
+        )
+
+        let export = try await controller.importExportBridge.createRawExport(
+            AtlasRawExportRequest(format: .json, renderMode: .discreet),
+            now: now
+        )
+        let decoded = try JSONDecoder().decode(AtlasExportBundle.self, from: Data(contentsOf: export.fileURL))
+        let context = try XCTUnwrap(decoded.snapshot.contextLogs.first)
+        let preview = try await controller.importExportBridge.previewSelectiveShare(
+            AtlasSelectiveShareRequest(scopeKind: .symptomsOnly, renderMode: .discreet),
+            now: now
+        )
+
+        XCTAssertNil(context.note)
+        XCTAssertTrue(context.tags.isEmpty)
+        XCTAssertTrue(preview.datasets.contains(where: { $0.dataset == "contextLogs" && $0.rowCount == 1 }))
+    }
+
+    func testSummarySettingsDefaultOffAndCanBeEnabled() async throws {
+        let controller = try makeInMemoryController()
+
+        let initial = try await controller.container.settings.currentSettingsSnapshot()
+        XCTAssertFalse(initial.summarySettings.onDeviceEnabled)
+        XCTAssertFalse(initial.summarySettings.externalProviderEnabled)
+
+        let updated = try await controller.container.settings.updateSummarySettings(
+            AtlasSummarySettingsUpdate(onDeviceEnabled: true),
+            now: Date()
+        )
+
+        XCTAssertTrue(updated.summarySettings.onDeviceEnabled)
+        XCTAssertFalse(updated.summarySettings.externalProviderEnabled)
+    }
+
+    func testInsightsSummariesStayBoundedAndRespectDiscreetRendering() async throws {
+        let controller = try makeInMemoryController()
+        _ = try await controller.container.settings.updateSummarySettings(
+            AtlasSummarySettingsUpdate(onDeviceEnabled: true),
+            now: importedFixtureReferenceDate
+        )
+
+        let prepared = try await controller.importExportBridge.prepareImport(
+            at: writeBundleURL(makeSpecCompleteBundle(aliasModeEnabled: false))
+        )
+        _ = try await controller.importExportBridge.commitPreparedImport(prepared, mode: .replaceExisting)
+
+        let fullSnapshot = try await controller.container.metrics.fetchInsightsSnapshot(
+            referenceDate: importedFixtureReferenceDate
+        )
+        let weeklySummary = try XCTUnwrap(fullSnapshot.weeklyRecapSummary)
+        XCTAssertEqual(weeklySummary.executionMode, .deterministicLocal)
+        XCTAssertTrue(weeklySummary.sourceSections.contains(where: { $0.id == "weekly_activity" }))
+        XCTAssertTrue(
+            weeklySummary.sourceSections
+                .flatMap(\.facts)
+                .contains(where: { $0.id == "next_due" && $0.value.contains("Weekly GLP") })
+        )
+        assertSummaryGuardrails(weeklySummary.summary)
+
+        _ = try await controller.container.settings.updateTrustVaultRenderMode(
+            .discreet,
+            now: importedFixtureReferenceDate.addingTimeInterval(60)
+        )
+        let discreetSnapshot = try await controller.container.metrics.fetchInsightsSnapshot(
+            referenceDate: importedFixtureReferenceDate
+        )
+        let discreetSummary = try XCTUnwrap(discreetSnapshot.weeklyRecapSummary)
+        XCTAssertFalse(
+            discreetSummary.sourceSections
+                .flatMap(\.facts)
+                .contains(where: { $0.value.contains("Weekly GLP") })
+        )
+        XCTAssertTrue(
+            discreetSummary.sourceSections
+                .flatMap(\.facts)
+                .contains(where: { $0.id == "next_due" && $0.value.contains("Private protocol") })
+        )
+        assertSummaryGuardrails(discreetSummary.summary)
+    }
+
+    func testEpisodeAndImportSummariesRemainOptionalAndGrounded() async throws {
+        let controller = try makeInMemoryController()
+        let disabledPrepared = try await controller.importExportBridge.prepareImport(
+            at: writeBundleURL(makeSpecCompleteBundle(aliasModeEnabled: false))
+        )
+        XCTAssertNil(disabledPrepared.dryRun.plainLanguageSummary)
+
+        _ = try await controller.container.settings.updateSummarySettings(
+            AtlasSummarySettingsUpdate(onDeviceEnabled: true),
+            now: Date()
+        )
+
+        var bundle = makeEpisodeIntelligenceBundle(aliasModeEnabled: false, includeSecondProtocol: false, sparse: false)
+        bundle.snapshot.contextLogs = [
+            AtlasContextLogRecord.make(
+                id: "summary_context_1",
+                protocolId: "p1",
+                loggedAt: "2026-03-08T09:10:00.000Z",
+                mealTiming: .breakfast,
+                fedState: .fasted,
+                appetite: .low,
+                hydration: .low,
+                giTags: [.nausea],
+                note: nil,
+                tags: [],
+                source: .manual,
+                createdAt: "2026-03-08T09:10:00.000Z",
+                updatedAt: "2026-03-08T09:10:00.000Z"
+            )
+        ]
+        let prepared = try await controller.importExportBridge.prepareImport(at: writeBundleURL(bundle))
+        _ = try await controller.importExportBridge.commitPreparedImport(prepared, mode: .replaceExisting)
+
+        let insights = try await controller.container.metrics.fetchInsightsSnapshot(referenceDate: Date())
+        let episodeSummary = try XCTUnwrap(insights.episodeRecapSummary)
+        XCTAssertTrue(episodeSummary.sourceSections.contains(where: { $0.id == "episode_scope" }))
+        assertSummaryGuardrails(episodeSummary.summary)
+
+        let importPrepared = try await controller.importExportBridge.prepareImport(
+            at: writeBundleURL(makeSpecCompleteBundle(aliasModeEnabled: false))
+        )
+        let dryRun = importPrepared.dryRun
+        let importSummary = try XCTUnwrap(dryRun.plainLanguageSummary)
+        XCTAssertTrue(importSummary.sourceSections.flatMap(\.facts).contains(where: { $0.id == "records_to_create" }))
+        XCTAssertTrue(importSummary.disclaimer.contains("generated locally"))
+        assertSummaryGuardrails(importSummary.summary)
+    }
+
+    func testImportCommitWritesExtensionProjectionSnapshot() async throws {
+        let directory = try makeTemporaryDirectory()
+        let controller = try AtlasPersistenceController.temporary(
+            baseURL: directory,
+            featureFlags: AtlasFeatureFlagState(),
+            privacyFormatter: AtlasPrivacyFormatter(),
+            notifications: TestNotificationManager()
+        )
+        let prepared = try await controller.importExportBridge.prepareImport(at: writeBundleURL(
+            makeSpecCompleteBundle(aliasModeEnabled: true)
+        ))
+
+        _ = try await controller.importExportBridge.commitPreparedImport(prepared, mode: .replaceExisting)
+        let snapshot = try await controller.sharedProjectionWriter.loadExtensionProjectionSnapshot()
+
+        XCTAssertEqual(snapshot?.renderMode, .alias)
+        XCTAssertEqual(snapshot?.nextDue?.displayTitle, "Evening plan")
+        XCTAssertFalse(snapshot?.quickActions.isEmpty ?? true)
+    }
+
     func testImmutableHistoryRemainsSeparateFromNextDueProjection() async throws {
         let controller = try makeInMemoryController()
         let prepared = try await controller.importExportBridge.prepareImport(at: writeBundleURL(
@@ -146,8 +667,9 @@ final class AtlasPhaseOneTests: XCTestCase {
         ))
 
         _ = try await controller.importExportBridge.commitPreparedImport(prepared, mode: .replaceExisting)
+        try await controller.container.coreLoop.ensureProjectedOccurrences(referenceDate: importedFixtureReferenceDate)
         let history = try await controller.container.timeline.fetchHistory(limit: 10)
-        let nextDue = try await controller.container.today.fetchNextDue()
+        let nextDue = try await controller.container.today.fetchTodaySnapshot(referenceDate: importedFixtureReferenceDate).nextDue
 
         XCTAssertEqual(history.count, 1)
         XCTAssertNotNil(nextDue)
@@ -192,7 +714,7 @@ final class AtlasPhaseOneTests: XCTestCase {
             let controller = try makeInMemoryController()
             let prepared = try await controller.importExportBridge.prepareImport(at: writeBundleURL(fixture.bundle))
             _ = try await controller.importExportBridge.commitPreparedImport(prepared, mode: .replaceExisting)
-            let model = makeAppModel(controller: controller)
+            let model = makeAppModel(controller: controller, referenceDate: importedFixtureReferenceDate)
             await model.refreshShellData()
             let projectionState = try await controller.sharedProjectionWriter.loadProjectionDebugState()
 
@@ -383,6 +905,37 @@ final class AtlasPhaseOneTests: XCTestCase {
         XCTAssertTrue(timelineEntries.contains(where: { $0.type == .doseRescheduled }))
         XCTAssertNotEqual(refreshedToday.nextDue?.id, firstOccurrence.id)
         XCTAssertEqual(refreshedToday.nextDue?.protocolID, detail.id)
+    }
+
+    func testTodayOccurrenceExplanationIsDeterministicAndReminderAware() async throws {
+        let notifications = TestNotificationManager()
+        let controller = try makeInMemoryController(notifications: notifications)
+        let now = Date(timeIntervalSince1970: 1_773_950_400)
+        _ = try await controller.container.protocols.createProtocol(
+            AtlasProtocolDraft(
+                name: "Explained due",
+                kind: .glp,
+                cadenceType: .daily,
+                intervalDays: 1,
+                weekday: nil,
+                defaultTimeOfDay: "09:00",
+                doseAmount: 1,
+                doseUnit: "mg",
+                notes: nil
+            ),
+            now: now
+        )
+
+        try await controller.reminderCoordinator.syncReminders(referenceDate: now)
+        let today = try await controller.container.today.fetchTodaySnapshot(referenceDate: now)
+        let explanation = try XCTUnwrap(today.nextDue?.explanation)
+
+        XCTAssertEqual(
+            Set(explanation.facts.map(\.label)),
+            Set(["Revision", "Revision state", "Timezone", "Rule", "Cadence", "Occurrence", "Reminder"])
+        )
+        XCTAssertTrue(explanation.summary.contains("saved future plan"))
+        XCTAssertFalse(explanation.facts.first(where: { $0.label == "Reminder" })?.value.isEmpty ?? true)
     }
 
     func testReminderPermissionRequestTransitionsToAuthorized() async throws {
@@ -847,6 +1400,198 @@ final class AtlasPhaseOneTests: XCTestCase {
         XCTAssertEqual(result.vial.correctionHistory.first?.deltaLabel, "-2 mg")
     }
 
+    func testConsumableCrudLowStockAndHistoryStayDeterministic() async throws {
+        let controller = try makeInMemoryController()
+        let now = Date(timeIntervalSince1970: 1_773_928_800)
+        let protocolDetail = try await controller.container.protocols.createProtocol(
+            AtlasProtocolDraft(
+                name: "Supply protocol",
+                kind: .custom,
+                cadenceType: .daily,
+                defaultTimeOfDay: "09:00",
+                doseAmount: 1,
+                doseUnit: "mg"
+            ),
+            now: now
+        )
+        try await controller.container.coreLoop.ensureProjectedOccurrences(referenceDate: now)
+
+        let saved = try await controller.container.inventory.saveConsumable(
+            AtlasConsumableDraft(
+                protocolID: protocolDetail.id,
+                name: "Alcohol pads",
+                category: "Swab",
+                quantityOnHand: 12,
+                unit: "pad",
+                reorderThreshold: 10,
+                reorderLeadTimeDays: 5,
+                quantityPerUse: 1,
+                lotNumber: "LOT-12",
+                sizeDescription: "70%",
+                notes: "Travel kit backup",
+                vendorLabel: "Local pharmacy",
+                purchaseNotes: "Pack of 100"
+            ),
+            now: now
+        )
+
+        let adjusted = try await controller.container.inventory.applyConsumableAdjustment(
+            AtlasConsumableAdjustmentDraft(
+                consumableID: saved.summary.id,
+                nextQuantityOnHand: 9,
+                note: "Restocked the travel case."
+            ),
+            now: now.addingTimeInterval(60)
+        )
+        let snapshot = try await controller.container.inventory.fetchInventorySnapshot(referenceDate: now.addingTimeInterval(60))
+        let summary = try XCTUnwrap(snapshot.consumables.first(where: { $0.id == saved.summary.id }))
+
+        XCTAssertEqual(summary.quantityOnHand, 9, accuracy: 0.001)
+        XCTAssertTrue(summary.isLowStock)
+        XCTAssertEqual(summary.vendorLabel, "Local pharmacy")
+        XCTAssertNotNil(summary.projectedDepletionLabel)
+        XCTAssertEqual(adjusted.consumable.adjustmentHistory.first?.kind, .manualAdjustment)
+        XCTAssertEqual(adjusted.consumable.adjustmentHistory.first?.deltaLabel, "-3 pad")
+        XCTAssertEqual(adjusted.consumable.adjustmentHistory.dropFirst().first?.kind, .created)
+    }
+
+    func testConsumableTakenLogDecrementAppendsSeparateSupplyHistory() async throws {
+        let controller = try makeInMemoryController()
+        let now = Date(timeIntervalSince1970: 1_773_928_800)
+        let protocolDetail = try await controller.container.protocols.createProtocol(
+            AtlasProtocolDraft(
+                name: "Needle protocol",
+                kind: .custom,
+                cadenceType: .daily,
+                defaultTimeOfDay: "09:00",
+                doseAmount: 1,
+                doseUnit: "mg"
+            ),
+            now: now
+        )
+        _ = try await controller.container.inventory.saveConsumable(
+            AtlasConsumableDraft(
+                protocolID: protocolDetail.id,
+                name: "Syringes",
+                category: "Injection",
+                quantityOnHand: 5,
+                unit: "syringe",
+                reorderThreshold: 2,
+                quantityPerUse: 1
+            ),
+            now: now
+        )
+        try await controller.container.coreLoop.ensureProjectedOccurrences(referenceDate: now)
+        let today = try await controller.container.today.fetchTodaySnapshot(referenceDate: now)
+        let occurrence = try XCTUnwrap(today.nextDue)
+
+        try await controller.container.coreLoop.logOccurrence(
+            AtlasOccurrenceLogRequest(
+                occurrenceID: occurrence.id,
+                protocolID: protocolDetail.id,
+                action: .taken
+            ),
+            now: now.addingTimeInterval(60)
+        )
+
+        let snapshot = try await controller.container.inventory.fetchInventorySnapshot(referenceDate: now.addingTimeInterval(60))
+        let loadedDetail = try await controller.container.inventory.fetchConsumableDetail(
+            id: snapshot.consumables[0].id,
+            referenceDate: now.addingTimeInterval(60)
+        )
+        let detail = try XCTUnwrap(loadedDetail)
+        let history = try await controller.container.timeline.fetchHistory(limit: 10)
+
+        XCTAssertEqual(detail.summary.quantityOnHand, 4, accuracy: 0.001)
+        XCTAssertEqual(detail.adjustmentHistory.first?.kind, .protocolUse)
+        XCTAssertEqual(detail.adjustmentHistory.first?.deltaLabel, "-1 syringe")
+        XCTAssertFalse(history.contains(where: { $0.summary.contains("Syringes") }))
+    }
+
+    func testInventoryMovementHistoryExplainsDeterministicInventoryChanges() async throws {
+        let controller = try makeInMemoryController()
+        let now = Date(timeIntervalSince1970: 1_773_928_800)
+        let protocolDetail = try await controller.container.protocols.createProtocol(
+            AtlasProtocolDraft(
+                name: "Movement protocol",
+                kind: .custom,
+                cadenceType: .daily,
+                defaultTimeOfDay: "09:00",
+                doseAmount: 1,
+                doseUnit: "mg"
+            ),
+            now: now
+        )
+        let firstVial = try await controller.container.inventory.saveVial(
+            AtlasVialDraft(
+                label: "Movement vial A",
+                protocolID: protocolDetail.id,
+                startingQuantity: 6,
+                remainingQuantity: 6,
+                quantityUnit: "mg"
+            ),
+            now: now
+        )
+        let secondVial = try await controller.container.inventory.saveVial(
+            AtlasVialDraft(
+                label: "Movement vial B",
+                protocolID: nil,
+                startingQuantity: 6,
+                remainingQuantity: 6,
+                quantityUnit: "mg"
+            ),
+            now: now.addingTimeInterval(30)
+        )
+
+        let today = try await controller.container.today.fetchTodaySnapshot(referenceDate: now)
+        let occurrence = try XCTUnwrap(today.nextDue)
+        try await controller.container.coreLoop.logOccurrence(
+            AtlasOccurrenceLogRequest(
+                occurrenceID: occurrence.id,
+                protocolID: protocolDetail.id,
+                action: .taken
+            ),
+            now: now.addingTimeInterval(60)
+        )
+        _ = try await controller.container.inventory.applyManualCorrection(
+            AtlasInventoryCorrectionDraft(
+                vialID: firstVial.summary.id,
+                nextRemainingQuantity: 4,
+                note: "Drawer count"
+            ),
+            now: now.addingTimeInterval(120)
+        )
+        _ = try await controller.container.changeStudio.commitChange(
+            protocolID: protocolDetail.id,
+            draft: AtlasProtocolChangeDraft(
+                changeType: .vialSwitch,
+                effectiveDate: now.addingTimeInterval(24 * 60 * 60),
+                timeOfDay: "09:00",
+                linkedVialID: secondVial.summary.id
+            ),
+            referenceDate: now.addingTimeInterval(180)
+        )
+        try await controller.container.inventory.archiveVial(
+            id: firstVial.summary.id,
+            now: now.addingTimeInterval(240)
+        )
+
+        let detail = try await controller.container.inventory.fetchVialDetail(
+            id: firstVial.summary.id,
+            referenceDate: now.addingTimeInterval(48 * 60 * 60)
+        )
+        let movementHistory = try XCTUnwrap(detail?.movementHistory)
+        let movementKinds = movementHistory.map(\.kind)
+
+        XCTAssertTrue(movementKinds.contains(.created))
+        XCTAssertTrue(movementKinds.contains(.takenLog))
+        XCTAssertTrue(movementKinds.contains(.manualCorrection))
+        XCTAssertTrue(movementKinds.contains(.vialHandoff))
+        XCTAssertTrue(movementKinds.contains(.archived))
+        XCTAssertTrue(movementHistory.contains(where: { $0.kind == .takenLog && $0.deltaLabel == "-1 mg" }))
+        XCTAssertTrue(movementHistory.contains(where: { $0.kind == .manualCorrection && $0.detail.contains("Drawer count") }))
+    }
+
     func testProjectedDepletionChangesAfterProtocolEdit() async throws {
         let controller = try makeInMemoryController()
         let now = Date(timeIntervalSince1970: 1_773_918_000)
@@ -1107,6 +1852,47 @@ final class AtlasPhaseOneTests: XCTestCase {
         XCTAssertEqual(history.count, 1)
         XCTAssertEqual(history.first?.protocolID, created.id)
         XCTAssertTrue(changes.contains(where: { $0.summary.contains("Future saved amount changes to 2 mg") }))
+    }
+
+    func testTimelineDoseEntryCarriesOccurrenceExplanationWithoutMutatingHistory() async throws {
+        let controller = try makeInMemoryController()
+        let now = Date(timeIntervalSince1970: 1_773_950_400)
+        let created = try await controller.container.protocols.createProtocol(
+            AtlasProtocolDraft(
+                name: "Timeline explanation",
+                kind: .custom,
+                cadenceType: .daily,
+                intervalDays: 1,
+                weekday: nil,
+                defaultTimeOfDay: "08:00",
+                doseAmount: 1,
+                doseUnit: "mg",
+                notes: nil
+            ),
+            now: now
+        )
+        let today = try await controller.container.today.fetchTodaySnapshot(referenceDate: now)
+        let occurrence = try XCTUnwrap(today.nextDue)
+        try await controller.container.coreLoop.logOccurrence(
+            AtlasOccurrenceLogRequest(
+                occurrenceID: occurrence.id,
+                protocolID: created.id,
+                action: .taken
+            ),
+            now: now.addingTimeInterval(60)
+        )
+
+        let timeline = try await controller.container.timeline.fetchTimeline(
+            AtlasTimelineQuery(filter: .dosing, protocolID: created.id, limit: 10)
+        )
+        let entry = try XCTUnwrap(timeline.first(where: { $0.type == .doseTaken }))
+        let explanation = try XCTUnwrap(entry.occurrenceExplanation)
+        let history = try await controller.container.timeline.fetchHistory(limit: 10)
+
+        XCTAssertTrue(explanation.facts.contains(where: { $0.label == "Occurrence" }))
+        XCTAssertTrue(explanation.facts.contains(where: { $0.label == "Revision" }))
+        XCTAssertEqual(history.count, 1)
+        XCTAssertEqual(history.first?.protocolID, created.id)
     }
 
     func testProtocolChangeStudioPauseAndResumeRegenerateOccurrencesAndReminders() async throws {
@@ -1417,6 +2203,58 @@ final class AtlasPhaseOneTests: XCTestCase {
         XCTAssertEqual(commit.auditRecord.summary, preview.summary)
     }
 
+    func testProtocolChangeStudioCommitProducesExplainableImpactAndDetailChanges() async throws {
+        let controller = try makeInMemoryController()
+        let now = Date(timeIntervalSince1970: 1_773_950_400)
+        let created = try await controller.container.protocols.createProtocol(
+            AtlasProtocolDraft(
+                name: "Explainable change",
+                kind: .glp,
+                cadenceType: .weekly,
+                intervalDays: 1,
+                weekday: 1,
+                defaultTimeOfDay: "08:00",
+                doseAmount: 1,
+                doseUnit: "mg",
+                notes: nil
+            ),
+            now: now
+        )
+        let preview = try await controller.container.changeStudio.buildPreview(
+            protocolID: created.id,
+            draft: AtlasProtocolChangeDraft(
+                changeType: .everyNDays,
+                effectiveDate: now,
+                timeOfDay: "10:00",
+                intervalDays: 3
+            ),
+            referenceDate: now
+        )
+
+        let commit = try await controller.container.changeStudio.commitChange(
+            protocolID: created.id,
+            draft: AtlasProtocolChangeDraft(
+                changeType: .everyNDays,
+                effectiveDate: now,
+                timeOfDay: "10:00",
+                intervalDays: 3
+            ),
+            referenceDate: now
+        )
+        let fetchedDetail = try await controller.container.protocols.fetchProtocolDetail(id: created.id)
+        let detail = try XCTUnwrap(fetchedDetail)
+        let change = try XCTUnwrap(detail.recentChanges.first)
+
+        XCTAssertEqual(commit.preview, preview)
+        XCTAssertEqual(commit.impactSummary.title, "Future plan updated")
+        XCTAssertTrue(commit.impactSummary.facts.contains(where: { $0.label == "Future occurrences" }))
+        XCTAssertTrue(commit.impactSummary.facts.contains(where: { $0.label == "Reminders" }))
+        XCTAssertTrue(commit.impactSummary.facts.contains(where: { $0.label == "Inventory projection" }))
+        XCTAssertTrue(commit.impactSummary.facts.contains(where: { $0.label == "Historical logs" && $0.value == "Unchanged" }))
+        XCTAssertTrue(change.facts.contains(where: { $0.label == "Cadence" && $0.value.contains("Every 3 days") }))
+        XCTAssertTrue(change.notes.contains("Historical logs stayed unchanged."))
+    }
+
     @MainActor
     func testProtocolChangeStudioAuditEntriesAndPrivacyRenderingAreSafe() async throws {
         let controller = try makeInMemoryController()
@@ -1457,6 +2295,47 @@ final class AtlasPhaseOneTests: XCTestCase {
         XCTAssertEqual(model.renderedTitle(canonical: "Weekly GLP", alias: "Evening plan"), "Private protocol")
         XCTAssertFalse(preview.summary.contains("Weekly GLP"))
         XCTAssertTrue(changes.contains(where: { $0.summary == "Updated private protocol" }))
+    }
+
+    func testDiscreetModeKeepsDueAndChangeExplanationsPrivacySafe() async throws {
+        let controller = try makeInMemoryController()
+        let referenceDate = Date(timeIntervalSince1970: 1_773_950_400)
+        let created = try await controller.container.protocols.createProtocol(
+            AtlasProtocolDraft(
+                name: "Sensitive protocol",
+                kind: .glp,
+                cadenceType: .daily,
+                intervalDays: 1,
+                weekday: nil,
+                defaultTimeOfDay: "09:00",
+                doseAmount: 1,
+                doseUnit: "mg",
+                notes: nil
+            ),
+            now: referenceDate
+        )
+        _ = try await controller.container.settings.updateTrustVaultRenderMode(.discreet, now: referenceDate)
+
+        let today = try await controller.container.today.fetchTodaySnapshot(referenceDate: referenceDate)
+        let dueExplanation = try XCTUnwrap(today.nextDue?.explanation)
+        _ = try await controller.container.changeStudio.commitChange(
+            protocolID: created.id,
+            draft: AtlasProtocolChangeDraft(
+                changeType: .futureTime,
+                effectiveDate: referenceDate,
+                timeOfDay: "11:00"
+            ),
+            referenceDate: referenceDate
+        )
+        let fetchedDetail = try await controller.container.protocols.fetchProtocolDetail(id: created.id)
+        let detail = try XCTUnwrap(fetchedDetail)
+        let changeExplanation = try XCTUnwrap(detail.recentChanges.first)
+
+        XCTAssertFalse(dueExplanation.summary.contains("Sensitive protocol"))
+        XCTAssertFalse(dueExplanation.facts.map { $0.value }.joined(separator: " ").contains("Sensitive protocol"))
+        XCTAssertFalse(changeExplanation.summary.contains("Sensitive protocol"))
+        XCTAssertFalse(changeExplanation.facts.map { $0.value }.joined(separator: " ").contains("Sensitive protocol"))
+        XCTAssertEqual(changeExplanation.summary, "Updated private protocol")
     }
 
     func testProtocolChangeStudioVialOptionsStayPrivacySafeOutsideFullMode() async throws {
@@ -1652,6 +2531,110 @@ final class AtlasPhaseOneTests: XCTestCase {
         XCTAssertFalse(csv.contains("Starter vial"))
     }
 
+    func testConsumableAtlasJsonRoundTripAndAliasExportStayPrivacySafe() async throws {
+        let controller = try makeInMemoryController()
+        var bundle = makeSpecCompleteBundle(aliasModeEnabled: true)
+        bundle.snapshot.consumables = [
+            AtlasConsumableRecord.make(
+                id: "consumable_export",
+                protocolId: "p1",
+                name: "Alcohol pads",
+                category: "Swab",
+                quantityOnHand: 25,
+                unit: "pad",
+                reorderThreshold: 10,
+                reorderLeadTimeDays: 5,
+                quantityPerUse: 1,
+                lotNumber: "LOT-7",
+                sizeDescription: "70%",
+                notes: "Cabinet",
+                vendorLabel: "Neighborhood pharmacy",
+                purchaseNotes: "Value pack",
+                createdAt: "2026-03-01T00:00:00.000Z",
+                updatedAt: "2026-03-02T00:00:00.000Z"
+            )
+        ]
+        bundle.snapshot.consumableAdjustments = [
+            AtlasConsumableAdjustmentRecord.make(
+                id: "consumable_adjustment_export",
+                consumableId: "consumable_export",
+                protocolId: "p1",
+                occurrenceId: nil,
+                kind: .manualAdjustment,
+                deltaQuantity: -2,
+                resultingQuantity: 25,
+                quantityUnit: "pad",
+                note: "Drawer recount",
+                recordedAt: "2026-03-02T00:00:00.000Z",
+                createdAt: "2026-03-02T00:00:00.000Z"
+            )
+        ]
+        let prepared = try await controller.importExportBridge.prepareImport(at: writeBundleURL(bundle))
+        _ = try await controller.importExportBridge.commitPreparedImport(prepared, mode: .replaceExisting)
+
+        let jsonExport = try await controller.importExportBridge.createRawExport(
+            AtlasRawExportRequest(format: .json, renderMode: .full),
+            now: Date(timeIntervalSince1970: 1_773_950_400)
+        )
+        let aliasCsvExport = try await controller.importExportBridge.createRawExport(
+            AtlasRawExportRequest(format: .csv, renderMode: .alias),
+            now: Date(timeIntervalSince1970: 1_773_950_400)
+        )
+
+        let bundleData = try Data(contentsOf: jsonExport.fileURL)
+        let decoded = try JSONDecoder().decode(AtlasExportBundle.self, from: bundleData)
+        let csv = try String(contentsOf: aliasCsvExport.fileURL, encoding: .utf8)
+
+        XCTAssertEqual(decoded.snapshot.consumables.count, 1)
+        XCTAssertEqual(decoded.snapshot.consumableAdjustments.count, 1)
+        XCTAssertTrue(csv.contains("\"consumable\""))
+        XCTAssertTrue(csv.contains("\"consumable_adjustment\""))
+        XCTAssertTrue(csv.contains("\"Swab supply\""))
+        XCTAssertFalse(csv.contains("Alcohol pads"))
+        XCTAssertFalse(csv.contains("Neighborhood pharmacy"))
+        XCTAssertFalse(csv.contains("LOT-7"))
+    }
+
+    @MainActor
+    func testConsumableRenderModesStayPrivacySafe() async throws {
+        let controller = try makeInMemoryController()
+        let now = Date(timeIntervalSince1970: 1_773_950_400)
+        let detail = try await controller.container.protocols.createProtocol(
+            AtlasProtocolDraft(
+                name: "Privacy-linked protocol",
+                kind: .custom,
+                cadenceType: .daily,
+                defaultTimeOfDay: "09:00",
+                doseAmount: 1,
+                doseUnit: "mg"
+            ),
+            now: now
+        )
+        _ = try await controller.container.inventory.saveConsumable(
+            AtlasConsumableDraft(
+                protocolID: detail.id,
+                name: "Travel syringes",
+                category: "Injection",
+                quantityOnHand: 6,
+                unit: "syringe"
+            ),
+            now: now
+        )
+
+        let model = makeAppModel(controller: controller)
+        await model.refreshShellData()
+
+        XCTAssertEqual(model.renderedConsumableTitle(canonical: "Travel syringes", category: "Injection"), "Travel syringes")
+
+        _ = try await controller.container.settings.updateTrustVaultRenderMode(.alias, now: now)
+        await model.refreshShellData()
+        XCTAssertEqual(model.renderedConsumableTitle(canonical: "Travel syringes", category: "Injection"), "Injection supply")
+
+        _ = try await controller.container.settings.updateTrustVaultRenderMode(.discreet, now: now.addingTimeInterval(60))
+        await model.refreshShellData()
+        XCTAssertEqual(model.renderedConsumableTitle(canonical: "Travel syringes", category: "Injection"), "Injection supply")
+    }
+
     @MainActor
     func testBiometricGateBlocksTrustVaultExportAction() async throws {
         let notifications = TestNotificationManager()
@@ -1685,6 +2668,39 @@ final class AtlasPhaseOneTests: XCTestCase {
         XCTAssertNil(export)
         XCTAssertEqual(gateCalls, 1)
         XCTAssertFalse(snapshot.audits.contains(where: { $0.eventType == .vaultUnlocked }))
+    }
+
+    @MainActor
+    func testBiometricGateIsSkippedWhenBiometricsAreUnavailable() async throws {
+        let notifications = TestNotificationManager()
+        let biometrics = TestBiometricGate(available: false, granted: false)
+        let controller = try makeInMemoryController(notifications: notifications)
+        let prepared = try await controller.importExportBridge.prepareImport(
+            at: writeBundleURL(makeSpecCompleteBundle(aliasModeEnabled: false))
+        )
+        _ = try await controller.importExportBridge.commitPreparedImport(prepared, mode: .replaceExisting)
+        _ = try await controller.container.trustVault.updatePrivacyProfile(
+            AtlasTrustVaultProfileUpdate(
+                biometricLockEnabled: true,
+                biometricGateMode: .requiredWhenAvailable
+            ),
+            now: Date(timeIntervalSince1970: 1_773_950_400)
+        )
+
+        let model = makeAppModel(
+            controller: controller,
+            notifications: notifications,
+            biometrics: biometrics
+        )
+        await model.refreshShellData()
+
+        let export = await model.createRawExport(
+            AtlasRawExportRequest(format: .json, renderMode: .full)
+        )
+        let gateCalls = await biometrics.callCount()
+
+        XCTAssertNotNil(export)
+        XCTAssertEqual(gateCalls, 0)
     }
 
     func testFirstLaunchBootstrapRoutesToOnboarding() async throws {
@@ -1743,43 +2759,69 @@ final class AtlasPhaseOneTests: XCTestCase {
         XCTAssertEqual(signInSettings.syncStatus, .accountBoundary)
     }
 
-    func testGlpBranchRequiresGlpFields() async throws {
+    func testGlpBranchCanCompleteWithoutGlpFields() async throws {
         let controller = try makeInMemoryController()
         var draft = makeCompleteOnboardingDraft(accountMode: .guest, trackType: .glp)
         draft.glp.medication = nil
+        draft.glp.frequency = nil
+        draft.glp.injectionDay = nil
+        draft.glp.dose = nil
+        draft.glp.duration = nil
+        draft.glp.goal = nil
+        draft.glp.challenge = nil
 
-        await XCTAssertThrowsErrorAsync {
-            try await controller.container.onboarding.completeOnboarding(
-                draft,
-                now: Date(timeIntervalSince1970: 1_773_950_600)
-            )
-        }
+        let snapshot = try await controller.container.onboarding.completeOnboarding(
+            draft,
+            now: Date(timeIntervalSince1970: 1_773_950_600)
+        )
+
+        XCTAssertEqual(snapshot.destination, .app)
+        XCTAssertTrue(snapshot.onboardingCompleted)
     }
 
-    func testPeptideBranchRequiresPeptideFields() async throws {
+    func testPeptideBranchCanCompleteWithoutPeptideFields() async throws {
         let controller = try makeInMemoryController()
         var draft = makeCompleteOnboardingDraft(accountMode: .guest, trackType: .peptide)
         draft.peptide.selections = []
-
-        await XCTAssertThrowsErrorAsync {
-            try await controller.container.onboarding.completeOnboarding(
-                draft,
-                now: Date(timeIntervalSince1970: 1_773_950_700)
-            )
-        }
-    }
-
-    func testBothBranchRequiresBothTrackDetails() async throws {
-        let controller = try makeInMemoryController()
-        var draft = makeCompleteOnboardingDraft(accountMode: .guest, trackType: .both)
+        draft.peptide.frequency = nil
+        draft.peptide.experience = nil
+        draft.peptide.usualTime = nil
+        draft.peptide.dose = nil
         draft.peptide.goal = nil
 
-        await XCTAssertThrowsErrorAsync {
-            try await controller.container.onboarding.completeOnboarding(
-                draft,
-                now: Date(timeIntervalSince1970: 1_773_950_800)
-            )
-        }
+        let snapshot = try await controller.container.onboarding.completeOnboarding(
+            draft,
+            now: Date(timeIntervalSince1970: 1_773_950_700)
+        )
+
+        XCTAssertEqual(snapshot.destination, .app)
+        XCTAssertTrue(snapshot.onboardingCompleted)
+    }
+
+    func testBothBranchCanCompleteWithoutTrackDetails() async throws {
+        let controller = try makeInMemoryController()
+        var draft = makeCompleteOnboardingDraft(accountMode: .guest, trackType: .both)
+        draft.glp.medication = nil
+        draft.glp.frequency = nil
+        draft.glp.injectionDay = nil
+        draft.glp.dose = nil
+        draft.glp.duration = nil
+        draft.glp.goal = nil
+        draft.glp.challenge = nil
+        draft.peptide.selections = []
+        draft.peptide.frequency = nil
+        draft.peptide.experience = nil
+        draft.peptide.usualTime = nil
+        draft.peptide.dose = nil
+        draft.peptide.goal = nil
+
+        let snapshot = try await controller.container.onboarding.completeOnboarding(
+            draft,
+            now: Date(timeIntervalSince1970: 1_773_950_800)
+        )
+
+        XCTAssertEqual(snapshot.destination, .app)
+        XCTAssertTrue(snapshot.onboardingCompleted)
     }
 
     func testExploreFirstBranchSkipsBranchRequirements() async throws {
@@ -2404,8 +3446,9 @@ final class AtlasPhaseOneTests: XCTestCase {
         XCTAssertTrue(staged.dryRun.warnings.contains(where: { $0.contains("Atlas CSV is lossy") }))
 
         _ = try await targetController.importExportBridge.commitUniversalImport(staged, mode: .replaceExisting)
+        try await targetController.container.coreLoop.ensureProjectedOccurrences(referenceDate: importedFixtureReferenceDate)
         let summaries = try await targetController.container.protocols.listProtocolSummaries()
-        let nextDue = try await targetController.container.today.fetchNextDue()
+        let nextDue = try await targetController.container.today.fetchTodaySnapshot(referenceDate: importedFixtureReferenceDate).nextDue
 
         XCTAssertEqual(summaries.count, 1)
         XCTAssertNotNil(nextDue)
@@ -2553,6 +3596,45 @@ final class AtlasPhaseOneTests: XCTestCase {
         XCTAssertFalse(protocols.contains(where: { $0["id"] as? String == "p2" }))
     }
 
+    func testProviderHandoffPlainLanguageSummaryUsesCurrentToggleAndAliasScope() async throws {
+        let controller = try makeInMemoryController()
+        let prepared = try await controller.importExportBridge.prepareImport(
+            at: writeBundleURL(makeSpecCompleteBundle(aliasModeEnabled: true))
+        )
+        _ = try await controller.importExportBridge.commitPreparedImport(prepared, mode: .replaceExisting)
+
+        let disabledPreview = try await controller.importExportBridge.previewProviderHandoff(
+            AtlasProviderHandoffRequest(
+                scopeKind: .currentProtocolOnly,
+                protocolID: "p1",
+                aliasModeEnabled: true
+            ),
+            now: Date()
+        )
+        XCTAssertNil(disabledPreview.plainLanguageSummary)
+
+        _ = try await controller.container.settings.updateSummarySettings(
+            AtlasSummarySettingsUpdate(onDeviceEnabled: true),
+            now: Date()
+        )
+
+        let preview = try await controller.importExportBridge.previewProviderHandoff(
+            AtlasProviderHandoffRequest(
+                scopeKind: .currentProtocolOnly,
+                protocolID: "p1",
+                aliasModeEnabled: true
+            ),
+            now: Date()
+        )
+        let summary = try XCTUnwrap(preview.plainLanguageSummary)
+        XCTAssertTrue(
+            summary.sourceSections
+                .flatMap(\.facts)
+                .contains(where: { $0.id == "render_mode" && $0.value == "Alias" })
+        )
+        assertSummaryGuardrails(summary.summary)
+    }
+
     func testUniversalImportCancelLeavesNoWrites() async throws {
         let controller = try makeInMemoryController()
         let prepared = try await controller.importExportBridge.prepareUniversalImport(
@@ -2575,8 +3657,9 @@ final class AtlasPhaseOneTests: XCTestCase {
         )
 
         _ = try await controller.importExportBridge.commitUniversalImport(prepared, mode: .replaceExisting)
+        try await controller.container.coreLoop.ensureProjectedOccurrences(referenceDate: importedFixtureReferenceDate)
         let history = try await controller.container.timeline.fetchHistory(limit: 10)
-        let nextDue = try await controller.container.today.fetchNextDue()
+        let nextDue = try await controller.container.today.fetchTodaySnapshot(referenceDate: importedFixtureReferenceDate).nextDue
 
         XCTAssertEqual(history.count, 1)
         XCTAssertNotNil(nextDue)
@@ -2676,7 +3759,9 @@ final class AtlasPhaseOneTests: XCTestCase {
     }
 
     func testReviewModeLiveSessionRequiresFeatureFlag() async throws {
-        let controller = try makeInMemoryController()
+        let controller = try makeInMemoryController(
+            featureFlags: AtlasFeatureFlagState(liveReviewSessions: false)
+        )
         let prepared = try await controller.importExportBridge.prepareImport(
             at: writeBundleURL(makeSpecCompleteBundle(aliasModeEnabled: false))
         )
@@ -2720,6 +3805,334 @@ final class AtlasPhaseOneTests: XCTestCase {
 
         XCTAssertNotNil(result)
         XCTAssertEqual(model.reviewOwnerSnapshot.sessions.count, 1)
+    }
+
+    @MainActor
+    func testCloudSignInUpdatesAccountSettingsAndSession() async throws {
+        let controller = try makeInMemoryController()
+        let cloudSync = TestCloudSyncManager()
+        let model = makeAppModel(controller: controller, cloudSync: cloudSync)
+
+        await model.signInToCloud(email: "atlas@example.com", password: "secret-passphrase")
+
+        XCTAssertEqual(model.settingsSnapshot.accountMode, .account)
+        XCTAssertEqual(model.cloudSession?.email, "atlas@example.com")
+        XCTAssertEqual(model.cloudSession?.userID, "test-user")
+        XCTAssertEqual(model.cloudStatusDescription, "Signed in as atlas@example.com.")
+        XCTAssertNil(model.loadErrorMessage)
+    }
+
+    @MainActor
+    func testCloudProviderSignInUpdatesAccountSettingsAndSession() async throws {
+        let controller = try makeInMemoryController()
+        let cloudSync = TestCloudSyncManager()
+        let model = makeAppModel(controller: controller, cloudSync: cloudSync)
+
+        await model.signInToCloud(with: .google)
+
+        XCTAssertEqual(model.settingsSnapshot.accountMode, .account)
+        XCTAssertEqual(model.cloudSession?.email, "google@atlas.example")
+        XCTAssertEqual(model.cloudSession?.userID, "google-user")
+        XCTAssertEqual(model.cloudStatusDescription, "Signed in as google@atlas.example.")
+        XCTAssertNil(model.loadErrorMessage)
+    }
+
+    @MainActor
+    func testCloudSyncExportsLatestBundleAndUpdatesLastSync() async throws {
+        let controller = try makeInMemoryController()
+        let cloudSync = TestCloudSyncManager(
+            session: AtlasCloudSessionSnapshot(email: "atlas@example.com", userID: "test-user")
+        )
+        let now = Date(timeIntervalSince1970: 1_776_000_000)
+        let model = makeAppModel(
+            controller: controller,
+            cloudSync: cloudSync,
+            referenceDate: now
+        )
+
+        _ = try await controller.container.protocols.createProtocol(
+            AtlasProtocolDraft(
+                name: "Cloud protocol",
+                kind: .glp,
+                cadenceType: .daily,
+                intervalDays: 1,
+                weekday: nil,
+                defaultTimeOfDay: "09:00",
+                doseAmount: 1,
+                doseUnit: "mg"
+            ),
+            now: now
+        )
+
+        await model.syncToCloud()
+
+        let uploadedBundle = try XCTUnwrap(cloudSync.latestUploadedBundle())
+        let decoded = try JSONDecoder().decode(AtlasExportBundle.self, from: uploadedBundle)
+
+        XCTAssertEqual(decoded.snapshot.protocols.first?.name, "Cloud protocol")
+        XCTAssertEqual(model.settingsSnapshot.accountMode, .account)
+        XCTAssertEqual(model.cloudSession?.lastSyncAt, now)
+        XCTAssertNil(model.loadErrorMessage)
+    }
+
+    @MainActor
+    func testRestoreLatestCloudBackupImportsProtocolsAndRefreshesShell() async throws {
+        let controller = try makeInMemoryController()
+        let bundleData = try JSONEncoder().encode(makeSpecCompleteBundle(aliasModeEnabled: false))
+        let cloudSync = TestCloudSyncManager(
+            session: AtlasCloudSessionSnapshot(email: "atlas@example.com", userID: "test-user"),
+            latestBundle: bundleData
+        )
+        let model = makeAppModel(
+            controller: controller,
+            cloudSync: cloudSync,
+            referenceDate: importedFixtureReferenceDate
+        )
+
+        await model.restoreLatestCloudBackup()
+        await model.refreshShellData()
+
+        XCTAssertEqual(model.settingsSnapshot.accountMode, .account)
+        XCTAssertEqual(model.libraryProtocols.count, 1)
+        XCTAssertEqual(model.todaySnapshot.nextDue?.canonicalTitle, "Weekly GLP")
+        XCTAssertNil(model.loadErrorMessage)
+    }
+
+    @MainActor
+    func testConnectAndDisconnectHealthKitUpdatesSettingsConnection() async throws {
+        let controller = try makeInMemoryController()
+        let healthKit = TestHealthKitManager(available: true, authorizationGranted: true)
+        let model = makeAppModel(controller: controller, healthKit: healthKit)
+
+        await model.connectHealthKit()
+
+        XCTAssertTrue(model.settingsSnapshot.healthScaffold.connections.contains(where: {
+            $0.providerKey == .appleHealth && $0.connected
+        }))
+        XCTAssertEqual(healthKit.authorizationRequestCount, 1)
+        XCTAssertNil(model.loadErrorMessage)
+
+        await model.disconnectHealthKit()
+
+        XCTAssertTrue(model.settingsSnapshot.healthScaffold.connections.allSatisfy { $0.connected == false })
+        XCTAssertEqual(healthKit.disconnectCallCount, 1)
+        XCTAssertNil(model.loadErrorMessage)
+    }
+
+    @MainActor
+    func testLiveReviewSessionUsesCloudShareLinkAndRevokesRemoteSession() async throws {
+        let controller = try makeInMemoryController()
+        let prepared = try await controller.importExportBridge.prepareImport(
+            at: writeBundleURL(makeSpecCompleteBundle(aliasModeEnabled: false))
+        )
+        _ = try await controller.importExportBridge.commitPreparedImport(prepared, mode: .replaceExisting)
+        let cloudSync = TestCloudSyncManager(
+            session: AtlasCloudSessionSnapshot(email: "atlas@example.com", userID: "test-user")
+        )
+        let model = makeAppModel(controller: controller, cloudSync: cloudSync)
+
+        await model.refreshShellData()
+        let result = await model.createReview(
+            AtlasReviewRequest(
+                scopeKind: .summaryOnly,
+                aliasModeEnabled: false,
+                deliveryKind: .liveSession
+            )
+        )
+
+        let sessionID = try XCTUnwrap(result?.session.id)
+        XCTAssertEqual(result?.packURL.absoluteString, "https://atlas.example/live-review/review_test_remote")
+        XCTAssertEqual(model.reviewOwnerSnapshot.sessions.first?.packURL?.absoluteString, result?.packURL.absoluteString)
+
+        await model.revokeReviewSession(id: sessionID)
+
+        XCTAssertEqual(cloudSync.revokedRemoteIDs, ["review_test_remote"])
+        XCTAssertNil(model.loadErrorMessage)
+    }
+
+    func testImportTemplatesSaveListAndDeleteDeterministically() async throws {
+        let controller = try makeInMemoryController()
+        let createdAt = Date(timeIntervalSince1970: 1_710_000_000)
+        let updatedAt = createdAt.addingTimeInterval(600)
+
+        let created = try await controller.importExportBridge.saveImportTemplate(
+            AtlasImportTemplateDraft(
+                name: "Travel CSV",
+                importer: .genericCSV,
+                genericCsvMapping: AtlasGenericCsvMapping(
+                    nameColumn: "protocol_name",
+                    kindColumn: "kind",
+                    cadenceColumn: "cadence"
+                )
+            ),
+            now: createdAt
+        )
+
+        let updated = try await controller.importExportBridge.saveImportTemplate(
+            AtlasImportTemplateDraft(
+                name: "Travel CSV",
+                importer: .genericCSV,
+                genericCsvMapping: AtlasGenericCsvMapping(
+                    nameColumn: "protocol_name",
+                    kindColumn: "kind",
+                    cadenceColumn: "cadence",
+                    timeColumn: "time_local",
+                    doseAmountColumn: "dose_amount"
+                )
+            ),
+            now: updatedAt
+        )
+
+        XCTAssertEqual(created.id, updated.id)
+
+        let templates = try await controller.importExportBridge.listImportTemplates(importer: .genericCSV)
+        XCTAssertEqual(templates.count, 1)
+        XCTAssertEqual(templates.first?.name, "Travel CSV")
+        XCTAssertEqual(templates.first?.genericCsvMapping?.timeColumn, "time_local")
+        XCTAssertEqual(templates.first?.updatedAt, updatedAt)
+
+        try await controller.importExportBridge.deleteImportTemplate(id: updated.id)
+
+        let deleted = try await controller.importExportBridge.listImportTemplates(importer: .genericCSV)
+        XCTAssertTrue(deleted.isEmpty)
+    }
+
+    func testUniversalImportDryRunSurfacesDeterministicLintFindings() async throws {
+        let controller = try makeInMemoryController()
+        let seedBundleURL = try writeBundleURL(makeSpecCompleteBundle(aliasModeEnabled: false))
+        let seeded = try await controller.importExportBridge.prepareImport(at: seedBundleURL)
+        _ = try await controller.importExportBridge.commitPreparedImport(seeded, mode: .replaceExisting)
+
+        let atlasPrepared = try await controller.importExportBridge.prepareUniversalImport(
+            AtlasUniversalImportRequest(importer: .atlasJSON, fileURL: seedBundleURL)
+        )
+        let atlasCategories = Set(atlasPrepared.dryRun.lintFindings.map(\.category))
+        XCTAssertTrue(atlasCategories.contains(.duplicateProtocolName))
+        XCTAssertTrue(atlasCategories.contains(.stableIDOverlap))
+
+        let csv = """
+        name,cadence,start_date,time,dose_amount,dose_unit
+        Travel plan,daily,2026-03-15,09:00,1,mg
+        Travel plan,daily,2026-03-15,09:00,1,
+        """
+        let genericPrepared = try await controller.importExportBridge.prepareUniversalImport(
+            AtlasUniversalImportRequest(
+                importer: .genericCSV,
+                rawText: csv,
+                genericCsvMapping: AtlasGenericCsvMapping(
+                    nameColumn: "name",
+                    cadenceColumn: "cadence",
+                    timeColumn: "time",
+                    doseAmountColumn: "dose_amount",
+                    doseUnitColumn: "dose_unit",
+                    startDateColumn: "start_date"
+                ),
+                manualOptions: AtlasManualImportOptions(
+                    defaultKind: .glp,
+                    timezone: "America/New_York",
+                    anchorDate: Date(timeIntervalSince1970: 1_710_000_000)
+                )
+            )
+        )
+        let genericCategories = Set(genericPrepared.dryRun.lintFindings.map(\.category))
+        XCTAssertTrue(genericCategories.contains(.dateTimeParsingCollision))
+        XCTAssertTrue(genericCategories.contains(.ambiguousUnitMapping))
+    }
+
+    func testReplaceImportCreatesRestorePointBeforeCommit() async throws {
+        let controller = try makeInMemoryController()
+        let initial = try await controller.importExportBridge.prepareImport(
+            at: writeBundleURL(makeSpecCompleteBundle(aliasModeEnabled: false))
+        )
+        _ = try await controller.importExportBridge.commitPreparedImport(initial, mode: .replaceExisting)
+
+        let replacementBundle = try XCTUnwrap(makePhaseTwoFixtures().first(where: { $0.name == "multiple-protocols" })?.bundle)
+        let prepared = try await controller.importExportBridge.prepareUniversalImport(
+            AtlasUniversalImportRequest(importer: .atlasJSON, fileURL: writeBundleURL(replacementBundle))
+        )
+        let result = try await controller.importExportBridge.commitUniversalImport(prepared, mode: .replaceExisting)
+        let restorePoints = try await controller.importExportBridge.listRestorePoints()
+        let trustVault = try await controller.container.trustVault.fetchTrustVaultSnapshot()
+
+        XCTAssertEqual(restorePoints.count, 1)
+        XCTAssertEqual(result.backupURL, restorePoints.first?.fileURL)
+        XCTAssertTrue(trustVault.audits.contains(where: { $0.eventType == .restorePointCreated }))
+        XCTAssertTrue(trustVault.audits.contains(where: { $0.eventType == .importCommitted }))
+    }
+
+    func testRestorePreviewMatchesRestoreResultAndAppendsAudit() async throws {
+        let controller = try makeInMemoryController()
+        let originalBundle = makeSpecCompleteBundle(aliasModeEnabled: false)
+        let initial = try await controller.importExportBridge.prepareImport(at: writeBundleURL(originalBundle))
+        _ = try await controller.importExportBridge.commitPreparedImport(initial, mode: .replaceExisting)
+
+        let emptyTimestamp = "2026-03-14T00:00:00.000Z"
+        let emptyBundle = AtlasExportBundle(
+            manifest: AtlasExportManifest(
+                generatedAt: emptyTimestamp,
+                source: "atlas-native-empty"
+            ),
+            snapshot: AtlasExportSnapshot(
+                privacyProfile: .default(timestamp: emptyTimestamp),
+                reminderPreference: .default(timestamp: emptyTimestamp)
+            )
+        )
+        let emptyPrepared = try await controller.importExportBridge.prepareUniversalImport(
+            AtlasUniversalImportRequest(importer: .atlasJSON, fileURL: writeBundleURL(emptyBundle))
+        )
+        _ = try await controller.importExportBridge.commitUniversalImport(emptyPrepared, mode: .replaceExisting)
+
+        let restorePoints = try await controller.importExportBridge.listRestorePoints()
+        let restorePoint = try XCTUnwrap(restorePoints.first)
+        let preview = try await controller.importExportBridge.previewRestorePoint(id: restorePoint.id)
+        let restored = try await controller.importExportBridge.restoreRestorePoint(
+            id: restorePoint.id,
+            now: Date(timeIntervalSince1970: 1_710_000_900)
+        )
+        let summaries = try await controller.container.protocols.listProtocolSummaries()
+        let history = try await controller.container.timeline.fetchHistory(limit: 20)
+        let trustVault = try await controller.container.trustVault.fetchTrustVaultSnapshot()
+        let protocolDiff = preview.datasetDiffs.first(where: { $0.dataset == "protocols" })
+        let historyDiff = preview.datasetDiffs.first(where: { $0.dataset == "logEvents" })
+
+        XCTAssertEqual(preview.restorePoint.id, restored.restoredPoint.id)
+        XCTAssertEqual(protocolDiff?.creates, restored.restoredProtocolCount)
+        XCTAssertEqual(historyDiff?.creates, restored.restoredLogEventCount)
+        XCTAssertEqual(summaries.count, restored.restoredProtocolCount)
+        XCTAssertEqual(history.count, restored.restoredLogEventCount)
+        XCTAssertTrue(trustVault.audits.contains(where: { $0.eventType == .restoreCommitted }))
+    }
+
+    func testProviderHandoffPresetRequestsStayBounded() {
+        let request = AtlasProviderHandoffPreset.partnerReview.makeRequest(
+            protocolID: "p1",
+            protocolIDs: ["p1", "p2"],
+            dateRange: nil,
+            now: Date(timeIntervalSince1970: 1_710_000_000)
+        )
+
+        XCTAssertEqual(request.scopeKind, .summaryOnly)
+        XCTAssertEqual(request.protocolID, "p1")
+        XCTAssertTrue(request.protocolIDs.isEmpty)
+        XCTAssertTrue(request.aliasModeEnabled)
+        XCTAssertNil(request.dateRange)
+    }
+
+    func testReviewPresetRequestsStayStaticAndBounded() {
+        let now = Date(timeIntervalSince1970: 1_710_000_000)
+        let request = AtlasReviewPreset.partnerReview.makeRequest(
+            protocolID: "p1",
+            protocolIDs: ["p1", "p2"],
+            dateRange: nil,
+            now: now
+        )
+
+        XCTAssertEqual(request.scopeKind, .summaryOnly)
+        XCTAssertEqual(request.protocolID, "p1")
+        XCTAssertTrue(request.protocolIDs.isEmpty)
+        XCTAssertTrue(request.aliasModeEnabled)
+        XCTAssertEqual(request.deliveryKind, .staticPack)
+        XCTAssertNotNil(request.expiresAt)
     }
 
     func testEpisodeWindowsAndPatternsBuildDeterministically() async throws {
@@ -2863,11 +4276,202 @@ final class AtlasPhaseOneTests: XCTestCase {
         XCTAssertTrue(snapshot.episodeIntelligence.disclaimer.contains("dose recommendations") || snapshot.episodeIntelligence.disclaimer.contains("medical guidance"))
     }
 
+    func testRetentionSettingsDefaultOffAndDisableCompanionWhenProgressTurnsOff() async throws {
+        let controller = try makeInMemoryController()
+        let now = Date(timeIntervalSince1970: 1_774_000_000)
+
+        let initial = try await controller.container.settings.currentSettingsSnapshot()
+        XCTAssertFalse(initial.retentionSettings.progressEnabled)
+        XCTAssertFalse(initial.retentionSettings.companionEnabled)
+
+        let progressEnabled = try await controller.container.settings.updateRetentionSettings(
+            AtlasRetentionSettingsUpdate(progressEnabled: true),
+            now: now
+        )
+        XCTAssertTrue(progressEnabled.retentionSettings.progressEnabled)
+        XCTAssertFalse(progressEnabled.retentionSettings.companionEnabled)
+
+        let companionEnabled = try await controller.container.settings.updateRetentionSettings(
+            AtlasRetentionSettingsUpdate(companionEnabled: true),
+            now: now.addingTimeInterval(60)
+        )
+        XCTAssertTrue(companionEnabled.retentionSettings.progressEnabled)
+        XCTAssertTrue(companionEnabled.retentionSettings.companionEnabled)
+
+        let disabled = try await controller.container.settings.updateRetentionSettings(
+            AtlasRetentionSettingsUpdate(progressEnabled: false),
+            now: now.addingTimeInterval(120)
+        )
+        XCTAssertFalse(disabled.retentionSettings.progressEnabled)
+        XCTAssertFalse(disabled.retentionSettings.companionEnabled)
+    }
+
+    @MainActor
+    func testRetentionSnapshotStaysHiddenByDefaultAndModelRefreshLoadsCleanly() async throws {
+        let controller = try makeInMemoryController()
+        let model = makeAppModel(controller: controller)
+
+        await model.refreshShellData()
+
+        XCTAssertNil(model.loadErrorMessage)
+        XCTAssertFalse(model.retentionSnapshot.settings.progressEnabled)
+        XCTAssertTrue(model.retentionSnapshot.milestones.isEmpty)
+        XCTAssertNil(model.retentionSnapshot.companion)
+    }
+
+    func testRetentionSnapshotCapturesContextConsistencyAndKeepsCopyGeneric() async throws {
+        let controller = try makeInMemoryController()
+        let now = Date(timeIntervalSince1970: 1_774_086_400)
+        let protocolDetail = try await controller.container.protocols.createProtocol(
+            AtlasProtocolDraft(
+                name: "Sensitive GLP Plan",
+                kind: .glp,
+                cadenceType: .daily,
+                defaultTimeOfDay: "09:00",
+                doseAmount: 1,
+                doseUnit: "mg"
+            ),
+            now: now.addingTimeInterval(-172_800)
+        )
+
+        _ = try await controller.container.settings.updateRetentionSettings(
+            AtlasRetentionSettingsUpdate(progressEnabled: true, companionEnabled: true),
+            now: now
+        )
+
+        for dayOffset in stride(from: 2, through: 0, by: -1) {
+            let loggedAt = now.addingTimeInterval(TimeInterval(-86_400 * dayOffset + 1_800))
+            _ = try await controller.container.metrics.saveContextEntry(
+                AtlasContextEntryDraft(
+                    protocolID: protocolDetail.id,
+                    loggedAt: loggedAt,
+                    mealTiming: .breakfast,
+                    fedState: .fasted,
+                    appetite: .low,
+                    hydration: .low,
+                    giTags: [.nausea],
+                    note: "Private breakfast",
+                    tags: ["travel"]
+                ),
+                now: loggedAt
+            )
+        }
+
+        let snapshot = try await controller.container.retention.fetchRetentionSnapshot(referenceDate: now)
+        let checkedIn = try XCTUnwrap(snapshot.milestones.first(where: { $0.kind == .checkedInToday }))
+        let context = try XCTUnwrap(snapshot.milestones.first(where: { $0.kind == .contextConsistency }))
+
+        XCTAssertTrue(snapshot.settings.progressEnabled)
+        XCTAssertTrue(snapshot.settings.companionEnabled)
+        XCTAssertTrue(checkedIn.isEarned)
+        XCTAssertTrue(context.isEarned)
+        XCTAssertEqual(context.streakCount, 3)
+        XCTAssertNotNil(snapshot.companion)
+
+        assertRetentionCopyPrivacySafe(
+            [snapshot.note, snapshot.companion?.title, snapshot.companion?.subtitle]
+                + snapshot.milestones.flatMap { [$0.title, $0.subtitle, $0.helperText] }
+        )
+    }
+
+    func testMarkWeeklyReviewCompleteDoesNotTouchTimelineHistory() async throws {
+        let controller = try makeInMemoryController()
+        let now = Date(timeIntervalSince1970: 1_774_172_800)
+        let protocolDetail = try await controller.container.protocols.createProtocol(
+            AtlasProtocolDraft(
+                name: "Retention protocol",
+                kind: .custom,
+                cadenceType: .daily,
+                defaultTimeOfDay: "09:00",
+                doseAmount: 1,
+                doseUnit: "mg"
+            ),
+            now: now
+        )
+        _ = try await controller.container.settings.updateRetentionSettings(
+            AtlasRetentionSettingsUpdate(progressEnabled: true),
+            now: now
+        )
+
+        try await controller.container.coreLoop.ensureProjectedOccurrences(referenceDate: now)
+        let todaySnapshot = try await controller.container.today.fetchTodaySnapshot(referenceDate: now)
+        let occurrence = try XCTUnwrap(todaySnapshot.nextDue)
+
+        try await controller.container.coreLoop.logOccurrence(
+            AtlasOccurrenceLogRequest(
+                occurrenceID: occurrence.id,
+                protocolID: protocolDetail.id,
+                action: .taken,
+                note: nil
+            ),
+            now: now.addingTimeInterval(600)
+        )
+
+        let beforeHistory = try await controller.container.timeline.fetchHistory(limit: 20)
+        let snapshot = try await controller.container.retention.markWeeklyReviewComplete(now: now.addingTimeInterval(900))
+        let afterHistory = try await controller.container.timeline.fetchHistory(limit: 20)
+        let weeklyReview = try XCTUnwrap(snapshot.milestones.first(where: { $0.kind == .weeklyReviewCompleted }))
+
+        XCTAssertEqual(beforeHistory.map(\.id), afterHistory.map(\.id))
+        XCTAssertEqual(beforeHistory.map(\.summary), afterHistory.map(\.summary))
+        XCTAssertTrue(weeklyReview.isEarned)
+    }
+
+    func testRetentionSnapshotUsesReviewSessionsAndInventorySignals() async throws {
+        let controller = try makeInMemoryController()
+        let now = Date(timeIntervalSince1970: 1_774_259_200)
+        let protocolDetail = try await controller.container.protocols.createProtocol(
+            AtlasProtocolDraft(
+                name: "Inventory review protocol",
+                kind: .custom,
+                cadenceType: .weekly,
+                weekday: 2,
+                defaultTimeOfDay: "09:00",
+                doseAmount: 1,
+                doseUnit: "mg"
+            ),
+            now: now
+        )
+        _ = try await controller.container.settings.updateRetentionSettings(
+            AtlasRetentionSettingsUpdate(progressEnabled: true),
+            now: now
+        )
+
+        _ = try await controller.container.inventory.saveConsumable(
+            AtlasConsumableDraft(
+                protocolID: protocolDetail.id,
+                name: "Alcohol pads",
+                category: "Swab",
+                quantityOnHand: 24,
+                unit: "pad",
+                reorderThreshold: 6,
+                quantityPerUse: 1
+            ),
+            now: now
+        )
+
+        _ = try await controller.container.reviewMode.createReview(
+            AtlasReviewRequest(
+                scopeKind: .summaryOnly,
+                aliasModeEnabled: false
+            ),
+            now: now.addingTimeInterval(300)
+        )
+
+        let snapshot = try await controller.container.retention.fetchRetentionSnapshot(referenceDate: now.addingTimeInterval(600))
+        let inventory = try XCTUnwrap(snapshot.milestones.first(where: { $0.kind == .inventoryCurrent }))
+        let weeklyReview = try XCTUnwrap(snapshot.milestones.first(where: { $0.kind == .weeklyReviewCompleted }))
+
+        XCTAssertTrue(inventory.isEarned)
+        XCTAssertTrue(weeklyReview.isEarned)
+    }
+
     private func makeInMemoryController(
+        featureFlags: AtlasFeatureFlagState = AtlasFeatureFlagState(),
         notifications: any NotificationManaging = TestNotificationManager()
     ) throws -> AtlasPersistenceController {
         try AtlasPersistenceController.inMemory(
-            featureFlags: AtlasFeatureFlagState(),
+            featureFlags: featureFlags,
             privacyFormatter: AtlasPrivacyFormatter(),
             notifications: notifications
         )
@@ -2876,21 +4480,85 @@ final class AtlasPhaseOneTests: XCTestCase {
     @MainActor
     private func makeAppModel(
         controller: AtlasPersistenceController,
+        featureFlags: AtlasFeatureFlagState = AtlasFeatureFlagState(),
         notifications: any NotificationManaging = TestNotificationManager(),
-        biometrics: any BiometricGating = AtlasBiometricGate()
+        biometrics: any BiometricGating = AtlasBiometricGate(),
+        healthKit: any HealthKitManaging = AtlasHealthKitManager(),
+        cloudSync: any CloudSyncManaging = TestCloudSyncManager(),
+        reminders: (any ReminderCoordinating)? = nil,
+        referenceDate: Date? = nil
     ) -> AtlasAppModel {
         AtlasAppModel(
             dependencies: AtlasAppDependencies(
-                featureFlags: AtlasFeatureFlags(),
+                featureFlags: AtlasFeatureFlags(flags: featureFlags),
                 notifications: notifications,
                 biometrics: biometrics,
-                healthKit: AtlasHealthKitManager(),
+                healthKit: healthKit,
+                cloudSync: cloudSync,
+                diagnostics: AtlasDiagnosticsReporter(),
                 importExport: controller.importExportBridge,
                 sharedProjectionWriter: controller.sharedProjectionWriter,
                 persistence: controller.container,
-                reminders: controller.reminderCoordinator,
-                privacyFormatter: AtlasPrivacyFormatter()
+                reminders: reminders ?? controller.reminderCoordinator,
+                privacyFormatter: AtlasPrivacyFormatter(),
+                dateProvider: { referenceDate ?? Date() }
             )
+        )
+    }
+
+    private var importedFixtureReferenceDate: Date {
+        Date(timeIntervalSince1970: 1_773_576_000) // 2026-03-15 12:00:00 UTC
+    }
+
+    private func assertSummaryGuardrails(_ summary: String) {
+        let lowered = summary.lowercased()
+        let bannedFragments = [
+            "diagnos",
+            "treat",
+            "therapy",
+            "prescrib",
+            "increase dose",
+            "decrease dose",
+            "change dose",
+            "recommend",
+            "buy",
+            "purchase",
+            "source"
+        ]
+        for fragment in bannedFragments {
+            XCTAssertFalse(
+                lowered.contains(fragment),
+                "Summary unexpectedly contained banned fragment '\(fragment)'."
+            )
+        }
+    }
+
+    private func assertRetentionCopyPrivacySafe(_ fragments: [String?]) {
+        let lowered = fragments
+            .compactMap { $0?.lowercased() }
+            .joined(separator: " ")
+        let bannedFragments = [
+            "sensitive glp plan",
+            "private breakfast",
+            "travel"
+        ]
+        for fragment in bannedFragments {
+            XCTAssertFalse(
+                lowered.contains(fragment),
+                "Retention copy unexpectedly contained sensitive fragment '\(fragment)'."
+            )
+        }
+    }
+
+    private func completeOnboardingIfNeeded(controller: AtlasPersistenceController) async throws {
+        let snapshot = try await controller.container.onboarding.loadBootstrapSnapshot()
+        guard snapshot.destination != .app else {
+            return
+        }
+
+        _ = try await controller.container.onboarding.completeOnboarding(
+            makeCompleteOnboardingDraft(accountMode: .guest, trackType: .later),
+            now: Date()
         )
     }
 
@@ -3876,7 +5544,7 @@ final class AtlasPhaseOneTests: XCTestCase {
                 expectedHistoryCount: 1,
                 expectsNextDue: true,
                 expectedRenderedTitle: "Weekly GLP",
-                expectedProjectionTitle: "Private protocol",
+                expectedProjectionTitle: "Weekly GLP",
                 expectedCreatedDatasets: [("protocols", 1), ("protocolRevisions", 1)],
                 expectedWarningFragments: [],
                 expectedBackfillFragments: [],
@@ -3889,7 +5557,7 @@ final class AtlasPhaseOneTests: XCTestCase {
                 expectedHistoryCount: 1,
                 expectsNextDue: true,
                 expectedRenderedTitle: "Weekly GLP",
-                expectedProjectionTitle: "Private protocol",
+                expectedProjectionTitle: "Peptide cycle",
                 expectedCreatedDatasets: [("protocols", 2), ("protocolRevisions", 2)],
                 expectedWarningFragments: [],
                 expectedBackfillFragments: [],
@@ -3902,7 +5570,7 @@ final class AtlasPhaseOneTests: XCTestCase {
                 expectedHistoryCount: 1,
                 expectsNextDue: true,
                 expectedRenderedTitle: "Weekly GLP",
-                expectedProjectionTitle: "Private protocol",
+                expectedProjectionTitle: "Weekly GLP",
                 expectedCreatedDatasets: [("protocolRevisions", 2), ("protocolChangeAudits", 2)],
                 expectedWarningFragments: [],
                 expectedBackfillFragments: [],
@@ -3928,7 +5596,7 @@ final class AtlasPhaseOneTests: XCTestCase {
                 expectedHistoryCount: 1,
                 expectsNextDue: true,
                 expectedRenderedTitle: "Weekly GLP",
-                expectedProjectionTitle: "Private protocol",
+                expectedProjectionTitle: "Weekly GLP",
                 expectedCreatedDatasets: [("vials", 1), ("sites", 1)],
                 expectedWarningFragments: [],
                 expectedBackfillFragments: [],
@@ -4021,12 +5689,18 @@ actor TestNotificationManager: NotificationManaging {
 }
 
 actor TestBiometricGate: BiometricGating {
+    private let available: Bool
     private let granted: Bool
     private var calls: Int
 
-    init(granted: Bool) {
+    init(available: Bool = true, granted: Bool) {
+        self.available = available
         self.granted = granted
         self.calls = 0
+    }
+
+    func isAvailable() async -> Bool {
+        available
     }
 
     func authorize(reason: String) async -> Bool {
@@ -4037,6 +5711,191 @@ actor TestBiometricGate: BiometricGating {
 
     func callCount() -> Int {
         calls
+    }
+}
+
+final class TestCloudSyncManager: CloudSyncManaging, @unchecked Sendable {
+    private var session: AtlasCloudSessionSnapshot?
+    private var latestBundle: Data?
+    private(set) var revokedRemoteIDs: [String]
+
+    init(
+        session: AtlasCloudSessionSnapshot? = nil,
+        latestBundle: Data? = nil
+    ) {
+        self.session = session
+        self.latestBundle = latestBundle
+        self.revokedRemoteIDs = []
+    }
+
+    func isConfigured() -> Bool {
+        true
+    }
+
+    func currentSession() async -> AtlasCloudSessionSnapshot? {
+        session
+    }
+
+    func signUp(email: String, password: String) async throws -> AtlasCloudSessionSnapshot {
+        _ = password
+        let snapshot = AtlasCloudSessionSnapshot(email: email, userID: "test-user")
+        session = snapshot
+        return snapshot
+    }
+
+    func signIn(email: String, password: String) async throws -> AtlasCloudSessionSnapshot {
+        _ = password
+        let snapshot = AtlasCloudSessionSnapshot(email: email, userID: "test-user")
+        session = snapshot
+        return snapshot
+    }
+
+    func signIn(with provider: AtlasCloudIdentityProvider) async throws -> AtlasCloudSessionSnapshot {
+        let snapshot: AtlasCloudSessionSnapshot
+        switch provider {
+        case .google:
+            snapshot = AtlasCloudSessionSnapshot(email: "google@atlas.example", userID: "google-user")
+        case .apple:
+            snapshot = AtlasCloudSessionSnapshot(email: "apple@atlas.example", userID: "apple-user")
+        }
+        session = snapshot
+        return snapshot
+    }
+
+    func signOut() async throws {
+        session = nil
+    }
+
+    func uploadExportBundle(_ data: Data, generatedAt: Date, deviceID: String?) async throws -> AtlasCloudSessionSnapshot {
+        _ = deviceID
+        latestBundle = data
+        let snapshot = AtlasCloudSessionSnapshot(
+            email: session?.email ?? "test@atlas.local",
+            userID: session?.userID ?? "test-user",
+            lastSyncAt: generatedAt
+        )
+        session = snapshot
+        return snapshot
+    }
+
+    func downloadLatestExportBundle() async throws -> Data? {
+        latestBundle
+    }
+
+    func createLiveReviewSession(
+        title: String,
+        request: AtlasReviewRequest,
+        workspace: AtlasReviewWorkspace
+    ) async throws -> AtlasLiveReviewSessionSnapshot {
+        _ = title
+        _ = request
+        _ = workspace
+        return AtlasLiveReviewSessionSnapshot(
+            id: "review_test_remote",
+            shareURL: URL(string: "https://atlas.example/live-review/review_test_remote")!,
+            expiresAt: nil
+        )
+    }
+
+    func revokeLiveReviewSession(id: String) async throws {
+        revokedRemoteIDs.append(id)
+    }
+
+    func statusDescription() async -> String {
+        if let session {
+            return "Signed in as \(session.email)."
+        }
+        return "Cloud sync is ready for sign-in."
+    }
+
+    func latestUploadedBundle() -> Data? {
+        latestBundle
+    }
+}
+
+final class TestHealthKitManager: HealthKitManaging, @unchecked Sendable {
+    private let available: Bool
+    private let authorizationGranted: Bool
+    private(set) var authorizationRequestCount: Int
+    private(set) var disconnectCallCount: Int
+    private(set) var savedWeights: [(value: Double, unit: AtlasWeightUnit, recordedAt: Date)]
+    private(set) var connected: Bool
+
+    init(
+        available: Bool,
+        authorizationGranted: Bool,
+        initiallyConnected: Bool = false
+    ) {
+        self.available = available
+        self.authorizationGranted = authorizationGranted
+        self.authorizationRequestCount = 0
+        self.disconnectCallCount = 0
+        self.savedWeights = []
+        self.connected = initiallyConnected
+    }
+
+    func isAvailable() -> Bool {
+        available
+    }
+
+    func isConnected() async -> Bool {
+        connected
+    }
+
+    func requestAuthorization() async throws -> Bool {
+        authorizationRequestCount += 1
+        connected = authorizationGranted
+        return authorizationGranted
+    }
+
+    func disconnect() async {
+        disconnectCallCount += 1
+        connected = false
+    }
+
+    func saveWeightSample(value: Double, unit: AtlasWeightUnit, recordedAt: Date) async throws {
+        savedWeights.append((value, unit, recordedAt))
+    }
+
+    func connectionDescription() -> String {
+        available ? "Apple Health can sync with Atlas." : "Apple Health is unavailable on this device."
+    }
+}
+
+actor FailingReminderCoordinator: ReminderCoordinating {
+    func authorizationStatus() async -> AtlasNotificationAuthorizationStatus {
+        .authorized
+    }
+
+    func requestAuthorization() async throws -> AtlasNotificationAuthorizationStatus {
+        .authorized
+    }
+
+    func configureReminderHandling(
+        onActionApplied: (@Sendable () async -> Void)?
+    ) async throws {
+        _ = onActionApplied
+    }
+
+    func fetchReminderSettings() async throws -> AtlasReminderSettingsSnapshot {
+        AtlasReminderSettingsSnapshot()
+    }
+
+    func updateReminderSettings(
+        _ update: AtlasReminderPreferenceUpdate,
+        referenceDate: Date
+    ) async throws -> AtlasReminderSettingsSnapshot {
+        _ = update
+        _ = referenceDate
+        return AtlasReminderSettingsSnapshot()
+    }
+
+    func syncReminders(referenceDate: Date) async throws {
+        _ = referenceDate
+        struct ReminderSyncFailure: LocalizedError {
+            var errorDescription: String? { "Reminder sync failed" }
+        }
+        throw ReminderSyncFailure()
     }
 }
 

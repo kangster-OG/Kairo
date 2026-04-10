@@ -730,6 +730,148 @@ struct AtlasSiteDBRecord: Codable, FetchableRecord, PersistableRecord {
     }
 }
 
+struct AtlasConsumableDBRecord: Codable, FetchableRecord, PersistableRecord {
+    static let databaseTableName = "consumables"
+    var id: String
+    var protocolId: String?
+    var name: String
+    var category: String?
+    var quantityOnHand: Double
+    var unit: String
+    var reorderThreshold: Double?
+    var reorderLeadTimeDays: Int?
+    var quantityPerUse: Double?
+    var lotNumber: String?
+    var sizeDescription: String?
+    var notes: String?
+    var vendorLabel: String?
+    var purchaseNotes: String?
+    var createdAt: String
+    var updatedAt: String
+    var archivedAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case protocolId = "protocol_id"
+        case name
+        case category
+        case quantityOnHand = "quantity_on_hand"
+        case unit
+        case reorderThreshold = "reorder_threshold"
+        case reorderLeadTimeDays = "reorder_lead_time_days"
+        case quantityPerUse = "quantity_per_use"
+        case lotNumber = "lot_number"
+        case sizeDescription = "size_description"
+        case notes
+        case vendorLabel = "vendor_label"
+        case purchaseNotes = "purchase_notes"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+        case archivedAt = "archived_at"
+    }
+
+    init(record: AtlasConsumableRecord) {
+        id = record.id
+        protocolId = record.protocolId
+        name = record.name
+        category = record.category
+        quantityOnHand = record.quantityOnHand
+        unit = record.unit
+        reorderThreshold = record.reorderThreshold
+        reorderLeadTimeDays = record.reorderLeadTimeDays
+        quantityPerUse = record.quantityPerUse
+        lotNumber = record.lotNumber
+        sizeDescription = record.sizeDescription
+        notes = record.notes
+        vendorLabel = record.vendorLabel
+        purchaseNotes = record.purchaseNotes
+        createdAt = record.createdAt
+        updatedAt = record.updatedAt
+        archivedAt = record.archivedAt
+    }
+
+    var domain: AtlasConsumableRecord {
+        AtlasConsumableRecord.make(
+            id: id,
+            protocolId: protocolId,
+            name: name,
+            category: category,
+            quantityOnHand: quantityOnHand,
+            unit: unit,
+            reorderThreshold: reorderThreshold,
+            reorderLeadTimeDays: reorderLeadTimeDays,
+            quantityPerUse: quantityPerUse,
+            lotNumber: lotNumber,
+            sizeDescription: sizeDescription,
+            notes: notes,
+            vendorLabel: vendorLabel,
+            purchaseNotes: purchaseNotes,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            archivedAt: archivedAt
+        )
+    }
+}
+
+struct AtlasConsumableAdjustmentDBRecord: Codable, FetchableRecord, PersistableRecord {
+    static let databaseTableName = "consumable_adjustments"
+    var id: String
+    var consumableId: String
+    var protocolId: String?
+    var occurrenceId: String?
+    var kind: AtlasConsumableAdjustmentKind
+    var deltaQuantity: Double
+    var resultingQuantity: Double
+    var quantityUnit: String
+    var note: String?
+    var recordedAt: String
+    var createdAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case consumableId = "consumable_id"
+        case protocolId = "protocol_id"
+        case occurrenceId = "occurrence_id"
+        case kind
+        case deltaQuantity = "delta_quantity"
+        case resultingQuantity = "resulting_quantity"
+        case quantityUnit = "quantity_unit"
+        case note
+        case recordedAt = "recorded_at"
+        case createdAt = "created_at"
+    }
+
+    init(record: AtlasConsumableAdjustmentRecord) {
+        id = record.id
+        consumableId = record.consumableId
+        protocolId = record.protocolId
+        occurrenceId = record.occurrenceId
+        kind = record.kind
+        deltaQuantity = record.deltaQuantity
+        resultingQuantity = record.resultingQuantity
+        quantityUnit = record.quantityUnit
+        note = record.note
+        recordedAt = record.recordedAt
+        createdAt = record.createdAt
+    }
+
+    var domain: AtlasConsumableAdjustmentRecord {
+        AtlasConsumableAdjustmentRecord.make(
+            id: id,
+            consumableId: consumableId,
+            protocolId: protocolId,
+            occurrenceId: occurrenceId,
+            kind: kind,
+            deltaQuantity: deltaQuantity,
+            resultingQuantity: resultingQuantity,
+            quantityUnit: quantityUnit,
+            note: note,
+            recordedAt: recordedAt,
+            createdAt: createdAt
+        )
+    }
+}
+
 struct AtlasLogEventDBRecord: Codable, FetchableRecord, PersistableRecord {
     static let databaseTableName = "log_events"
     var id: String
@@ -1107,6 +1249,90 @@ struct AtlasMetricValueLogDBRecord: Codable, FetchableRecord, PersistableRecord 
     }
 }
 
+private func atlasJSONString<T: Encodable>(for value: T, fallback: String) -> String {
+    let encoder = JSONEncoder()
+    guard let data = try? encoder.encode(value),
+          let string = String(data: data, encoding: .utf8) else {
+        return fallback
+    }
+    return string
+}
+
+private func atlasDecodeJSON<T: Decodable>(_ type: T.Type, from string: String, fallback: T) -> T {
+    guard let data = string.data(using: .utf8),
+          let decoded = try? JSONDecoder().decode(type, from: data) else {
+        return fallback
+    }
+    return decoded
+}
+
+struct AtlasContextLogDBRecord: Codable, FetchableRecord, PersistableRecord {
+    static let databaseTableName = "context_logs"
+    var id: String
+    var protocolId: String?
+    var loggedAt: String
+    var mealTiming: AtlasContextMealTiming?
+    var fedState: AtlasContextFedState?
+    var appetite: AtlasContextAppetiteState?
+    var hydration: AtlasContextHydrationState?
+    var giContextJson: String
+    var note: String?
+    var tagsJson: String
+    var source: AtlasHealthDataSource
+    var createdAt: String
+    var updatedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case protocolId = "protocol_id"
+        case loggedAt = "logged_at"
+        case mealTiming = "meal_timing"
+        case fedState = "fed_state"
+        case appetite
+        case hydration
+        case giContextJson = "gi_context_json"
+        case note
+        case tagsJson = "tags_json"
+        case source
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+
+    init(record: AtlasContextLogRecord) {
+        id = record.id
+        protocolId = record.protocolId
+        loggedAt = record.loggedAt
+        mealTiming = record.mealTiming
+        fedState = record.fedState
+        appetite = record.appetite
+        hydration = record.hydration
+        giContextJson = atlasJSONString(for: record.giTags, fallback: "[]")
+        note = record.note
+        tagsJson = atlasJSONString(for: record.tags, fallback: "[]")
+        source = record.source
+        createdAt = record.createdAt
+        updatedAt = record.updatedAt
+    }
+
+    var domain: AtlasContextLogRecord {
+        AtlasContextLogRecord.make(
+            id: id,
+            protocolId: protocolId,
+            loggedAt: loggedAt,
+            mealTiming: mealTiming,
+            fedState: fedState,
+            appetite: appetite,
+            hydration: hydration,
+            giTags: atlasDecodeJSON([AtlasContextGITag].self, from: giContextJson, fallback: []),
+            note: note,
+            tags: atlasDecodeJSON([String].self, from: tagsJson, fallback: []),
+            source: source,
+            createdAt: createdAt,
+            updatedAt: updatedAt
+        )
+    }
+}
+
 struct AtlasSymptomLogDBRecord: Codable, FetchableRecord, PersistableRecord {
     static let databaseTableName = "symptom_logs"
     var id: String
@@ -1261,7 +1487,7 @@ struct AtlasNextDueProjectionDBRecord: Codable, FetchableRecord, PersistableReco
     }
 
     init(snapshot: AtlasSharedNextDueSnapshot) {
-        id = "current"
+        id = snapshot.occurrenceID
         protocolId = snapshot.protocolID
         displayTitle = snapshot.displayTitle
         dueLabel = snapshot.dueLabel
@@ -1274,7 +1500,9 @@ struct AtlasNextDueProjectionDBRecord: Codable, FetchableRecord, PersistableReco
             protocolID: protocolId,
             displayTitle: displayTitle,
             dueLabel: dueLabel,
-            scheduledAt: scheduledAt
+            scheduledAt: scheduledAt,
+            state: .upcoming,
+            statusSummary: dueLabel
         )
     }
 }
@@ -1367,7 +1595,14 @@ struct AtlasQuickActionProjectionDBRecord: Codable, FetchableRecord, Persistable
     }
 
     var domain: AtlasSharedQuickAction {
-        AtlasSharedQuickAction(id: id, protocolID: protocolId, occurrenceID: occurrenceId, title: title)
+        AtlasSharedQuickAction(
+            id: id,
+            protocolID: protocolId,
+            occurrenceID: occurrenceId,
+            title: title,
+            dueLabel: "",
+            state: .upcoming
+        )
     }
 }
 
@@ -1386,6 +1621,9 @@ func canonicalSnapshot(from db: Database) throws -> AtlasExportSnapshot {
     AtlasExportSnapshot(
         calculatorProfiles: try AtlasCalculatorProfileDBRecord.fetchAll(db).map(\.domain),
         compounds: try AtlasCompoundDBRecord.fetchAll(db).map(\.domain),
+        consumableAdjustments: try AtlasConsumableAdjustmentDBRecord.fetchAll(db).map(\.domain),
+        consumables: try AtlasConsumableDBRecord.fetchAll(db).map(\.domain),
+        contextLogs: try AtlasContextLogDBRecord.fetchAll(db).map(\.domain),
         customMetrics: try AtlasCustomMetricDBRecord.fetchAll(db).map(\.domain),
         healthConnections: try AtlasHealthConnectionDBRecord.fetchAll(db).map(\.domain),
         logEvents: try AtlasLogEventDBRecord.fetchAll(db).map(\.domain),
@@ -1415,6 +1653,9 @@ func clearCanonicalTables(in db: Database) throws {
         "reminders",
         "reminder_preferences",
         "log_events",
+        "consumable_adjustments",
+        "consumables",
+        "context_logs",
         "vials",
         "sites",
         "protocol_change_audit_events",
@@ -1445,6 +1686,9 @@ func writeSnapshot(_ snapshot: AtlasExportSnapshot, to db: Database) throws {
     for record in snapshot.protocolRevisions { try AtlasProtocolRevisionDBRecord(record: record).insert(db) }
     for record in snapshot.protocolRevisionRules { try AtlasProtocolRevisionRuleDBRecord(record: record).insert(db) }
     for record in snapshot.protocolChangeAudits { try AtlasProtocolChangeAuditDBRecord(record: record).insert(db) }
+    for record in snapshot.consumables { try AtlasConsumableDBRecord(record: record).insert(db) }
+    for record in snapshot.consumableAdjustments { try AtlasConsumableAdjustmentDBRecord(record: record).insert(db) }
+    for record in snapshot.contextLogs { try AtlasContextLogDBRecord(record: record).insert(db) }
     for record in snapshot.vials { try AtlasVialDBRecord(record: record).insert(db) }
     for record in snapshot.sites { try AtlasSiteDBRecord(record: record).insert(db) }
     for record in snapshot.logEvents { try AtlasLogEventDBRecord(record: record).insert(db) }
@@ -1474,7 +1718,10 @@ func countUserRows(in db: Database) throws -> Int {
     let protocolCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM protocols") ?? 0
     let logCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM log_events") ?? 0
     let vialCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM vials") ?? 0
-    return protocolCount + logCount + vialCount
+    let consumableCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM consumables") ?? 0
+    let consumableAdjustmentCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM consumable_adjustments") ?? 0
+    let contextCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM context_logs") ?? 0
+    return protocolCount + logCount + vialCount + consumableCount + consumableAdjustmentCount + contextCount
 }
 
 func existingIdentifiers(in db: Database, for dataset: AtlasImportDataset) throws -> Set<String> {
@@ -1483,6 +1730,12 @@ func existingIdentifiers(in db: Database, for dataset: AtlasImportDataset) throw
         return Set(try String.fetchAll(db, sql: "SELECT id FROM calculator_profiles"))
     case .compounds:
         return Set(try String.fetchAll(db, sql: "SELECT id FROM compounds"))
+    case .consumableAdjustments:
+        return Set(try String.fetchAll(db, sql: "SELECT id FROM consumable_adjustments"))
+    case .consumables:
+        return Set(try String.fetchAll(db, sql: "SELECT id FROM consumables"))
+    case .contextLogs:
+        return Set(try String.fetchAll(db, sql: "SELECT id FROM context_logs"))
     case .customMetrics:
         return Set(try String.fetchAll(db, sql: "SELECT id FROM custom_metrics"))
     case .healthConnections:
@@ -1528,6 +1781,12 @@ func datasetIdentifiers(from snapshot: AtlasExportSnapshot, for dataset: AtlasIm
         return snapshot.calculatorProfiles.map(\.id)
     case .compounds:
         return snapshot.compounds.map(\.id)
+    case .consumableAdjustments:
+        return snapshot.consumableAdjustments.map(\.id)
+    case .consumables:
+        return snapshot.consumables.map(\.id)
+    case .contextLogs:
+        return snapshot.contextLogs.map(\.id)
     case .customMetrics:
         return snapshot.customMetrics.map(\.id)
     case .healthConnections:

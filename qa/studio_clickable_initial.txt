@@ -1,6 +1,0 @@
-0: Back to protocol | android.view.ViewGroup | center=540,222 | bounds=[63,195][1017,248]
-1: Future dose | android.widget.Button | center=540,1098 | bounds=[129,963][951,1232]
-2: Time of day | android.widget.Button | center=540,1398 | bounds=[129,1263][951,1532]
-3: Weekday | android.widget.Button | center=540,1672 | bounds=[129,1564][951,1779]
-4: Every N days | android.widget.Button | center=540,1946 | bounds=[129,1811][951,2080]
-5: Pause | android.widget.Button | center=540,2224 | bounds=[129,2111][951,2337]

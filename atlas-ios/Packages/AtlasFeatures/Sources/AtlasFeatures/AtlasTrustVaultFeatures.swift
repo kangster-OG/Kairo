@@ -7,32 +7,40 @@ public extension AtlasAppModel {
         do {
             trustVaultSnapshot = try await dependencies.persistence.trustVault.fetchTrustVaultSnapshot()
             settingsSnapshot = try await dependencies.persistence.settings.currentSettingsSnapshot()
+            await refreshShellData()
         } catch {
-            loadErrorMessage = error.localizedDescription
+            setLoadErrorMessage(error.localizedDescription)
         }
     }
 
     func updateTrustVaultProfile(_ update: AtlasTrustVaultProfileUpdate) async {
         do {
-            trustVaultSnapshot = try await dependencies.persistence.trustVault.updatePrivacyProfile(update, now: Date())
+            trustVaultSnapshot = try await dependencies.persistence.trustVault.updatePrivacyProfile(update, now: currentDate())
             settingsSnapshot = try await dependencies.persistence.settings.currentSettingsSnapshot()
             await refreshShellData()
         } catch {
-            loadErrorMessage = error.localizedDescription
+            setLoadErrorMessage(error.localizedDescription)
         }
     }
 
     func saveProtocolAlias(_ draft: AtlasProtocolAliasDraft) async {
         do {
-            trustVaultSnapshot = try await dependencies.persistence.trustVault.saveProtocolAlias(draft, now: Date())
+            trustVaultSnapshot = try await dependencies.persistence.trustVault.saveProtocolAlias(draft, now: currentDate())
             await refreshShellData()
         } catch {
-            loadErrorMessage = error.localizedDescription
+            setLoadErrorMessage(error.localizedDescription)
         }
     }
 
     func unlockTrustVaultIfNeeded(reason: String = "Unlock Trust Vault") async -> Bool {
-        guard trustVaultSnapshot.privacyProfile.biometricLockEnabled else {
+        let profile = trustVaultSnapshot.privacyProfile
+
+        guard profile.biometricLockEnabled,
+              profile.biometricGateMode != .off else {
+            return true
+        }
+
+        guard await dependencies.biometrics.isAvailable() else {
             return true
         }
 
@@ -42,11 +50,11 @@ public extension AtlasAppModel {
         }
 
         do {
-            try await dependencies.persistence.trustVault.recordVaultUnlock(surface: "trust_vault", now: Date())
+            try await dependencies.persistence.trustVault.recordVaultUnlock(surface: "trust_vault", now: currentDate())
             trustVaultSnapshot = try await dependencies.persistence.trustVault.fetchTrustVaultSnapshot()
             return true
         } catch {
-            loadErrorMessage = error.localizedDescription
+            setLoadErrorMessage(error.localizedDescription)
             return false
         }
     }
@@ -57,11 +65,11 @@ public extension AtlasAppModel {
         }
 
         do {
-            let result = try await dependencies.importExport.createRawExport(request, now: Date())
+            let result = try await dependencies.importExport.createRawExport(request, now: currentDate())
             await refreshTrustVaultSnapshot()
             return result
         } catch {
-            loadErrorMessage = error.localizedDescription
+            setLoadErrorMessage(error.localizedDescription)
             return nil
         }
     }
@@ -72,9 +80,9 @@ public extension AtlasAppModel {
         }
 
         do {
-            return try await dependencies.importExport.previewSelectiveShare(request, now: Date())
+            return try await dependencies.importExport.previewSelectiveShare(request, now: currentDate())
         } catch {
-            loadErrorMessage = error.localizedDescription
+            setLoadErrorMessage(error.localizedDescription)
             return nil
         }
     }
@@ -85,11 +93,11 @@ public extension AtlasAppModel {
         }
 
         do {
-            let result = try await dependencies.importExport.createSelectiveShare(request, now: Date())
+            let result = try await dependencies.importExport.createSelectiveShare(request, now: currentDate())
             await refreshTrustVaultSnapshot()
             return result
         } catch {
-            loadErrorMessage = error.localizedDescription
+            setLoadErrorMessage(error.localizedDescription)
             return nil
         }
     }
@@ -104,8 +112,15 @@ public struct AtlasTrustVaultHomeScreen: View {
     @State private var scopeKind: AtlasSelectiveShareScopeKind = .currentProtocolOnly
     @State private var selectedProtocolID: String?
     @State private var selectiveShareMode: AtlasPrivacyRenderMode = .alias
-    @State private var customRangeStart: Date = Calendar.current.date(byAdding: .day, value: -14, to: Date()) ?? Date()
-    @State private var customRangeEnd: Date = Date()
+    @State private var customRangeStart: Date
+    @State private var customRangeEnd: Date
+
+    public init(model: AtlasAppModel) {
+        self.model = model
+        let referenceDate = model.currentDate()
+        _customRangeStart = State(initialValue: Calendar.current.date(byAdding: .day, value: -14, to: referenceDate) ?? referenceDate)
+        _customRangeEnd = State(initialValue: referenceDate)
+    }
 
     public var body: some View {
         AtlasScreen {
@@ -118,7 +133,14 @@ public struct AtlasTrustVaultHomeScreen: View {
                 }
             }
 
-            AtlasSectionCard(title: "Privacy state") {
+            AtlasSectionCard(style: .elevated, title: "Privacy state") {
+                HStack(spacing: AtlasSpacing.small) {
+                    AtlasStatusBadge((model.trustVaultSnapshot.privacyProfile.renderMode ?? .full).rawValue.capitalized)
+                    AtlasStatusBadge(
+                        model.trustVaultSnapshot.privacyProfile.shareAliasByDefault ? "Alias sharing" : "Canonical sharing",
+                        tint: AtlasPalette.secondaryText
+                    )
+                }
                 Text(model.dependencies.privacyFormatter.summary(mode: model.trustVaultSnapshot.privacyProfile.renderMode ?? .full))
                     .foregroundStyle(AtlasPalette.textSecondary)
 
@@ -169,7 +191,11 @@ public struct AtlasTrustVaultHomeScreen: View {
                 )
             }
 
-            AtlasSectionCard(title: "Biometric gate") {
+            AtlasSectionCard(style: .elevated, title: "Biometric gate") {
+                AtlasStatusBadge(
+                    model.trustVaultSnapshot.privacyProfile.biometricLockEnabled ? "Biometric gate on" : "Biometric gate off",
+                    tint: model.trustVaultSnapshot.privacyProfile.biometricLockEnabled ? AtlasPalette.success : AtlasPalette.secondaryText
+                )
                 Toggle(
                     "Require biometric gate for Trust Vault actions",
                     isOn: Binding(
@@ -234,7 +260,7 @@ public struct AtlasTrustVaultHomeScreen: View {
                 }
             }
 
-            AtlasSectionCard(title: "Selective sharing") {
+            AtlasSectionCard(style: .elevated, title: "Selective sharing") {
                 Picker("Scope", selection: $scopeKind) {
                     Text("Current protocol").tag(AtlasSelectiveShareScopeKind.currentProtocolOnly)
                     Text("Protocol + timeline").tag(AtlasSelectiveShareScopeKind.protocolWithRecentTimeline)
@@ -278,7 +304,7 @@ public struct AtlasTrustVaultHomeScreen: View {
                         latestShare = await model.createSelectiveShare(selectiveShareRequest)
                     }
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(AtlasSecondaryButtonStyle())
 
                 if let preview {
                     VStack(alignment: .leading, spacing: AtlasSpacing.small) {
@@ -307,7 +333,7 @@ public struct AtlasTrustVaultHomeScreen: View {
                 }
             }
 
-            AtlasSectionCard(title: "Raw exports") {
+            AtlasSectionCard(style: .elevated, title: "Raw exports") {
                 Button("Create JSON export") {
                     Task {
                         latestExport = await model.createRawExport(
@@ -330,7 +356,7 @@ public struct AtlasTrustVaultHomeScreen: View {
                         )
                     }
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(AtlasSecondaryButtonStyle())
 
                 if let latestExport {
                     Text("Latest \(latestExport.format.rawValue.uppercased()) export: \(latestExport.fileURL.lastPathComponent)")
@@ -343,7 +369,7 @@ public struct AtlasTrustVaultHomeScreen: View {
 
             AtlasProviderHandoffCard(model: model)
 
-            AtlasSectionCard(title: "Review workspace") {
+            AtlasSectionCard(style: .utility, title: "Review workspace") {
                 Text("Create bounded read-only review packs without opening a social or chat surface.")
                     .foregroundStyle(AtlasPalette.textSecondary)
                 Button("Open Review Mode") {
@@ -370,7 +396,6 @@ public struct AtlasTrustVaultHomeScreen: View {
                 }
             }
         }
-        .navigationTitle("Trust Vault")
         .trustVaultInlineNavigationTitle()
         .task {
             await model.refreshTrustVaultSnapshot()
@@ -434,6 +459,7 @@ private struct AtlasAliasEditorSheet: View {
                     TextField("Compound codename", text: $aliasCompoundLabel)
                 }
             }
+            .atlasFormSurface()
             .navigationTitle("Alias")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -469,8 +495,10 @@ private extension View {
     }
 }
 
+@MainActor
 private func header(_ title: String, subtitle: String) -> some View {
     VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+        AtlasStatusBadge("Private controls", tint: AtlasPalette.secondaryText)
         Text(title)
             .font(.system(size: 34, weight: .bold, design: .rounded))
             .foregroundStyle(AtlasPalette.textPrimary)

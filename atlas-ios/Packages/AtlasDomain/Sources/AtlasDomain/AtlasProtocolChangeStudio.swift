@@ -275,18 +275,65 @@ public struct AtlasProtocolChangePreview: Equatable, Sendable {
     }
 }
 
+public struct AtlasProtocolChangeExplanation: Identifiable, Hashable, Sendable {
+    public var id: String
+    public var changeType: AtlasProtocolChangeAuditType
+    public var summary: String
+    public var effectiveDateLabel: String
+    public var recordedAt: Date
+    public var facts: [AtlasExplainerFact]
+    public var notes: [String]
+
+    public init(
+        id: String,
+        changeType: AtlasProtocolChangeAuditType,
+        summary: String,
+        effectiveDateLabel: String,
+        recordedAt: Date,
+        facts: [AtlasExplainerFact],
+        notes: [String] = []
+    ) {
+        self.id = id
+        self.changeType = changeType
+        self.summary = summary
+        self.effectiveDateLabel = effectiveDateLabel
+        self.recordedAt = recordedAt
+        self.facts = facts
+        self.notes = notes
+    }
+}
+
+public struct AtlasProtocolChangeImpactSummary: Equatable, Sendable {
+    public var title: String
+    public var facts: [AtlasExplainerFact]
+    public var notes: [String]
+
+    public init(
+        title: String,
+        facts: [AtlasExplainerFact],
+        notes: [String] = []
+    ) {
+        self.title = title
+        self.facts = facts
+        self.notes = notes
+    }
+}
+
 public struct AtlasProtocolChangeCommitResult: Equatable, Sendable {
     public var detail: AtlasProtocolDetailSnapshot
     public var preview: AtlasProtocolChangePreview
     public var auditRecord: AtlasProtocolChangeAuditRecord
+    public var impactSummary: AtlasProtocolChangeImpactSummary
 
     public init(
         detail: AtlasProtocolDetailSnapshot,
         preview: AtlasProtocolChangePreview,
-        auditRecord: AtlasProtocolChangeAuditRecord
+        auditRecord: AtlasProtocolChangeAuditRecord,
+        impactSummary: AtlasProtocolChangeImpactSummary
     ) {
         self.detail = detail
         self.preview = preview
         self.auditRecord = auditRecord
+        self.impactSummary = impactSummary
     }
 }

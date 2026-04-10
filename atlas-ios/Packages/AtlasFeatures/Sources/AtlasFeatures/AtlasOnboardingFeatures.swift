@@ -1,6 +1,9 @@
 import AtlasDesignSystem
 import AtlasDomain
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 public struct AtlasOnboardingFlowScreen: View {
     let model: AtlasAppModel
@@ -16,51 +19,61 @@ public struct AtlasOnboardingFlowScreen: View {
         let progressIndex = sequence.filter { $0 != .splash }.firstIndex(of: step).map { $0 + 1 } ?? 0
         let totalSteps = sequence.filter { $0 != .splash }.count
 
-        ZStack {
-            LinearGradient(
-                colors: [AtlasPalette.background, AtlasPalette.canvas],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
+        GeometryReader { proxy in
+            ZStack {
+                AtlasAppBackground()
 
-            VStack(spacing: 0) {
-                AtlasOnboardingHeader(
-                    step: step,
-                    progressIndex: progressIndex,
-                    totalSteps: totalSteps,
-                    onBack: {
-                        model.retreatOnboarding()
-                    }
-                )
+                VStack(spacing: 0) {
+                    AtlasOnboardingHeader(
+                        step: step,
+                        progressIndex: progressIndex,
+                        totalSteps: totalSteps,
+                        onBack: {
+                            model.retreatOnboarding()
+                        }
+                    )
 
-                ScrollView {
-                    VStack(alignment: .leading, spacing: AtlasSpacing.large) {
-                        if let error = model.loadErrorMessage {
-                            AtlasSectionCard {
-                                Text(error)
-                                    .foregroundStyle(.red)
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: AtlasSpacing.large) {
+                            if let error = model.loadErrorMessage {
+                                AtlasSectionCard {
+                                    Text(error)
+                                        .foregroundStyle(.red)
+                                }
                             }
-                        }
 
-                        content(for: step, draft: draft)
+                            content(for: step, draft: draft)
+                        }
+                        .padding(.horizontal, AtlasSpacing.large)
+                        .padding(.top, step == .splash ? AtlasSpacing.large : 36)
+                        .padding(.bottom, 132)
                     }
-                    .padding(.horizontal, AtlasSpacing.large)
-                    .padding(.top, AtlasSpacing.large)
-                    .padding(.bottom, 120)
-                }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .scrollDismissesKeyboard(.interactively)
 
-                AtlasOnboardingFooter(
-                    primaryTitle: primaryTitle(for: step),
-                    secondaryTitle: secondaryTitle(for: step),
-                    isPrimaryDisabled: primaryDisabled(for: step, draft: draft),
-                    onPrimary: {
-                        Task {
-                            await handlePrimaryAction(for: step, draft: draft)
-                        }
-                    },
-                    onSecondary: secondaryAction(for: step, draft: draft)
-                )
+                    AtlasOnboardingFooter(
+                        primaryTitle: primaryTitle(for: step),
+                        secondaryTitle: secondaryTitle(for: step),
+                        isPrimaryDisabled: primaryDisabled(for: step, draft: draft),
+                        onPrimary: {
+                            Task {
+                                await handlePrimaryAction(for: step, draft: draft)
+                            }
+                        },
+                        onSecondary: secondaryAction(for: step, draft: draft)
+                    )
+                }
+                .frame(width: proxy.size.width, height: proxy.size.height, alignment: .top)
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height, alignment: .top)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") {
+                    AtlasKeyboard.dismiss()
+                }
             }
         }
     }
@@ -110,8 +123,10 @@ public struct AtlasOnboardingFlowScreen: View {
         switch step {
         case .intro:
             "Sign in"
+        case .profile, .glpSetup, .peptideSetup:
+            "Skip for now"
         case .connectApps:
-            "View scaffold"
+            "Open later"
         default:
             nil
         }
@@ -127,6 +142,11 @@ public struct AtlasOnboardingFlowScreen: View {
                     }
                     model.activeOnboardingStep = .accountMode
                 }
+            }
+        case .profile, .glpSetup, .peptideSetup:
+            return {
+                AtlasKeyboard.dismiss()
+                model.advanceOnboarding()
             }
         case .connectApps:
             return {
@@ -157,13 +177,16 @@ public struct AtlasOnboardingFlowScreen: View {
     private func handlePrimaryAction(for step: AtlasOnboardingStep, draft: AtlasOnboardingDraft) async {
         switch step {
         case .connectApps:
+            AtlasKeyboard.dismiss()
             await model.updateOnboardingDraft { current in
                 current.healthConnectionPromptSeen = true
             }
             model.advanceOnboarding()
         case .planReady:
+            AtlasKeyboard.dismiss()
             await model.completeOnboarding()
         default:
+            AtlasKeyboard.dismiss()
             model.advanceOnboarding()
         }
     }
@@ -176,38 +199,53 @@ private struct AtlasOnboardingHeader: View {
     let onBack: () -> Void
 
     var body: some View {
-        VStack(spacing: AtlasSpacing.medium) {
-            HStack {
-                if step != .splash {
-                    Button(action: onBack) {
-                        Image(systemName: "chevron.left")
-                            .font(.body.weight(.semibold))
-                            .foregroundStyle(AtlasPalette.textPrimary)
-                            .frame(width: 36, height: 36)
-                            .background(
-                                Circle()
-                                    .fill(.white.opacity(0.94))
-                            )
+        Group {
+            if step == .splash {
+                Color.clear
+                    .frame(height: AtlasSpacing.small)
+            } else {
+                VStack(spacing: AtlasSpacing.medium) {
+                    HStack {
+                        Button(action: onBack) {
+                            Image(systemName: "chevron.left")
+                                .font(.body.weight(.semibold))
+                                .foregroundStyle(.white)
+                                .frame(width: 36, height: 36)
+                                .background(
+                                    Circle()
+                                        .fill(.white.opacity(0.14))
+                                )
+                        }
+                        .accessibilityLabel("Go back")
+                        .accessibilityHint("Returns to the previous onboarding step.")
+                        Spacer()
+                        Text("Atlas")
+                            .font(.headline.weight(.semibold))
+                            .foregroundStyle(.white)
+                        Spacer()
+                        Color.clear.frame(width: 36, height: 36)
                     }
-                } else {
-                    Color.clear.frame(width: 36, height: 36)
-                }
-                Spacer()
-                Text("Atlas")
-                    .font(.headline.weight(.semibold))
-                    .foregroundStyle(AtlasPalette.textPrimary)
-                Spacer()
-                Color.clear.frame(width: 36, height: 36)
-            }
 
-            if step != .splash {
-                ProgressView(value: Double(progressIndex), total: Double(max(totalSteps, 1)))
-                    .tint(AtlasPalette.primary)
+                    ProgressView(value: Double(progressIndex), total: Double(max(totalSteps, 1)))
+                        .tint(.white)
+                }
+                .padding(.horizontal, AtlasSpacing.large)
+                .padding(.top, AtlasSpacing.small)
+                .padding(.bottom, AtlasSpacing.small)
+                .background(
+                    LinearGradient(
+                        colors: [AtlasPalette.shellTop, AtlasPalette.shellTopAccent],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(alignment: .bottom) {
+                    Rectangle()
+                        .fill(.white.opacity(0.08))
+                        .frame(height: 1)
+                }
             }
         }
-        .padding(.horizontal, AtlasSpacing.large)
-        .padding(.top, AtlasSpacing.medium)
-        .padding(.bottom, AtlasSpacing.small)
     }
 }
 
@@ -233,35 +271,119 @@ private struct AtlasOnboardingFooter: View {
         }
         .padding(.horizontal, AtlasSpacing.large)
         .padding(.top, AtlasSpacing.small)
-        .padding(.bottom, AtlasSpacing.large)
-        .background(.white.opacity(0.96))
+        .padding(.bottom, 18)
+        .background(AtlasPalette.surfaceStrong)
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(AtlasPalette.border.opacity(0.7))
+                .frame(height: 1)
+        }
     }
 }
 
 private struct AtlasOnboardingSplash: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
-        VStack(alignment: .leading, spacing: AtlasSpacing.large) {
-            Spacer(minLength: 60)
-            Text("Atlas")
-                .font(.system(size: 42, weight: .bold, design: .rounded))
-                .foregroundStyle(AtlasPalette.textPrimary)
-            Text("A local-first home for protocols, reminders, inventory, and privacy-forward tracking.")
-                .font(.title3.weight(.medium))
-                .foregroundStyle(AtlasPalette.textSecondary)
-            Spacer(minLength: 180)
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                splashCopy(
+                    subtitle: "Local-first tracker.",
+                    titleSize: 34,
+                    subtitleFont: .body.weight(.semibold)
+                )
+            } else {
+                ViewThatFits(in: .vertical) {
+                    splashCopy(
+                        subtitle: "A local-first home for protocols, reminders, inventory, and privacy-forward tracking.",
+                        titleSize: 42,
+                        subtitleFont: .title3.weight(.medium)
+                    )
+                    splashCopy(
+                        subtitle: "Local-first tracking for schedules, reminders, inventory, and privacy.",
+                        titleSize: 40,
+                        subtitleFont: .body.weight(.semibold)
+                    )
+                }
+            }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func splashCopy(subtitle: String, titleSize: CGFloat, subtitleFont: Font) -> some View {
+        VStack(alignment: .leading, spacing: dynamicTypeSize.isAccessibilitySize ? AtlasSpacing.medium : AtlasSpacing.large) {
+            Color.clear
+                .frame(height: dynamicTypeSize.isAccessibilitySize ? AtlasSpacing.small : 24)
+            AtlasStatusBadge("Local-first", tint: .white)
+            Text("Atlas")
+                .font(.system(size: titleSize, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+            Text(subtitle)
+                .font(subtitleFont)
+                .foregroundStyle(.white.opacity(0.78))
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : nil)
+                .minimumScaleFactor(dynamicTypeSize.isAccessibilitySize ? 0.72 : 1)
+                .allowsTightening(dynamicTypeSize.isAccessibilitySize)
+                .fixedSize(horizontal: false, vertical: !dynamicTypeSize.isAccessibilitySize)
+            AtlasSectionCard {
+                VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+                    Text("Built for private, serious daily use")
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(AtlasPalette.textPrimary)
+                    Text("Schedules, reminders, inventory, and privacy controls stay on device first, with guest access intact.")
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                }
+            }
+            Color.clear
+                .frame(height: dynamicTypeSize.isAccessibilitySize ? AtlasSpacing.medium : 96)
+        }
+        .padding(.horizontal, AtlasSpacing.medium)
+        .padding(.vertical, 28)
+        .background(
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [AtlasPalette.shellTop, AtlasPalette.shellTopAccent],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .stroke(.white.opacity(0.08), lineWidth: 1)
+        )
     }
 }
 
 private struct AtlasOnboardingIntro: View {
     var body: some View {
         VStack(alignment: .leading, spacing: AtlasSpacing.large) {
-            AtlasSectionCard {
+            AtlasSectionCard(style: .hero) {
                 Text("All your tracking in one place")
                     .font(.title2.weight(.bold))
                     .foregroundStyle(AtlasPalette.textPrimary)
                 Text("Atlas keeps your schedule, logging, reminders, inventory, and privacy settings together without making a cloud account mandatory.")
                     .foregroundStyle(AtlasPalette.textSecondary)
+                AtlasStatusBadge("Guest-first supported")
+            }
+
+            AtlasSectionCard(style: .utility, title: "Why Atlas feels different") {
+                AtlasOnboardingValueRow(
+                    title: "Private by default",
+                    subtitle: "Core tracking, reminders, and review data stay local-first.",
+                    symbol: "lock.shield"
+                )
+                AtlasOnboardingValueRow(
+                    title: "Cloud is optional",
+                    subtitle: "You can sign in later for backup and review workflows without giving up local control.",
+                    symbol: "icloud"
+                )
+                AtlasOnboardingValueRow(
+                    title: "Built for daily use",
+                    subtitle: "Schedules, inventory, and context logging stay in one calm workflow.",
+                    symbol: "checklist"
+                )
             }
         }
     }
@@ -275,7 +397,7 @@ private struct AtlasOnboardingAccountModeStep: View {
         VStack(alignment: .leading, spacing: AtlasSpacing.large) {
             AtlasOnboardingTitle(
                 title: "How do you want to start?",
-                subtitle: "Guest mode is fully supported, and account scaffolding remains optional."
+                subtitle: "Guest mode is fully supported, and you can add an account later without losing local access."
             )
 
             ForEach(AtlasOnboardingAccountMode.allCases, id: \.self) { mode in
@@ -299,9 +421,9 @@ private struct AtlasOnboardingAccountModeStep: View {
         case .guest:
             "Stay local-first and fully usable on this device."
         case .create:
-            "Set up the account boundary now. Sync stays optional and scaffold-only."
+            "Create an account now so this profile is ready for sign-in and future sync."
         case .signIn:
-            "Use the account boundary path without blocking local access."
+            "Sign in and keep local tracking available even when cloud services are unavailable."
         }
     }
 }
@@ -403,43 +525,46 @@ private struct AtlasOnboardingProfileStep: View {
                 subtitle: "These fields stay skippable and local. Add only what helps your future insights."
             )
 
-            AtlasSectionCard {
-                TextField(
-                    "Gender",
-                    text: Binding(
-                        get: { draft.profile.gender ?? "" },
+            AtlasSectionCard(title: "Profile") {
+                AtlasOnboardingDraftField(
+                    title: "Gender",
+                    initialValue: draft.profile.gender ?? ""
+                ) { value in
+                    await model.updateOnboardingDraft { current in
+                        current.profile.gender = value.nilIfBlank
+                    }
+                }
+
+                AtlasOnboardingStepperRow(
+                    title: "Age",
+                    subtitle: "Use the counter for a bounded value instead of typing freeform text.",
+                    value: Binding(
+                        get: { draft.profile.age ?? 30 },
                         set: { newValue in
                             Task {
                                 await model.updateOnboardingDraft { current in
-                                    current.profile.gender = newValue.nilIfBlank
+                                    current.profile.age = newValue
                                 }
                             }
                         }
-                    )
+                    ),
+                    isEnabled: draft.profile.age != nil,
+                    onEnable: {
+                        Task {
+                            await model.updateOnboardingDraft { current in
+                                current.profile.age = current.profile.age ?? 30
+                            }
+                        }
+                    },
+                    onDisable: {
+                        Task {
+                            await model.updateOnboardingDraft { current in
+                                current.profile.age = nil
+                            }
+                        }
+                    },
+                    range: 13...100
                 )
-                .textFieldStyle(.roundedBorder)
-
-                TextField(
-                    "Age",
-                    text: intBinding(draft.profile.age)
-                )
-                .textFieldStyle(.roundedBorder)
-
-                TextField(
-                    "Goal weight",
-                    text: numericBinding(draft.profile.goalWeight) { current, newValue in
-                        current.profile.goalWeight = newValue
-                    }
-                )
-                .textFieldStyle(.roundedBorder)
-
-                TextField(
-                    "Current height",
-                    text: numericBinding(draft.profile.height) { current, newValue in
-                        current.profile.height = newValue
-                    }
-                )
-                .textFieldStyle(.roundedBorder)
 
                 Picker("Height unit", selection: Binding(
                     get: { draft.profile.heightUnit ?? .cm },
@@ -454,14 +579,17 @@ private struct AtlasOnboardingProfileStep: View {
                     Text("cm").tag(AtlasHeightUnit.cm)
                     Text("ft / in").tag(AtlasHeightUnit.ftIn)
                 }
+                .pickerStyle(.segmented)
 
-                TextField(
-                    "Current weight",
-                    text: numericBinding(draft.profile.weight) { current, newValue in
-                        current.profile.weight = newValue
+                AtlasOnboardingDraftField(
+                    title: "Current height",
+                    initialValue: draft.profile.height.map { String($0) } ?? "",
+                    keyboardType: .decimalPad
+                ) { value in
+                    await model.updateOnboardingDraft { current in
+                        current.profile.height = Double(value)
                     }
-                )
-                .textFieldStyle(.roundedBorder)
+                }
 
                 Picker("Weight unit", selection: Binding(
                     get: { draft.profile.weightUnit ?? .lb },
@@ -476,37 +604,47 @@ private struct AtlasOnboardingProfileStep: View {
                     Text("lb").tag(AtlasWeightUnit.lb)
                     Text("kg").tag(AtlasWeightUnit.kg)
                 }
+                .pickerStyle(.segmented)
+
+                AtlasOnboardingDecimalStepperRow(
+                    title: "Current weight",
+                    subtitle: "Use quick +/- controls so Atlas starts from a real number without trapping you in the keyboard.",
+                    value: Binding(
+                        get: { draft.profile.weight },
+                        set: { newValue in
+                            Task {
+                                await model.updateOnboardingDraft { current in
+                                    current.profile.weight = newValue
+                                }
+                            }
+                        }
+                    ),
+                    defaultValue: draft.profile.weightUnit == .kg ? 80 : 180,
+                    step: draft.profile.weightUnit == .kg ? 0.5 : 1,
+                    range: draft.profile.weightUnit == .kg ? 30...250 : 70...550,
+                    unitLabel: draft.profile.weightUnit == .kg ? "kg" : "lb"
+                )
+
+                AtlasOnboardingDecimalStepperRow(
+                    title: "Goal weight",
+                    subtitle: "Optional and editable later if you want lightweight goal context in Insights.",
+                    value: Binding(
+                        get: { draft.profile.goalWeight },
+                        set: { newValue in
+                            Task {
+                                await model.updateOnboardingDraft { current in
+                                    current.profile.goalWeight = newValue
+                                }
+                            }
+                        }
+                    ),
+                    defaultValue: draft.profile.weightUnit == .kg ? 75 : 165,
+                    step: draft.profile.weightUnit == .kg ? 0.5 : 1,
+                    range: draft.profile.weightUnit == .kg ? 30...250 : 70...550,
+                    unitLabel: draft.profile.weightUnit == .kg ? "kg" : "lb"
+                )
             }
         }
-    }
-
-    private func intBinding(_ value: Int?) -> Binding<String> {
-        Binding(
-            get: { value.map(String.init) ?? "" },
-            set: { newValue in
-                Task {
-                    await model.updateOnboardingDraft { current in
-                        current.profile.age = Int(newValue)
-                    }
-                }
-            }
-        )
-    }
-
-    private func numericBinding(
-        _ value: Double?,
-        update: @escaping (inout AtlasOnboardingDraft, Double?) -> Void
-    ) -> Binding<String> {
-        Binding(
-            get: { value.map { String($0) } ?? "" },
-            set: { newValue in
-                Task {
-                    await model.updateOnboardingDraft { current in
-                        update(&current, Double(newValue))
-                    }
-                }
-            }
-        )
     }
 }
 
@@ -518,16 +656,27 @@ private struct AtlasOnboardingGlpStep: View {
         VStack(alignment: .leading, spacing: AtlasSpacing.large) {
             AtlasOnboardingTitle(
                 title: "GLP setup",
-                subtitle: "Capture the core GLP details now. This stays editable later with native protocol flows."
+                subtitle: "Add starter notes now if you want them reflected later. You can skip this and fill it in from the shell."
             )
 
             AtlasSectionCard {
                 ForEach(glpFields, id: \.title) { field in
-                    TextField(
-                        field.title,
-                        text: binding(for: field.key)
-                    )
-                    .textFieldStyle(.roundedBorder)
+                    AtlasOnboardingDraftField(
+                        title: field.title,
+                        initialValue: value(for: field.key)
+                    ) { value in
+                        await model.updateOnboardingDraft { current in
+                            switch field.key {
+                            case "medication": current.glp.medication = value.nilIfBlank
+                            case "frequency": current.glp.frequency = value.nilIfBlank
+                            case "injectionDay": current.glp.injectionDay = value.nilIfBlank
+                            case "dose": current.glp.dose = value.nilIfBlank
+                            case "duration": current.glp.duration = value.nilIfBlank
+                            case "goal": current.glp.goal = value.nilIfBlank
+                            default: current.glp.challenge = value.nilIfBlank
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -545,35 +694,16 @@ private struct AtlasOnboardingGlpStep: View {
         ]
     }
 
-    private func binding(for key: String) -> Binding<String> {
-        Binding(
-            get: {
-                switch key {
-                case "medication": draft.glp.medication ?? ""
-                case "frequency": draft.glp.frequency ?? ""
-                case "injectionDay": draft.glp.injectionDay ?? ""
-                case "dose": draft.glp.dose ?? ""
-                case "duration": draft.glp.duration ?? ""
-                case "goal": draft.glp.goal ?? ""
-                default: draft.glp.challenge ?? ""
-                }
-            },
-            set: { newValue in
-                Task {
-                    await model.updateOnboardingDraft { current in
-                        switch key {
-                        case "medication": current.glp.medication = newValue.nilIfBlank
-                        case "frequency": current.glp.frequency = newValue.nilIfBlank
-                        case "injectionDay": current.glp.injectionDay = newValue.nilIfBlank
-                        case "dose": current.glp.dose = newValue.nilIfBlank
-                        case "duration": current.glp.duration = newValue.nilIfBlank
-                        case "goal": current.glp.goal = newValue.nilIfBlank
-                        default: current.glp.challenge = newValue.nilIfBlank
-                        }
-                    }
-                }
-            }
-        )
+    private func value(for key: String) -> String {
+        switch key {
+        case "medication": draft.glp.medication ?? ""
+        case "frequency": draft.glp.frequency ?? ""
+        case "injectionDay": draft.glp.injectionDay ?? ""
+        case "dose": draft.glp.dose ?? ""
+        case "duration": draft.glp.duration ?? ""
+        case "goal": draft.glp.goal ?? ""
+        default: draft.glp.challenge ?? ""
+        }
     }
 }
 
@@ -587,7 +717,7 @@ private struct AtlasOnboardingPeptideStep: View {
         VStack(alignment: .leading, spacing: AtlasSpacing.large) {
             AtlasOnboardingTitle(
                 title: "Peptide setup",
-                subtitle: "Choose your current peptides and the basics you want reflected in the native shell."
+                subtitle: "Add current peptides if it helps. This remains optional and editable later from the shell."
             )
 
             AtlasSectionCard(title: "Selections") {
@@ -610,45 +740,60 @@ private struct AtlasOnboardingPeptideStep: View {
             }
 
             AtlasSectionCard {
-                TextField("Frequency", text: binding(for: "frequency"))
-                    .textFieldStyle(.roundedBorder)
-                TextField("Experience", text: binding(for: "experience"))
-                    .textFieldStyle(.roundedBorder)
-                TextField("Usual time", text: binding(for: "usualTime"))
-                    .textFieldStyle(.roundedBorder)
-                TextField("Current dose", text: binding(for: "dose"))
-                    .textFieldStyle(.roundedBorder)
-                TextField("Main goal", text: binding(for: "goal"))
-                    .textFieldStyle(.roundedBorder)
+                AtlasOnboardingDraftField(
+                    title: "Frequency",
+                    initialValue: value(for: "frequency")
+                ) { value in
+                    await persist(value: value, for: "frequency")
+                }
+                AtlasOnboardingDraftField(
+                    title: "Experience",
+                    initialValue: value(for: "experience")
+                ) { value in
+                    await persist(value: value, for: "experience")
+                }
+                AtlasOnboardingDraftField(
+                    title: "Usual time",
+                    initialValue: value(for: "usualTime")
+                ) { value in
+                    await persist(value: value, for: "usualTime")
+                }
+                AtlasOnboardingDraftField(
+                    title: "Current dose",
+                    initialValue: value(for: "dose")
+                ) { value in
+                    await persist(value: value, for: "dose")
+                }
+                AtlasOnboardingDraftField(
+                    title: "Main goal",
+                    initialValue: value(for: "goal")
+                ) { value in
+                    await persist(value: value, for: "goal")
+                }
             }
         }
     }
 
-    private func binding(for key: String) -> Binding<String> {
-        Binding(
-            get: {
-                switch key {
-                case "frequency": draft.peptide.frequency ?? ""
-                case "experience": draft.peptide.experience ?? ""
-                case "usualTime": draft.peptide.usualTime ?? ""
-                case "dose": draft.peptide.dose ?? ""
-                default: draft.peptide.goal ?? ""
-                }
-            },
-            set: { newValue in
-                Task {
-                    await model.updateOnboardingDraft { current in
-                        switch key {
-                        case "frequency": current.peptide.frequency = newValue.nilIfBlank
-                        case "experience": current.peptide.experience = newValue.nilIfBlank
-                        case "usualTime": current.peptide.usualTime = newValue.nilIfBlank
-                        case "dose": current.peptide.dose = newValue.nilIfBlank
-                        default: current.peptide.goal = newValue.nilIfBlank
-                        }
-                    }
-                }
+    private func value(for key: String) -> String {
+        switch key {
+        case "frequency": draft.peptide.frequency ?? ""
+        case "experience": draft.peptide.experience ?? ""
+        case "usualTime": draft.peptide.usualTime ?? ""
+        case "dose": draft.peptide.dose ?? ""
+        default: draft.peptide.goal ?? ""
+        }
+    }
+
+    private func persist(value: String, for key: String) async {
+        await model.updateOnboardingDraft { current in
+            switch key {
+            case "frequency": current.peptide.frequency = value.nilIfBlank
+            case "experience": current.peptide.experience = value.nilIfBlank
+            case "usualTime": current.peptide.usualTime = value.nilIfBlank
+            case "dose": current.peptide.dose = value.nilIfBlank
+            default: current.peptide.goal = value.nilIfBlank
             }
-        )
+        }
     }
 }
 
@@ -665,10 +810,24 @@ private struct AtlasOnboardingConnectAppsStep: View {
             AtlasSectionCard {
                 Text(model.dependencies.healthKit.connectionDescription())
                     .foregroundStyle(AtlasPalette.textSecondary)
+                let isConnected = model.settingsSnapshot.healthScaffold.connections.contains {
+                    $0.providerKey == .appleHealth && $0.connected
+                }
                 AtlasStatusBadge(
-                    model.dependencies.healthKit.isAvailable() ? "Available later" : "Unavailable",
-                    tint: model.dependencies.healthKit.isAvailable() ? AtlasPalette.primary : .orange
+                    isConnected ? "Connected" : (model.dependencies.healthKit.isAvailable() ? "Available" : "Unavailable"),
+                    tint: isConnected || model.dependencies.healthKit.isAvailable() ? AtlasPalette.primary : .orange
                 )
+                if model.dependencies.healthKit.isAvailable() && isConnected == false {
+                    Button("Connect Apple Health") {
+                        Task {
+                            await model.connectHealthKit()
+                            await model.updateOnboardingDraft { current in
+                                current.healthConnectionPromptSeen = true
+                            }
+                        }
+                    }
+                    .buttonStyle(AtlasPrimaryButtonStyle())
+                }
             }
         }
     }
@@ -694,6 +853,230 @@ private struct AtlasOnboardingPlanReadyStep: View {
     }
 }
 
+private struct AtlasOnboardingDraftField: View {
+    let title: String
+    let keyboardType: AtlasOnboardingKeyboardType
+    let persist: @Sendable (String) async -> Void
+
+    @State private var text: String
+    @State private var persistTask: Task<Void, Never>?
+
+    init(
+        title: String,
+        initialValue: String,
+        keyboardType: AtlasOnboardingKeyboardType = .default,
+        persist: @escaping @Sendable (String) async -> Void
+    ) {
+        self.title = title
+        self.keyboardType = keyboardType
+        self.persist = persist
+        _text = State(initialValue: initialValue)
+    }
+
+    var body: some View {
+        field
+            .onChange(of: text) { _, newValue in
+                persistTask?.cancel()
+                persistTask = Task {
+                    try? await Task.sleep(for: .milliseconds(250))
+                    guard Task.isCancelled == false else {
+                        return
+                    }
+                    await persist(newValue)
+                }
+            }
+            .onSubmit {
+                persistTask?.cancel()
+                persistTask = Task {
+                    await persist(text)
+                }
+            }
+            .onDisappear {
+                persistTask?.cancel()
+                let finalValue = text
+                Task {
+                    await persist(finalValue)
+                }
+            }
+    }
+
+    @ViewBuilder
+    private var field: some View {
+        let base = TextField(title, text: $text)
+            .atlasStandaloneInputSurface()
+
+        #if canImport(UIKit)
+        base.keyboardType(keyboardType.uiKeyboardType)
+        #else
+        base
+        #endif
+    }
+}
+
+private struct AtlasOnboardingStepperRow: View {
+    let title: String
+    let subtitle: String
+    let value: Binding<Int>
+    let isEnabled: Bool
+    let onEnable: () -> Void
+    let onDisable: () -> Void
+    let range: ClosedRange<Int>
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
+                    Text(title)
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(AtlasPalette.textPrimary)
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                }
+                Spacer()
+                if isEnabled {
+                    Button("Clear", action: onDisable)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(AtlasPalette.primary)
+                } else {
+                    Button("Add", action: onEnable)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(AtlasPalette.primary)
+                }
+            }
+
+            if isEnabled {
+                Stepper(value: value, in: range) {
+                    Text("\(value.wrappedValue)")
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(AtlasPalette.textPrimary)
+                }
+            }
+        }
+        .padding(.vertical, AtlasSpacing.xSmall)
+    }
+}
+
+private struct AtlasOnboardingDecimalStepperRow: View {
+    let title: String
+    let subtitle: String
+    let value: Binding<Double?>
+    let defaultValue: Double
+    let step: Double
+    let range: ClosedRange<Double>
+    let unitLabel: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
+                    Text(title)
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(AtlasPalette.textPrimary)
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                }
+                Spacer()
+                Button(value.wrappedValue == nil ? "Add" : "Clear") {
+                    value.wrappedValue = value.wrappedValue == nil ? defaultValue : nil
+                }
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(AtlasPalette.primary)
+            }
+
+            if let currentValue = value.wrappedValue {
+                HStack(spacing: AtlasSpacing.small) {
+                    Button {
+                        value.wrappedValue = max(range.lowerBound, currentValue - step)
+                    } label: {
+                        Image(systemName: "minus")
+                            .font(.body.weight(.semibold))
+                            .frame(width: 44, height: 44)
+                    }
+                    .buttonStyle(.plain)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(AtlasPalette.surfaceSecondary)
+                    )
+
+                    VStack(spacing: 4) {
+                        Text(formatted(currentValue))
+                            .font(.title3.weight(.bold))
+                            .foregroundStyle(AtlasPalette.textPrimary)
+                        Text(unitLabel)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(AtlasPalette.textTertiary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .fill(AtlasPalette.surfaceSecondary)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .stroke(AtlasPalette.border.opacity(0.8), lineWidth: 1)
+                    )
+
+                    Button {
+                        value.wrappedValue = min(range.upperBound, currentValue + step)
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.body.weight(.semibold))
+                            .frame(width: 44, height: 44)
+                    }
+                    .buttonStyle(.plain)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(AtlasPalette.surfaceSecondary)
+                    )
+                }
+            }
+        }
+        .padding(.vertical, AtlasSpacing.xSmall)
+    }
+
+    private func formatted(_ value: Double) -> String {
+        if abs(value.rounded() - value) < 0.001 {
+            return String(Int(value.rounded()))
+        }
+        return String(format: "%.1f", value)
+    }
+}
+
+private enum AtlasOnboardingKeyboardType {
+    case `default`
+    case numberPad
+    case decimalPad
+
+    #if canImport(UIKit)
+    var uiKeyboardType: UIKeyboardType {
+        switch self {
+        case .default:
+            .default
+        case .numberPad:
+            .numberPad
+        case .decimalPad:
+            .decimalPad
+        }
+    }
+    #endif
+}
+
+private enum AtlasKeyboard {
+    static func dismiss() {
+        #if canImport(UIKit)
+        UIApplication.shared.sendAction(
+            #selector(UIResponder.resignFirstResponder),
+            to: nil,
+            from: nil,
+            for: nil
+        )
+        #endif
+    }
+}
+
 private struct AtlasOnboardingTitle: View {
     let title: String
     let subtitle: String
@@ -704,7 +1087,9 @@ private struct AtlasOnboardingTitle: View {
                 .font(.title2.weight(.bold))
                 .foregroundStyle(AtlasPalette.textPrimary)
             Text(subtitle)
+                .font(.body.weight(.medium))
                 .foregroundStyle(AtlasPalette.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }
@@ -721,27 +1106,54 @@ private struct AtlasOptionCard: View {
                 VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
                     Text(title)
                         .font(.body.weight(.semibold))
-                        .foregroundStyle(AtlasPalette.textPrimary)
+                        .foregroundStyle(isSelected ? AtlasPalette.textPrimary : AtlasPalette.textPrimary)
                     Text(subtitle)
                         .font(.caption)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
                 Spacer()
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(isSelected ? AtlasPalette.primary : AtlasPalette.border)
+                ZStack {
+                    Circle()
+                        .fill(isSelected ? AtlasPalette.primary : AtlasPalette.surfaceMuted)
+                        .frame(width: 28, height: 28)
+                    Image(systemName: isSelected ? "checkmark" : "circle.fill")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(isSelected ? .white : AtlasPalette.border)
+                }
             }
             .padding(AtlasSpacing.large)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .fill(.white.opacity(0.96))
+                    .fill(
+                        LinearGradient(
+                            colors: isSelected
+                                ? [Color.white, AtlasPalette.secondaryFill]
+                                : [Color.white.opacity(0.98), AtlasPalette.surfaceSecondary],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
                     .stroke(isSelected ? AtlasPalette.primary : AtlasPalette.border, lineWidth: 1.2)
             )
+            .shadow(
+                color: isSelected ? AtlasPalette.primary.opacity(0.14) : AtlasPalette.shadow.opacity(0.18),
+                radius: isSelected ? 18 : 10,
+                x: 0,
+                y: isSelected ? 12 : 6
+            )
+            .scaleEffect(isSelected ? 1 : 0.995)
         }
         .buttonStyle(.plain)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title)
+        .accessibilityValue(isSelected ? "Selected" : "Not selected")
+        .accessibilityHint(subtitle)
+        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
     }
 }
 
@@ -752,15 +1164,76 @@ private struct AtlasToggleRow: View {
 
     var body: some View {
         Button(action: action) {
-            HStack {
+            HStack(spacing: AtlasSpacing.medium) {
                 Text(title)
+                    .font(.body.weight(.semibold))
                     .foregroundStyle(AtlasPalette.textPrimary)
                 Spacer()
-                Image(systemName: isOn ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(isOn ? AtlasPalette.primary : AtlasPalette.border)
+                ZStack {
+                    Capsule(style: .continuous)
+                        .fill(isOn ? AtlasPalette.secondaryFill : AtlasPalette.surfaceMuted)
+                        .frame(width: 54, height: 30)
+                    Circle()
+                        .fill(isOn ? AtlasPalette.primary : Color.white)
+                        .frame(width: 22, height: 22)
+                        .offset(x: isOn ? 12 : -12)
+                        .shadow(color: .black.opacity(0.08), radius: 4, x: 0, y: 2)
+                }
             }
+            .padding(.horizontal, AtlasSpacing.medium)
+            .padding(.vertical, AtlasSpacing.small)
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.white.opacity(0.98), AtlasPalette.surfaceSecondary],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(Color.white.opacity(0.82), lineWidth: 1)
+            )
         }
         .buttonStyle(.plain)
+        .contentShape(Rectangle())
+        .animation(.spring(response: 0.24, dampingFraction: 0.82), value: isOn)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title)
+        .accessibilityValue(isOn ? "On" : "Off")
+        .accessibilityHint("Double tap to toggle.")
+        .accessibilityAddTraits(.isButton)
+    }
+}
+
+private struct AtlasOnboardingValueRow: View {
+    let title: String
+    let subtitle: String
+    let symbol: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: AtlasSpacing.medium) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(AtlasPalette.secondaryFill)
+                    .frame(width: 42, height: 42)
+                Image(systemName: symbol)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(AtlasPalette.primary)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(AtlasPalette.textPrimary)
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(AtlasPalette.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 }
 

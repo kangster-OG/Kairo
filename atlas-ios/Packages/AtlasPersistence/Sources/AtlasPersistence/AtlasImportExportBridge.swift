@@ -24,6 +24,109 @@ public enum AtlasImportError: Error, LocalizedError, Sendable {
     }
 }
 
+struct AtlasImportTemplateDBRecord: Codable, FetchableRecord, PersistableRecord {
+    static let databaseTableName = "import_templates"
+
+    var id: String
+    var name: String
+    var importer: AtlasImporterKind
+    var genericCsvMappingJson: String?
+    var manualOptionsJson: String?
+    var createdAt: String
+    var updatedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case importer
+        case genericCsvMappingJson = "generic_csv_mapping_json"
+        case manualOptionsJson = "manual_options_json"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+
+    var domain: AtlasSavedImportTemplate {
+        AtlasSavedImportTemplate(
+            id: id,
+            name: name,
+            importer: importer,
+            genericCsvMapping: atlasImportDecode(AtlasGenericCsvMapping.self, from: genericCsvMappingJson),
+            manualOptions: atlasImportDecode(AtlasManualImportOptions.self, from: manualOptionsJson),
+            createdAt: atlasDate(from: createdAt),
+            updatedAt: atlasDate(from: updatedAt)
+        )
+    }
+
+    init(template: AtlasSavedImportTemplate) {
+        id = template.id
+        name = template.name
+        importer = template.importer
+        genericCsvMappingJson = atlasImportEncode(template.genericCsvMapping)
+        manualOptionsJson = atlasImportEncode(template.manualOptions)
+        createdAt = atlasTimestamp(from: template.createdAt)
+        updatedAt = atlasTimestamp(from: template.updatedAt)
+    }
+}
+
+struct AtlasRestorePointDBRecord: Codable, FetchableRecord, PersistableRecord {
+    static let databaseTableName = "restore_points"
+
+    var id: String
+    var title: String
+    var actionKind: AtlasRestorePointActionKind
+    var sourceSummary: String
+    var fileURL: String
+    var rowCount: Int
+    var createdAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case title
+        case actionKind = "action_kind"
+        case sourceSummary = "source_summary"
+        case fileURL = "file_url"
+        case rowCount = "row_count"
+        case createdAt = "created_at"
+    }
+
+    var domain: AtlasRestorePointSummary {
+        AtlasRestorePointSummary(
+            id: id,
+            title: title,
+            actionKind: actionKind,
+            sourceSummary: sourceSummary,
+            fileURL: URL(fileURLWithPath: fileURL),
+            rowCount: rowCount,
+            createdAt: atlasDate(from: createdAt)
+        )
+    }
+
+    init(summary: AtlasRestorePointSummary) {
+        id = summary.id
+        title = summary.title
+        actionKind = summary.actionKind
+        sourceSummary = summary.sourceSummary
+        fileURL = summary.fileURL.path
+        rowCount = summary.rowCount
+        createdAt = atlasTimestamp(from: summary.createdAt)
+    }
+}
+
+private func atlasImportEncode<T: Encodable>(_ value: T?) -> String? {
+    guard let value else {
+        return nil
+    }
+    let encoder = JSONEncoder()
+    return (try? encoder.encode(value)).flatMap { String(data: $0, encoding: .utf8) }
+}
+
+private func atlasImportDecode<T: Decodable>(_ type: T.Type, from string: String?) -> T? {
+    guard let string, let data = string.data(using: .utf8) else {
+        return nil
+    }
+    return try? JSONDecoder().decode(type, from: data)
+}
+
 public actor GRDBImportExportBridge: ImportExportBridging {
     let stack: AtlasDatabaseStack
     let projectionWriter: GRDBSharedProjectionWriter
@@ -96,6 +199,75 @@ public actor GRDBImportExportBridge: ImportExportBridging {
         ]
     }
 
+    public func listImportTemplates(importer: AtlasImporterKind?) async throws -> [AtlasSavedImportTemplate] {
+        try await stack.canonical.read { db in
+            if let importer {
+                return try AtlasImportTemplateDBRecord
+                    .filter(Column("importer") == importer.rawValue)
+                    .order(Column("updated_at").desc)
+                    .fetchAll(db)
+                    .map(\.domain)
+            }
+
+            return try AtlasImportTemplateDBRecord
+                .order(Column("updated_at").desc)
+                .fetchAll(db)
+                .map(\.domain)
+        }
+    }
+
+    public func saveImportTemplate(
+        _ draft: AtlasImportTemplateDraft,
+        now: Date
+    ) async throws -> AtlasSavedImportTemplate {
+        let trimmedName = draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmedName.isEmpty == false else {
+            throw AtlasImportError.invalidPayload
+        }
+
+        switch draft.importer {
+        case .genericCSV:
+            guard draft.genericCsvMapping != nil else {
+                throw AtlasImportError.invalidPayload
+            }
+        case .manualText:
+            guard draft.manualOptions != nil else {
+                throw AtlasImportError.invalidPayload
+            }
+        default:
+            throw AtlasImportError.invalidPayload
+        }
+
+        return try await stack.canonical.write { db in
+            let existing = try AtlasImportTemplateDBRecord
+                .filter(sql: "lower(name) = lower(?) AND importer = ?", arguments: [trimmedName, draft.importer.rawValue])
+                .fetchOne(db)
+
+            let template = AtlasSavedImportTemplate(
+                id: existing?.id ?? "import_template_\(UUID().uuidString.lowercased())",
+                name: trimmedName,
+                importer: draft.importer,
+                genericCsvMapping: draft.genericCsvMapping,
+                manualOptions: draft.manualOptions,
+                createdAt: existing.map { atlasDate(from: $0.createdAt) } ?? now,
+                updatedAt: now
+            )
+            let record = AtlasImportTemplateDBRecord(template: template)
+            if existing == nil {
+                try record.insert(db)
+            } else {
+                try record.update(db)
+            }
+            return template
+        }
+    }
+
+    public func deleteImportTemplate(id: String) async throws {
+        try await stack.canonical.write { db in
+            _ = try AtlasImportTemplateDBRecord.deleteOne(db, key: id)
+        }
+    }
+
     public func prepareImport(at url: URL) async throws -> AtlasPreparedImport {
         let (bundle, _, _) = try decodeBundle(at: url)
         let validation = try await validateImport(at: url)
@@ -107,7 +279,9 @@ public actor GRDBImportExportBridge: ImportExportBridging {
                 warnings: staged.warnings,
                 privacyNotes: staged.privacyNotes,
                 backfillNotes: staged.backfillNotes,
-                db: db
+                lintFindings: [],
+                db: db,
+                featureFlags: featureFlags
             )
         }
 
@@ -132,6 +306,70 @@ public actor GRDBImportExportBridge: ImportExportBridging {
 
     public func cancelPreparedImport(_ prepared: AtlasPreparedImport) async {
         _ = prepared
+    }
+
+    public func listRestorePoints() async throws -> [AtlasRestorePointSummary] {
+        try await stack.canonical.read { db in
+            try AtlasRestorePointDBRecord
+                .order(Column("created_at").desc)
+                .fetchAll(db)
+                .map(\.domain)
+                .filter { FileManager.default.fileExists(atPath: $0.fileURL.path) }
+        }
+    }
+
+    public func previewRestorePoint(id: String) async throws -> AtlasRestorePointPreview {
+        let restorePoint = try await stack.canonical.read { db in
+            guard let record = try AtlasRestorePointDBRecord.fetchOne(db, key: id) else {
+                throw AtlasImportError.invalidPayload
+            }
+            return record.domain
+        }
+
+        let prepared = try await prepareImport(at: restorePoint.fileURL)
+        return AtlasRestorePointPreview(
+            restorePoint: restorePoint,
+            datasetDiffs: prepared.dryRun.datasetDiffs,
+            recordsToCreate: prepared.dryRun.recordsToCreate,
+            recordsToUpdate: prepared.dryRun.recordsToUpdate,
+            warnings: prepared.dryRun.warnings,
+            notes: [
+                "Restore replays the saved Atlas JSON snapshot transactionally.",
+                "Current local data is backed up again before the restore replaces anything.",
+                "Historical logs inside the restore point remain immutable rows."
+            ],
+            rowCount: snapshotRowCount(prepared.stagedSnapshot)
+        )
+    }
+
+    public func restoreRestorePoint(
+        id: String,
+        now: Date
+    ) async throws -> AtlasRestoreCommitResult {
+        let restorePoint = try await stack.canonical.read { db in
+            guard let record = try AtlasRestorePointDBRecord.fetchOne(db, key: id) else {
+                throw AtlasImportError.invalidPayload
+            }
+            return record.domain
+        }
+        let prepared = try await prepareImport(at: restorePoint.fileURL)
+        let result = try await commitSnapshot(
+            prepared.stagedSnapshot,
+            mode: .replaceExisting,
+            sourceSummary: restorePoint.title,
+            now: now,
+            auditEventType: .restoreCommitted,
+            auditSurface: "restore_center",
+            destructiveActionKind: .restoreCommit
+        )
+
+        return AtlasRestoreCommitResult(
+            restoredPoint: restorePoint,
+            backupURL: result.backupURL,
+            restoredProtocolCount: result.importedProtocolCount,
+            restoredLogEventCount: result.importedLogEventCount,
+            nextDue: result.nextDue
+        )
     }
 
     nonisolated public func exportStatusDescription() -> String {
@@ -279,7 +517,9 @@ public actor GRDBImportExportBridge: ImportExportBridging {
         warnings: [String],
         privacyNotes: [String],
         backfillNotes: [String],
-        db: Database
+        lintFindings: [AtlasImportLintItem],
+        db: Database,
+        featureFlags: AtlasFeatureFlagState
     ) throws -> AtlasImportDryRunSummary {
         let datasetDiffs = try AtlasImportDataset.allCases.map { dataset in
             let incomingIDs = datasetIdentifiers(from: snapshot, for: dataset)
@@ -288,16 +528,174 @@ public actor GRDBImportExportBridge: ImportExportBridging {
             let creates = incomingIDs.count - updates
             return AtlasDatasetDiff(dataset: dataset.rawValue, creates: creates, updates: updates)
         }
+        let mergedLintFindings = try lintImportSnapshot(
+            snapshot: snapshot,
+            datasetDiffs: datasetDiffs,
+            existingProtocolNames: Set(
+                String.fetchAll(db, sql: "SELECT name FROM protocols")
+                    .map(normalizedProtocolName(_:))
+            ),
+            supplemental: lintFindings
+        )
+        let summarySettings = try readSummarySettings(db: db, featureFlags: featureFlags)
+        let plainLanguageSummary = buildImportDiffSummaryRequest(
+            sourceLabel: validation.manifest.format,
+            datasetDiffs: datasetDiffs,
+            recordsToCreate: datasetDiffs.reduce(0) { $0 + $1.creates },
+            recordsToUpdate: datasetDiffs.reduce(0) { $0 + $1.updates },
+            lintFindings: mergedLintFindings,
+            warnings: warnings,
+            privacyNotes: privacyNotes,
+            backfillNotes: backfillNotes,
+            referenceDate: Date()
+        ).flatMap {
+            AtlasSummaryService(
+                featureFlags: featureFlags,
+                settings: summarySettings
+            ).generate($0)
+        }
 
         return AtlasImportDryRunSummary(
             validation: validation,
             datasetDiffs: datasetDiffs,
             recordsToCreate: datasetDiffs.reduce(0) { $0 + $1.creates },
             recordsToUpdate: datasetDiffs.reduce(0) { $0 + $1.updates },
+            lintFindings: mergedLintFindings,
             warnings: warnings,
             privacyNotes: privacyNotes,
-            backfillNotes: backfillNotes
+            backfillNotes: backfillNotes,
+            plainLanguageSummary: plainLanguageSummary
         )
+    }
+
+    nonisolated static func lintImportSnapshot(
+        snapshot: AtlasExportSnapshot,
+        datasetDiffs: [AtlasDatasetDiff],
+        existingProtocolNames: Set<String>,
+        supplemental: [AtlasImportLintItem]
+    ) throws -> [AtlasImportLintItem] {
+        var findings = supplemental
+
+        let groupedImportedNames = Dictionary(grouping: snapshot.protocols, by: {
+            normalizedProtocolName($0.name)
+        })
+        let duplicatedImportedNames = groupedImportedNames
+            .filter { $0.key.isEmpty == false && $0.value.count > 1 }
+            .keys
+            .sorted()
+        if duplicatedImportedNames.isEmpty == false {
+            findings.append(
+                AtlasImportLintItem(
+                    id: "lint.duplicate.imported_names",
+                    category: .duplicateProtocolName,
+                    severity: .warning,
+                    summary: "Imported protocol names repeat after normalization.",
+                    detail: duplicatedImportedNames.joined(separator: ", ")
+                )
+            )
+        }
+
+        let overlappingNames = Set(groupedImportedNames.keys)
+            .subtracting([""])
+            .intersection(existingProtocolNames)
+            .sorted()
+        if overlappingNames.isEmpty == false {
+            findings.append(
+                AtlasImportLintItem(
+                    id: "lint.duplicate.existing_names",
+                    category: .duplicateProtocolName,
+                    severity: .warning,
+                    summary: "Imported protocol names already exist locally.",
+                    detail: overlappingNames.joined(separator: ", ")
+                )
+            )
+        }
+
+        let overlappingDatasets = datasetDiffs
+            .filter { $0.updates > 0 }
+            .map { "\($0.dataset): \($0.updates)" }
+        if overlappingDatasets.isEmpty == false {
+            findings.append(
+                AtlasImportLintItem(
+                    id: "lint.stable_id_overlap",
+                    category: .stableIDOverlap,
+                    severity: .warning,
+                    summary: "Stable ids already exist locally and will be replaced on commit.",
+                    detail: overlappingDatasets.joined(separator: " • ")
+                )
+            )
+        }
+
+        let scheduleGroups = Dictionary(grouping: snapshot.protocols) {
+            [
+                $0.startDate,
+                $0.defaultTimeOfDay ?? "none",
+                $0.timezone,
+                $0.kind.rawValue
+            ].joined(separator: "|")
+        }
+        let collisions = scheduleGroups
+            .filter { $0.value.count > 1 }
+            .map { group in
+                group.value.map(\.name).sorted().joined(separator: ", ")
+            }
+            .sorted()
+        if collisions.isEmpty == false {
+            findings.append(
+                AtlasImportLintItem(
+                    id: "lint.schedule_collisions",
+                    category: .dateTimeParsingCollision,
+                    severity: .info,
+                    summary: "Multiple imported rows resolve to the same parsed schedule window.",
+                    detail: collisions.joined(separator: " • ")
+                )
+            )
+        }
+
+        let missingUnits = snapshot.protocols
+            .filter { $0.doseAmount != nil && ($0.doseUnit?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false) }
+            .map(\.name)
+            .sorted()
+        if missingUnits.isEmpty == false {
+            findings.append(
+                AtlasImportLintItem(
+                    id: "lint.ambiguous_units.missing",
+                    category: .ambiguousUnitMapping,
+                    severity: .warning,
+                    summary: "Dose amounts were imported without a clear unit.",
+                    detail: missingUnits.joined(separator: ", ")
+                )
+            )
+        }
+
+        let mixedUnits = Dictionary(grouping: snapshot.protocols, by: { normalizedProtocolName($0.name) })
+            .compactMap { entry -> String? in
+                let units = Set(entry.value.compactMap { $0.doseUnit?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }.filter { $0.isEmpty == false })
+                guard units.count > 1 else {
+                    return nil
+                }
+                return "\(entry.value.first?.name ?? "Imported protocol"): \(units.sorted().joined(separator: ", "))"
+            }
+            .sorted()
+        if mixedUnits.isEmpty == false {
+            findings.append(
+                AtlasImportLintItem(
+                    id: "lint.ambiguous_units.mixed",
+                    category: .ambiguousUnitMapping,
+                    severity: .info,
+                    summary: "Imported rows for the same protocol name use multiple units.",
+                    detail: mixedUnits.joined(separator: " • ")
+                )
+            )
+        }
+
+        return findings
+    }
+
+    nonisolated static func normalizedProtocolName(_ value: String) -> String {
+        value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
     }
 
     private func exportBackupSnapshot() async throws -> URL {
@@ -357,7 +755,9 @@ public actor GRDBImportExportBridge: ImportExportBridging {
                 protocolID: projection.protocolId,
                 displayTitle: title,
                 dueLabel: relativeDueLabel(for: atlasDate(from: projection.scheduledAt)),
-                scheduledAt: projection.scheduledAt
+                scheduledAt: projection.scheduledAt,
+                state: .upcoming,
+                statusSummary: relativeDueLabel(for: atlasDate(from: projection.scheduledAt))
             )
         }
 
@@ -416,7 +816,9 @@ public actor GRDBImportExportBridge: ImportExportBridging {
                     canonical: protocolRecord.name,
                     alias: aliases[projection.protocolId]?.aliasLabel,
                     mode: extensionMode
-                )
+                ),
+                dueLabel: relativeDueLabel(for: atlasDate(from: projection.scheduledAt)),
+                state: .upcoming
             )
         }
 
