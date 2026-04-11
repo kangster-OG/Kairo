@@ -33,7 +33,8 @@ The native app now includes:
 - native reminders and quick logging
 - inventory, vials, calculator profiles, and site tracking
 - Trust Vault, selective sharing, raw exports, provider handoff, and Review Mode
-- metrics/insights and deterministic Episode Intelligence
+- metrics/insights, optional rewards, and deterministic Episode Intelligence
+- lightweight nutrition tracking with meal context, quick capture, common foods, hydration/protein/fiber targets, and weekly coaching
 
 ## Open in Xcode
 Open `Atlas.xcodeproj` in Xcode 26.3+ and run the `Atlas` scheme on an iOS 17 simulator or device.
@@ -69,6 +70,7 @@ Notes:
 - local Swift packages live under `atlas-ios/Packages/`
 - local package resolution is fully path-based inside the repo
 - the app is local-first and guest-first by default
+- rewards and nutrition coaching stay deterministic and local-first; they do not require an LLM or cloud nutrition service
 - widgets and intents compile, but business logic stays intentionally narrow compared with the main app
 - HealthKit remains scaffold-only
 - see `../docs/native-release-readiness.md` for final release status and `../qa/native-ios-release-manual-checklist.md` for manual beta QA

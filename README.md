@@ -66,6 +66,8 @@ The native app currently includes:
 - universal import and provider handoff
 - Review Mode
 - metrics, custom metrics, and insights
+- optional rewards for consistency, workouts, self-defined goals, and descriptive weight progress
+- lightweight nutrition support with meal context, quick capture, common foods, hydration/protein/fiber targets, and weekly coaching
 - deterministic Episode Intelligence
 
 ## Build and verification
