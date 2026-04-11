@@ -5191,6 +5191,388 @@ final class AtlasPhaseOneTests: XCTestCase {
         XCTAssertFalse(disabled.retentionSettings.companionEnabled)
     }
 
+    func testRewardsSettingsDefaultOffAndPersistTargets() async throws {
+        let controller = try makeInMemoryController()
+        let now = Date(timeIntervalSince1970: 1_774_000_600)
+
+        let initial = try await controller.container.settings.currentSettingsSnapshot()
+        XCTAssertFalse(initial.rewardsSettings.enabled)
+        XCTAssertEqual(initial.rewardsSettings.weeklyWorkoutGoal, 3)
+        XCTAssertEqual(initial.rewardsSettings.weeklySelfGoalTarget, 2)
+
+        let updated = try await controller.container.settings.updateRewardsSettings(
+            AtlasRewardsSettingsUpdate(
+                enabled: true,
+                weeklyWorkoutGoal: 4,
+                weeklySelfGoalTarget: 3
+            ),
+            now: now
+        )
+
+        XCTAssertTrue(updated.rewardsSettings.enabled)
+        XCTAssertEqual(updated.rewardsSettings.weeklyWorkoutGoal, 4)
+        XCTAssertEqual(updated.rewardsSettings.weeklySelfGoalTarget, 3)
+    }
+
+    func testRewardsSnapshotStaysHiddenByDefault() async throws {
+        let controller = try makeInMemoryController()
+        let snapshot = try await controller.container.rewards.fetchRewardsSnapshot(referenceDate: Date())
+
+        XCTAssertFalse(snapshot.settings.enabled)
+        XCTAssertEqual(snapshot.totalPoints, 0)
+        XCTAssertEqual(snapshot.level, 1)
+        XCTAssertTrue(snapshot.streaks.isEmpty)
+        XCTAssertTrue(snapshot.goals.isEmpty)
+        XCTAssertTrue(snapshot.badges.isEmpty)
+    }
+
+    func testRewardsSnapshotBuildsStreaksGoalsBadgesAndPoints() async throws {
+        let controller = try makeInMemoryController()
+        let now = Date(timeIntervalSince1970: 1_774_345_600)
+
+        _ = try await controller.container.settings.updateRewardsSettings(
+            AtlasRewardsSettingsUpdate(
+                enabled: true,
+                weeklyWorkoutGoal: 3,
+                weeklySelfGoalTarget: 2
+            ),
+            now: now
+        )
+
+        _ = try await controller.container.onboarding.saveDraft(
+            AtlasOnboardingDraft(
+                profile: AtlasOnboardingProfile(
+                    goalWeight: 180,
+                    weight: 190,
+                    weightUnit: .lb
+                ),
+                glp: AtlasOnboardingGlpSetup(goal: "Build a repeatable routine")
+            ),
+            now: now
+        )
+
+        let hydrationGoal = try await controller.container.metrics.saveMetricDefinition(
+            AtlasMetricDefinitionDraft(
+                label: "Hydration goal",
+                valueType: .boolean
+            ),
+            now: now.addingTimeInterval(30)
+        )
+        let proteinGoal = try await controller.container.metrics.saveMetricDefinition(
+            AtlasMetricDefinitionDraft(
+                label: "Protein goal",
+                valueType: .boolean
+            ),
+            now: now.addingTimeInterval(40)
+        )
+        _ = try await controller.container.metrics.saveMetricValueEntry(
+            AtlasMetricValueEntryDraft(
+                metricID: hydrationGoal.id,
+                loggedAt: now.addingTimeInterval(-3_600),
+                booleanValue: true
+            ),
+            now: now.addingTimeInterval(-3_600)
+        )
+        _ = try await controller.container.metrics.saveMetricValueEntry(
+            AtlasMetricValueEntryDraft(
+                metricID: proteinGoal.id,
+                loggedAt: now.addingTimeInterval(-1_800),
+                booleanValue: true
+            ),
+            now: now.addingTimeInterval(-1_800)
+        )
+
+        for dayOffset in stride(from: 6, through: 0, by: -1) {
+            let loggedAt = now.addingTimeInterval(TimeInterval(-86_400 * dayOffset))
+            _ = try await controller.container.metrics.saveWeightEntry(
+                AtlasWeightEntryDraft(
+                    loggedAt: loggedAt,
+                    value: 190 - Double(6 - dayOffset),
+                    unit: .lb,
+                    notes: nil
+                ),
+                now: loggedAt
+            )
+        }
+
+        let workouts = [
+            AtlasHealthWorkoutSample(
+                id: "reward_workout_1",
+                activityKind: .run,
+                startedAt: now.addingTimeInterval(-2 * 86_400),
+                endedAt: now.addingTimeInterval(-2 * 86_400 + 2_700),
+                durationMinutes: 45,
+                energyBurnedKilocalories: 600
+            ),
+            AtlasHealthWorkoutSample(
+                id: "reward_workout_2",
+                activityKind: .strength,
+                startedAt: now.addingTimeInterval(-86_400),
+                endedAt: now.addingTimeInterval(-86_400 + 3_000),
+                durationMinutes: 50,
+                energyBurnedKilocalories: 550
+            ),
+            AtlasHealthWorkoutSample(
+                id: "reward_workout_3",
+                activityKind: .cycle,
+                startedAt: now.addingTimeInterval(-3_600),
+                endedAt: now.addingTimeInterval(-900),
+                durationMinutes: 45,
+                energyBurnedKilocalories: 500
+            )
+        ]
+        _ = try await controller.container.metrics.importWorkoutSamples(workouts, now: now)
+
+        let snapshot = try await controller.container.rewards.fetchRewardsSnapshot(referenceDate: now)
+        let activityStreak = try XCTUnwrap(snapshot.streaks.first(where: { $0.kind == .activityDays }))
+        let selfGoalStreak = try XCTUnwrap(snapshot.streaks.first(where: { $0.kind == .selfGoalWeeks }))
+        let workoutGoal = try XCTUnwrap(snapshot.goals.first(where: { $0.kind == .weeklyWorkouts }))
+        let selfGoal = try XCTUnwrap(snapshot.goals.first(where: { $0.kind == .selfDefinedGoals }))
+        let weightGoal = try XCTUnwrap(snapshot.goals.first(where: { $0.kind == .weightGoal }))
+
+        XCTAssertTrue(snapshot.settings.enabled)
+        XCTAssertEqual(activityStreak.count, 7)
+        XCTAssertTrue(activityStreak.isActive)
+        XCTAssertEqual(selfGoalStreak.count, 1)
+        XCTAssertTrue(selfGoalStreak.isActive)
+        XCTAssertTrue(workoutGoal.isMet)
+        XCTAssertTrue(selfGoal.isMet)
+        XCTAssertGreaterThanOrEqual(weightGoal.progress, 0.25)
+        XCTAssertTrue(snapshot.badges.contains(where: { $0.kind == .activityStreak7 && $0.isEarned }))
+        XCTAssertTrue(snapshot.badges.contains(where: { $0.kind == .workoutGoalMet && $0.isEarned }))
+        XCTAssertTrue(snapshot.badges.contains(where: { $0.kind == .selfGoalTargetMet && $0.isEarned }))
+        XCTAssertTrue(snapshot.badges.contains(where: { $0.kind == .weightCheckpoint && $0.isEarned }))
+        XCTAssertGreaterThan(snapshot.totalPoints, 0)
+        XCTAssertGreaterThan(snapshot.level, 1)
+    }
+
+    func testInsightsNutritionSnapshotBuildsTargetsAndMealFavorites() async throws {
+        let controller = try makeInMemoryController()
+        let now = Date(timeIntervalSince1970: 1_774_518_000)
+
+        _ = try await controller.container.metrics.saveContextPreset(
+            AtlasContextPresetDraft(
+                title: "Protein lunch",
+                mealTiming: .lunch,
+                mealSize: .standard,
+                mealComposition: .proteinHeavy,
+                fedState: .fed
+            ),
+            now: now.addingTimeInterval(-600)
+        )
+        _ = try await controller.container.metrics.saveContextPreset(
+            AtlasContextPresetDraft(
+                title: "Fiber dinner",
+                mealTiming: .dinner,
+                mealSize: .standard,
+                mealComposition: .fiberForward,
+                fedState: .fed
+            ),
+            now: now.addingTimeInterval(-540)
+        )
+
+        _ = try await controller.container.metrics.saveContextEntry(
+            AtlasContextEntryDraft(
+                loggedAt: now.addingTimeInterval(-18_000),
+                mealTiming: .breakfast,
+                mealSize: .standard,
+                mealComposition: .proteinHeavy,
+                fedState: .fed,
+                hydration: .high
+            ),
+            now: now.addingTimeInterval(-18_000)
+        )
+        _ = try await controller.container.metrics.saveContextEntry(
+            AtlasContextEntryDraft(
+                loggedAt: now.addingTimeInterval(-12_000),
+                mealTiming: .lunch,
+                mealSize: .standard,
+                mealComposition: .proteinHeavy,
+                fedState: .fed
+            ),
+            now: now.addingTimeInterval(-12_000)
+        )
+        _ = try await controller.container.metrics.saveContextEntry(
+            AtlasContextEntryDraft(
+                loggedAt: now.addingTimeInterval(-4_200),
+                mealTiming: .dinner,
+                mealSize: .standard,
+                mealComposition: .fiberForward,
+                fedState: .fed,
+                hydration: .high
+            ),
+            now: now.addingTimeInterval(-4_200)
+        )
+
+        let snapshot = try await controller.container.metrics.fetchInsightsSnapshot(referenceDate: now)
+        let proteinTarget = try XCTUnwrap(snapshot.nutritionSnapshot.dailyTargets.first(where: { $0.kind == .proteinMeals }))
+        let fiberTarget = try XCTUnwrap(snapshot.nutritionSnapshot.dailyTargets.first(where: { $0.kind == .fiberMeals }))
+        let hydrationTarget = try XCTUnwrap(snapshot.nutritionSnapshot.dailyTargets.first(where: { $0.kind == .hydrationCheckins }))
+
+        XCTAssertEqual(snapshot.nutritionSnapshot.favoriteMealCount, 2)
+        XCTAssertEqual(snapshot.nutritionSnapshot.recentMealCount, 3)
+        XCTAssertNotNil(snapshot.nutritionSnapshot.latestMealLabel)
+        XCTAssertTrue(proteinTarget.isMet)
+        XCTAssertTrue(fiberTarget.isMet)
+        XCTAssertTrue(hydrationTarget.isMet)
+    }
+
+    func testNutritionQuickCaptureParsesFreeformMealsAndPackageCodes() throws {
+        let now = Date(timeIntervalSince1970: 1_774_518_000)
+
+        let parsed = try XCTUnwrap(
+            atlasNutritionQuickCaptureSuggestion(
+                for: "post workout protein shake and water",
+                loggedAt: now
+            )
+        )
+        let packageMatch = try XCTUnwrap(
+            atlasNutritionPackageCodeSuggestion(
+                for: "SHAKE-01",
+                loggedAt: now
+            )
+        )
+        let lookupItems = atlasNutritionLookupItems(matching: "salad greens", limit: 3)
+
+        XCTAssertEqual(parsed.source, .freeform)
+        XCTAssertEqual(parsed.draft.mealComposition, .proteinHeavy)
+        XCTAssertEqual(parsed.draft.mealTiming, .snack)
+        XCTAssertEqual(parsed.draft.note, "post workout protein shake and water")
+        XCTAssertEqual(packageMatch.source, .packageCode)
+        XCTAssertEqual(packageMatch.draft.mealComposition, .proteinHeavy)
+        XCTAssertTrue(lookupItems.contains(where: { $0.id == "big-salad-bowl" }))
+    }
+
+    func testInsightsNutritionSnapshotBuildsWeeklySignalsAndCoaching() async throws {
+        let controller = try makeInMemoryController()
+        let now = Date(timeIntervalSince1970: 1_774_604_400)
+
+        _ = try await controller.container.onboarding.saveDraft(
+            AtlasOnboardingDraft(
+                profile: AtlasOnboardingProfile(
+                    goalWeight: 180,
+                    weight: 190,
+                    weightUnit: .lb
+                ),
+                glp: AtlasOnboardingGlpSetup(goal: "Keep meals and training consistent")
+            ),
+            now: now
+        )
+
+        let contextEntries: [AtlasContextEntryDraft] = [
+            AtlasContextEntryDraft(
+                loggedAt: now.addingTimeInterval(-6 * 86_400 + 7 * 3_600),
+                mealTiming: .breakfast,
+                mealSize: .standard,
+                mealComposition: .proteinHeavy,
+                fedState: .fed
+            ),
+            AtlasContextEntryDraft(
+                loggedAt: now.addingTimeInterval(-6 * 86_400 + 12 * 3_600),
+                mealTiming: .lunch,
+                mealSize: .standard,
+                mealComposition: .proteinHeavy,
+                fedState: .fed
+            ),
+            AtlasContextEntryDraft(
+                loggedAt: now.addingTimeInterval(-5 * 86_400 + 8 * 3_600),
+                mealTiming: .breakfast,
+                mealSize: .standard,
+                mealComposition: .proteinHeavy,
+                fedState: .fed
+            ),
+            AtlasContextEntryDraft(
+                loggedAt: now.addingTimeInterval(-5 * 86_400 + 18 * 3_600),
+                mealTiming: .dinner,
+                mealSize: .standard,
+                mealComposition: .fiberForward,
+                fedState: .fed
+            ),
+            AtlasContextEntryDraft(
+                loggedAt: now.addingTimeInterval(-4 * 86_400 + 7 * 3_600),
+                mealTiming: .breakfast,
+                mealSize: .standard,
+                mealComposition: .proteinHeavy,
+                fedState: .fed,
+                hydration: .high
+            ),
+            AtlasContextEntryDraft(
+                loggedAt: now.addingTimeInterval(-4 * 86_400 + 19 * 3_600),
+                hydration: .high,
+                giTags: [.calm]
+            ),
+            AtlasContextEntryDraft(
+                loggedAt: now.addingTimeInterval(-2 * 86_400 + 11 * 3_600),
+                mealTiming: .lunch,
+                mealSize: .standard,
+                mealComposition: .fiberForward,
+                fedState: .fed
+            ),
+            AtlasContextEntryDraft(
+                loggedAt: now.addingTimeInterval(-2 * 86_400 + 13 * 3_600),
+                hydration: .high,
+                giTags: [.calm]
+            ),
+            AtlasContextEntryDraft(
+                loggedAt: now.addingTimeInterval(-3_600),
+                mealTiming: .snack,
+                mealSize: .light,
+                mealComposition: .proteinHeavy,
+                fedState: .fed
+            )
+        ]
+        for entry in contextEntries {
+            _ = try await controller.container.metrics.saveContextEntry(entry, now: entry.loggedAt)
+        }
+
+        _ = try await controller.container.metrics.saveWeightEntry(
+            AtlasWeightEntryDraft(
+                loggedAt: now.addingTimeInterval(-10 * 86_400),
+                value: 190,
+                unit: .lb
+            ),
+            now: now.addingTimeInterval(-10 * 86_400)
+        )
+        _ = try await controller.container.metrics.saveWeightEntry(
+            AtlasWeightEntryDraft(
+                loggedAt: now.addingTimeInterval(-86_400),
+                value: 186,
+                unit: .lb
+            ),
+            now: now.addingTimeInterval(-86_400)
+        )
+
+        let workouts = [
+            AtlasHealthWorkoutSample(
+                id: "nutrition_workout_1",
+                activityKind: .run,
+                startedAt: now.addingTimeInterval(-5 * 86_400 + 13 * 3_600),
+                endedAt: now.addingTimeInterval(-5 * 86_400 + 14 * 3_600),
+                durationMinutes: 60,
+                energyBurnedKilocalories: 520
+            ),
+            AtlasHealthWorkoutSample(
+                id: "nutrition_workout_2",
+                activityKind: .strength,
+                startedAt: now.addingTimeInterval(-12 * 3_600),
+                endedAt: now.addingTimeInterval(-10 * 3_600),
+                durationMinutes: 120,
+                energyBurnedKilocalories: 450
+            )
+        ]
+        _ = try await controller.container.metrics.importWorkoutSamples(workouts, now: now)
+
+        let snapshot = try await controller.container.metrics.fetchInsightsSnapshot(referenceDate: now)
+        let proteinSignal = try XCTUnwrap(snapshot.nutritionSnapshot.weeklySignals.first(where: { $0.kind == .proteinDays }))
+        let workoutSignal = try XCTUnwrap(snapshot.nutritionSnapshot.weeklySignals.first(where: { $0.kind == .workoutFueling }))
+
+        XCTAssertEqual(proteinSignal.valueLabel, "1 of 7 days")
+        XCTAssertEqual(workoutSignal.valueLabel, "1 of 2 workouts")
+        XCTAssertTrue(snapshot.nutritionSnapshot.coachingCards.contains(where: { $0.kind == .workoutFueling }))
+        XCTAssertTrue(snapshot.nutritionSnapshot.coachingCards.contains(where: { $0.kind == .weight }))
+        XCTAssertFalse(snapshot.nutritionSnapshot.coachingCards.isEmpty)
+    }
+
     @MainActor
     func testRetentionSnapshotStaysHiddenByDefaultAndModelRefreshLoadsCleanly() async throws {
         let controller = try makeInMemoryController()

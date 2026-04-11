@@ -31,6 +31,7 @@ public protocol SettingsRepository: Sendable {
     func updateTrustVaultRenderMode(_ renderMode: AtlasPrivacyRenderMode, now: Date) async throws -> AtlasSettingsSnapshot
     func updateSummarySettings(_ update: AtlasSummarySettingsUpdate, now: Date) async throws -> AtlasSettingsSnapshot
     func updateRetentionSettings(_ update: AtlasRetentionSettingsUpdate, now: Date) async throws -> AtlasSettingsSnapshot
+    func updateRewardsSettings(_ update: AtlasRewardsSettingsUpdate, now: Date) async throws -> AtlasSettingsSnapshot
     func updateHealthConnection(
         provider: AtlasHealthProviderKey,
         enabled: Bool,
@@ -141,6 +142,10 @@ public protocol RetentionRepository: Sendable {
     func markWeeklyReviewComplete(now: Date) async throws -> AtlasRetentionSnapshot
 }
 
+public protocol RewardsRepository: Sendable {
+    func fetchRewardsSnapshot(referenceDate: Date) async throws -> AtlasRewardsSnapshot
+}
+
 public protocol ReminderCoordinating: Sendable {
     func authorizationStatus() async -> AtlasNotificationAuthorizationStatus
     func requestAuthorization() async throws -> AtlasNotificationAuthorizationStatus
@@ -170,6 +175,7 @@ public struct AtlasPersistenceContainer: Sendable {
     public var changeStudio: any ProtocolChangeStudioRepository
     public var reviewMode: any ReviewModeRepository
     public var retention: any RetentionRepository
+    public var rewards: any RewardsRepository
 
     public init(
         onboarding: any OnboardingRepository,
@@ -185,7 +191,8 @@ public struct AtlasPersistenceContainer: Sendable {
         metrics: any MetricsRepository,
         changeStudio: any ProtocolChangeStudioRepository,
         reviewMode: any ReviewModeRepository,
-        retention: any RetentionRepository
+        retention: any RetentionRepository,
+        rewards: any RewardsRepository
     ) {
         self.onboarding = onboarding
         self.protocols = protocols
@@ -201,6 +208,7 @@ public struct AtlasPersistenceContainer: Sendable {
         self.changeStudio = changeStudio
         self.reviewMode = reviewMode
         self.retention = retention
+        self.rewards = rewards
     }
 }
 
@@ -264,6 +272,7 @@ public struct AtlasPersistenceController: Sendable {
             stack: stack,
             featureFlags: featureFlags
         )
+        let rewardsRepository = GRDBRewardsRepository(stack: stack)
         let container = AtlasPersistenceContainer(
             onboarding: GRDBOnboardingRepository(
                 stack: stack,
@@ -285,7 +294,8 @@ public struct AtlasPersistenceController: Sendable {
             metrics: metricsRepository,
             changeStudio: changeStudioRepository,
             reviewMode: reviewModeRepository,
-            retention: retentionRepository
+            retention: retentionRepository,
+            rewards: rewardsRepository
         )
         let bridge = GRDBImportExportBridge(
             stack: stack,
@@ -345,6 +355,7 @@ public struct AtlasPersistenceController: Sendable {
             stack: stack,
             featureFlags: featureFlags
         )
+        let rewardsRepository = GRDBRewardsRepository(stack: stack)
         let container = AtlasPersistenceContainer(
             onboarding: GRDBOnboardingRepository(
                 stack: stack,
@@ -366,7 +377,8 @@ public struct AtlasPersistenceController: Sendable {
             metrics: metricsRepository,
             changeStudio: changeStudioRepository,
             reviewMode: reviewModeRepository,
-            retention: retentionRepository
+            retention: retentionRepository,
+            rewards: rewardsRepository
         )
         let bridge = GRDBImportExportBridge(
             stack: stack,
@@ -433,6 +445,7 @@ public struct AtlasPersistenceController: Sendable {
             stack: stack,
             featureFlags: featureFlags
         )
+        let rewardsRepository = GRDBRewardsRepository(stack: stack)
         let container = AtlasPersistenceContainer(
             onboarding: GRDBOnboardingRepository(
                 stack: stack,
@@ -454,7 +467,8 @@ public struct AtlasPersistenceController: Sendable {
             metrics: metricsRepository,
             changeStudio: changeStudioRepository,
             reviewMode: reviewModeRepository,
-            retention: retentionRepository
+            retention: retentionRepository,
+            rewards: rewardsRepository
         )
         let bridge = GRDBImportExportBridge(
             stack: stack,

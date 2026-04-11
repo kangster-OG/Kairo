@@ -85,17 +85,20 @@ public final class AtlasTodayViewState {
     public var loadErrorMessage: String?
     public var todaySnapshot: AtlasTodaySnapshot
     public var retentionSnapshot: AtlasRetentionSnapshot
+    public var rewardsSnapshot: AtlasRewardsSnapshot
     public var renderMode: AtlasPrivacyRenderMode
 
     public init(
         loadErrorMessage: String? = nil,
         todaySnapshot: AtlasTodaySnapshot,
         retentionSnapshot: AtlasRetentionSnapshot,
+        rewardsSnapshot: AtlasRewardsSnapshot,
         renderMode: AtlasPrivacyRenderMode
     ) {
         self.loadErrorMessage = loadErrorMessage
         self.todaySnapshot = todaySnapshot
         self.retentionSnapshot = retentionSnapshot
+        self.rewardsSnapshot = rewardsSnapshot
         self.renderMode = renderMode
     }
 }
@@ -142,6 +145,7 @@ public final class AtlasInsightsViewState {
     public var loadErrorMessage: String?
     public var insightsSnapshot: AtlasInsightsSnapshot
     public var retentionSnapshot: AtlasRetentionSnapshot
+    public var rewardsSnapshot: AtlasRewardsSnapshot
     public var summarySettings: AtlasSummarySettingsSnapshot
     public var libraryProtocols: [ProtocolSummary]
     public var renderMode: AtlasPrivacyRenderMode
@@ -150,6 +154,7 @@ public final class AtlasInsightsViewState {
         loadErrorMessage: String? = nil,
         insightsSnapshot: AtlasInsightsSnapshot,
         retentionSnapshot: AtlasRetentionSnapshot,
+        rewardsSnapshot: AtlasRewardsSnapshot,
         summarySettings: AtlasSummarySettingsSnapshot,
         libraryProtocols: [ProtocolSummary],
         renderMode: AtlasPrivacyRenderMode
@@ -157,6 +162,7 @@ public final class AtlasInsightsViewState {
         self.loadErrorMessage = loadErrorMessage
         self.insightsSnapshot = insightsSnapshot
         self.retentionSnapshot = retentionSnapshot
+        self.rewardsSnapshot = rewardsSnapshot
         self.summarySettings = summarySettings
         self.libraryProtocols = libraryProtocols
         self.renderMode = renderMode
@@ -171,19 +177,22 @@ public final class AtlasSettingsViewState {
     public var reminderSettings: AtlasReminderSettingsSnapshot
     public var notificationPermissionStatus: AtlasNotificationAuthorizationStatus
     public var retentionSnapshot: AtlasRetentionSnapshot
+    public var rewardsSnapshot: AtlasRewardsSnapshot
 
     public init(
         settingsSnapshot: AtlasSettingsSnapshot,
         todaySnapshot: AtlasTodaySnapshot,
         reminderSettings: AtlasReminderSettingsSnapshot,
         notificationPermissionStatus: AtlasNotificationAuthorizationStatus,
-        retentionSnapshot: AtlasRetentionSnapshot
+        retentionSnapshot: AtlasRetentionSnapshot,
+        rewardsSnapshot: AtlasRewardsSnapshot
     ) {
         self.settingsSnapshot = settingsSnapshot
         self.todaySnapshot = todaySnapshot
         self.reminderSettings = reminderSettings
         self.notificationPermissionStatus = notificationPermissionStatus
         self.retentionSnapshot = retentionSnapshot
+        self.rewardsSnapshot = rewardsSnapshot
     }
 }
 
@@ -210,6 +219,7 @@ public final class AtlasAppModel {
     public var calculatorProfiles: [AtlasCalculatorProfileRecord]
     public var insightsSnapshot: AtlasInsightsSnapshot
     public var retentionSnapshot: AtlasRetentionSnapshot
+    public var rewardsSnapshot: AtlasRewardsSnapshot
     public var trustVaultSnapshot: AtlasTrustVaultSnapshot
     public var reviewOwnerSnapshot: AtlasReviewOwnerSnapshot
     public var reviewWorkspace: AtlasReviewWorkspace?
@@ -252,6 +262,7 @@ public final class AtlasAppModel {
         let calculatorProfiles: [AtlasCalculatorProfileRecord] = []
         let insightsSnapshot = AtlasInsightsSnapshot()
         let retentionSnapshot = AtlasRetentionSnapshot()
+        let rewardsSnapshot = AtlasRewardsSnapshot()
         let trustVaultSnapshot = AtlasTrustVaultSnapshot(
             privacyProfile: .default(),
             aliases: [],
@@ -269,6 +280,7 @@ public final class AtlasAppModel {
         self.todayViewState = AtlasTodayViewState(
             todaySnapshot: todaySnapshot,
             retentionSnapshot: retentionSnapshot,
+            rewardsSnapshot: rewardsSnapshot,
             renderMode: renderMode
         )
         self.timelineViewState = AtlasTimelineViewState(
@@ -283,6 +295,7 @@ public final class AtlasAppModel {
         self.insightsViewState = AtlasInsightsViewState(
             insightsSnapshot: insightsSnapshot,
             retentionSnapshot: retentionSnapshot,
+            rewardsSnapshot: rewardsSnapshot,
             summarySettings: settingsSnapshot.summarySettings,
             libraryProtocols: libraryProtocols,
             renderMode: renderMode
@@ -292,7 +305,8 @@ public final class AtlasAppModel {
             todaySnapshot: todaySnapshot,
             reminderSettings: reminderSettings,
             notificationPermissionStatus: notificationPermissionStatus,
-            retentionSnapshot: retentionSnapshot
+            retentionSnapshot: retentionSnapshot,
+            rewardsSnapshot: rewardsSnapshot
         )
         self.bootstrapSnapshot = bootstrapSnapshot
         self.settingsSnapshot = settingsSnapshot
@@ -306,6 +320,7 @@ public final class AtlasAppModel {
         self.calculatorProfiles = calculatorProfiles
         self.insightsSnapshot = insightsSnapshot
         self.retentionSnapshot = retentionSnapshot
+        self.rewardsSnapshot = rewardsSnapshot
         self.trustVaultSnapshot = trustVaultSnapshot
         self.reviewOwnerSnapshot = reviewOwnerSnapshot
         self.reviewWorkspace = nil
@@ -409,6 +424,7 @@ public final class AtlasAppModel {
             async let calculatorProfiles = dependencies.persistence.calculator.listProfiles()
             async let insights = dependencies.persistence.metrics.fetchInsightsSnapshot(referenceDate: now)
             async let retention = dependencies.persistence.retention.fetchRetentionSnapshot(referenceDate: now)
+            async let rewards = dependencies.persistence.rewards.fetchRewardsSnapshot(referenceDate: now)
             async let trustVault = dependencies.persistence.trustVault.fetchTrustVaultSnapshot()
             async let reviewOwner = dependencies.persistence.reviewMode.fetchOwnerSnapshot(now: now)
 
@@ -422,6 +438,7 @@ public final class AtlasAppModel {
             self.calculatorProfiles = try await calculatorProfiles
             insightsSnapshot = try await insights
             retentionSnapshot = try await retention
+            rewardsSnapshot = try await rewards
             trustVaultSnapshot = try await trustVault
             reviewOwnerSnapshot = decorateReviewOwnerSnapshot(try await reviewOwner)
             hasLoadedShellData = true
@@ -602,6 +619,15 @@ public final class AtlasAppModel {
     public func updateRetentionSettings(_ update: AtlasRetentionSettingsUpdate) async {
         do {
             settingsSnapshot = try await dependencies.persistence.settings.updateRetentionSettings(update, now: currentDate())
+            await refreshShellData()
+        } catch {
+            setLoadErrorMessage(error.localizedDescription)
+        }
+    }
+
+    public func updateRewardsSettings(_ update: AtlasRewardsSettingsUpdate) async {
+        do {
+            settingsSnapshot = try await dependencies.persistence.settings.updateRewardsSettings(update, now: currentDate())
             await refreshShellData()
         } catch {
             setLoadErrorMessage(error.localizedDescription)
@@ -1165,6 +1191,43 @@ public final class AtlasAppModel {
         return Array((saved + builtIn).prefix(limit))
     }
 
+    func recentMealQuickItems(limit: Int) -> [AtlasRecentMealQuickItem] {
+        Array(
+            insightsSnapshot.recentContextEntries
+                .filter { entry in
+                    entry.mealTiming != nil
+                        || entry.mealSize != nil
+                        || entry.mealComposition != nil
+                        || entry.fedState != nil
+                        || entry.hydration != nil
+                }
+                .prefix(limit)
+                .map(AtlasRecentMealQuickItem.init(entry:))
+        )
+    }
+
+    func nutritionFeaturedLookupItems(limit: Int) -> [AtlasNutritionFoodLookupItem] {
+        Array(atlasDefaultNutritionFoodCatalog().prefix(limit))
+    }
+
+    func nutritionLookupItems(query: String, limit: Int = 6) -> [AtlasNutritionFoodLookupItem] {
+        atlasNutritionLookupItems(matching: query, limit: limit)
+    }
+
+    func nutritionQuickCaptureSuggestion(
+        for text: String,
+        loggedAt: Date
+    ) -> AtlasNutritionQuickCaptureSuggestion? {
+        atlasNutritionQuickCaptureSuggestion(for: text, loggedAt: loggedAt)
+    }
+
+    func nutritionPackageCodeSuggestion(
+        for code: String,
+        loggedAt: Date
+    ) -> AtlasNutritionQuickCaptureSuggestion? {
+        atlasNutritionPackageCodeSuggestion(for: code, loggedAt: loggedAt)
+    }
+
     public func handleIncomingURL(_ url: URL) async {
         guard url.scheme?.lowercased() == "atlas" else {
             return
@@ -1368,6 +1431,7 @@ public final class AtlasAppModel {
         todayViewState.loadErrorMessage = loadErrorMessage
         todayViewState.todaySnapshot = todaySnapshot
         todayViewState.retentionSnapshot = retentionSnapshot
+        todayViewState.rewardsSnapshot = rewardsSnapshot
         todayViewState.renderMode = settingsSnapshot.trustVaultStatus.renderMode
     }
 
@@ -1387,6 +1451,7 @@ public final class AtlasAppModel {
         insightsViewState.loadErrorMessage = loadErrorMessage
         insightsViewState.insightsSnapshot = insightsSnapshot
         insightsViewState.retentionSnapshot = retentionSnapshot
+        insightsViewState.rewardsSnapshot = rewardsSnapshot
         insightsViewState.summarySettings = settingsSnapshot.summarySettings
         insightsViewState.libraryProtocols = libraryProtocols
         insightsViewState.renderMode = settingsSnapshot.trustVaultStatus.renderMode
@@ -1398,6 +1463,7 @@ public final class AtlasAppModel {
         settingsViewState.reminderSettings = reminderSettings
         settingsViewState.notificationPermissionStatus = notificationPermissionStatus
         settingsViewState.retentionSnapshot = retentionSnapshot
+        settingsViewState.rewardsSnapshot = rewardsSnapshot
     }
 
     private func invalidateInventoryCaches() {
@@ -1723,6 +1789,11 @@ public struct AtlasTodayScreen: View {
                 )
             }
 
+            if state.rewardsSnapshot.settings.enabled {
+                AtlasRootSectionHeader("Rewards")
+                AtlasRewardsTodayCard(snapshot: state.rewardsSnapshot)
+            }
+
             if state.retentionSnapshot.settings.progressEnabled {
                 AtlasRootSectionHeader("Calm continuity")
                 AtlasRetentionTodayCard(model: model, snapshot: state.retentionSnapshot)
@@ -1818,18 +1889,56 @@ private struct AtlasTodayContextQuickCard: View {
 
     var body: some View {
         let presets = model.contextQuickPresets(limit: 3)
+        let recentMeals = model.recentMealQuickItems(limit: 3)
+        let nutritionTargets = model.insightsSnapshot.nutritionSnapshot.dailyTargets
+        let featuredFoods = model.nutritionFeaturedLookupItems(limit: 4)
 
         AtlasSectionCard(style: .utility) {
             VStack(alignment: .leading, spacing: AtlasSpacing.small) {
                 Text(
                     model.insightsSnapshot.savedContextPresets.isEmpty
-                        ? "Capture surrounding context without leaving Today."
-                        : "Saved context presets now live here too for faster repeat logging."
+                        ? "Capture meals, hydration, and surrounding context without leaving Today."
+                        : "Favorites and repeat meals now live here too for faster nutrition logging."
                 )
                     .foregroundStyle(AtlasPalette.textSecondary)
 
+                if nutritionTargets.isEmpty == false {
+                    VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
+                        Text("Today's nutrition targets")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(AtlasPalette.primary)
+                            .textCase(.uppercase)
+
+                        ForEach(nutritionTargets) { target in
+                            HStack(spacing: AtlasSpacing.small) {
+                                Text(target.title)
+                                    .font(.caption)
+                                    .foregroundStyle(AtlasPalette.textSecondary)
+                                Spacer()
+                                AtlasStatusBadge(
+                                    target.progressLabel,
+                                    tint: target.isMet ? AtlasPalette.success : AtlasPalette.primary
+                                )
+                            }
+                        }
+                    }
+                }
+
                 AtlasContextQuickPresetRail(presets: presets) { preset in
                     Task { await model.saveContextEntry(preset.makeDraft(loggedAt: model.currentDate())) }
+                }
+
+                if recentMeals.isEmpty == false {
+                    AtlasRecentMealQuickRail(items: recentMeals) { item in
+                        Task { await model.saveContextEntry(item.draft(loggedAt: model.currentDate())) }
+                    }
+                }
+
+                AtlasNutritionLookupRail(
+                    title: "Common foods",
+                    items: featuredFoods
+                ) { item in
+                    Task { await model.saveContextEntry(item.makeDraft(loggedAt: model.currentDate())) }
                 }
 
                 Button("Log with notes or more detail") {
@@ -1838,11 +1947,11 @@ private struct AtlasTodayContextQuickCard: View {
                 .buttonStyle(AtlasSecondaryButtonStyle())
 
                 if model.insightsSnapshot.savedContextPresets.isEmpty {
-                    Text("Use Insights to save your own presets once you find repeats worth keeping.")
+                    Text("Use Insights to save your own favorites once you find repeats worth keeping.")
                         .font(.caption)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 } else {
-                    Text("Use Insights to refine or replace saved presets, add notes, or capture fuller meal detail.")
+                    Text("Use Insights to refine favorites, reuse recent meals, add notes, or capture fuller meal detail.")
                         .font(.caption)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
@@ -2455,6 +2564,71 @@ public struct AtlasSettingsScreen: View {
                 )
 
                 Text("External provider summaries are not turned on here. Atlas keeps summary payloads on device in this build.")
+                    .font(.caption)
+                    .foregroundStyle(AtlasPalette.textSecondary)
+            }
+
+            AtlasSectionCard(title: "Rewards") {
+                Text("Turn on streaks, badges, and progress rewards for consistency, workout completion, self-defined goals, and descriptive weight milestones.")
+                    .foregroundStyle(AtlasPalette.textSecondary)
+
+                AtlasSettingsToggleRow(
+                    title: "Show streaks and badges",
+                    subtitle: "Surface rewards on Today and Insights.",
+                    isOn: Binding(
+                        get: { state.settingsSnapshot.rewardsSettings.enabled },
+                        set: { value in
+                            state.settingsSnapshot.rewardsSettings.enabled = value
+                            model.settingsSnapshot.rewardsSettings.enabled = value
+                            Task {
+                                await model.updateRewardsSettings(
+                                    AtlasRewardsSettingsUpdate(enabled: value)
+                                )
+                            }
+                        }
+                    ),
+                    isEnabled: true
+                )
+
+                Stepper(
+                    value: Binding(
+                        get: { state.settingsSnapshot.rewardsSettings.weeklyWorkoutGoal },
+                        set: { value in
+                            state.settingsSnapshot.rewardsSettings.weeklyWorkoutGoal = value
+                            model.settingsSnapshot.rewardsSettings.weeklyWorkoutGoal = value
+                            Task {
+                                await model.updateRewardsSettings(
+                                    AtlasRewardsSettingsUpdate(weeklyWorkoutGoal: value)
+                                )
+                            }
+                        }
+                    ),
+                    in: 1...14
+                ) {
+                    Text("Weekly workout goal: \(state.settingsSnapshot.rewardsSettings.weeklyWorkoutGoal)")
+                }
+                .disabled(state.settingsSnapshot.rewardsSettings.enabled == false)
+
+                Stepper(
+                    value: Binding(
+                        get: { state.settingsSnapshot.rewardsSettings.weeklySelfGoalTarget },
+                        set: { value in
+                            state.settingsSnapshot.rewardsSettings.weeklySelfGoalTarget = value
+                            model.settingsSnapshot.rewardsSettings.weeklySelfGoalTarget = value
+                            Task {
+                                await model.updateRewardsSettings(
+                                    AtlasRewardsSettingsUpdate(weeklySelfGoalTarget: value)
+                                )
+                            }
+                        }
+                    ),
+                    in: 1...7
+                ) {
+                    Text("Weekly self-goal target: \(state.settingsSnapshot.rewardsSettings.weeklySelfGoalTarget)")
+                }
+                .disabled(state.settingsSnapshot.rewardsSettings.enabled == false)
+
+                Text("Self-defined rewards use Yes/No custom metrics from Insights. Weight milestones automatically use the goal weight from onboarding when Atlas has one, but stay descriptive instead of over-rewarding every change.")
                     .font(.caption)
                     .foregroundStyle(AtlasPalette.textSecondary)
             }

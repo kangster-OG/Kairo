@@ -270,6 +270,7 @@ public enum AtlasContextMealSize: String, Codable, CaseIterable, Sendable {
 
 public enum AtlasContextMealComposition: String, Codable, CaseIterable, Sendable {
     case proteinHeavy = "protein_heavy"
+    case fiberForward = "fiber_forward"
     case carbHeavy = "carb_heavy"
     case fatHeavy = "fat_heavy"
     case mixed
@@ -445,6 +446,8 @@ public extension AtlasContextMealComposition {
         switch self {
         case .proteinHeavy:
             return "Protein-heavy"
+        case .fiberForward:
+            return "Fiber-forward"
         case .carbHeavy:
             return "Carb-heavy"
         case .fatHeavy:
@@ -620,6 +623,7 @@ public struct AtlasSettingsSnapshot: Sendable, Equatable {
     public var trustVaultStatus: TrustVaultStatus
     public var summarySettings: AtlasSummarySettingsSnapshot
     public var retentionSettings: AtlasRetentionSettingsSnapshot
+    public var rewardsSettings: AtlasRewardsSettingsSnapshot
 
     public init(
         accountMode: AtlasAccountMode = .guest,
@@ -629,7 +633,8 @@ public struct AtlasSettingsSnapshot: Sendable, Equatable {
         healthScaffold: AtlasHealthScaffoldSnapshot = .init(),
         trustVaultStatus: TrustVaultStatus = .init(),
         summarySettings: AtlasSummarySettingsSnapshot = .init(),
-        retentionSettings: AtlasRetentionSettingsSnapshot = .init()
+        retentionSettings: AtlasRetentionSettingsSnapshot = .init(),
+        rewardsSettings: AtlasRewardsSettingsSnapshot = .init()
     ) {
         self.accountMode = accountMode
         self.accountStartMode = accountStartMode
@@ -639,6 +644,7 @@ public struct AtlasSettingsSnapshot: Sendable, Equatable {
         self.trustVaultStatus = trustVaultStatus
         self.summarySettings = summarySettings
         self.retentionSettings = retentionSettings
+        self.rewardsSettings = rewardsSettings
     }
 }
 

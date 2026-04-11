@@ -256,6 +256,40 @@ public struct GRDBSettingsRepository: SettingsRepository, Sendable {
             )
         }
     }
+
+    public func updateRewardsSettings(_ update: AtlasRewardsSettingsUpdate, now: Date) async throws -> AtlasSettingsSnapshot {
+        try await stack.canonical.write { db in
+            let current = try readRewardsSettings(db: db)
+            let nextEnabled = update.enabled ?? current.enabled
+            let nextWorkoutGoal = max(update.weeklyWorkoutGoal ?? current.weeklyWorkoutGoal, 1)
+            let nextSelfGoalTarget = max(update.weeklySelfGoalTarget ?? current.weeklySelfGoalTarget, 1)
+
+            try writeAppSetting(
+                db: db,
+                key: "rewards_enabled",
+                value: nextEnabled ? "1" : "0",
+                now: now
+            )
+            try writeAppSetting(
+                db: db,
+                key: "rewards_weekly_workout_goal",
+                value: String(nextWorkoutGoal),
+                now: now
+            )
+            try writeAppSetting(
+                db: db,
+                key: "rewards_weekly_self_goal_target",
+                value: String(nextSelfGoalTarget),
+                now: now
+            )
+
+            return try buildSettingsSnapshot(
+                db: db,
+                healthKit: healthKit,
+                featureFlags: featureFlags
+            )
+        }
+    }
 }
 
 public actor GRDBSharedProjectionWriter: SharedProjectionWriting {

@@ -190,6 +190,7 @@ func buildSettingsSnapshot(
     let syncStatus: AtlasSyncScaffoldStatus = accountMode == .guest ? .localOnly : .accountBoundary
     let summarySettings = try readSummarySettings(db: db, featureFlags: featureFlags)
     let retentionSettings = try readRetentionSettings(db: db, featureFlags: featureFlags)
+    let rewardsSettings = try readRewardsSettings(db: db)
 
     return AtlasSettingsSnapshot(
         accountMode: accountMode,
@@ -205,7 +206,8 @@ func buildSettingsSnapshot(
             biometricLockEnabled: profile.biometricLockEnabled
         ),
         summarySettings: summarySettings,
-        retentionSettings: retentionSettings
+        retentionSettings: retentionSettings,
+        rewardsSettings: rewardsSettings
     )
 }
 
@@ -257,6 +259,27 @@ func readRetentionSettings(
     return AtlasRetentionSettingsSnapshot(
         progressEnabled: progressEnabled,
         companionEnabled: companionEnabled
+    )
+}
+
+func readRewardsSettings(db: Database) throws -> AtlasRewardsSettingsSnapshot {
+    let enabledValue = try String.fetchOne(
+        db,
+        sql: "SELECT value FROM atlas_app_settings WHERE key = 'rewards_enabled'"
+    )
+    let workoutGoalValue = try String.fetchOne(
+        db,
+        sql: "SELECT value FROM atlas_app_settings WHERE key = 'rewards_weekly_workout_goal'"
+    )
+    let selfGoalTargetValue = try String.fetchOne(
+        db,
+        sql: "SELECT value FROM atlas_app_settings WHERE key = 'rewards_weekly_self_goal_target'"
+    )
+
+    return AtlasRewardsSettingsSnapshot(
+        enabled: enabledValue == "1",
+        weeklyWorkoutGoal: max(Int(workoutGoalValue ?? "") ?? 3, 1),
+        weeklySelfGoalTarget: max(Int(selfGoalTargetValue ?? "") ?? 2, 1)
     )
 }
 

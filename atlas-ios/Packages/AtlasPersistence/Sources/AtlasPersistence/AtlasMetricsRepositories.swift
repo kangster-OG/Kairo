@@ -516,6 +516,7 @@ func buildInsightsSnapshot(
     featureFlags: AtlasFeatureFlagState = .init(),
     privacyFormatter: AtlasPrivacyFormatter = .init()
 ) throws -> AtlasInsightsSnapshot {
+    let onboardingDraft = try atlasReadNutritionOnboardingDraft(db: db)
     let customMetrics = try AtlasCustomMetricDBRecord.fetchAll(db).map(\.domain)
     let contextPresets = try AtlasContextPresetDBRecord
         .order(sql: "COALESCE(last_used_at, updated_at) DESC, title ASC")
@@ -692,6 +693,14 @@ func buildInsightsSnapshot(
         weightTrend: buildWeightTrend(weightLogs: weightLogs),
         symptomTrend: buildSymptomTrend(symptomLogs: symptomLogs, now: referenceDate),
         contextTrend: buildContextTrend(contextLogs: contextLogs, now: referenceDate),
+        nutritionSnapshot: buildNutritionSnapshot(
+            contextLogs: contextLogs,
+            contextPresets: contextPresets,
+            workoutLogs: workoutLogs,
+            weightLogs: weightLogs,
+            onboardingDraft: onboardingDraft,
+            now: referenceDate
+        ),
         deterministicExplanations: deterministicExplanations,
         savedContextPresets: savedContextPresets,
         inventoryBurnDown: inventory.vials.map {
@@ -1310,6 +1319,368 @@ private func buildContextTrend(
         lowHydrationEntryCount: recent.filter { $0.hydration == .low }.count,
         giEntryCount: recent.filter { $0.giTags.isEmpty == false && $0.giTags != [.calm] }.count
     )
+}
+
+private let atlasNutritionProteinMealTarget = 2
+private let atlasNutritionFiberMealTarget = 1
+private let atlasNutritionHydrationTarget = 2
+private let atlasNutritionRecentMealsWindowDays = 7
+private let atlasNutritionWeeklyWindowDays = 7
+private let atlasNutritionWorkoutWindowDays = 14
+private let atlasNutritionWorkoutMealWindowHours = 6
+
+private func buildNutritionSnapshot(
+    contextLogs: [AtlasContextLogRecord],
+    contextPresets: [AtlasContextPresetRecord],
+    workoutLogs: [AtlasWorkoutLogRecord],
+    weightLogs: [AtlasWeightLogRecord],
+    onboardingDraft: AtlasOnboardingDraft?,
+    now: Date
+) -> AtlasNutritionSnapshot {
+    let calendar = Calendar.current
+    let startOfDay = calendar.startOfDay(for: now)
+    let nextDay = calendar.date(byAdding: .day, value: 1, to: startOfDay) ?? now
+    let recentWindowStart = calendar.date(byAdding: .day, value: -atlasNutritionRecentMealsWindowDays, to: now) ?? now
+    let weeklyWindowStart = calendar.date(byAdding: .day, value: -(atlasNutritionWeeklyWindowDays - 1), to: startOfDay) ?? startOfDay
+    let workoutWindowStart = calendar.date(byAdding: .day, value: -atlasNutritionWorkoutWindowDays, to: now) ?? now
+
+    let todayEntries = contextLogs.filter {
+        let loggedAt = atlasDate(from: $0.loggedAt)
+        return loggedAt >= startOfDay && loggedAt < nextDay
+    }
+    let recentMeals = contextLogs.filter {
+        atlasDate(from: $0.loggedAt) >= recentWindowStart && atlasNutritionHasMealSignal(record: $0)
+    }
+    let latestMeal = contextLogs.first(where: atlasNutritionHasMealSignal(record:))
+    let favoriteMealCount = contextPresets.filter(atlasNutritionHasMealSignal(record:)).count
+    let weeklyEntries = contextLogs.filter {
+        let loggedAt = atlasDate(from: $0.loggedAt)
+        return loggedAt >= weeklyWindowStart && loggedAt < nextDay
+    }
+    let weeklyDayBuckets = Dictionary(grouping: weeklyEntries) {
+        calendar.startOfDay(for: atlasDate(from: $0.loggedAt))
+    }
+    let weeklyProteinDays = weeklyDayBuckets.values.filter {
+        $0.filter { $0.mealComposition == .proteinHeavy }.count >= atlasNutritionProteinMealTarget
+    }.count
+    let weeklyFiberDays = weeklyDayBuckets.values.filter {
+        $0.contains { $0.mealComposition == .fiberForward }
+    }.count
+    let weeklyHydrationDays = weeklyDayBuckets.values.filter {
+        $0.filter { $0.hydration == .high }.count >= atlasNutritionHydrationTarget
+    }.count
+    let recentWorkouts = workoutLogs.filter { atlasDate(from: $0.startedAt) >= workoutWindowStart }
+    let fueledWorkoutCount = recentWorkouts.filter { workout in
+        atlasNutritionHasMealNearWorkout(
+            workout: workout,
+            contextLogs: contextLogs,
+            withinHours: atlasNutritionWorkoutMealWindowHours
+        )
+    }.count
+
+    let proteinCount = todayEntries.filter { $0.mealComposition == .proteinHeavy }.count
+    let fiberCount = todayEntries.filter { $0.mealComposition == .fiberForward }.count
+    let hydrationCount = todayEntries.filter { $0.hydration == .high }.count
+
+    let targets = [
+        atlasNutritionTarget(
+            kind: .proteinMeals,
+            title: "Protein meals",
+            symbolName: "fork.knife.circle.fill",
+            currentValue: proteinCount,
+            targetValue: atlasNutritionProteinMealTarget,
+            helperText: proteinCount >= atlasNutritionProteinMealTarget
+                ? "Today's protein-forward meal target is met."
+                : "Meals marked protein-heavy count here."
+        ),
+        atlasNutritionTarget(
+            kind: .fiberMeals,
+            title: "Fiber-forward meal",
+            symbolName: "leaf.fill",
+            currentValue: fiberCount,
+            targetValue: atlasNutritionFiberMealTarget,
+            helperText: fiberCount >= atlasNutritionFiberMealTarget
+                ? "Today's fiber-forward meal target is met."
+                : "Use the Fiber meal preset or mark a meal as fiber-forward."
+        ),
+        atlasNutritionTarget(
+            kind: .hydrationCheckins,
+            title: "Hydration check-ins",
+            symbolName: "drop.fill",
+            currentValue: hydrationCount,
+            targetValue: atlasNutritionHydrationTarget,
+            helperText: hydrationCount >= atlasNutritionHydrationTarget
+                ? "Today's hydration target is met."
+                : "Hydrated check-ins count here."
+        )
+    ]
+    let weeklySignals: [AtlasNutritionWeeklySignalSnapshot] = [
+        AtlasNutritionWeeklySignalSnapshot(
+            kind: .proteinDays,
+            title: "Protein days",
+            valueLabel: "\(weeklyProteinDays) of \(atlasNutritionWeeklyWindowDays) days",
+            helperText: "Atlas counts a protein day when two protein-heavy meals are logged.",
+            symbolName: "fork.knife.circle.fill",
+            isOnTrack: weeklyProteinDays >= 4
+        ),
+        AtlasNutritionWeeklySignalSnapshot(
+            kind: .fiberDays,
+            title: "Fiber days",
+            valueLabel: "\(weeklyFiberDays) of \(atlasNutritionWeeklyWindowDays) days",
+            helperText: "One fiber-forward meal is enough to count a day here.",
+            symbolName: "leaf.fill",
+            isOnTrack: weeklyFiberDays >= 4
+        ),
+        AtlasNutritionWeeklySignalSnapshot(
+            kind: .hydrationDays,
+            title: "Hydration days",
+            valueLabel: "\(weeklyHydrationDays) of \(atlasNutritionWeeklyWindowDays) days",
+            helperText: "Hydration days need two hydrated check-ins to count.",
+            symbolName: "drop.fill",
+            isOnTrack: weeklyHydrationDays >= 4
+        )
+    ] + (recentWorkouts.isEmpty ? [] : [
+        AtlasNutritionWeeklySignalSnapshot(
+            kind: .workoutFueling,
+            title: "Workout fueling",
+            valueLabel: "\(fueledWorkoutCount) of \(recentWorkouts.count) workouts",
+            helperText: "A workout counts when Atlas sees meal context within six hours of the session.",
+            symbolName: "figure.run.circle.fill",
+            isOnTrack: recentWorkouts.isEmpty ? false : fueledWorkoutCount * 2 >= recentWorkouts.count
+        )
+    ])
+    let coachingCards = buildNutritionCoachingCards(
+        weeklyProteinDays: weeklyProteinDays,
+        weeklyFiberDays: weeklyFiberDays,
+        weeklyHydrationDays: weeklyHydrationDays,
+        fueledWorkoutCount: fueledWorkoutCount,
+        recentWorkoutCount: recentWorkouts.count,
+        weightLogs: weightLogs,
+        onboardingDraft: onboardingDraft
+    )
+
+    return AtlasNutritionSnapshot(
+        dailyTargets: targets,
+        favoriteMealCount: favoriteMealCount,
+        recentMealCount: recentMeals.count,
+        latestMealLabel: latestMeal.map(atlasNutritionLatestMealLabel(record:)),
+        weeklySignals: weeklySignals,
+        coachingCards: coachingCards,
+        note: "Atlas keeps nutrition lightweight here: quick meals, repeated favorites, local food lookup, and deterministic coaching."
+    )
+}
+
+private func atlasNutritionTarget(
+    kind: AtlasNutritionTargetKind,
+    title: String,
+    symbolName: String,
+    currentValue: Int,
+    targetValue: Int,
+    helperText: String
+) -> AtlasNutritionTargetSnapshot {
+    let boundedCurrent = min(currentValue, targetValue)
+    return AtlasNutritionTargetSnapshot(
+        kind: kind,
+        title: title,
+        progressLabel: "\(currentValue) of \(targetValue) today",
+        helperText: helperText,
+        symbolName: symbolName,
+        currentValue: currentValue,
+        targetValue: targetValue,
+        progress: min(Double(boundedCurrent) / Double(targetValue), 1),
+        isMet: currentValue >= targetValue
+    )
+}
+
+private func atlasNutritionHasMealSignal(record: AtlasContextLogRecord) -> Bool {
+    record.mealTiming != nil
+        || record.mealSize != nil
+        || record.mealComposition != nil
+        || record.fedState != nil
+}
+
+private func atlasNutritionHasMealSignal(record: AtlasContextPresetRecord) -> Bool {
+    record.mealTiming != nil
+        || record.mealSize != nil
+        || record.mealComposition != nil
+        || record.fedState != nil
+}
+
+private func atlasNutritionHasMealNearWorkout(
+    workout: AtlasWorkoutLogRecord,
+    contextLogs: [AtlasContextLogRecord],
+    withinHours: Int
+) -> Bool {
+    let workoutDate = atlasDate(from: workout.startedAt)
+    let lowerBound = workoutDate.addingTimeInterval(TimeInterval(-withinHours * 60 * 60))
+    let upperBound = workoutDate.addingTimeInterval(TimeInterval(withinHours * 60 * 60))
+    return contextLogs.contains { log in
+        guard atlasNutritionHasMealSignal(record: log) else {
+            return false
+        }
+        let loggedAt = atlasDate(from: log.loggedAt)
+        return loggedAt >= lowerBound && loggedAt <= upperBound
+    }
+}
+
+private func atlasNutritionLatestMealLabel(record: AtlasContextLogRecord) -> String {
+    var parts: [String] = []
+    if let mealTiming = record.mealTiming {
+        parts.append(mealTiming.title)
+    }
+    if let mealComposition = record.mealComposition {
+        parts.append(mealComposition.title)
+    }
+    if let hydration = record.hydration {
+        parts.append(hydration.title)
+    }
+
+    let descriptor = parts.isEmpty ? "Quick meal" : Array(parts.prefix(3)).joined(separator: " • ")
+    return "Latest \(formatDateLabel(record.loggedAt)) • \(descriptor)"
+}
+
+private func buildNutritionCoachingCards(
+    weeklyProteinDays: Int,
+    weeklyFiberDays: Int,
+    weeklyHydrationDays: Int,
+    fueledWorkoutCount: Int,
+    recentWorkoutCount: Int,
+    weightLogs: [AtlasWeightLogRecord],
+    onboardingDraft: AtlasOnboardingDraft?
+) -> [AtlasNutritionCoachingCard] {
+    var cards: [AtlasNutritionCoachingCard] = []
+
+    if recentWorkoutCount > 0 && fueledWorkoutCount < recentWorkoutCount {
+        cards.append(
+            AtlasNutritionCoachingCard(
+                id: "nutrition-workout-fueling",
+                kind: .workoutFueling,
+                title: "Fuel workouts more consistently",
+                summary: "\(fueledWorkoutCount) of \(recentWorkoutCount) recent workouts had nearby meal logs.",
+                helperText: "Try logging a meal or shake before or after training so Atlas can tie nutrition context to the session.",
+                symbolName: "figure.run.circle.fill"
+            )
+        )
+    }
+
+    if let weightCard = atlasNutritionWeightCoachingCard(weightLogs: weightLogs, onboardingDraft: onboardingDraft) {
+        cards.append(weightCard)
+    }
+
+    if weeklyFiberDays < 4 {
+        cards.append(
+            AtlasNutritionCoachingCard(
+                id: "nutrition-fiber-consistency",
+                kind: .consistency,
+                title: "Fiber is the easiest weekly win",
+                summary: "Fiber-forward meals landed on \(weeklyFiberDays) of the last \(atlasNutritionWeeklyWindowDays) days.",
+                helperText: "One fiber-forward meal per day is enough to move this signal. The built-in Fiber meal preset is the fastest way to log it.",
+                symbolName: "leaf.fill"
+            )
+        )
+    }
+
+    if weeklyHydrationDays < 4 {
+        cards.append(
+            AtlasNutritionCoachingCard(
+                id: "nutrition-hydration-rhythm",
+                kind: .hydration,
+                title: "Hydration rhythm can still tighten up",
+                summary: "Hydration targets cleared on \(weeklyHydrationDays) of the last \(atlasNutritionWeeklyWindowDays) days.",
+                helperText: "Two hydrated check-ins in the same day are enough to count. Atlas uses that lightweight threshold to keep the habit easy to repeat.",
+                symbolName: "drop.fill"
+            )
+        )
+    }
+
+    if cards.isEmpty {
+        cards.append(
+            AtlasNutritionCoachingCard(
+                id: "nutrition-steady-rhythm",
+                kind: .consistency,
+                title: "Nutrition rhythm looks steady",
+                summary: "Protein, fiber, hydration, and workout fueling are all showing usable coverage.",
+                helperText: "Keep using fast capture so Atlas can keep learning from the same patterns instead of asking for heavier logging.",
+                symbolName: "checkmark.circle.fill"
+            )
+        )
+    } else if weeklyProteinDays < 4 && cards.contains(where: { $0.kind == .consistency }) == false {
+        cards.insert(
+            AtlasNutritionCoachingCard(
+                id: "nutrition-protein-consistency",
+                kind: .consistency,
+                title: "Protein consistency still has room",
+                summary: "Protein targets cleared on \(weeklyProteinDays) of the last \(atlasNutritionWeeklyWindowDays) days.",
+                helperText: "Atlas marks a protein day only when two protein-heavy meals are logged, so repeated breakfasts and shakes help this move quickly.",
+                symbolName: "fork.knife.circle.fill"
+            ),
+            at: 0
+        )
+    }
+
+    return Array(cards.prefix(4))
+}
+
+private func atlasNutritionWeightCoachingCard(
+    weightLogs: [AtlasWeightLogRecord],
+    onboardingDraft: AtlasOnboardingDraft?
+) -> AtlasNutritionCoachingCard? {
+    guard let profile = onboardingDraft?.profile,
+          let goalWeight = profile.goalWeight,
+          let unit = profile.weightUnit else {
+        return nil
+    }
+
+    let matchingLogs = weightLogs
+        .filter { $0.unit == unit }
+        .sorted { $0.loggedAt < $1.loggedAt }
+    let baselineWeight = matchingLogs.first?.value ?? profile.weight
+    let latestWeight = matchingLogs.last?.value ?? profile.weight
+    guard let baselineWeight, let latestWeight else {
+        return nil
+    }
+
+    let baselineDistance = abs(baselineWeight - goalWeight)
+    let latestDistance = abs(latestWeight - goalWeight)
+    let improvement = baselineDistance - latestDistance
+
+    if latestDistance <= 0.5 {
+        return AtlasNutritionCoachingCard(
+            id: "nutrition-weight-aligned",
+            kind: .weight,
+            title: "Weight trend is sitting inside your goal range",
+            summary: "Latest logged weight is within about half a \(unit.rawValue) of your stored goal.",
+            helperText: "Atlas keeps this descriptive. The goal here is pattern awareness, not rewarding every fluctuation.",
+            symbolName: "target"
+        )
+    }
+
+    guard improvement > 0 else {
+        return nil
+    }
+
+    let improvementLabel = improvement.rounded() == improvement
+        ? String(Int(improvement))
+        : String(format: "%.1f", improvement)
+
+    return AtlasNutritionCoachingCard(
+        id: "nutrition-weight-progress",
+        kind: .weight,
+        title: "Recent nutrition rhythm is lining up with weight progress",
+        summary: "Atlas is seeing \(improvementLabel) \(unit.rawValue) less distance to your stored goal than where this run of logs started.",
+        helperText: "That does not prove causality, but it is a useful checkpoint when the meal and workout signals are also staying consistent.",
+        symbolName: "chart.line.uptrend.xyaxis"
+    )
+}
+
+private func atlasReadNutritionOnboardingDraft(db: Database) throws -> AtlasOnboardingDraft? {
+    guard let json = try String.fetchOne(
+        db,
+        sql: "SELECT value FROM atlas_app_settings WHERE key = 'onboarding_draft_json'"
+    ) else {
+        return nil
+    }
+    return try? JSONDecoder().decode(AtlasOnboardingDraft.self, from: Data(json.utf8))
 }
 
 private func buildAdherenceTrend(
