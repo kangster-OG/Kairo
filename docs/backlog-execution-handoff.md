@@ -1,6 +1,6 @@
 # Atlas Backlog Execution Handoff
 
-Last updated: 2026-04-11 (Wave 8 in progress)
+Last updated: 2026-04-11 (Wave 8 complete)
 
 ## Purpose
 
@@ -34,13 +34,13 @@ The approved execution order is:
 5. Supplies / procurement / vendor-history completion
 6. Widgets + App Intents polish
 7. Calm retention + mascot refinement
-8. Generic AI summaries
+8. Local-first premium summaries
 
 Strategic defaults already chosen:
 
 - Sequence: context first
 - Wearables: HealthKit first
-- AI summaries: after deterministic explainability
+- Local-first summaries: after deterministic explainability
 - Procurement: local planning hub, not commerce
 - Retention tone: subtle premium, optional, non-punitive
 
@@ -188,18 +188,18 @@ Verification completed for Wave 3:
 
 ## Immediate next work
 
-Wave 8 is now in progress locally.
+All currently approved backlog waves are now complete locally.
 
-Next implementation target:
+If summary work continues beyond this point, treat it as optional follow-up rather than unfinished Wave 8:
 
-- continue generic summary refinement from the stronger local-first baseline
-- preserve all existing Wave 1 through Wave 7 behavior
+- preserve all existing Wave 1 through Wave 8 behavior
 - keep Atlas local-first, guest-first, calm, and bounded
 - continue avoiding commerce-like copy or sourcing pressure
+- only consider external or hosted summary providers as a later explicitly opt-in layer, not as a requirement for Atlas core functionality
 
-### Wave 8 first slice now completed locally
+### Wave 8 now completed locally
 
-The first Wave 8 slice is now in a strong state locally:
+Wave 8 is now in a strong state locally as a local-first premium summary system:
 
 - deterministic plain-language recaps were upgraded across:
   - weekly recap
@@ -211,8 +211,9 @@ The first Wave 8 slice is now in a strong state locally:
 - if a future external summary path is enabled but unavailable, Atlas now falls back calmly to the local recap instead of dropping the summary entirely
 - no hosted AI dependency was introduced for the primary summary experience
 - external provider summaries remain explicitly deferred, opt-in, and off by default in this build
+- Wave 8 completion is defined by the stronger local summary system, not by shipping a cloud-dependent AI layer
 
-## Verification completed for the first Wave 8 slice
+## Verification completed for Wave 8
 
 - targeted summary regressions passed for:
   - `testInsightsSummariesStayBoundedAndRespectDiscreetRendering`
