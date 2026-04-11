@@ -1,6 +1,6 @@
 # Atlas Backlog Execution Handoff
 
-Last updated: 2026-04-11 (Wave 7 complete)
+Last updated: 2026-04-11 (Wave 8 in progress)
 
 ## Purpose
 
@@ -188,14 +188,47 @@ Verification completed for Wave 3:
 
 ## Immediate next work
 
-Advance to Wave 8.
+Wave 8 is now in progress locally.
 
 Next implementation target:
 
-- generic AI summaries
+- continue generic summary refinement from the stronger local-first baseline
 - preserve all existing Wave 1 through Wave 7 behavior
 - keep Atlas local-first, guest-first, calm, and bounded
 - continue avoiding commerce-like copy or sourcing pressure
+
+### Wave 8 first slice now completed locally
+
+The first Wave 8 slice is now in a strong state locally:
+
+- deterministic plain-language recaps were upgraded across:
+  - weekly recap
+  - episode recap
+  - import diff recap
+  - provider handoff recap
+- summary wording now feels less template-flat while staying descriptive, bounded, and evidence-led
+- summary cards now present clearer local execution labeling and generated-at metadata without hiding source facts
+- if a future external summary path is enabled but unavailable, Atlas now falls back calmly to the local recap instead of dropping the summary entirely
+- no hosted AI dependency was introduced for the primary summary experience
+- external provider summaries remain explicitly deferred, opt-in, and off by default in this build
+
+## Verification completed for the first Wave 8 slice
+
+- targeted summary regressions passed for:
+  - `testInsightsSummariesStayBoundedAndRespectDiscreetRendering`
+  - `testEpisodeAndImportSummariesRemainOptionalAndGrounded`
+  - `testDeferredExternalSummaryFallsBackToLocalRecap`
+  - `testProviderHandoffPlainLanguageSummaryUsesCurrentToggleAndAliasScope`
+- `swift build` succeeded in:
+  - `atlas-ios/Packages/AtlasDomain`
+  - `atlas-ios/Packages/AtlasPersistence`
+  - `atlas-ios/Packages/AtlasFeatures`
+- full simulator app build succeeded
+- simulator build-and-run succeeded
+- live simulator QA verified:
+  - Settings still presents plain-language summaries as an on-device local feature
+  - external summary processing remains visibly unavailable in the current build
+  - summary/privacy controls still render cleanly after the Wave 8 changes
 
 ### Wave 4 now completed locally
 

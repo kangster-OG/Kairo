@@ -39,18 +39,27 @@ public struct AtlasDeterministicSummaryEngine: AtlasSummaryEngine {
         let skipped = intValue("skipped_logs", in: request) ?? 0
         let context = intValue("context_entries", in: request) ?? 0
         let symptoms = intValue("symptom_entries", in: request) ?? 0
+        let activeProtocols = intValue("active_protocols", in: request) ?? 0
         let weight = latestValue("latest_weight", in: request)
         let nextDue = latestValue("next_due", in: request)
 
         var parts = [
-            "Over the last 7 days, Atlas recorded \(completed) completed log\(completed == 1 ? "" : "s") and \(skipped) skipped log\(skipped == 1 ? "" : "s").",
-            "\(context) context entr\(context == 1 ? "y" : "ies") and \(symptoms) symptom entr\(symptoms == 1 ? "y" : "ies") were logged in the same window."
+            "Over the last 7 days, Atlas captured \(countPhrase(completed, singular: "completed log")) and \(countPhrase(skipped, singular: "skipped log")) across \(countPhrase(activeProtocols, singular: "active protocol"))."
         ]
+        let supportPhrases = [
+            context > 0 ? countPhrase(context, singular: "context entry", plural: "context entries") : nil,
+            symptoms > 0 ? countPhrase(symptoms, singular: "symptom entry", plural: "symptom entries") : nil
+        ].compactMap { $0 }
+        if supportPhrases.isEmpty {
+            parts.append("No additional context or symptom entries were logged in the same window.")
+        } else {
+            parts.append("Recent supporting records included \(naturalList(supportPhrases)).")
+        }
         if let weight {
-            parts.append("The latest weight entry was \(weight).")
+            parts.append("The latest weight on file is \(weight).")
         }
         if let nextDue {
-            parts.append("The current schedule view shows \(nextDue).")
+            parts.append("The next visible schedule anchor remains \(nextDue).")
         }
         return parts.joined(separator: " ")
     }
@@ -59,35 +68,65 @@ public struct AtlasDeterministicSummaryEngine: AtlasSummaryEngine {
         let episodeCount = intValue("episode_count", in: request) ?? 0
         let leadingWindow = latestValue("leading_window", in: request) ?? "recent comparison windows"
         let leadingWindowSummary = latestValue("leading_window_summary", in: request) ?? "show the strongest concentration of nearby entries"
+        let leadingWindowEpisodeCount = intValue("leading_window_episode_count", in: request) ?? 0
+        let leadingSignalCount = intValue("leading_signal_count", in: request) ?? 0
+        let patternCount = intValue("pattern_count", in: request) ?? 0
         let pattern = latestValue("leading_pattern", in: request)
 
         var parts = [
-            "Atlas reviewed \(episodeCount) recent dose episode\(episodeCount == 1 ? "" : "s") using existing local logs and surrounding signals.",
-            "\(leadingWindow) currently \(leadingWindowSummary)."
+            "Atlas reviewed \(countPhrase(episodeCount, singular: "recent dose episode")) using existing local records and nearby supporting signals."
         ]
+        if leadingSignalCount > 0 {
+            parts.append("\(leadingWindow) carried the busiest local comparison window with \(countPhrase(leadingSignalCount, singular: "supporting entry", plural: "supporting entries")) across \(countPhrase(leadingWindowEpisodeCount, singular: "episode")).")
+        } else if leadingWindowEpisodeCount > 0 {
+            parts.append("\(leadingWindow) remained the busiest compare window across \(countPhrase(leadingWindowEpisodeCount, singular: "episode")).")
+        } else {
+            parts.append("\(leadingWindow) remained the busiest compare window in the current local set.")
+        }
+        parts.append("Atlas currently shows \(leadingWindowSummary).")
         if let pattern {
-            parts.append(pattern + ".")
+            parts.append("The clearest recurring card right now is \(pattern).")
+        } else if patternCount > 0 {
+            parts.append("Atlas also surfaced \(countPhrase(patternCount, singular: "pattern card")).")
         }
         return parts.joined(separator: " ")
     }
 
     private func importDiffRecapSummary(for request: AtlasSummaryRequest) -> String {
+        let sourceLabel = latestValue("source_label", in: request)
         let creates = intValue("records_to_create", in: request) ?? 0
         let updates = intValue("records_to_update", in: request) ?? 0
         let warningCount = intValue("warning_count", in: request) ?? 0
         let lintCount = intValue("lint_count", in: request) ?? 0
+        let privacyNoteCount = intValue("privacy_note_count", in: request) ?? 0
+        let backfillNoteCount = intValue("backfill_note_count", in: request) ?? 0
         let largestDataset = latestValue("largest_dataset", in: request)
 
-        var parts = [
-            "This import would create \(creates) record\(creates == 1 ? "" : "s") and update \(updates) existing record\(updates == 1 ? "" : "s")."
-        ]
+        var parts: [String] = []
+        if let sourceLabel {
+            parts.append("From \(sourceLabel), this dry run would create \(countPhrase(creates, singular: "record")) and update \(countPhrase(updates, singular: "existing record")).")
+        } else {
+            parts.append("This dry run would create \(countPhrase(creates, singular: "record")) and update \(countPhrase(updates, singular: "existing record")).")
+        }
+        if creates > updates {
+            parts.append("Most of the proposed movement is new local data rather than edits to records already on device.")
+        } else if updates > creates {
+            parts.append("Most of the proposed movement refines records already on device rather than adding entirely new rows.")
+        }
         if let largestDataset {
-            parts.append("The largest dataset change is \(largestDataset).")
+            parts.append("The largest dataset change sits in \(largestDataset).")
         }
         if warningCount > 0 || lintCount > 0 {
-            parts.append("Atlas surfaced \(warningCount) warning\(warningCount == 1 ? "" : "s") and \(lintCount) lint item\(lintCount == 1 ? "" : "s") to review before commit.")
+            parts.append("Atlas surfaced \(countPhrase(warningCount, singular: "warning")) and \(countPhrase(lintCount, singular: "lint item")) to review before commit.")
         } else {
-            parts.append("No warnings or lint findings are currently attached to this dry run.")
+            parts.append("Atlas did not surface warnings or lint findings in this dry run.")
+        }
+        let operatorNotes = [
+            privacyNoteCount > 0 ? countPhrase(privacyNoteCount, singular: "privacy note") : nil,
+            backfillNoteCount > 0 ? countPhrase(backfillNoteCount, singular: "backfill note") : nil
+        ].compactMap { $0 }
+        if operatorNotes.isEmpty == false {
+            parts.append("Supporting operator notes remain attached for \(naturalList(operatorNotes)).")
         }
         return parts.joined(separator: " ")
     }
@@ -95,19 +134,20 @@ public struct AtlasDeterministicSummaryEngine: AtlasSummaryEngine {
     private func providerHandoffRecapSummary(for request: AtlasSummaryRequest) -> String {
         let scope = latestValue("scope", in: request) ?? "this selected scope"
         let rowCount = intValue("row_count", in: request) ?? 0
+        let datasetCount = intValue("dataset_count", in: request) ?? 0
         let renderMode = latestValue("render_mode", in: request) ?? "full"
         let topDatasets = latestValue("top_datasets", in: request)
         let note = latestValue("episode_note", in: request)
 
         var parts = [
-            "This handoff packages \(scope.lowercased()) as a static snapshot with \(rowCount) row\(rowCount == 1 ? "" : "s").",
-            "The current render mode for the bundle is \(renderMode.lowercased())."
+            "This handoff packages \(scope.lowercased()) as a static snapshot with \(countPhrase(rowCount, singular: "row")) across \(countPhrase(datasetCount, singular: "dataset")).",
+            "The bundle is currently prepared in \(renderMode.lowercased()) mode."
         ]
         if let topDatasets {
-            parts.append("Included datasets center on \(topDatasets).")
+            parts.append("The included material is centered on \(topDatasets).")
         }
         if let note {
-            parts.append(note + ".")
+            parts.append("Episode context also notes \(note).")
         }
         return parts.joined(separator: " ")
     }
@@ -148,6 +188,24 @@ public struct AtlasDeterministicSummaryEngine: AtlasSummaryEngine {
             .first(where: { $0.id == id })?
             .value
     }
+
+    private func countPhrase(_ count: Int, singular: String, plural: String? = nil) -> String {
+        let pluralValue = plural ?? singular + "s"
+        return "\(count) \(count == 1 ? singular : pluralValue)"
+    }
+
+    private func naturalList(_ items: [String]) -> String {
+        switch items.count {
+        case 0:
+            return ""
+        case 1:
+            return items[0]
+        case 2:
+            return "\(items[0]) and \(items[1])"
+        default:
+            return items.dropLast().joined(separator: ", ") + ", and " + (items.last ?? "")
+        }
+    }
 }
 
 public struct AtlasDeferredExternalSummaryEngine: AtlasSummaryEngine {
@@ -185,17 +243,15 @@ struct AtlasSummaryService {
             return nil
         }
 
-        do {
-            if settings.externalProviderEnabled && featureFlags.externalSummaryProviders {
-                return try externalEngine.generateSummary(for: request)
+        if settings.externalProviderEnabled && featureFlags.externalSummaryProviders {
+            if let externalSummary = try? externalEngine.generateSummary(for: request) {
+                return externalSummary
             }
-            guard settings.onDeviceEnabled else {
-                return nil
-            }
-            return try localEngine.generateSummary(for: request)
-        } catch {
+        }
+        guard settings.onDeviceEnabled else {
             return nil
         }
+        return try? localEngine.generateSummary(for: request)
     }
 }
 
@@ -306,6 +362,9 @@ func buildEpisodeRecapSummaryRequest(
         return leftScore < rightScore
     }
     let firstPattern = snapshot.patternCards.first
+    let leadingSignalCount = leadWindow.map {
+        $0.contextEntryCount + $0.symptomEntryCount + $0.weightEntryCount + $0.metricEntryCount
+    }
 
     return AtlasSummaryRequest(
         kind: .episodeRecap,
@@ -327,12 +386,27 @@ func buildEpisodeRecapSummaryRequest(
                         "Window detail",
                         leadWindow?.summaryLabel ?? "show the strongest concentration of nearby entries"
                     )
-                ]
+                ] + (leadWindow.map {
+                    [
+                        atlasSummaryFact(
+                            "leading_window_episode_count",
+                            "Episodes in that window",
+                            String($0.episodeCount)
+                        ),
+                        atlasSummaryFact(
+                            "leading_signal_count",
+                            "Supporting entries in that window",
+                            String(leadingSignalCount ?? 0)
+                        )
+                    ]
+                } ?? [])
             ),
             atlasSummarySection(
                 "episode_patterns",
                 "Pattern cards",
-                (firstPattern.map {
+                [
+                    atlasSummaryFact("pattern_count", "Pattern cards surfaced", String(snapshot.patternCards.count))
+                ] + (firstPattern.map {
                     [atlasSummaryFact("leading_pattern", "Leading pattern", "\($0.title): \($0.detail)")]
                 } ?? [])
             )
@@ -427,6 +501,7 @@ func buildProviderHandoffSummaryRequest(
                 [
                     atlasSummaryFact("scope", "Scope", scopeSummary),
                     atlasSummaryFact("row_count", "Rows included", String(rowCount)),
+                    atlasSummaryFact("dataset_count", "Datasets included", String(datasets.count)),
                     atlasSummaryFact("render_mode", "Render mode", renderMode.rawValue.capitalized)
                 ] + (topDatasets.isEmpty ? [] : [
                     atlasSummaryFact("top_datasets", "Included datasets", topDatasets)

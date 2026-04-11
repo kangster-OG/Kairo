@@ -642,12 +642,20 @@ final class AtlasPhaseOneTests: XCTestCase {
         )
         let weeklySummary = try XCTUnwrap(fullSnapshot.weeklyRecapSummary)
         XCTAssertEqual(weeklySummary.executionMode, .deterministicLocal)
+        XCTAssertTrue(weeklySummary.executionMode.label.contains("On-device"))
         XCTAssertTrue(weeklySummary.sourceSections.contains(where: { $0.id == "weekly_activity" }))
+        XCTAssertTrue(
+            weeklySummary.sourceSections
+                .flatMap(\.facts)
+                .contains(where: { $0.id == "active_protocols" && $0.value == "1" })
+        )
         XCTAssertTrue(
             weeklySummary.sourceSections
                 .flatMap(\.facts)
                 .contains(where: { $0.id == "next_due" && $0.value.contains("Weekly GLP") })
         )
+        XCTAssertTrue(weeklySummary.summary.contains("active protocol"))
+        XCTAssertTrue(weeklySummary.summary.contains("No additional context or symptom entries"))
         assertSummaryGuardrails(weeklySummary.summary)
 
         _ = try await controller.container.settings.updateTrustVaultRenderMode(
@@ -710,6 +718,12 @@ final class AtlasPhaseOneTests: XCTestCase {
         let insights = try await controller.container.metrics.fetchInsightsSnapshot(referenceDate: Date())
         let episodeSummary = try XCTUnwrap(insights.episodeRecapSummary)
         XCTAssertTrue(episodeSummary.sourceSections.contains(where: { $0.id == "episode_scope" }))
+        XCTAssertTrue(
+            episodeSummary.sourceSections
+                .flatMap(\.facts)
+                .contains(where: { $0.id == "pattern_count" && $0.value == String(insights.episodeIntelligence.patternCards.count) })
+        )
+        XCTAssertTrue(episodeSummary.summary.contains("Atlas currently shows"))
         assertSummaryGuardrails(episodeSummary.summary)
 
         let importPrepared = try await controller.importExportBridge.prepareImport(
@@ -718,8 +732,40 @@ final class AtlasPhaseOneTests: XCTestCase {
         let dryRun = importPrepared.dryRun
         let importSummary = try XCTUnwrap(dryRun.plainLanguageSummary)
         XCTAssertTrue(importSummary.sourceSections.flatMap(\.facts).contains(where: { $0.id == "records_to_create" }))
+        XCTAssertTrue(importSummary.sourceSections.flatMap(\.facts).contains(where: { $0.id == "source_label" }))
         XCTAssertTrue(importSummary.disclaimer.contains("generated locally"))
+        XCTAssertTrue(importSummary.summary.contains("dry run would create"))
         assertSummaryGuardrails(importSummary.summary)
+    }
+
+    func testDeferredExternalSummaryFallsBackToLocalRecap() async throws {
+        let controller = try makeInMemoryController(
+            featureFlags: AtlasFeatureFlagState(
+                boundedSummaries: true,
+                externalSummaryProviders: true
+            )
+        )
+        _ = try await controller.container.settings.updateSummarySettings(
+            AtlasSummarySettingsUpdate(
+                onDeviceEnabled: true,
+                externalProviderEnabled: true,
+                externalProviderConsentRecordedAt: importedFixtureReferenceDate
+            ),
+            now: importedFixtureReferenceDate
+        )
+
+        let prepared = try await controller.importExportBridge.prepareImport(
+            at: writeBundleURL(makeSpecCompleteBundle(aliasModeEnabled: false))
+        )
+        _ = try await controller.importExportBridge.commitPreparedImport(prepared, mode: .replaceExisting)
+
+        let snapshot = try await controller.container.metrics.fetchInsightsSnapshot(
+            referenceDate: importedFixtureReferenceDate
+        )
+        let summary = try XCTUnwrap(snapshot.weeklyRecapSummary)
+        XCTAssertEqual(summary.executionMode, .deterministicLocal)
+        XCTAssertTrue(summary.summary.contains("active protocol"))
+        assertSummaryGuardrails(summary.summary)
     }
 
     func testImportCommitWritesExtensionProjectionSnapshot() async throws {
@@ -4204,6 +4250,12 @@ final class AtlasPhaseOneTests: XCTestCase {
                 .flatMap(\.facts)
                 .contains(where: { $0.id == "render_mode" && $0.value == "Alias" })
         )
+        XCTAssertTrue(
+            summary.sourceSections
+                .flatMap(\.facts)
+                .contains(where: { $0.id == "dataset_count" && $0.value == String(preview.datasets.count) })
+        )
+        XCTAssertTrue(summary.summary.contains("across \(preview.datasets.count) datasets"))
         assertSummaryGuardrails(summary.summary)
     }
 

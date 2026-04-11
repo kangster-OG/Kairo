@@ -27,9 +27,9 @@ public enum AtlasSummaryExecutionMode: String, Codable, Sendable {
     public var label: String {
         switch self {
         case .deterministicLocal:
-            return "On-device template"
+            return "On-device recap"
         case .externalProvider:
-            return "External provider"
+            return "External recap"
         }
     }
 }

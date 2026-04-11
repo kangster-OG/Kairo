@@ -22,9 +22,14 @@ struct AtlasGeneratedSummaryCard: View {
     private var summaryBody: some View {
         VStack(alignment: .leading, spacing: AtlasSpacing.small) {
             HStack(alignment: .top) {
-                Text(summary.title)
-                    .font(.headline)
-                    .foregroundStyle(AtlasPalette.textPrimary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(summary.title)
+                        .font(.headline)
+                        .foregroundStyle(AtlasPalette.textPrimary)
+                    Text(summary.generatedAt.formatted(date: .abbreviated, time: .shortened))
+                        .font(.caption)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                }
                 Spacer(minLength: 12)
                 Text(summary.executionMode.label)
                     .font(.caption.weight(.semibold))
