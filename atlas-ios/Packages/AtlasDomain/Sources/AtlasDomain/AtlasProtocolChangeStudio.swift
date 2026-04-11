@@ -126,6 +126,7 @@ public struct AtlasProtocolChangeStudioContext: Identifiable, Equatable, Sendabl
     public var protocolID: String
     public var canonicalTitle: String
     public var aliasTitle: String?
+    public var protocolKind: AtlasProtocolKind
     public var kindLabel: String
     public var cadenceLabel: String
     public var doseLabel: String?
@@ -135,12 +136,15 @@ public struct AtlasProtocolChangeStudioContext: Identifiable, Equatable, Sendabl
     public var currentTimezoneStrategy: AtlasProtocolTimezoneStrategy
     public var currentLinkedVialID: String?
     public var availableVials: [AtlasProtocolChangeVialOption]
+    public var compoundKnowledge: AtlasCompoundKnowledge?
+    public var activeCompanions: [AtlasProtocolCompanionSummary]
     public var siteWarnings: [String]
 
     public init(
         protocolID: String,
         canonicalTitle: String,
         aliasTitle: String?,
+        protocolKind: AtlasProtocolKind,
         kindLabel: String,
         cadenceLabel: String,
         doseLabel: String?,
@@ -150,11 +154,14 @@ public struct AtlasProtocolChangeStudioContext: Identifiable, Equatable, Sendabl
         currentTimezoneStrategy: AtlasProtocolTimezoneStrategy,
         currentLinkedVialID: String?,
         availableVials: [AtlasProtocolChangeVialOption],
+        compoundKnowledge: AtlasCompoundKnowledge? = nil,
+        activeCompanions: [AtlasProtocolCompanionSummary] = [],
         siteWarnings: [String]
     ) {
         self.protocolID = protocolID
         self.canonicalTitle = canonicalTitle
         self.aliasTitle = aliasTitle
+        self.protocolKind = protocolKind
         self.kindLabel = kindLabel
         self.cadenceLabel = cadenceLabel
         self.doseLabel = doseLabel
@@ -164,7 +171,70 @@ public struct AtlasProtocolChangeStudioContext: Identifiable, Equatable, Sendabl
         self.currentTimezoneStrategy = currentTimezoneStrategy
         self.currentLinkedVialID = currentLinkedVialID
         self.availableVials = availableVials
+        self.compoundKnowledge = compoundKnowledge
+        self.activeCompanions = activeCompanions
         self.siteWarnings = siteWarnings
+    }
+}
+
+public struct AtlasProtocolCompanionSummary: Identifiable, Equatable, Sendable {
+    public var id: String
+    public var canonicalTitle: String
+    public var aliasTitle: String?
+    public var kindLabel: String
+    public var cadenceLabel: String
+    public var doseLabel: String?
+    public var compoundKnowledge: AtlasCompoundKnowledge?
+
+    public init(
+        id: String,
+        canonicalTitle: String,
+        aliasTitle: String?,
+        kindLabel: String,
+        cadenceLabel: String,
+        doseLabel: String?,
+        compoundKnowledge: AtlasCompoundKnowledge? = nil
+    ) {
+        self.id = id
+        self.canonicalTitle = canonicalTitle
+        self.aliasTitle = aliasTitle
+        self.kindLabel = kindLabel
+        self.cadenceLabel = cadenceLabel
+        self.doseLabel = doseLabel
+        self.compoundKnowledge = compoundKnowledge
+    }
+}
+
+public enum AtlasInteractionSeverity: String, CaseIterable, Sendable {
+    case advisory
+    case caution
+    case elevated
+
+    public var title: String {
+        switch self {
+        case .advisory: "Advisory"
+        case .caution: "Caution"
+        case .elevated: "Elevated"
+        }
+    }
+}
+
+public struct AtlasInteractionWarning: Identifiable, Equatable, Sendable {
+    public var id: String
+    public var severity: AtlasInteractionSeverity
+    public var title: String
+    public var detail: String
+
+    public init(
+        id: String,
+        severity: AtlasInteractionSeverity,
+        title: String,
+        detail: String
+    ) {
+        self.id = id
+        self.severity = severity
+        self.title = title
+        self.detail = detail
     }
 }
 
@@ -240,6 +310,7 @@ public struct AtlasProtocolChangePreview: Equatable, Sendable {
     public var inventoryForecastBefore: String?
     public var inventoryForecastAfter: String?
     public var occurrenceChanges: [AtlasProtocolChangeOccurrenceDiff]
+    public var interactionWarnings: [AtlasInteractionWarning]
     public var siteWarnings: [String]
 
     public init(
@@ -256,6 +327,7 @@ public struct AtlasProtocolChangePreview: Equatable, Sendable {
         inventoryForecastBefore: String?,
         inventoryForecastAfter: String?,
         occurrenceChanges: [AtlasProtocolChangeOccurrenceDiff],
+        interactionWarnings: [AtlasInteractionWarning] = [],
         siteWarnings: [String]
     ) {
         self.protocolID = protocolID
@@ -271,6 +343,7 @@ public struct AtlasProtocolChangePreview: Equatable, Sendable {
         self.inventoryForecastBefore = inventoryForecastBefore
         self.inventoryForecastAfter = inventoryForecastAfter
         self.occurrenceChanges = occurrenceChanges
+        self.interactionWarnings = interactionWarnings
         self.siteWarnings = siteWarnings
     }
 }

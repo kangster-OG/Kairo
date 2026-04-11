@@ -96,6 +96,18 @@ private struct AtlasProtocolChangeState {
     var sites: [AtlasSiteRecord]
     var reminderPreference: AtlasReminderPreferenceRecord
     var privacyProfile: AtlasPrivacyProfileRecord
+    var compoundKnowledge: AtlasCompoundKnowledge?
+    var peerProtocols: [AtlasProtocolCompanionState]
+}
+
+private struct AtlasProtocolCompanionState {
+    var protocolID: String
+    var canonicalTitle: String
+    var aliasTitle: String?
+    var kindLabel: String
+    var cadenceLabel: String
+    var doseLabel: String?
+    var compoundKnowledge: AtlasCompoundKnowledge?
 }
 
 public struct GRDBProtocolChangeStudioRepository: ProtocolChangeStudioRepository, Sendable {
@@ -112,7 +124,7 @@ public struct GRDBProtocolChangeStudioRepository: ProtocolChangeStudioRepository
 
     public func loadStudio(protocolID: String, referenceDate: Date) async throws -> AtlasProtocolChangeStudioContext {
         try await stack.canonical.read { db in
-            let state = try loadStudioState(db: db, protocolID: protocolID)
+            let state = try loadStudioState(db: db, protocolID: protocolID, referenceDate: referenceDate)
             let activeSlice = effectiveRevisionSlice(state.revisionSlices, at: referenceDate)
                 ?? state.revisionSlices.last
             let activeRule = activeSlice.flatMap { activeRuleForDate(slice: $0, at: referenceDate) }
@@ -123,6 +135,7 @@ public struct GRDBProtocolChangeStudioRepository: ProtocolChangeStudioRepository
                 protocolID: state.protocolRecord.id,
                 canonicalTitle: state.protocolRecord.name,
                 aliasTitle: state.aliasRecord?.aliasLabel,
+                protocolKind: state.protocolRecord.kind,
                 kindLabel: kindLabel(state.protocolRecord.kind),
                 cadenceLabel: formatCadenceLabel(
                     ruleType: activeRule?.ruleType,
@@ -152,6 +165,18 @@ public struct GRDBProtocolChangeStudioRepository: ProtocolChangeStudioRepository
                             isArchived: vial.archivedAt != nil
                         )
                     },
+                compoundKnowledge: state.compoundKnowledge,
+                activeCompanions: state.peerProtocols.map { companion in
+                    AtlasProtocolCompanionSummary(
+                        id: companion.protocolID,
+                        canonicalTitle: companion.canonicalTitle,
+                        aliasTitle: companion.aliasTitle,
+                        kindLabel: companion.kindLabel,
+                        cadenceLabel: companion.cadenceLabel,
+                        doseLabel: companion.doseLabel,
+                        compoundKnowledge: companion.compoundKnowledge
+                    )
+                },
                 siteWarnings: buildSiteWarnings(
                     siteTrackingEnabled: state.protocolRecord.siteTrackingEnabled,
                     siteRotationEnabled: state.protocolRecord.siteRotationEnabled,
@@ -167,7 +192,7 @@ public struct GRDBProtocolChangeStudioRepository: ProtocolChangeStudioRepository
         referenceDate: Date
     ) async throws -> AtlasProtocolChangePreview {
         try await stack.canonical.read { db in
-            let state = try loadStudioState(db: db, protocolID: protocolID)
+            let state = try loadStudioState(db: db, protocolID: protocolID, referenceDate: referenceDate)
             let normalizedDraft = try normalizeDraft(draft)
             let plan = try buildPlan(
                 draft: normalizedDraft,
@@ -244,6 +269,10 @@ public struct GRDBProtocolChangeStudioRepository: ProtocolChangeStudioRepository
                     before: currentFuture,
                     after: previewFuture
                 ),
+                interactionWarnings: buildInteractionWarnings(
+                    state: state,
+                    draft: normalizedDraft
+                ),
                 siteWarnings: plan.siteWarnings
             )
         }
@@ -261,7 +290,7 @@ public struct GRDBProtocolChangeStudioRepository: ProtocolChangeStudioRepository
         )
         let normalizedDraft = try normalizeDraft(draft)
         let audit = try await stack.canonical.write { db in
-            let state = try loadStudioState(db: db, protocolID: protocolID)
+            let state = try loadStudioState(db: db, protocolID: protocolID, referenceDate: referenceDate)
             let plan = try buildPlan(draft: normalizedDraft, state: state)
             let boundary = plan.draftRevisions.first?.effectiveFrom ?? atlasDayStartTimestamp(atlasLocalDateString(referenceDate))
             let boundaryDate = atlasDate(from: boundary)
@@ -413,7 +442,8 @@ public struct GRDBProtocolChangeStudioRepository: ProtocolChangeStudioRepository
 
 private func loadStudioState(
     db: Database,
-    protocolID: String
+    protocolID: String,
+    referenceDate: Date
 ) throws -> AtlasProtocolChangeState {
     let context = try loadCoreLoopContext(db: db)
     guard let protocolRecord = context.protocols[protocolID] else {
@@ -431,6 +461,10 @@ private func loadStudioState(
         .map(\.domain)
     let reminderPreference = try AtlasReminderPreferenceDBRecord.fetchOne(db)?.domain ?? .default()
     let privacyProfile = try AtlasPrivacyProfileDBRecord.fetchOne(db)?.domain ?? .default()
+    let compoundKnowledge = AtlasCompoundKnowledgeCatalog.resolve(
+        protocolName: protocolRecord.name,
+        kind: protocolRecord.kind
+    )
 
     return AtlasProtocolChangeState(
         protocolRecord: protocolRecord,
@@ -439,8 +473,196 @@ private func loadStudioState(
         vials: vials,
         sites: sites,
         reminderPreference: reminderPreference,
-        privacyProfile: privacyProfile
+        privacyProfile: privacyProfile,
+        compoundKnowledge: compoundKnowledge,
+        peerProtocols: buildCompanionStates(
+            context: context,
+            currentProtocolID: protocolID,
+            referenceDate: referenceDate
+        )
     )
+}
+
+private func buildCompanionStates(
+    context: AtlasCoreLoopContext,
+    currentProtocolID: String,
+    referenceDate: Date
+) -> [AtlasProtocolCompanionState] {
+    context.protocols.values
+        .filter { record in
+            record.id != currentProtocolID && record.status == .active
+        }
+        .sorted { $0.createdAt < $1.createdAt }
+        .map { record in
+            let revisionSlices = context.revisionSlices[record.id] ?? []
+            let activeSlice = effectiveRevisionSlice(revisionSlices, at: referenceDate)
+            let activeRule = activeSlice.flatMap { activeRuleForDate(slice: $0, at: referenceDate) }
+            let baseRule = (context.protocolRules[record.id] ?? []).first(where: \.isActive) ?? context.protocolRules[record.id]?.first
+            let doseAmount = activeRule?.doseAmountOverride ?? activeSlice?.revision.doseAmount ?? record.doseAmount
+            let doseUnit = activeRule?.doseUnitOverride ?? activeSlice?.revision.doseUnit ?? record.doseUnit
+
+            return AtlasProtocolCompanionState(
+                protocolID: record.id,
+                canonicalTitle: record.name,
+                aliasTitle: context.aliases[record.id]?.aliasLabel,
+                kindLabel: kindLabel(record.kind),
+                cadenceLabel: formatCadenceLabel(
+                    ruleType: activeRule?.ruleType ?? baseRule?.ruleType,
+                    intervalCount: activeRule?.intervalCount ?? baseRule?.intervalCount,
+                    weekday: activeRule?.weekday ?? baseRule?.weekday,
+                    timeOfDay: activeRule?.timeOfDay ?? activeSlice?.revision.defaultTimeOfDay ?? record.defaultTimeOfDay
+                ),
+                doseLabel: formatDoseLabel(amount: doseAmount, unit: doseUnit),
+                compoundKnowledge: AtlasCompoundKnowledgeCatalog.resolve(
+                    protocolName: record.name,
+                    kind: record.kind
+                )
+            )
+        }
+}
+
+private func buildInteractionWarnings(
+    state: AtlasProtocolChangeState,
+    draft: AtlasProtocolChangeDraft
+) -> [AtlasInteractionWarning] {
+    var warnings: [AtlasInteractionWarning] = []
+
+    if let knowledge = state.compoundKnowledge {
+        warnings.append(contentsOf: knowledge.operationalCautions.prefix(2).enumerated().map { index, caution in
+            AtlasInteractionWarning(
+                id: "knowledge-\(index)",
+                severity: .advisory,
+                title: "Protocol operating note",
+                detail: caution
+            )
+        })
+    }
+
+    let resolvedDoseUnit = {
+        switch draft.changeType {
+        case .titration:
+            return draft.titrationDoseUnit
+        default:
+            return draft.doseUnit
+        }
+    }()
+    .trimmingCharacters(in: .whitespacesAndNewlines)
+    .lowercased()
+
+    if
+        let knowledge = state.compoundKnowledge,
+        resolvedDoseUnit.isEmpty == false,
+        knowledge.commonDoseUnits.isEmpty == false,
+        knowledge.commonDoseUnits.map({ $0.lowercased() }).contains(resolvedDoseUnit) == false
+    {
+        warnings.append(
+            AtlasInteractionWarning(
+                id: "unit-mismatch",
+                severity: .caution,
+                title: "Dose unit looks unusual",
+                detail: "\(knowledge.displayName) is usually tracked in \(knowledge.commonDoseUnits.joined(separator: ", ")). Double-check the saved unit before you commit the future change."
+            )
+        )
+    }
+
+    if let knowledge = state.compoundKnowledge {
+        if knowledge.operationalTags.contains(.weeklyCadence), draft.changeType == .everyNDays, draft.intervalDays < 5 {
+            warnings.append(
+                AtlasInteractionWarning(
+                    id: "tightened-weekly-cadence",
+                    severity: .caution,
+                    title: "Cadence got tighter than Atlas usually expects",
+                    detail: "\(knowledge.displayName) is commonly run on a weekly rhythm. Moving it to every \(draft.intervalDays) days changes reminder, refill, and missed-dose behavior in a meaningful way."
+                )
+            )
+        }
+
+        if knowledge.operationalTags.contains(.dailyCadence), draft.changeType == .everyNDays, draft.intervalDays > 3 {
+            warnings.append(
+                AtlasInteractionWarning(
+                    id: "stretched-daily-cadence",
+                    severity: .advisory,
+                    title: "This looks more stretched than a typical daily plan",
+                    detail: "\(knowledge.displayName) is often tracked with a tighter cadence. Make sure the longer interval is intentional and not just a placeholder draft."
+                )
+            )
+        }
+    }
+
+    for companion in state.peerProtocols {
+        guard let primary = state.compoundKnowledge, let peerKnowledge = companion.compoundKnowledge else {
+            continue
+        }
+
+        let sharedTags = Set(primary.operationalTags).intersection(peerKnowledge.operationalTags)
+        let companionTitle = companion.aliasTitle ?? companion.canonicalTitle
+
+        if primary.kind == .glp, peerKnowledge.kind == .glp, primary.slug != peerKnowledge.slug {
+            warnings.append(
+                AtlasInteractionWarning(
+                    id: "glp-overlap-\(companion.protocolID)",
+                    severity: .elevated,
+                    title: "Overlapping GLP-style protocols",
+                    detail: "\(primary.displayName) and \(companionTitle) both read like active GLP-style plans. Atlas should treat this as an intentional overlap only if the transition window is clearly planned."
+                )
+            )
+        }
+
+        if sharedTags.contains(.appetiteControl) || sharedTags.contains(.giLoad) {
+            warnings.append(
+                AtlasInteractionWarning(
+                    id: "appetite-load-\(companion.protocolID)",
+                    severity: .caution,
+                    title: "Stacked appetite / GI burden",
+                    detail: "\(primary.displayName) and \(companionTitle) can both increase appetite or GI management burden. Keep the handoff explicit so side effects do not get misattributed."
+                )
+            )
+        }
+
+        if sharedTags.contains(.ghAxis) {
+            warnings.append(
+                AtlasInteractionWarning(
+                    id: "gh-axis-\(companion.protocolID)",
+                    severity: .caution,
+                    title: "Shared GH-axis signaling",
+                    detail: "\(primary.displayName) and \(companionTitle) both sit in a GH-axis style protocol lane. Bedtime timing, stack intent, and titration notes should stay explicit."
+                )
+            )
+        }
+
+        if sharedTags.contains(.recoverySupport) {
+            warnings.append(
+                AtlasInteractionWarning(
+                    id: "recovery-stack-\(companion.protocolID)",
+                    severity: .advisory,
+                    title: "Recovery stack complexity",
+                    detail: "\(primary.displayName) and \(companionTitle) can make a repair stack feel simple while still increasing site, inventory, and symptom-tracking load."
+                )
+            )
+        }
+
+        if sharedTags.contains(.androgenicLoad) {
+            warnings.append(
+                AtlasInteractionWarning(
+                    id: "androgen-stack-\(companion.protocolID)",
+                    severity: .elevated,
+                    title: "Androgen stack burden",
+                    detail: "\(primary.displayName) and \(companionTitle) both add androgenic load. Atlas should treat the future plan as a higher-monitoring protocol, not as a routine side-by-side reminder."
+                )
+            )
+        }
+    }
+
+    return warnings.uniqued(by: \.id)
+}
+
+private extension Array {
+    func uniqued<Key: Hashable>(by keyPath: KeyPath<Element, Key>) -> [Element] {
+        var seen: Set<Key> = []
+        return filter { element in
+            seen.insert(element[keyPath: keyPath]).inserted
+        }
+    }
 }
 
 private func normalizeDraft(_ draft: AtlasProtocolChangeDraft) throws -> AtlasProtocolChangeDraft {

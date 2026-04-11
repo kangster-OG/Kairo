@@ -850,6 +850,10 @@ func buildProtocolSummary(
     pendingOccurrences: [AtlasOccurrenceProjectionRecord],
     now: Date
 ) -> ProtocolSummary {
+    let compoundKnowledge = AtlasCompoundKnowledgeCatalog.resolve(
+        protocolName: protocolRecord.name,
+        kind: protocolRecord.kind
+    )
     let activeSlice = effectiveRevisionSlice(revisionSlices, at: now)
     let activeRule = activeSlice.flatMap { activeRuleForDate(slice: $0, at: now) }
     let baseRule = protocolRules.first(where: \.isActive) ?? protocolRules.first
@@ -870,11 +874,13 @@ func buildProtocolSummary(
         id: protocolRecord.id,
         canonicalTitle: protocolRecord.name,
         aliasTitle: alias?.aliasLabel,
+        protocolKind: protocolRecord.kind,
         kindLabel: kindLabel(protocolRecord.kind),
         cadenceLabel: cadence,
         doseLabel: doseAmount.flatMap { amount in doseUnit.map { "\(amount.cleanAtlasNumber) \($0)" } },
         nextDueLabel: nextDueLabel,
-        status: protocolRecord.status
+        status: protocolRecord.status,
+        compoundKnowledge: compoundKnowledge
     )
 }
 
@@ -909,6 +915,10 @@ private func buildProtocolDetailSnapshot(
     let nextOccurrence = nextOccurrenceRecord.map {
         buildScheduledOccurrence(occurrence: $0, context: context, now: now)
     }
+    let compoundKnowledge = AtlasCompoundKnowledgeCatalog.resolve(
+        protocolName: protocolRecord.name,
+        kind: protocolRecord.kind
+    )
 
     let draft = AtlasProtocolDraft(
         name: protocolRecord.name,
@@ -927,10 +937,12 @@ private func buildProtocolDetailSnapshot(
         canonicalTitle: protocolRecord.name,
         aliasTitle: context.aliases[protocolID]?.aliasLabel,
         status: protocolRecord.status,
+        protocolKind: protocolRecord.kind,
         kindLabel: kindLabel(protocolRecord.kind),
         cadenceLabel: cadence,
         doseLabel: doseAmount.flatMap { amount in doseUnit.map { "\(amount.cleanAtlasNumber) \($0)" } },
         notes: activeSlice?.revision.notes ?? protocolRecord.notes,
+        compoundKnowledge: compoundKnowledge,
         editableDraft: draft,
         nextOccurrence: nextOccurrence,
         recentChanges: try AtlasProtocolChangeAuditDBRecord

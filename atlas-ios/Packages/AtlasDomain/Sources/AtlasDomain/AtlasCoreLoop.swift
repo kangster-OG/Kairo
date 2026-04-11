@@ -131,10 +131,12 @@ public struct AtlasProtocolDetailSnapshot: Identifiable, Equatable, Sendable {
     public var canonicalTitle: String
     public var aliasTitle: String?
     public var status: AtlasProtocolStatus
+    public var protocolKind: AtlasProtocolKind
     public var kindLabel: String
     public var cadenceLabel: String
     public var doseLabel: String?
     public var notes: String?
+    public var compoundKnowledge: AtlasCompoundKnowledge?
     public var editableDraft: AtlasProtocolDraft
     public var nextOccurrence: AtlasScheduledOccurrence?
     public var recentChanges: [AtlasProtocolChangeExplanation]
@@ -144,10 +146,12 @@ public struct AtlasProtocolDetailSnapshot: Identifiable, Equatable, Sendable {
         canonicalTitle: String,
         aliasTitle: String?,
         status: AtlasProtocolStatus,
+        protocolKind: AtlasProtocolKind,
         kindLabel: String,
         cadenceLabel: String,
         doseLabel: String?,
         notes: String?,
+        compoundKnowledge: AtlasCompoundKnowledge? = nil,
         editableDraft: AtlasProtocolDraft,
         nextOccurrence: AtlasScheduledOccurrence?,
         recentChanges: [AtlasProtocolChangeExplanation] = []
@@ -156,10 +160,12 @@ public struct AtlasProtocolDetailSnapshot: Identifiable, Equatable, Sendable {
         self.canonicalTitle = canonicalTitle
         self.aliasTitle = aliasTitle
         self.status = status
+        self.protocolKind = protocolKind
         self.kindLabel = kindLabel
         self.cadenceLabel = cadenceLabel
         self.doseLabel = doseLabel
         self.notes = notes
+        self.compoundKnowledge = compoundKnowledge
         self.editableDraft = editableDraft
         self.nextOccurrence = nextOccurrence
         self.recentChanges = recentChanges

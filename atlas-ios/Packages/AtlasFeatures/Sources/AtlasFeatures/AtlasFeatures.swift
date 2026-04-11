@@ -3298,6 +3298,7 @@ private struct AtlasProtocolLibraryCard: View {
     let model: AtlasAppModel
     let summary: ProtocolSummary
     let renderMode: AtlasPrivacyRenderMode
+    @State private var showingCompare = false
 
     var body: some View {
         AtlasSectionCard(style: .elevated) {
@@ -3330,6 +3331,23 @@ private struct AtlasProtocolLibraryCard: View {
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
 
+                if let knowledge = summary.compoundKnowledge {
+                    Text(knowledge.protocolSummary)
+                        .font(.caption)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: AtlasSpacing.xSmall) {
+                            AtlasCompoundContextChip(label: knowledge.categoryLabel)
+                            AtlasCompoundContextChip(label: knowledge.typicalCadenceLabel)
+                            AtlasCompoundContextChip(label: knowledge.availabilityLabel)
+                            ForEach(Array(knowledge.operationalTags.prefix(3)), id: \.self) { tag in
+                                AtlasCompoundContextChip(label: tag.title)
+                            }
+                        }
+                    }
+                }
+
                 HStack(spacing: AtlasSpacing.small) {
                     Button("Open") {
                         model.open(.protocolDetail(summary.id))
@@ -3340,8 +3358,232 @@ private struct AtlasProtocolLibraryCard: View {
                         model.open(.protocolChange(summary.id))
                     }
                     .buttonStyle(AtlasSecondaryButtonStyle())
+
+                    Button("Compare") {
+                        showingCompare = true
+                    }
+                    .buttonStyle(AtlasSecondaryButtonStyle())
                 }
             }
+        }
+        .sheet(isPresented: $showingCompare) {
+            AtlasCompoundCompareSheet(
+                protocolTitle: model.renderedTitle(
+                    canonical: summary.canonicalTitle,
+                    alias: summary.aliasTitle,
+                    renderMode: renderMode
+                ),
+                protocolKind: summary.protocolKind,
+                currentKnowledge: summary.compoundKnowledge
+            )
+        }
+    }
+}
+
+private struct AtlasCompoundContextChip: View {
+    let label: String
+
+    var body: some View {
+        Text(label)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(AtlasPalette.primary)
+            .padding(.horizontal, AtlasSpacing.small)
+            .padding(.vertical, 6)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(AtlasPalette.secondaryFill)
+            )
+    }
+}
+
+private struct AtlasCompoundCompareSheet: View {
+    let protocolTitle: String
+    let protocolKind: AtlasProtocolKind
+    let currentKnowledge: AtlasCompoundKnowledge?
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var selectedCandidateSlug = ""
+
+    private var candidates: [AtlasCompoundKnowledge] {
+        AtlasCompoundKnowledgeCatalog.compareCandidates(for: currentKnowledge, kind: protocolKind)
+    }
+
+    private var selectedCandidate: AtlasCompoundKnowledge? {
+        candidates.first(where: { $0.slug == selectedCandidateSlug }) ?? candidates.first
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+                        Text(protocolTitle)
+                            .font(.title3.weight(.bold))
+                            .foregroundStyle(AtlasPalette.textPrimary)
+
+                        if let currentKnowledge {
+                            Text(currentKnowledge.protocolSummary)
+                                .foregroundStyle(AtlasPalette.textSecondary)
+                        } else {
+                            Text("Atlas does not recognize this compound strongly enough yet, so compare mode is using the broader \(kindTitle.lowercased()) catalog.")
+                                .foregroundStyle(AtlasPalette.textSecondary)
+                        }
+                    }
+                    .padding(.vertical, AtlasSpacing.xSmall)
+                }
+
+                if let currentKnowledge {
+                    Section("Current protocol") {
+                        AtlasCompoundKnowledgeSummary(knowledge: currentKnowledge)
+                    }
+                }
+
+                Section("Compare against") {
+                    if candidates.isEmpty {
+                        Text("Atlas does not have a compare catalog for this protocol yet.")
+                            .foregroundStyle(AtlasPalette.textSecondary)
+                    } else {
+                        Picker("Compound", selection: selectedBinding) {
+                            ForEach(candidates) { candidate in
+                                Text(candidate.displayName).tag(candidate.slug)
+                            }
+                        }
+
+                        if let selectedCandidate {
+                            AtlasCompoundKnowledgeSummary(knowledge: selectedCandidate)
+                        }
+                    }
+                }
+
+                if let currentKnowledge, let selectedCandidate {
+                    Section("Swap guidance") {
+                        AtlasCompareValueRow(
+                            title: "Category",
+                            currentValue: currentKnowledge.categoryLabel,
+                            nextValue: selectedCandidate.categoryLabel
+                        )
+                        AtlasCompareValueRow(
+                            title: "Cadence",
+                            currentValue: currentKnowledge.typicalCadenceLabel,
+                            nextValue: selectedCandidate.typicalCadenceLabel
+                        )
+                        AtlasCompareValueRow(
+                            title: "Route",
+                            currentValue: currentKnowledge.routeLabel,
+                            nextValue: selectedCandidate.routeLabel
+                        )
+                        AtlasCompareValueRow(
+                            title: "Dose units",
+                            currentValue: currentKnowledge.commonDoseUnits.joined(separator: ", "),
+                            nextValue: selectedCandidate.commonDoseUnits.joined(separator: ", ")
+                        )
+                        AtlasCompareValueRow(
+                            title: "Availability",
+                            currentValue: currentKnowledge.availabilityLabel,
+                            nextValue: selectedCandidate.availabilityLabel
+                        )
+                    }
+
+                    Section("Atlas change notes") {
+                        ForEach(AtlasCompoundKnowledgeCatalog.swapGuidance(from: currentKnowledge, to: selectedCandidate), id: \.self) { note in
+                            Text(note)
+                                .font(.caption)
+                                .foregroundStyle(AtlasPalette.textSecondary)
+                        }
+                    }
+                }
+            }
+            .listStyle(.plain)
+            .navigationTitle("Compare / swap")
+            .atlasInlineNavigationTitle()
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+            .onAppear {
+                if selectedCandidateSlug.isEmpty {
+                    selectedCandidateSlug = candidates.first?.slug ?? ""
+                }
+            }
+        }
+    }
+
+    private var kindTitle: String {
+        switch protocolKind {
+        case .glp: "GLP"
+        case .peptide: "Peptide"
+        case .custom: "Custom"
+        }
+    }
+
+    private var selectedBinding: Binding<String> {
+        Binding(
+            get: { selectedCandidateSlug.isEmpty ? candidates.first?.slug ?? "" : selectedCandidateSlug },
+            set: { selectedCandidateSlug = $0 }
+        )
+    }
+}
+
+private struct AtlasCompoundKnowledgeSummary: View {
+    let knowledge: AtlasCompoundKnowledge
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+            Text(knowledge.displayName)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(AtlasPalette.textPrimary)
+
+            Text(knowledge.protocolSummary)
+                .font(.caption)
+                .foregroundStyle(AtlasPalette.textSecondary)
+
+            Text("\(knowledge.categoryLabel) • \(knowledge.routeLabel)")
+                .font(.caption)
+                .foregroundStyle(AtlasPalette.textSecondary)
+
+            Text("Typical cadence: \(knowledge.typicalCadenceLabel)")
+                .font(.caption)
+                .foregroundStyle(AtlasPalette.textSecondary)
+
+            Text("Availability: \(knowledge.availabilityLabel)")
+                .font(.caption)
+                .foregroundStyle(AtlasPalette.textSecondary)
+
+            Text("Common units: \(knowledge.commonDoseUnits.joined(separator: ", "))")
+                .font(.caption)
+                .foregroundStyle(AtlasPalette.textSecondary)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: AtlasSpacing.xSmall) {
+                    ForEach(knowledge.operationalTags, id: \.self) { tag in
+                        AtlasCompoundContextChip(label: tag.title)
+                    }
+                }
+            }
+        }
+        .padding(.vertical, AtlasSpacing.xSmall)
+    }
+}
+
+private struct AtlasCompareValueRow: View {
+    let title: String
+    let currentValue: String
+    let nextValue: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(AtlasPalette.primary)
+            Text("Current: \(currentValue)")
+                .font(.caption)
+                .foregroundStyle(AtlasPalette.textSecondary)
+            Text("Compared: \(nextValue)")
+                .font(.caption)
+                .foregroundStyle(AtlasPalette.textSecondary)
         }
     }
 }

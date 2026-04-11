@@ -2037,9 +2037,14 @@ func buildProtocolSummaries(
                 id: record.id,
                 canonicalTitle: record.name,
                 aliasTitle: aliasLookup[record.id]?.aliasLabel,
+                protocolKind: record.kind,
                 kindLabel: kindLabel(record.kind),
                 cadenceLabel: cadenceLabel(from: firstRules[record.id]),
-                status: record.status
+                status: record.status,
+                compoundKnowledge: AtlasCompoundKnowledgeCatalog.resolve(
+                    protocolName: record.name,
+                    kind: record.kind
+                )
             )
         }
 }

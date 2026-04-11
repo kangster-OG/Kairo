@@ -523,30 +523,36 @@ public struct ProtocolSummary: Identifiable, Hashable, Sendable {
     public var id: String
     public var canonicalTitle: String
     public var aliasTitle: String?
+    public var protocolKind: AtlasProtocolKind
     public var kindLabel: String
     public var cadenceLabel: String
     public var doseLabel: String?
     public var nextDueLabel: String?
     public var status: AtlasProtocolStatus
+    public var compoundKnowledge: AtlasCompoundKnowledge?
 
     public init(
         id: String,
         canonicalTitle: String,
         aliasTitle: String?,
+        protocolKind: AtlasProtocolKind,
         kindLabel: String,
         cadenceLabel: String,
         doseLabel: String? = nil,
         nextDueLabel: String? = nil,
-        status: AtlasProtocolStatus
+        status: AtlasProtocolStatus,
+        compoundKnowledge: AtlasCompoundKnowledge? = nil
     ) {
         self.id = id
         self.canonicalTitle = canonicalTitle
         self.aliasTitle = aliasTitle
+        self.protocolKind = protocolKind
         self.kindLabel = kindLabel
         self.cadenceLabel = cadenceLabel
         self.doseLabel = doseLabel
         self.nextDueLabel = nextDueLabel
         self.status = status
+        self.compoundKnowledge = compoundKnowledge
     }
 }
 

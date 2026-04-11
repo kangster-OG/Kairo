@@ -97,6 +97,41 @@ public struct AtlasProtocolChangeStudioScreen: View {
                     .padding(.vertical, AtlasSpacing.small)
                 }
 
+                if let knowledge = context.compoundKnowledge {
+                    Section("Compound context") {
+                        VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+                            Text(knowledge.protocolSummary)
+                                .foregroundStyle(AtlasPalette.textSecondary)
+                            Text("\(knowledge.categoryLabel) • \(knowledge.routeLabel)")
+                                .font(.caption)
+                                .foregroundStyle(AtlasPalette.textSecondary)
+                            Text("Typical cadence: \(knowledge.typicalCadenceLabel)")
+                                .font(.caption)
+                                .foregroundStyle(AtlasPalette.textSecondary)
+                            Text("Common units: \(knowledge.commonDoseUnits.joined(separator: ", "))")
+                                .font(.caption)
+                                .foregroundStyle(AtlasPalette.textSecondary)
+
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: AtlasSpacing.xSmall) {
+                                    ForEach(knowledge.operationalTags, id: \.self) { tag in
+                                        AtlasChangeStudioTagChip(label: tag.title)
+                                    }
+                                }
+                            }
+                        }
+                        .padding(.vertical, AtlasSpacing.xSmall)
+                    }
+                }
+
+                if context.activeCompanions.isEmpty == false {
+                    Section("Active alongside") {
+                        ForEach(context.activeCompanions) { companion in
+                            AtlasCompanionProtocolRow(model: model, companion: companion)
+                        }
+                    }
+                }
+
                 Section("Change") {
                     Picker("Operation", selection: $draft.changeType) {
                         ForEach(AtlasProtocolChangeType.allCases) { type in
@@ -203,6 +238,17 @@ public struct AtlasProtocolChangeStudioScreen: View {
                                             .foregroundStyle(AtlasPalette.textSecondary)
                                     }
                                 }
+                            }
+                        }
+                    }
+
+                    Section("Interaction guidance") {
+                        if preview.interactionWarnings.isEmpty {
+                            Text("No obvious operational conflicts detected for this draft. Atlas still expects clear unit, cadence, and overlap intent before you commit.")
+                                .foregroundStyle(AtlasPalette.textSecondary)
+                        } else {
+                            ForEach(preview.interactionWarnings) { warning in
+                                AtlasInteractionWarningCard(warning: warning)
                             }
                         }
                     }
@@ -431,6 +477,91 @@ public struct AtlasProtocolChangeStudioScreen: View {
 
     private var weekdayOptions: [String] {
         ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+    }
+}
+
+private struct AtlasCompanionProtocolRow: View {
+    let model: AtlasAppModel
+    let companion: AtlasProtocolCompanionSummary
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
+            Text(model.renderedTitle(canonical: companion.canonicalTitle, alias: companion.aliasTitle))
+                .font(.body.weight(.semibold))
+                .foregroundStyle(AtlasPalette.textPrimary)
+            Text("\(companion.kindLabel) • \(companion.cadenceLabel)")
+                .font(.caption)
+                .foregroundStyle(AtlasPalette.textSecondary)
+            if let doseLabel = companion.doseLabel {
+                Text("Dose \(doseLabel)")
+                    .font(.caption)
+                    .foregroundStyle(AtlasPalette.textSecondary)
+            }
+            if let knowledge = companion.compoundKnowledge {
+                Text(knowledge.protocolSummary)
+                    .font(.caption)
+                    .foregroundStyle(AtlasPalette.textSecondary)
+            }
+        }
+        .padding(.vertical, AtlasSpacing.xSmall)
+    }
+}
+
+private struct AtlasChangeStudioTagChip: View {
+    let label: String
+
+    var body: some View {
+        Text(label)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(AtlasPalette.primary)
+            .padding(.horizontal, AtlasSpacing.small)
+            .padding(.vertical, 6)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(AtlasPalette.secondaryFill)
+            )
+    }
+}
+
+private struct AtlasInteractionWarningCard: View {
+    let warning: AtlasInteractionWarning
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
+            HStack {
+                Text(warning.severity.title)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(severityColor)
+                Spacer()
+                Text(warning.title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AtlasPalette.textPrimary)
+            }
+
+            Text(warning.detail)
+                .font(.caption)
+                .foregroundStyle(AtlasPalette.textSecondary)
+        }
+        .padding(AtlasSpacing.medium)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(severityColor.opacity(0.08))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(severityColor.opacity(0.28), lineWidth: 1)
+        )
+    }
+
+    private var severityColor: Color {
+        switch warning.severity {
+        case .advisory:
+            AtlasPalette.primary
+        case .caution:
+            .orange
+        case .elevated:
+            .red
+        }
     }
 }
 
