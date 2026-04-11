@@ -195,6 +195,64 @@ final class AtlasPhaseOneTests: XCTestCase {
     }
 
     @MainActor
+    func testLowStockProjectionIncludesProcurementReviewSignal() async throws {
+        let directory = try makeTemporaryDirectory()
+        let controller = try AtlasPersistenceController.temporary(
+            baseURL: directory,
+            featureFlags: AtlasFeatureFlagState(),
+            privacyFormatter: AtlasPrivacyFormatter(),
+            notifications: TestNotificationManager()
+        )
+        let model = makeAppModel(controller: controller)
+        let now = Date(timeIntervalSince1970: 1_773_950_400)
+
+        _ = try await controller.container.inventory.saveConsumable(
+            AtlasConsumableDraft(
+                name: "Alcohol pads",
+                category: "Swab",
+                quantityOnHand: 2,
+                unit: "pad",
+                reorderThreshold: 3,
+                reorderLeadTimeDays: 5,
+                quantityPerUse: 1
+            ),
+            now: now
+        )
+
+        await model.refreshShellData()
+        let loadedSnapshot = try await controller.sharedProjectionWriter.loadExtensionProjectionSnapshot()
+        let snapshot = try XCTUnwrap(loadedSnapshot)
+
+        XCTAssertEqual(snapshot.lowStock.lowStockCount, 1)
+        XCTAssertEqual(snapshot.lowStock.procurementReviewCount, 1)
+        XCTAssertEqual(snapshot.lowStock.items.first?.detail, "Procurement review now.")
+    }
+
+    func testExtensionProjectionFreshnessUsesSurfaceSpecificWindows() {
+        let generatedAt = Date(timeIntervalSince1970: 1_773_950_400)
+
+        let nextDueFreshness = AtlasExtensionProjectionFreshness(
+            surface: .nextDueWidget,
+            generatedAt: generatedAt,
+            referenceDate: generatedAt.addingTimeInterval(3 * 60 * 60)
+        )
+        let intentFreshness = AtlasExtensionProjectionFreshness(
+            surface: .nextDueIntent,
+            generatedAt: generatedAt,
+            referenceDate: generatedAt.addingTimeInterval(3 * 60 * 60)
+        )
+        let lowStockFreshness = AtlasExtensionProjectionFreshness(
+            surface: .lowStockWidget,
+            generatedAt: generatedAt,
+            referenceDate: generatedAt.addingTimeInterval(3 * 60 * 60)
+        )
+
+        XCTAssertTrue(nextDueFreshness.isStale)
+        XCTAssertTrue(intentFreshness.isStale)
+        XCTAssertFalse(lowStockFreshness.isStale)
+    }
+
+    @MainActor
     func testRefreshShellDataOnEmptyTemporaryStoreDoesNotSurfaceStartupError() async throws {
         let directory = try makeTemporaryDirectory()
         let controller = try AtlasPersistenceController.temporary(
@@ -322,6 +380,18 @@ final class AtlasPhaseOneTests: XCTestCase {
         XCTAssertEqual(model.insightsSnapshot.recentSymptomEntries.first?.severity, 4)
     }
 
+    @MainActor
+    func testHandleIncomingTrustVaultURLOpensTrustVaultFromSettings() async throws {
+        let controller = try makeInMemoryController()
+        let model = makeAppModel(controller: controller)
+        try await completeOnboardingIfNeeded(controller: controller)
+
+        await model.handleIncomingURL(URL(string: "atlas://trust-vault")!)
+
+        XCTAssertEqual(model.activeTab, .settings)
+        XCTAssertEqual(model.routePath, [.trustVault])
+    }
+
     func testContextEntryPersistenceTimelineAndDiscreetPrivacyStayCalm() async throws {
         let controller = try makeInMemoryController()
         let now = Date(timeIntervalSince1970: 1_773_950_400)
@@ -444,12 +514,15 @@ final class AtlasPhaseOneTests: XCTestCase {
                 protocolId: "p1",
                 loggedAt: "2026-02-22T09:10:00.000Z",
                 mealTiming: .breakfast,
+                mealSize: nil,
+                mealComposition: nil,
                 fedState: .fasted,
                 appetite: .low,
                 hydration: .low,
                 giTags: [.nausea],
                 note: nil,
                 tags: [],
+                presetKey: nil,
                 source: .manual,
                 createdAt: "2026-02-22T09:10:00.000Z",
                 updatedAt: "2026-02-22T09:10:00.000Z"
@@ -459,12 +532,15 @@ final class AtlasPhaseOneTests: XCTestCase {
                 protocolId: "p1",
                 loggedAt: "2026-03-01T09:20:00.000Z",
                 mealTiming: .breakfast,
+                mealSize: nil,
+                mealComposition: nil,
                 fedState: .fasted,
                 appetite: .low,
                 hydration: .low,
                 giTags: [.nausea],
                 note: nil,
                 tags: [],
+                presetKey: nil,
                 source: .manual,
                 createdAt: "2026-03-01T09:20:00.000Z",
                 updatedAt: "2026-03-01T09:20:00.000Z"
@@ -474,12 +550,15 @@ final class AtlasPhaseOneTests: XCTestCase {
                 protocolId: "p1",
                 loggedAt: "2026-03-08T09:25:00.000Z",
                 mealTiming: .breakfast,
+                mealSize: nil,
+                mealComposition: nil,
                 fedState: .fasted,
                 appetite: .low,
                 hydration: .low,
                 giTags: [.nausea],
                 note: nil,
                 tags: [],
+                presetKey: nil,
                 source: .manual,
                 createdAt: "2026-03-08T09:25:00.000Z",
                 updatedAt: "2026-03-08T09:25:00.000Z"
@@ -611,12 +690,15 @@ final class AtlasPhaseOneTests: XCTestCase {
                 protocolId: "p1",
                 loggedAt: "2026-03-08T09:10:00.000Z",
                 mealTiming: .breakfast,
+                mealSize: nil,
+                mealComposition: nil,
                 fedState: .fasted,
                 appetite: .low,
                 hydration: .low,
                 giTags: [.nausea],
                 note: nil,
                 tags: [],
+                presetKey: nil,
                 source: .manual,
                 createdAt: "2026-03-08T09:10:00.000Z",
                 updatedAt: "2026-03-08T09:10:00.000Z"
@@ -677,6 +759,19 @@ final class AtlasPhaseOneTests: XCTestCase {
         XCTAssertEqual(history.first?.protocolID, nextDue?.protocolID)
     }
 
+    @MainActor
+    func testHistoricalShellRefreshReprojectsPendingOccurrencesForReferenceDate() async throws {
+        let controller = try makeInMemoryController()
+        let bundle = try XCTUnwrap(makePhaseTwoFixtures().first(where: { $0.name == "multiple-protocols" })?.bundle)
+        let prepared = try await controller.importExportBridge.prepareImport(at: writeBundleURL(bundle))
+
+        _ = try await controller.importExportBridge.commitPreparedImport(prepared, mode: .replaceExisting)
+        let model = makeAppModel(controller: controller, referenceDate: importedFixtureReferenceDate)
+        await model.refreshShellData()
+
+        XCTAssertEqual(model.todaySnapshot.nextDue?.canonicalTitle, "Weekly GLP")
+    }
+
     func testTemporaryControllerCreatesDatabaseFiles() throws {
         let directory = try makeTemporaryDirectory()
         let controller = try AtlasPersistenceController.temporary(
@@ -714,6 +809,9 @@ final class AtlasPhaseOneTests: XCTestCase {
             let controller = try makeInMemoryController()
             let prepared = try await controller.importExportBridge.prepareImport(at: writeBundleURL(fixture.bundle))
             _ = try await controller.importExportBridge.commitPreparedImport(prepared, mode: .replaceExisting)
+            try await controller.container.coreLoop.ensureProjectedOccurrences(
+                referenceDate: importedFixtureReferenceDate
+            )
             let model = makeAppModel(controller: controller, referenceDate: importedFixtureReferenceDate)
             await model.refreshShellData()
             let projectionState = try await controller.sharedProjectionWriter.loadProjectionDebugState()
@@ -1450,9 +1548,14 @@ final class AtlasPhaseOneTests: XCTestCase {
         XCTAssertTrue(summary.isLowStock)
         XCTAssertEqual(summary.vendorLabel, "Local pharmacy")
         XCTAssertNotNil(summary.projectedDepletionLabel)
+        XCTAssertEqual(summary.procurementStatusLabel, "Procurement review now.")
         XCTAssertEqual(adjusted.consumable.adjustmentHistory.first?.kind, .manualAdjustment)
         XCTAssertEqual(adjusted.consumable.adjustmentHistory.first?.deltaLabel, "-3 pad")
         XCTAssertEqual(adjusted.consumable.adjustmentHistory.dropFirst().first?.kind, .created)
+        XCTAssertEqual(adjusted.consumable.procurementHistory.first?.kind, .created)
+        XCTAssertEqual(adjusted.consumable.procurementHistory.first?.vendorLabel, "Local pharmacy")
+        XCTAssertEqual(adjusted.consumable.procurementHistory.first?.sourceDetail, "Pack of 100")
+        XCTAssertEqual(adjusted.consumable.planning.vendorHistorySummary, "1 source recorded")
     }
 
     func testConsumableTakenLogDecrementAppendsSeparateSupplyHistory() async throws {
@@ -1506,6 +1609,61 @@ final class AtlasPhaseOneTests: XCTestCase {
         XCTAssertEqual(detail.adjustmentHistory.first?.kind, .protocolUse)
         XCTAssertEqual(detail.adjustmentHistory.first?.deltaLabel, "-1 syringe")
         XCTAssertFalse(history.contains(where: { $0.summary.contains("Syringes") }))
+    }
+
+    func testConsumableProcurementRecordsVendorHistoryAndRestoresPlanningHeadroom() async throws {
+        let controller = try makeInMemoryController()
+        let now = Date(timeIntervalSince1970: 1_773_928_800)
+        let protocolDetail = try await controller.container.protocols.createProtocol(
+            AtlasProtocolDraft(
+                name: "Procurement protocol",
+                kind: .custom,
+                cadenceType: .daily,
+                defaultTimeOfDay: "09:00",
+                doseAmount: 1,
+                doseUnit: "mg"
+            ),
+            now: now
+        )
+        try await controller.container.coreLoop.ensureProjectedOccurrences(referenceDate: now)
+
+        let saved = try await controller.container.inventory.saveConsumable(
+            AtlasConsumableDraft(
+                protocolID: protocolDetail.id,
+                name: "Alcohol pads",
+                category: "Swab",
+                quantityOnHand: 12,
+                unit: "pad",
+                reorderThreshold: 10,
+                reorderLeadTimeDays: 5,
+                quantityPerUse: 1,
+                vendorLabel: "Local pharmacy",
+                purchaseNotes: "Starter carton"
+            ),
+            now: now
+        )
+
+        let result = try await controller.container.inventory.recordConsumableProcurement(
+            AtlasConsumableProcurementDraft(
+                consumableID: saved.summary.id,
+                quantityReceived: 24,
+                vendorLabel: "Neighborhood pharmacy",
+                sourceDetail: "Two sleeves for travel kits",
+                receivedAt: now.addingTimeInterval(86_400)
+            ),
+            now: now.addingTimeInterval(86_460)
+        )
+
+        let detail = result.consumable
+        XCTAssertEqual(detail.summary.quantityOnHand, 36, accuracy: 0.001)
+        XCTAssertEqual(detail.summary.vendorLabel, "Neighborhood pharmacy")
+        XCTAssertFalse(detail.summary.needsProcurementReview)
+        XCTAssertEqual(detail.adjustmentHistory.first?.kind, .procurement)
+        XCTAssertEqual(detail.procurementHistory.first?.kind, .procurement)
+        XCTAssertEqual(detail.procurementHistory.first?.vendorLabel, "Neighborhood pharmacy")
+        XCTAssertEqual(detail.procurementHistory.first?.sourceDetail, "Two sleeves for travel kits")
+        XCTAssertEqual(detail.planning.lastProcurementLabel, "Last procurement Mar 20, 2026")
+        XCTAssertEqual(detail.planning.vendorHistorySummary, "2 sources recorded")
     }
 
     func testInventoryMovementHistoryExplainsDeterministicInventoryChanges() async throws {
@@ -2531,13 +2689,23 @@ final class AtlasPhaseOneTests: XCTestCase {
         XCTAssertFalse(csv.contains("Starter vial"))
     }
 
-    func testConsumableAtlasJsonRoundTripAndAliasExportStayPrivacySafe() async throws {
+    func testConsumableProcurementRawExportAndAliasExportStayPrivacySafe() async throws {
         let controller = try makeInMemoryController()
-        var bundle = makeSpecCompleteBundle(aliasModeEnabled: true)
-        bundle.snapshot.consumables = [
-            AtlasConsumableRecord.make(
-                id: "consumable_export",
-                protocolId: "p1",
+        let now = Date(timeIntervalSince1970: 1_773_950_400)
+        let protocolDetail = try await controller.container.protocols.createProtocol(
+            AtlasProtocolDraft(
+                name: "Export protocol",
+                kind: .custom,
+                cadenceType: .daily,
+                defaultTimeOfDay: "09:00",
+                doseAmount: 1,
+                doseUnit: "mg"
+            ),
+            now: now
+        )
+        let saved = try await controller.container.inventory.saveConsumable(
+            AtlasConsumableDraft(
+                protocolID: protocolDetail.id,
                 name: "Alcohol pads",
                 category: "Swab",
                 quantityOnHand: 25,
@@ -2550,43 +2718,48 @@ final class AtlasPhaseOneTests: XCTestCase {
                 notes: "Cabinet",
                 vendorLabel: "Neighborhood pharmacy",
                 purchaseNotes: "Value pack",
-                createdAt: "2026-03-01T00:00:00.000Z",
-                updatedAt: "2026-03-02T00:00:00.000Z"
-            )
-        ]
-        bundle.snapshot.consumableAdjustments = [
-            AtlasConsumableAdjustmentRecord.make(
-                id: "consumable_adjustment_export",
-                consumableId: "consumable_export",
-                protocolId: "p1",
-                occurrenceId: nil,
-                kind: .manualAdjustment,
-                deltaQuantity: -2,
-                resultingQuantity: 25,
-                quantityUnit: "pad",
-                note: "Drawer recount",
-                recordedAt: "2026-03-02T00:00:00.000Z",
-                createdAt: "2026-03-02T00:00:00.000Z"
-            )
-        ]
-        let prepared = try await controller.importExportBridge.prepareImport(at: writeBundleURL(bundle))
-        _ = try await controller.importExportBridge.commitPreparedImport(prepared, mode: .replaceExisting)
+            ),
+            now: now
+        )
+        _ = try await controller.container.inventory.recordConsumableProcurement(
+            AtlasConsumableProcurementDraft(
+                consumableID: saved.summary.id,
+                quantityReceived: 12,
+                vendorLabel: "Neighborhood pharmacy",
+                sourceDetail: "Value pack",
+                receivedAt: now.addingTimeInterval(300)
+            ),
+            now: now.addingTimeInterval(360)
+        )
 
-        let jsonExport = try await controller.importExportBridge.createRawExport(
+        let fullJsonExport = try await controller.importExportBridge.createRawExport(
             AtlasRawExportRequest(format: .json, renderMode: .full),
-            now: Date(timeIntervalSince1970: 1_773_950_400)
+            now: now.addingTimeInterval(600)
+        )
+        let aliasJsonExport = try await controller.importExportBridge.createRawExport(
+            AtlasRawExportRequest(format: .json, renderMode: .alias),
+            now: now.addingTimeInterval(660)
         )
         let aliasCsvExport = try await controller.importExportBridge.createRawExport(
             AtlasRawExportRequest(format: .csv, renderMode: .alias),
-            now: Date(timeIntervalSince1970: 1_773_950_400)
+            now: now.addingTimeInterval(720)
         )
 
-        let bundleData = try Data(contentsOf: jsonExport.fileURL)
-        let decoded = try JSONDecoder().decode(AtlasExportBundle.self, from: bundleData)
+        let fullBundleData = try Data(contentsOf: fullJsonExport.fileURL)
+        let aliasBundleData = try Data(contentsOf: aliasJsonExport.fileURL)
+        let fullJsonText = try String(contentsOf: fullJsonExport.fileURL, encoding: .utf8)
+        let aliasJsonText = try String(contentsOf: aliasJsonExport.fileURL, encoding: .utf8)
+        let decoded = try JSONDecoder().decode(AtlasExportBundle.self, from: fullBundleData)
+        let aliasDecoded = try JSONDecoder().decode(AtlasExportBundle.self, from: aliasBundleData)
         let csv = try String(contentsOf: aliasCsvExport.fileURL, encoding: .utf8)
 
         XCTAssertEqual(decoded.snapshot.consumables.count, 1)
-        XCTAssertEqual(decoded.snapshot.consumableAdjustments.count, 1)
+        XCTAssertNotNil(decoded.snapshot.consumableAdjustments.first(where: { $0.kind == .procurement }))
+        XCTAssertNotNil(aliasDecoded.snapshot.consumableAdjustments.first(where: { $0.kind == .procurement }))
+        XCTAssertTrue(fullJsonText.contains("Neighborhood pharmacy"))
+        XCTAssertTrue(fullJsonText.contains("Value pack"))
+        XCTAssertFalse(aliasJsonText.contains("Neighborhood pharmacy"))
+        XCTAssertFalse(aliasJsonText.contains("Value pack"))
         XCTAssertTrue(csv.contains("\"consumable\""))
         XCTAssertTrue(csv.contains("\"consumable_adjustment\""))
         XCTAssertTrue(csv.contains("\"Swab supply\""))
@@ -2986,6 +3159,336 @@ final class AtlasPhaseOneTests: XCTestCase {
         XCTAssertEqual(snapshot.symptomTrend.first?.entryCount, 2)
     }
 
+    func testInsightsBuildDeterministicExplanationForRepeatedSymptomNearContext() async throws {
+        let controller = try makeInMemoryController()
+        let now = Date(timeIntervalSince1970: 1_775_793_600) // Apr 10, 2026 UTC
+
+        _ = try await controller.container.metrics.saveSymptomEntry(
+            AtlasSymptomEntryDraft(
+                loggedAt: now.addingTimeInterval(-(2 * 24 * 60 * 60)),
+                symptomKey: "nausea",
+                severity: 4
+            ),
+            now: now.addingTimeInterval(-(2 * 24 * 60 * 60))
+        )
+        _ = try await controller.container.metrics.saveSymptomEntry(
+            AtlasSymptomEntryDraft(
+                loggedAt: now.addingTimeInterval(-(5 * 24 * 60 * 60)),
+                symptomKey: "nausea",
+                severity: 3
+            ),
+            now: now.addingTimeInterval(-(5 * 24 * 60 * 60))
+        )
+        _ = try await controller.container.metrics.saveSymptomEntry(
+            AtlasSymptomEntryDraft(
+                loggedAt: now.addingTimeInterval(-(10 * 24 * 60 * 60)),
+                symptomKey: "nausea",
+                severity: 2
+            ),
+            now: now.addingTimeInterval(-(10 * 24 * 60 * 60))
+        )
+
+        _ = try await controller.container.metrics.saveContextEntry(
+            AtlasContextEntryDraft(
+                loggedAt: now.addingTimeInterval(-(2 * 24 * 60 * 60) - (2 * 60 * 60)),
+                fedState: .fasted
+            ),
+            now: now.addingTimeInterval(-(2 * 24 * 60 * 60) - (2 * 60 * 60))
+        )
+        _ = try await controller.container.metrics.saveContextEntry(
+            AtlasContextEntryDraft(
+                loggedAt: now.addingTimeInterval(-(5 * 24 * 60 * 60) - (90 * 60)),
+                fedState: .fasted
+            ),
+            now: now.addingTimeInterval(-(5 * 24 * 60 * 60) - (90 * 60))
+        )
+
+        let snapshot = try await controller.container.metrics.fetchInsightsSnapshot(referenceDate: now)
+        let explanation = try XCTUnwrap(
+            snapshot.deterministicExplanations.first(where: { $0.kind == .symptomContext })
+        )
+
+        XCTAssertEqual(explanation.title, "Nausea near fasted context")
+        XCTAssertTrue(explanation.summary.contains("Atlas noticed recent nausea entries"))
+        XCTAssertEqual(
+            explanation.facts.map(\.label),
+            ["Observed", "Window", "Records", "Why this appears"]
+        )
+        XCTAssertTrue(explanation.facts[0].value.contains("2 of 3 recent nausea entries"))
+        XCTAssertTrue(explanation.facts[0].value.contains("within 6 hours of fasted context"))
+        XCTAssertEqual(explanation.facts[2].value, "2 symptom logs and 2 context logs.")
+        XCTAssertTrue(explanation.facts[3].value.contains("matched at least twice"))
+    }
+
+    func testInsightsBuildDeterministicExplanationForRepeatedSymptomAfterWorkout() async throws {
+        let controller = try makeInMemoryController()
+        let now = Date(timeIntervalSince1970: 1_775_793_600) // Apr 10, 2026 UTC
+
+        _ = try await controller.container.metrics.saveSymptomEntry(
+            AtlasSymptomEntryDraft(
+                loggedAt: now.addingTimeInterval(-(24 * 60 * 60)),
+                symptomKey: "fatigue",
+                severity: 4
+            ),
+            now: now.addingTimeInterval(-(24 * 60 * 60))
+        )
+        _ = try await controller.container.metrics.saveSymptomEntry(
+            AtlasSymptomEntryDraft(
+                loggedAt: now.addingTimeInterval(-(4 * 24 * 60 * 60)),
+                symptomKey: "fatigue",
+                severity: 3
+            ),
+            now: now.addingTimeInterval(-(4 * 24 * 60 * 60))
+        )
+        _ = try await controller.container.metrics.saveSymptomEntry(
+            AtlasSymptomEntryDraft(
+                loggedAt: now.addingTimeInterval(-(9 * 24 * 60 * 60)),
+                symptomKey: "fatigue",
+                severity: 2
+            ),
+            now: now.addingTimeInterval(-(9 * 24 * 60 * 60))
+        )
+
+        let firstRun = AtlasHealthWorkoutSample(
+            id: "hk-run-1",
+            activityKind: .run,
+            startedAt: now.addingTimeInterval(-(24 * 60 * 60) - (3 * 60 * 60)),
+            endedAt: now.addingTimeInterval(-(24 * 60 * 60) - (2 * 60 * 60)),
+            durationMinutes: 45
+        )
+        let secondRun = AtlasHealthWorkoutSample(
+            id: "hk-run-2",
+            activityKind: .run,
+            startedAt: now.addingTimeInterval(-(4 * 24 * 60 * 60) - (5 * 60 * 60)),
+            endedAt: now.addingTimeInterval(-(4 * 24 * 60 * 60) - (4 * 60 * 60)),
+            durationMinutes: 35
+        )
+
+        _ = try await controller.container.metrics.importWorkoutSamples([firstRun, secondRun], now: now)
+
+        let snapshot = try await controller.container.metrics.fetchInsightsSnapshot(referenceDate: now)
+        let explanation = try XCTUnwrap(
+            snapshot.deterministicExplanations.first(where: { $0.kind == .symptomWorkout })
+        )
+
+        XCTAssertEqual(explanation.title, "Fatigue after run workouts")
+        XCTAssertTrue(explanation.summary.contains("within 24 hours after run workouts"))
+        XCTAssertEqual(
+            explanation.facts.map(\.label),
+            ["Observed", "Window", "Records", "Why this appears"]
+        )
+        XCTAssertTrue(explanation.facts[0].value.contains("2 of 3 recent fatigue entries"))
+        XCTAssertEqual(explanation.facts[2].value, "2 symptom logs and 2 workout logs.")
+        XCTAssertTrue(explanation.facts[3].value.contains("post-workout timing rule"))
+    }
+
+    func testInsightsDoNotBuildDeterministicExplanationForSingleWeakMatch() async throws {
+        let controller = try makeInMemoryController()
+        let now = Date(timeIntervalSince1970: 1_775_793_600)
+
+        _ = try await controller.container.metrics.saveSymptomEntry(
+            AtlasSymptomEntryDraft(
+                loggedAt: now.addingTimeInterval(-(2 * 24 * 60 * 60)),
+                symptomKey: "headache",
+                severity: 3
+            ),
+            now: now.addingTimeInterval(-(2 * 24 * 60 * 60))
+        )
+        _ = try await controller.container.metrics.saveSymptomEntry(
+            AtlasSymptomEntryDraft(
+                loggedAt: now.addingTimeInterval(-(5 * 24 * 60 * 60)),
+                symptomKey: "headache",
+                severity: 2
+            ),
+            now: now.addingTimeInterval(-(5 * 24 * 60 * 60))
+        )
+
+        _ = try await controller.container.metrics.saveContextEntry(
+            AtlasContextEntryDraft(
+                loggedAt: now.addingTimeInterval(-(2 * 24 * 60 * 60) - (60 * 60)),
+                hydration: .low
+            ),
+            now: now.addingTimeInterval(-(2 * 24 * 60 * 60) - (60 * 60))
+        )
+
+        let snapshot = try await controller.container.metrics.fetchInsightsSnapshot(referenceDate: now)
+
+        XCTAssertTrue(snapshot.deterministicExplanations.isEmpty)
+    }
+
+    func testInsightsSkipSelfReferentialSymptomContextExplanation() async throws {
+        let controller = try makeInMemoryController()
+        let now = Date(timeIntervalSince1970: 1_775_793_600)
+
+        _ = try await controller.container.metrics.saveSymptomEntry(
+            AtlasSymptomEntryDraft(
+                loggedAt: now.addingTimeInterval(-(2 * 24 * 60 * 60)),
+                symptomKey: "nausea",
+                severity: 4
+            ),
+            now: now.addingTimeInterval(-(2 * 24 * 60 * 60))
+        )
+        _ = try await controller.container.metrics.saveSymptomEntry(
+            AtlasSymptomEntryDraft(
+                loggedAt: now.addingTimeInterval(-(4 * 24 * 60 * 60)),
+                symptomKey: "nausea",
+                severity: 3
+            ),
+            now: now.addingTimeInterval(-(4 * 24 * 60 * 60))
+        )
+
+        _ = try await controller.container.metrics.saveContextEntry(
+            AtlasContextEntryDraft(
+                loggedAt: now.addingTimeInterval(-(2 * 24 * 60 * 60) - (60 * 60)),
+                giTags: [.nausea]
+            ),
+            now: now.addingTimeInterval(-(2 * 24 * 60 * 60) - (60 * 60))
+        )
+        _ = try await controller.container.metrics.saveContextEntry(
+            AtlasContextEntryDraft(
+                loggedAt: now.addingTimeInterval(-(4 * 24 * 60 * 60) - (90 * 60)),
+                giTags: [.nausea]
+            ),
+            now: now.addingTimeInterval(-(4 * 24 * 60 * 60) - (90 * 60))
+        )
+
+        let snapshot = try await controller.container.metrics.fetchInsightsSnapshot(referenceDate: now)
+
+        XCTAssertFalse(
+            snapshot.deterministicExplanations.contains(where: { $0.title == "Nausea near nausea context" })
+        )
+    }
+
+    func testInsightsBuildDeterministicExplanationForRepeatedSymptomNearWeightCheckIns() async throws {
+        let controller = try makeInMemoryController()
+        let now = Date(timeIntervalSince1970: 1_775_793_600)
+
+        _ = try await controller.container.metrics.saveSymptomEntry(
+            AtlasSymptomEntryDraft(
+                loggedAt: now.addingTimeInterval(-(2 * 24 * 60 * 60)),
+                symptomKey: "dizziness",
+                severity: 4
+            ),
+            now: now.addingTimeInterval(-(2 * 24 * 60 * 60))
+        )
+        _ = try await controller.container.metrics.saveSymptomEntry(
+            AtlasSymptomEntryDraft(
+                loggedAt: now.addingTimeInterval(-(6 * 24 * 60 * 60)),
+                symptomKey: "dizziness",
+                severity: 3
+            ),
+            now: now.addingTimeInterval(-(6 * 24 * 60 * 60))
+        )
+        _ = try await controller.container.metrics.saveSymptomEntry(
+            AtlasSymptomEntryDraft(
+                loggedAt: now.addingTimeInterval(-(10 * 24 * 60 * 60)),
+                symptomKey: "dizziness",
+                severity: 2
+            ),
+            now: now.addingTimeInterval(-(10 * 24 * 60 * 60))
+        )
+
+        _ = try await controller.container.metrics.saveWeightEntry(
+            AtlasWeightEntryDraft(
+                loggedAt: now.addingTimeInterval(-(2 * 24 * 60 * 60) - (3 * 60 * 60)),
+                value: 170,
+                unit: .lb
+            ),
+            now: now.addingTimeInterval(-(2 * 24 * 60 * 60) - (3 * 60 * 60))
+        )
+        _ = try await controller.container.metrics.saveWeightEntry(
+            AtlasWeightEntryDraft(
+                loggedAt: now.addingTimeInterval(-(6 * 24 * 60 * 60) + (2 * 60 * 60)),
+                value: 169,
+                unit: .lb
+            ),
+            now: now.addingTimeInterval(-(6 * 24 * 60 * 60) + (2 * 60 * 60))
+        )
+
+        let snapshot = try await controller.container.metrics.fetchInsightsSnapshot(referenceDate: now)
+        let explanation = try XCTUnwrap(
+            snapshot.deterministicExplanations.first(where: { $0.kind == .symptomWeight })
+        )
+
+        XCTAssertEqual(explanation.title, "Dizziness near weight check-ins")
+        XCTAssertTrue(explanation.summary.contains("within 24 hours of weight check-ins"))
+        XCTAssertEqual(
+            explanation.facts.map(\.label),
+            ["Observed", "Window", "Records", "Why this appears"]
+        )
+        XCTAssertTrue(explanation.facts[0].value.contains("2 of 3 recent dizziness entries"))
+        XCTAssertEqual(explanation.facts[2].value, "2 symptom logs and 2 weight logs.")
+    }
+
+    func testInsightsBuildDeterministicExplanationForRepeatedSymptomNearMetricCheckIns() async throws {
+        let controller = try makeInMemoryController()
+        let now = Date(timeIntervalSince1970: 1_775_793_600)
+        let metric = try await controller.container.metrics.saveMetricDefinition(
+            AtlasMetricDefinitionDraft(
+                label: "Energy",
+                valueType: .number,
+                unit: "pts"
+            ),
+            now: now.addingTimeInterval(-(12 * 24 * 60 * 60))
+        )
+
+        _ = try await controller.container.metrics.saveSymptomEntry(
+            AtlasSymptomEntryDraft(
+                loggedAt: now.addingTimeInterval(-(2 * 24 * 60 * 60)),
+                symptomKey: "brain fog",
+                severity: 4
+            ),
+            now: now.addingTimeInterval(-(2 * 24 * 60 * 60))
+        )
+        _ = try await controller.container.metrics.saveSymptomEntry(
+            AtlasSymptomEntryDraft(
+                loggedAt: now.addingTimeInterval(-(7 * 24 * 60 * 60)),
+                symptomKey: "brain fog",
+                severity: 3
+            ),
+            now: now.addingTimeInterval(-(7 * 24 * 60 * 60))
+        )
+        _ = try await controller.container.metrics.saveSymptomEntry(
+            AtlasSymptomEntryDraft(
+                loggedAt: now.addingTimeInterval(-(11 * 24 * 60 * 60)),
+                symptomKey: "brain fog",
+                severity: 2
+            ),
+            now: now.addingTimeInterval(-(11 * 24 * 60 * 60))
+        )
+
+        _ = try await controller.container.metrics.saveMetricValueEntry(
+            AtlasMetricValueEntryDraft(
+                metricID: metric.id,
+                loggedAt: now.addingTimeInterval(-(2 * 24 * 60 * 60) + (2 * 60 * 60)),
+                numberValue: 4
+            ),
+            now: now.addingTimeInterval(-(2 * 24 * 60 * 60) + (2 * 60 * 60))
+        )
+        _ = try await controller.container.metrics.saveMetricValueEntry(
+            AtlasMetricValueEntryDraft(
+                metricID: metric.id,
+                loggedAt: now.addingTimeInterval(-(7 * 24 * 60 * 60) - (3 * 60 * 60)),
+                numberValue: 5
+            ),
+            now: now.addingTimeInterval(-(7 * 24 * 60 * 60) - (3 * 60 * 60))
+        )
+
+        let snapshot = try await controller.container.metrics.fetchInsightsSnapshot(referenceDate: now)
+        let explanation = try XCTUnwrap(
+            snapshot.deterministicExplanations.first(where: { $0.kind == .symptomMetric })
+        )
+
+        XCTAssertEqual(explanation.title, "Brain Fog near energy check-ins")
+        XCTAssertTrue(explanation.summary.contains("within 24 hours of energy check-ins"))
+        XCTAssertEqual(
+            explanation.facts.map(\.label),
+            ["Observed", "Window", "Records", "Why this appears"]
+        )
+        XCTAssertTrue(explanation.facts[0].value.contains("2 of 3 recent brain fog entries"))
+        XCTAssertEqual(explanation.facts[2].value, "2 symptom logs and 2 metric logs.")
+    }
+
     func testCustomMetricDefinitionCrudAndLogging() async throws {
         let controller = try makeInMemoryController()
         let now = Date(timeIntervalSince1970: 1_773_928_800)
@@ -3383,31 +3886,100 @@ final class AtlasPhaseOneTests: XCTestCase {
             ),
             now: now.addingTimeInterval(4)
         )
+        _ = try await controller.container.metrics.importWorkoutSamples(
+            [
+                AtlasHealthWorkoutSample(
+                    id: "hk-export-workout-1",
+                    activityKind: .run,
+                    startedAt: now.addingTimeInterval(5),
+                    endedAt: now.addingTimeInterval(5 + (25 * 60)),
+                    durationMinutes: 25,
+                    energyBurnedKilocalories: 310,
+                    distanceMeters: 4_200
+                )
+            ],
+            now: now.addingTimeInterval(5)
+        )
 
         let preview = try await controller.importExportBridge.previewSelectiveShare(
             AtlasSelectiveShareRequest(
                 scopeKind: .last30DaysLogs,
                 renderMode: .full
             ),
-            now: now.addingTimeInterval(5)
+            now: now.addingTimeInterval(6)
         )
         let export = try await controller.importExportBridge.createRawExport(
             AtlasRawExportRequest(format: .json, renderMode: .full),
-            now: now.addingTimeInterval(5)
+            now: now.addingTimeInterval(6)
+        )
+        let csvExport = try await controller.importExportBridge.createRawExport(
+            AtlasRawExportRequest(format: .csv, renderMode: .full),
+            now: now.addingTimeInterval(6)
         )
         let payload = try XCTUnwrap(
             JSONSerialization.jsonObject(with: Data(contentsOf: export.fileURL)) as? [String: Any]
         )
         let snapshot = try XCTUnwrap(payload["snapshot"] as? [String: Any])
+        let csv = try String(contentsOf: csvExport.fileURL, encoding: .utf8)
 
         XCTAssertTrue(preview.datasets.contains(where: { $0.dataset == "customMetrics" && $0.rowCount == 1 }))
         XCTAssertTrue(preview.datasets.contains(where: { $0.dataset == "metricValueLogs" && $0.rowCount == 1 }))
         XCTAssertTrue(preview.datasets.contains(where: { $0.dataset == "weightLogs" && $0.rowCount == 1 }))
         XCTAssertTrue(preview.datasets.contains(where: { $0.dataset == "symptomLogs" && $0.rowCount == 1 }))
+        XCTAssertFalse(preview.datasets.contains(where: { $0.dataset == "workoutLogs" }))
         XCTAssertEqual((snapshot["customMetrics"] as? [[String: Any]])?.count, 1)
         XCTAssertEqual((snapshot["metricValueLogs"] as? [[String: Any]])?.count, 1)
         XCTAssertEqual((snapshot["weightLogs"] as? [[String: Any]])?.count, 1)
         XCTAssertEqual((snapshot["symptomLogs"] as? [[String: Any]])?.count, 1)
+        XCTAssertEqual((snapshot["workoutLogs"] as? [[String: Any]])?.count, 1)
+        XCTAssertTrue(csv.contains("\"workout_log\""))
+    }
+
+    func testWorkoutLogsRoundTripThroughRawJsonBackup() async throws {
+        let directory = try makeTemporaryDirectory()
+        let sourceController = try AtlasPersistenceController.temporary(
+            baseURL: directory.appendingPathComponent("source", isDirectory: true),
+            featureFlags: AtlasFeatureFlagState(),
+            privacyFormatter: AtlasPrivacyFormatter(),
+            notifications: TestNotificationManager()
+        )
+        let targetController = try AtlasPersistenceController.temporary(
+            baseURL: directory.appendingPathComponent("target", isDirectory: true),
+            featureFlags: AtlasFeatureFlagState(),
+            privacyFormatter: AtlasPrivacyFormatter(),
+            notifications: TestNotificationManager()
+        )
+        let now = Date(timeIntervalSince1970: 1_773_950_400)
+        let workout = AtlasHealthWorkoutSample(
+            id: "hk-roundtrip-workout-1",
+            activityKind: .cycle,
+            startedAt: now.addingTimeInterval(-3_600),
+            endedAt: now.addingTimeInterval(-2_400),
+            durationMinutes: 20,
+            energyBurnedKilocalories: 180,
+            distanceMeters: 7_500
+        )
+
+        _ = try await sourceController.container.metrics.importWorkoutSamples([workout], now: now)
+
+        let export = try await sourceController.importExportBridge.createRawExport(
+            AtlasRawExportRequest(format: .json, renderMode: .full),
+            now: now
+        )
+        let decoded = try JSONDecoder().decode(AtlasExportBundle.self, from: Data(contentsOf: export.fileURL))
+        let exportedWorkout = try XCTUnwrap(decoded.snapshot.workoutLogs.first)
+
+        XCTAssertEqual(decoded.snapshot.workoutLogs.count, 1)
+        XCTAssertEqual(exportedWorkout.activityKind, .cycle)
+        XCTAssertEqual(exportedWorkout.externalSourceId, "hk-roundtrip-workout-1")
+
+        let prepared = try await targetController.importExportBridge.prepareImport(at: export.fileURL)
+        _ = try await targetController.importExportBridge.commitPreparedImport(prepared, mode: .replaceExisting)
+        let importedInsights = try await targetController.container.metrics.fetchInsightsSnapshot(referenceDate: now)
+
+        XCTAssertEqual(importedInsights.recentWorkoutEntries.count, 1)
+        XCTAssertEqual(importedInsights.recentWorkoutEntries.first?.activityKind, .cycle)
+        XCTAssertEqual(importedInsights.recentWorkoutEntries.first?.durationLabel, "20 min")
     }
 
     func testUniversalAtlasJSONImportRoundTripAppendsImportAudit() async throws {
@@ -3920,6 +4492,196 @@ final class AtlasPhaseOneTests: XCTestCase {
     }
 
     @MainActor
+    func testConnectHealthKitImportsRecentWorkoutsIntoInsights() async throws {
+        let controller = try makeInMemoryController()
+        let workoutStart = Date(timeIntervalSince1970: 1_712_800_000)
+        let healthKit = TestHealthKitManager(
+            available: true,
+            authorizationGranted: true,
+            workouts: [
+                AtlasHealthWorkoutSample(
+                    id: "hk-workout-1",
+                    activityKind: .walk,
+                    startedAt: workoutStart,
+                    endedAt: workoutStart.addingTimeInterval(45 * 60),
+                    durationMinutes: 45,
+                    energyBurnedKilocalories: 220,
+                    distanceMeters: 3_200
+                )
+            ]
+        )
+        let model = makeAppModel(controller: controller, healthKit: healthKit)
+
+        await model.connectHealthKit()
+
+        XCTAssertEqual(model.insightsSnapshot.recentWorkoutEntries.count, 1)
+        XCTAssertEqual(model.insightsSnapshot.recentWorkoutEntries.first?.activityKind, .walk)
+        XCTAssertEqual(model.insightsSnapshot.recentWorkoutEntries.first?.durationLabel, "45 min")
+        XCTAssertNil(model.loadErrorMessage)
+    }
+
+    @MainActor
+    func testConnectHealthKitUsesPreviousLastSyncAtForFollowUpWorkoutImport() async throws {
+        final class DateBox: @unchecked Sendable {
+            var value: Date
+
+            init(_ value: Date) {
+                self.value = value
+            }
+        }
+
+        let controller = try makeInMemoryController()
+        let firstSyncDate = Date(timeIntervalSince1970: 1_712_800_000)
+        let secondSyncDate = firstSyncDate.addingTimeInterval(3_600)
+        let originalWorkout = AtlasHealthWorkoutSample(
+            id: "hk-workout-1",
+            activityKind: .walk,
+            startedAt: firstSyncDate.addingTimeInterval(-1_800),
+            endedAt: firstSyncDate.addingTimeInterval(-900),
+            durationMinutes: 15
+        )
+        let newWorkout = AtlasHealthWorkoutSample(
+            id: "hk-workout-2",
+            activityKind: .run,
+            startedAt: secondSyncDate.addingTimeInterval(300),
+            endedAt: secondSyncDate.addingTimeInterval(1_200),
+            durationMinutes: 15
+        )
+        let healthKit = TestHealthKitManager(
+            available: true,
+            authorizationGranted: true,
+            workouts: [originalWorkout]
+        )
+        let now = DateBox(firstSyncDate)
+        let model = AtlasAppModel(
+            dependencies: AtlasAppDependencies(
+                featureFlags: AtlasFeatureFlags(flags: AtlasFeatureFlagState()),
+                notifications: TestNotificationManager(),
+                biometrics: AtlasBiometricGate(),
+                healthKit: healthKit,
+                cloudSync: TestCloudSyncManager(),
+                diagnostics: AtlasDiagnosticsReporter(),
+                importExport: controller.importExportBridge,
+                sharedProjectionWriter: controller.sharedProjectionWriter,
+                persistence: controller.container,
+                reminders: controller.reminderCoordinator,
+                privacyFormatter: AtlasPrivacyFormatter(),
+                dateProvider: { now.value }
+            )
+        )
+
+        await model.connectHealthKit()
+        healthKit.replaceWorkouts([originalWorkout, newWorkout])
+        now.value = secondSyncDate
+
+        await model.connectHealthKit()
+
+        XCTAssertEqual(healthKit.fetchWorkoutSinceRequests.count, 2)
+        XCTAssertNil(healthKit.fetchWorkoutSinceRequests[0])
+        XCTAssertEqual(healthKit.fetchWorkoutSinceRequests[1], firstSyncDate)
+        XCTAssertEqual(model.insightsSnapshot.recentWorkoutEntries.prefix(2).map(\.activityKind), [.run, .walk])
+        XCTAssertEqual(
+            model.settingsSnapshot.healthScaffold.connections.first { $0.providerKey == .appleHealth }?.lastSyncAt,
+            ISO8601DateFormatter.atlas.string(from: secondSyncDate)
+        )
+        XCTAssertNil(model.loadErrorMessage)
+    }
+
+    @MainActor
+    func testConnectHealthKitFollowUpSyncDedupesMixedWorkoutBatch() async throws {
+        final class DateBox: @unchecked Sendable {
+            var value: Date
+
+            init(_ value: Date) {
+                self.value = value
+            }
+        }
+
+        let controller = try makeInMemoryController()
+        let firstSyncDate = Date(timeIntervalSince1970: 1_712_800_000)
+        let secondSyncDate = firstSyncDate.addingTimeInterval(7_200)
+        let existingWorkout = AtlasHealthWorkoutSample(
+            id: "hk-workout-existing",
+            activityKind: .walk,
+            startedAt: firstSyncDate.addingTimeInterval(-900),
+            endedAt: firstSyncDate.addingTimeInterval(-300),
+            durationMinutes: 10
+        )
+        let newWorkout = AtlasHealthWorkoutSample(
+            id: "hk-workout-new",
+            activityKind: .strength,
+            startedAt: secondSyncDate.addingTimeInterval(300),
+            endedAt: secondSyncDate.addingTimeInterval(2_100),
+            durationMinutes: 30
+        )
+        let healthKit = TestHealthKitManager(
+            available: true,
+            authorizationGranted: true,
+            workouts: [existingWorkout],
+            workoutResponses: [
+                [existingWorkout],
+                [existingWorkout, newWorkout]
+            ]
+        )
+        let now = DateBox(firstSyncDate)
+        let model = AtlasAppModel(
+            dependencies: AtlasAppDependencies(
+                featureFlags: AtlasFeatureFlags(flags: AtlasFeatureFlagState()),
+                notifications: TestNotificationManager(),
+                biometrics: AtlasBiometricGate(),
+                healthKit: healthKit,
+                cloudSync: TestCloudSyncManager(),
+                diagnostics: AtlasDiagnosticsReporter(),
+                importExport: controller.importExportBridge,
+                sharedProjectionWriter: controller.sharedProjectionWriter,
+                persistence: controller.container,
+                reminders: controller.reminderCoordinator,
+                privacyFormatter: AtlasPrivacyFormatter(),
+                dateProvider: { now.value }
+            )
+        )
+
+        await model.connectHealthKit()
+        now.value = secondSyncDate
+        await model.connectHealthKit()
+
+        XCTAssertEqual(healthKit.fetchWorkoutSinceRequests.count, 2)
+        XCTAssertEqual(healthKit.fetchWorkoutSinceRequests[1], firstSyncDate)
+        XCTAssertEqual(model.insightsSnapshot.recentWorkoutEntries.count, 2)
+        XCTAssertEqual(model.insightsSnapshot.recentWorkoutEntries.prefix(2).map(\.activityKind), [.strength, .walk])
+        XCTAssertNil(model.loadErrorMessage)
+    }
+
+    func testImportWorkoutSamplesSkipsDuplicatesByExternalSourceID() async throws {
+        let controller = try makeInMemoryController()
+        let sample = AtlasHealthWorkoutSample(
+            id: "hk-workout-duplicate",
+            activityKind: .strength,
+            startedAt: Date(timeIntervalSince1970: 1_712_800_000),
+            endedAt: Date(timeIntervalSince1970: 1_712_800_000).addingTimeInterval(1_800),
+            durationMinutes: 30,
+            energyBurnedKilocalories: 240
+        )
+
+        let firstImportCount = try await controller.container.metrics.importWorkoutSamples(
+            [sample],
+            now: Date(timeIntervalSince1970: 1_712_803_600)
+        )
+        let secondImportCount = try await controller.container.metrics.importWorkoutSamples(
+            [sample],
+            now: Date(timeIntervalSince1970: 1_712_807_200)
+        )
+        let snapshot = try await controller.container.metrics.fetchInsightsSnapshot(
+            referenceDate: Date(timeIntervalSince1970: 1_712_807_200)
+        )
+
+        XCTAssertEqual(firstImportCount, 1)
+        XCTAssertEqual(secondImportCount, 0)
+        XCTAssertEqual(snapshot.recentWorkoutEntries.count, 1)
+        XCTAssertEqual(snapshot.recentWorkoutEntries.first?.activityKind, .strength)
+    }
+
+    @MainActor
     func testLiveReviewSessionUsesCloudShareLinkAndRevokesRemoteSession() async throws {
         let controller = try makeInMemoryController()
         let prepared = try await controller.importExportBridge.prepareImport(
@@ -4101,6 +4863,77 @@ final class AtlasPhaseOneTests: XCTestCase {
         XCTAssertEqual(summaries.count, restored.restoredProtocolCount)
         XCTAssertEqual(history.count, restored.restoredLogEventCount)
         XCTAssertTrue(trustVault.audits.contains(where: { $0.eventType == .restoreCommitted }))
+    }
+
+    func testPreviewRestorePointRejectsMissingBackupFile() async throws {
+        let controller = try makeInMemoryController()
+        let initial = try await controller.importExportBridge.prepareImport(
+            at: writeBundleURL(makeSpecCompleteBundle(aliasModeEnabled: false))
+        )
+        _ = try await controller.importExportBridge.commitPreparedImport(initial, mode: .replaceExisting)
+
+        let emptyTimestamp = "2026-03-14T00:00:00.000Z"
+        let emptyBundle = AtlasExportBundle(
+            manifest: AtlasExportManifest(
+                generatedAt: emptyTimestamp,
+                source: "atlas-native-empty"
+            ),
+            snapshot: AtlasExportSnapshot(
+                privacyProfile: .default(timestamp: emptyTimestamp),
+                reminderPreference: .default(timestamp: emptyTimestamp)
+            )
+        )
+        let emptyPrepared = try await controller.importExportBridge.prepareUniversalImport(
+            AtlasUniversalImportRequest(importer: .atlasJSON, fileURL: writeBundleURL(emptyBundle))
+        )
+        _ = try await controller.importExportBridge.commitUniversalImport(emptyPrepared, mode: .replaceExisting)
+
+        let restorePoints = try await controller.importExportBridge.listRestorePoints()
+        let restorePoint = try XCTUnwrap(restorePoints.first)
+        try FileManager.default.removeItem(at: restorePoint.fileURL)
+
+        do {
+            _ = try await controller.importExportBridge.previewRestorePoint(id: restorePoint.id)
+            XCTFail("Expected restore preview to fail")
+        } catch let error as AtlasImportError {
+            guard case let .restorePointUnavailable(title) = error else {
+                return XCTFail("Unexpected error: \(error)")
+            }
+            XCTAssertEqual(title, restorePoint.title)
+        }
+    }
+
+    func testRestoreRestorePointRejectsTamperedBackupFile() async throws {
+        let controller = try makeInMemoryController()
+        let initialBundle = makeSpecCompleteBundle(aliasModeEnabled: false)
+        let initial = try await controller.importExportBridge.prepareImport(at: writeBundleURL(initialBundle))
+        _ = try await controller.importExportBridge.commitPreparedImport(initial, mode: .replaceExisting)
+
+        let replacementBundle = try XCTUnwrap(makePhaseTwoFixtures().first(where: { $0.name == "multiple-protocols" })?.bundle)
+        let prepared = try await controller.importExportBridge.prepareUniversalImport(
+            AtlasUniversalImportRequest(importer: .atlasJSON, fileURL: writeBundleURL(replacementBundle))
+        )
+        _ = try await controller.importExportBridge.commitUniversalImport(prepared, mode: .replaceExisting)
+
+        let restorePoints = try await controller.importExportBridge.listRestorePoints()
+        let restorePoint = try XCTUnwrap(restorePoints.first)
+        let tamperedBundle = makeSpecCompleteBundle(aliasModeEnabled: true)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        try encoder.encode(tamperedBundle).write(to: restorePoint.fileURL, options: [.atomic])
+
+        do {
+            _ = try await controller.importExportBridge.restoreRestorePoint(
+                id: restorePoint.id,
+                now: Date(timeIntervalSince1970: 1_710_001_000)
+            )
+            XCTFail("Expected restore commit to fail")
+        } catch let error as AtlasImportError {
+            guard case let .restorePointIntegrityMismatch(title) = error else {
+                return XCTFail("Unexpected error: \(error)")
+            }
+            XCTAssertEqual(title, restorePoint.title)
+        }
     }
 
     func testProviderHandoffPresetRequestsStayBounded() {
@@ -4365,13 +5198,41 @@ final class AtlasPhaseOneTests: XCTestCase {
         XCTAssertTrue(snapshot.settings.companionEnabled)
         XCTAssertTrue(checkedIn.isEarned)
         XCTAssertTrue(context.isEarned)
-        XCTAssertEqual(context.streakCount, 3)
+        XCTAssertEqual(context.continuityLabel, "3 days")
         XCTAssertNotNil(snapshot.companion)
 
         assertRetentionCopyPrivacySafe(
             [snapshot.note, snapshot.companion?.title, snapshot.companion?.subtitle]
                 + snapshot.milestones.flatMap { [$0.title, $0.subtitle, $0.helperText] }
         )
+    }
+
+    func testRetentionCompanionStaysHiddenWithoutMeaningfulContinuity() async throws {
+        let controller = try makeInMemoryController()
+        let now = Date(timeIntervalSince1970: 1_774_259_200)
+
+        _ = try await controller.container.settings.updateRetentionSettings(
+            AtlasRetentionSettingsUpdate(progressEnabled: true, companionEnabled: true),
+            now: now
+        )
+
+        _ = try await controller.container.inventory.saveConsumable(
+            AtlasConsumableDraft(
+                name: "Alcohol pads",
+                category: "Swab",
+                quantityOnHand: 24,
+                unit: "pad",
+                reorderThreshold: 6,
+                quantityPerUse: 1
+            ),
+            now: now
+        )
+
+        let snapshot = try await controller.container.retention.fetchRetentionSnapshot(referenceDate: now.addingTimeInterval(600))
+        let inventory = try XCTUnwrap(snapshot.milestones.first(where: { $0.kind == .inventoryCurrent }))
+
+        XCTAssertTrue(inventory.isEarned)
+        XCTAssertNil(snapshot.companion)
     }
 
     func testMarkWeeklyReviewCompleteDoesNotTouchTimelineHistory() async throws {
@@ -4540,7 +5401,11 @@ final class AtlasPhaseOneTests: XCTestCase {
         let bannedFragments = [
             "sensitive glp plan",
             "private breakfast",
-            "travel"
+            "travel",
+            "streak",
+            "points",
+            "leaderboard",
+            "reward"
         ]
         for fragment in bannedFragments {
             XCTAssertFalse(
@@ -5819,18 +6684,26 @@ final class TestHealthKitManager: HealthKitManaging, @unchecked Sendable {
     private(set) var authorizationRequestCount: Int
     private(set) var disconnectCallCount: Int
     private(set) var savedWeights: [(value: Double, unit: AtlasWeightUnit, recordedAt: Date)]
+    private(set) var workouts: [AtlasHealthWorkoutSample]
+    private var workoutResponses: [[AtlasHealthWorkoutSample]]
+    private(set) var fetchWorkoutSinceRequests: [Date?]
     private(set) var connected: Bool
 
     init(
         available: Bool,
         authorizationGranted: Bool,
-        initiallyConnected: Bool = false
+        initiallyConnected: Bool = false,
+        workouts: [AtlasHealthWorkoutSample] = [],
+        workoutResponses: [[AtlasHealthWorkoutSample]] = []
     ) {
         self.available = available
         self.authorizationGranted = authorizationGranted
         self.authorizationRequestCount = 0
         self.disconnectCallCount = 0
         self.savedWeights = []
+        self.workouts = workouts
+        self.workoutResponses = workoutResponses
+        self.fetchWorkoutSinceRequests = []
         self.connected = initiallyConnected
     }
 
@@ -5851,6 +6724,25 @@ final class TestHealthKitManager: HealthKitManaging, @unchecked Sendable {
     func disconnect() async {
         disconnectCallCount += 1
         connected = false
+    }
+
+    func fetchWorkouts(since: Date?) async throws -> [AtlasHealthWorkoutSample] {
+        fetchWorkoutSinceRequests.append(since)
+        if workoutResponses.isEmpty == false {
+            return workoutResponses.removeFirst()
+        }
+        guard let since else {
+            return workouts
+        }
+        return workouts.filter { $0.startedAt >= since }
+    }
+
+    func replaceWorkouts(_ workouts: [AtlasHealthWorkoutSample]) {
+        self.workouts = workouts
+    }
+
+    func replaceWorkoutResponses(_ workoutResponses: [[AtlasHealthWorkoutSample]]) {
+        self.workoutResponses = workoutResponses
     }
 
     func saveWeightSample(value: Double, unit: AtlasWeightUnit, recordedAt: Date) async throws {

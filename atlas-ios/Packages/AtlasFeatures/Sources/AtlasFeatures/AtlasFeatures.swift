@@ -610,6 +610,10 @@ public final class AtlasAppModel {
 
     public func connectHealthKit() async {
         do {
+            let previousSyncDate = settingsSnapshot.healthScaffold.connections
+                .first { $0.providerKey == .appleHealth }?
+                .lastSyncAt
+                .flatMap { ISO8601DateFormatter.atlas.date(from: $0) }
             let connected = try await dependencies.healthKit.requestAuthorization()
             settingsSnapshot = try await dependencies.persistence.settings.updateHealthConnection(
                 provider: .appleHealth,
@@ -619,6 +623,9 @@ public final class AtlasAppModel {
                 lastError: nil,
                 now: currentDate()
             )
+            if connected {
+                try await syncHealthKitWorkouts(since: previousSyncDate)
+            }
             syncShellViewStates()
         } catch {
             do {
@@ -651,6 +658,21 @@ public final class AtlasAppModel {
         } catch {
             setLoadErrorMessage(error.localizedDescription)
         }
+    }
+
+    private func syncHealthKitWorkouts(since: Date?) async throws {
+        let syncDate = currentDate()
+        let workouts = try await dependencies.healthKit.fetchWorkouts(since: since)
+        _ = try await dependencies.persistence.metrics.importWorkoutSamples(workouts, now: syncDate)
+        settingsSnapshot = try await dependencies.persistence.settings.updateHealthConnection(
+            provider: .appleHealth,
+            enabled: true,
+            connected: true,
+            lastSyncAt: syncDate,
+            lastError: nil,
+            now: syncDate
+        )
+        await refreshShellData()
     }
 
     public func refreshCloudStatus() async {
@@ -859,6 +881,19 @@ public final class AtlasAppModel {
         }
     }
 
+    public func recordConsumableProcurement(_ procurement: AtlasConsumableProcurementDraft) async -> AtlasConsumableAdjustmentResult? {
+        do {
+            let result = try await dependencies.persistence.inventory.recordConsumableProcurement(procurement, now: currentDate())
+            invalidateInventoryCaches()
+            await refreshShellData()
+            consumableDetails[result.consumable.summary.id] = result.consumable
+            return result
+        } catch {
+            setLoadErrorMessage(error.localizedDescription)
+            return nil
+        }
+    }
+
     public func siteOptions(for protocolID: String) async -> AtlasProtocolSiteOptions? {
         if let cached = protocolSiteOptions[protocolID] {
             return cached
@@ -906,6 +941,26 @@ public final class AtlasAppModel {
     public func saveContextEntry(_ draft: AtlasContextEntryDraft) async {
         do {
             _ = try await dependencies.persistence.metrics.saveContextEntry(draft, now: currentDate())
+            await refreshShellData()
+        } catch {
+            setLoadErrorMessage(error.localizedDescription)
+        }
+    }
+
+    public func saveContextPreset(_ draft: AtlasContextPresetDraft) async -> AtlasContextPresetRecord? {
+        do {
+            let preset = try await dependencies.persistence.metrics.saveContextPreset(draft, now: currentDate())
+            await refreshShellData()
+            return preset
+        } catch {
+            setLoadErrorMessage(error.localizedDescription)
+            return nil
+        }
+    }
+
+    public func deleteContextPreset(id: String) async {
+        do {
+            try await dependencies.persistence.metrics.deleteContextPreset(id: id)
             await refreshShellData()
         } catch {
             setLoadErrorMessage(error.localizedDescription)
@@ -1062,6 +1117,8 @@ public final class AtlasAppModel {
     ) -> String {
         dependencies.privacyFormatter.contextEntryTitle(
             mealTiming: entry.mealTiming,
+            mealSize: entry.mealSize,
+            mealComposition: entry.mealComposition,
             fedState: entry.fedState,
             appetite: entry.appetite,
             hydration: entry.hydration,
@@ -1090,6 +1147,24 @@ public final class AtlasAppModel {
         )
     }
 
+    func contextPresetTitle(for key: String?) -> String? {
+        guard let key else {
+            return nil
+        }
+
+        if let savedTitle = insightsSnapshot.savedContextPresets.first(where: { $0.id == key })?.title {
+            return savedTitle
+        }
+
+        return AtlasContextBuiltinPreset.allCases.first(where: { $0.id == key })?.title
+    }
+
+    func contextQuickPresets(limit: Int) -> [AtlasContextQuickPreset] {
+        let saved = insightsSnapshot.savedContextPresets.map { AtlasContextQuickPreset(preset: $0) }
+        let builtIn = AtlasContextBuiltinPreset.allCases.map { AtlasContextQuickPreset($0) }
+        return Array((saved + builtIn).prefix(limit))
+    }
+
     public func handleIncomingURL(_ url: URL) async {
         guard url.scheme?.lowercased() == "atlas" else {
             return
@@ -1114,6 +1189,10 @@ public final class AtlasAppModel {
             routePath.removeAll()
             activeTab = .library
             open(.inventory)
+        case "trust-vault", "trustvault":
+            routePath.removeAll()
+            activeTab = .settings
+            open(.trustVault)
         case "quick-log":
             routePath.removeAll()
             activeTab = .today
@@ -1529,6 +1608,8 @@ public struct AtlasTodayScreen: View {
     let state: AtlasTodayViewState
     @State private var sheetContext: AtlasLogSheetContext?
     @State private var explanationSheet: AtlasExplanationSheetItem?
+    @State private var contextEditor = AtlasContextEditorState(referenceDate: Date())
+    @State private var contextSheetPresented = false
 
     public var body: some View {
         AtlasRootScrollSurface {
@@ -1631,8 +1712,19 @@ public struct AtlasTodayScreen: View {
                 }
             }
 
+            if state.todaySnapshot.hasProtocols {
+                AtlasRootSectionHeader("Quick context")
+                AtlasTodayContextQuickCard(
+                    model: model,
+                    onOpenDetailedCapture: {
+                        contextEditor = AtlasContextEditorState(referenceDate: model.currentDate())
+                        contextSheetPresented = true
+                    }
+                )
+            }
+
             if state.retentionSnapshot.settings.progressEnabled {
-                AtlasRootSectionHeader("Calm progress")
+                AtlasRootSectionHeader("Calm continuity")
                 AtlasRetentionTodayCard(model: model, snapshot: state.retentionSnapshot)
             }
 
@@ -1711,8 +1803,50 @@ public struct AtlasTodayScreen: View {
                 await model.logOccurrence(request)
             }
         }
+        .sheet(isPresented: $contextSheetPresented) {
+            AtlasContextEntrySheet(model: model, state: contextEditor)
+        }
         .sheet(item: $explanationSheet) { item in
             AtlasExplanationSheet(item: item)
+        }
+    }
+}
+
+private struct AtlasTodayContextQuickCard: View {
+    let model: AtlasAppModel
+    let onOpenDetailedCapture: () -> Void
+
+    var body: some View {
+        let presets = model.contextQuickPresets(limit: 3)
+
+        AtlasSectionCard(style: .utility) {
+            VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+                Text(
+                    model.insightsSnapshot.savedContextPresets.isEmpty
+                        ? "Capture surrounding context without leaving Today."
+                        : "Saved context presets now live here too for faster repeat logging."
+                )
+                    .foregroundStyle(AtlasPalette.textSecondary)
+
+                AtlasContextQuickPresetRail(presets: presets) { preset in
+                    Task { await model.saveContextEntry(preset.makeDraft(loggedAt: model.currentDate())) }
+                }
+
+                Button("Log with notes or more detail") {
+                    onOpenDetailedCapture()
+                }
+                .buttonStyle(AtlasSecondaryButtonStyle())
+
+                if model.insightsSnapshot.savedContextPresets.isEmpty {
+                    Text("Use Insights to save your own presets once you find repeats worth keeping.")
+                        .font(.caption)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                } else {
+                    Text("Use Insights to refine or replace saved presets, add notes, or capture fuller meal detail.")
+                        .font(.caption)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                }
+            }
         }
     }
 }
@@ -2325,13 +2459,13 @@ public struct AtlasSettingsScreen: View {
                     .foregroundStyle(AtlasPalette.textSecondary)
             }
 
-            AtlasSectionCard(title: "Calm progress") {
-                Text("Optional local milestones can quietly reflect check-ins, weekly review, inventory upkeep, and steady context logging. They never change Atlas history and they never penalize missed days.")
+            AtlasSectionCard(title: "Calm continuity") {
+                Text("Optional local milestones can quietly reflect recent entries, weekly review, inventory upkeep, and steady context logging. They stay descriptive, local, and non-punitive.")
                     .foregroundStyle(AtlasPalette.textSecondary)
 
                 AtlasSettingsToggleRow(
-                    title: "Show calm progress",
-                    subtitle: "Surface optional local milestones on Today and Insights.",
+                    title: "Show calm continuity",
+                    subtitle: "Surface optional local continuity on Today and Insights.",
                     isOn: Binding(
                         get: { state.settingsSnapshot.retentionSettings.progressEnabled },
                         set: { value in
@@ -2352,8 +2486,8 @@ public struct AtlasSettingsScreen: View {
                 )
 
                 AtlasSettingsToggleRow(
-                    title: "Show companion mascot",
-                    subtitle: "Adds Atlas's optional mascot card to calm progress surfaces.",
+                    title: "Show companion accent",
+                    subtitle: "Allows Atlas's optional companion card when continuity has a meaningful update.",
                     isOn: Binding(
                         get: { state.settingsSnapshot.retentionSettings.companionEnabled },
                         set: { value in
@@ -2373,7 +2507,7 @@ public struct AtlasSettingsScreen: View {
 
                 Text(
                     model.dependencies.featureFlags.flags.companionSkin
-                        ? "The mascot appears inside calm progress on Today and Insights, and it stays optional, local, and easy to hide."
+                        ? "The companion only appears when Atlas has a calm continuity update to show, and it stays optional, local, and easy to hide."
                         : "The companion layer is deferred by feature flag in this build."
                 )
                 .font(.caption)
@@ -2383,14 +2517,14 @@ public struct AtlasSettingsScreen: View {
                     AtlasRetentionCompanionPreview(
                         companion: state.retentionSnapshot.companion ?? AtlasRetentionCompanionSnapshot(
                             mood: .quiet,
-                            title: "Quiet board",
-                            subtitle: "No pressure. The mascot wakes up with the next real check-in.",
+                            title: "Quiet accent",
+                            subtitle: "The companion stays hidden until Atlas has a calm continuity update.",
                             systemImage: "circle.dashed"
                         ),
                         title: "Companion preview",
                         caption: state.settingsSnapshot.retentionSettings.companionEnabled
-                            ? "This is the current mascot card style."
-                            : "Enable calm progress and the companion toggle to show this in Today and Insights."
+                            ? "This is the current restrained companion style."
+                            : "Enable calm continuity and the companion toggle to allow this accent on Today and Insights when it has something real to say."
                     )
                 }
             }

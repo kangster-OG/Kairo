@@ -86,6 +86,10 @@ public protocol InventoryRepository: Sendable {
         _ adjustment: AtlasConsumableAdjustmentDraft,
         now: Date
     ) async throws -> AtlasConsumableAdjustmentResult
+    func recordConsumableProcurement(
+        _ procurement: AtlasConsumableProcurementDraft,
+        now: Date
+    ) async throws -> AtlasConsumableAdjustmentResult
     func fetchProtocolSiteOptions(protocolID: String) async throws -> AtlasProtocolSiteOptions
     func listSites() async throws -> [AtlasSiteSummary]
     func saveSite(_ draft: AtlasSiteDraft, now: Date) async throws -> AtlasSiteSummary
@@ -99,7 +103,10 @@ public protocol CalculatorRepository: Sendable {
 
 public protocol MetricsRepository: Sendable {
     func fetchInsightsSnapshot(referenceDate: Date) async throws -> AtlasInsightsSnapshot
+    func importWorkoutSamples(_ samples: [AtlasHealthWorkoutSample], now: Date) async throws -> Int
     func saveContextEntry(_ draft: AtlasContextEntryDraft, now: Date) async throws -> AtlasContextLogRecord
+    func saveContextPreset(_ draft: AtlasContextPresetDraft, now: Date) async throws -> AtlasContextPresetRecord
+    func deleteContextPreset(id: String) async throws
     func saveWeightEntry(_ draft: AtlasWeightEntryDraft, now: Date) async throws -> AtlasWeightLogRecord
     func saveSymptomEntry(_ draft: AtlasSymptomEntryDraft, now: Date) async throws -> AtlasSymptomLogRecord
     func saveMetricDefinition(_ draft: AtlasMetricDefinitionDraft, now: Date) async throws -> AtlasCustomMetricRecord

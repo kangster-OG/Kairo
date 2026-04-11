@@ -18,6 +18,12 @@ public struct AtlasInventoryScreen: View {
                 AtlasSectionCard(title: "Low-stock watch") {
                     Text("\(model.inventorySnapshot.lowStockCount) inventory item(s) below threshold")
                         .foregroundStyle(AtlasPalette.textSecondary)
+                    Text(
+                        model.inventorySnapshot.procurementReviewCount == 0
+                            ? "No supply plans need procurement review right now."
+                            : "\(model.inventorySnapshot.procurementReviewCount) supply plan(s) ready for procurement review."
+                    )
+                    .foregroundStyle(AtlasPalette.textSecondary)
                     Button("Open calculator") {
                         model.open(.calculator)
                     }
@@ -315,6 +321,16 @@ private struct AtlasConsumableSummaryCard: View {
                         .font(.caption)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
+                if let procurementStatusLabel = consumable.procurementStatusLabel {
+                    Text(procurementStatusLabel)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(consumable.needsProcurementReview ? .orange : AtlasPalette.textSecondary)
+                }
+                if let lastProcurementLabel = consumable.lastProcurementLabel {
+                    Text(lastProcurementLabel)
+                        .font(.caption)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                }
                 if model.settingsSnapshot.trustVaultStatus.renderMode == .full,
                    let vendorLabel = consumable.vendorLabel {
                     Text("Vendor: \(vendorLabel)")
@@ -578,6 +594,7 @@ private struct AtlasConsumableDetailScreen: View {
     @State private var detail: AtlasConsumableDetailSnapshot?
     @State private var adjustmentQuantity: String = ""
     @State private var adjustmentNote: String = ""
+    @State private var procurementState: AtlasConsumableProcurementState?
 
     var body: some View {
         NavigationStack {
@@ -617,6 +634,49 @@ private struct AtlasConsumableDetailScreen: View {
                         }
                     }
 
+                    Section("Planning") {
+                        if let procurementStatusLabel = loadedDetail.planning.procurementStatusLabel {
+                            Text(procurementStatusLabel)
+                                .foregroundStyle(
+                                    loadedDetail.planning.needsProcurementReview ? .orange : AtlasPalette.textSecondary
+                                )
+                        }
+                        if let reorderThresholdLabel = loadedDetail.planning.reorderThresholdLabel {
+                            Text(reorderThresholdLabel)
+                                .foregroundStyle(AtlasPalette.textSecondary)
+                        }
+                        if let projectedDepletionLabel = loadedDetail.planning.projectedDepletionLabel {
+                            Text(projectedDepletionLabel)
+                                .foregroundStyle(AtlasPalette.textSecondary)
+                        }
+                        if let reorderLeadTimeLabel = loadedDetail.planning.reorderLeadTimeLabel {
+                            Text(reorderLeadTimeLabel)
+                                .foregroundStyle(AtlasPalette.textSecondary)
+                        }
+                        if let usageLabel = loadedDetail.planning.usageLabel {
+                            Text(usageLabel)
+                                .foregroundStyle(AtlasPalette.textSecondary)
+                        }
+                        if let lastProcurementLabel = loadedDetail.planning.lastProcurementLabel {
+                            Text(lastProcurementLabel)
+                                .foregroundStyle(AtlasPalette.textSecondary)
+                        }
+                        if let vendorHistorySummary = loadedDetail.planning.vendorHistorySummary {
+                            Text(vendorHistorySummary)
+                                .foregroundStyle(AtlasPalette.textSecondary)
+                        }
+                        if loadedDetail.summary.archivedAt == nil {
+                            Button("Record procurement") {
+                                procurementState = AtlasConsumableProcurementState(
+                                    consumableID: consumableID,
+                                    quantityUnit: loadedDetail.summary.quantityUnit,
+                                    vendorLabel: loadedDetail.summary.vendorLabel,
+                                    sourceDetail: nil
+                                )
+                            }
+                        }
+                    }
+
                     Section("Adjustment") {
                         TextField("Next quantity on hand", text: $adjustmentQuantity)
                             .atlasDecimalKeyboard()
@@ -634,6 +694,41 @@ private struct AtlasConsumableDetailScreen: View {
                                     )
                                 )
                                 detail = await model.consumableDetail(id: consumableID)
+                            }
+                        }
+                    }
+
+                    Section("Procurement and source history") {
+                        if loadedDetail.procurementHistory.isEmpty {
+                            Text("No procurement history is recorded yet.")
+                                .foregroundStyle(AtlasPalette.textSecondary)
+                        } else {
+                            ForEach(loadedDetail.procurementHistory) { item in
+                                VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
+                                    HStack(alignment: .firstTextBaseline) {
+                                        Text(item.title)
+                                            .font(.body.weight(.semibold))
+                                        Spacer()
+                                        Text(item.quantityLabel)
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(AtlasPalette.primary)
+                                    }
+                                    Text(item.recordedAt.formatted(date: .abbreviated, time: .shortened))
+                                        .font(.caption)
+                                        .foregroundStyle(AtlasPalette.textSecondary)
+                                    if model.settingsSnapshot.trustVaultStatus.renderMode == .full,
+                                       let vendorLabel = item.vendorLabel {
+                                        Text("Source: \(vendorLabel)")
+                                            .font(.caption)
+                                            .foregroundStyle(AtlasPalette.textSecondary)
+                                    }
+                                    if model.settingsSnapshot.trustVaultStatus.renderMode == .full,
+                                       let sourceDetail = item.sourceDetail {
+                                        Text(sourceDetail)
+                                            .font(.caption)
+                                            .foregroundStyle(AtlasPalette.textSecondary)
+                                    }
+                                }
                             }
                         }
                     }
@@ -690,6 +785,15 @@ private struct AtlasConsumableDetailScreen: View {
             .task {
                 detail = await model.consumableDetail(id: consumableID)
                 adjustmentQuantity = detail.map { $0.summary.quantityOnHand.cleanAtlasNumber } ?? ""
+            }
+            .sheet(item: $procurementState) { item in
+                AtlasConsumableProcurementSheet(
+                    model: model,
+                    state: item
+                ) {
+                    detail = await model.consumableDetail(id: consumableID)
+                    adjustmentQuantity = detail.map { $0.summary.quantityOnHand.cleanAtlasNumber } ?? ""
+                }
             }
         }
     }
@@ -999,6 +1103,81 @@ private struct AtlasProtocolInventorySettingsSheet: View {
     }
 }
 
+private struct AtlasConsumableProcurementSheet: View {
+    let model: AtlasAppModel
+    let state: AtlasConsumableProcurementState
+    let onSaved: () async -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var quantityReceived: String
+    @State private var vendorLabel: String
+    @State private var sourceDetail: String
+    @State private var receivedAt: Date = Date()
+
+    init(
+        model: AtlasAppModel,
+        state: AtlasConsumableProcurementState,
+        onSaved: @escaping () async -> Void
+    ) {
+        self.model = model
+        self.state = state
+        self.onSaved = onSaved
+        _quantityReceived = State(initialValue: "")
+        _vendorLabel = State(initialValue: state.vendorLabel ?? "")
+        _sourceDetail = State(initialValue: state.sourceDetail ?? "")
+        _receivedAt = State(initialValue: Date())
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Procurement") {
+                    TextField("Quantity received", text: $quantityReceived)
+                        .atlasDecimalKeyboard()
+                    DatePicker("Received on", selection: $receivedAt, displayedComponents: [.date, .hourAndMinute])
+                }
+
+                Section("Source details") {
+                    TextField("Vendor or source", text: $vendorLabel)
+                    TextField("Source note", text: $sourceDetail, axis: .vertical)
+                    Text("Atlas records this locally for planning history only. It never turns into a buy-now flow.")
+                        .font(.caption)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                }
+            }
+            .atlasFormSurface()
+            .navigationTitle("Record Procurement")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        Task {
+                            guard let quantity = Double(quantityReceived) else {
+                                return
+                            }
+                            let result = await model.recordConsumableProcurement(
+                                AtlasConsumableProcurementDraft(
+                                    consumableID: state.consumableID,
+                                    quantityReceived: quantity,
+                                    vendorLabel: vendorLabel.isEmpty ? nil : vendorLabel,
+                                    sourceDetail: sourceDetail.isEmpty ? nil : sourceDetail,
+                                    receivedAt: receivedAt
+                                )
+                            )
+                            guard result != nil else {
+                                return
+                            }
+                            await onSaved()
+                            dismiss()
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 private struct AtlasSiteEditorSheet: View {
     let model: AtlasAppModel
     @State private var draft: AtlasSiteDraft
@@ -1106,6 +1285,27 @@ private struct AtlasConsumableEditorState: Identifiable {
     init(draft: AtlasConsumableDraft) {
         self.id = draft.id ?? UUID().uuidString
         self.draft = draft
+    }
+}
+
+private struct AtlasConsumableProcurementState: Identifiable {
+    let id: String
+    let consumableID: String
+    let quantityUnit: String
+    let vendorLabel: String?
+    let sourceDetail: String?
+
+    init(
+        consumableID: String,
+        quantityUnit: String,
+        vendorLabel: String?,
+        sourceDetail: String?
+    ) {
+        self.id = UUID().uuidString
+        self.consumableID = consumableID
+        self.quantityUnit = quantityUnit
+        self.vendorLabel = vendorLabel
+        self.sourceDetail = sourceDetail
     }
 }
 

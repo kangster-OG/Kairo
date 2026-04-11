@@ -293,6 +293,7 @@ public actor GRDBSharedProjectionWriter: SharedProjectionWriting {
                 quickActions: quickActions,
                 lowStock: AtlasSharedLowStockSnapshot(
                     lowStockCount: 0,
+                    procurementReviewCount: 0,
                     summary: "No low-stock items in the current projection.",
                     items: [],
                     updatedAt: atlasTimestamp(from: Date())
@@ -554,6 +555,7 @@ private func buildProjectionWriteState(
     )
     let lowStockSnapshot = AtlasSharedLowStockSnapshot(
         lowStockCount: inventorySnapshot.lowStockCount,
+        procurementReviewCount: inventorySnapshot.procurementReviewCount,
         summary: lowStockSummary(for: inventorySnapshot.lowStockCount),
         items: lowStockItems,
         updatedAt: atlasTimestamp(from: referenceDate)
@@ -627,7 +629,7 @@ private func buildLowStockProjectionItems(
                     category: consumable.category,
                     mode: renderMode
                 ),
-                detail: consumable.lowStockLabel ?? consumable.projectedDepletionLabel ?? consumable.quantityLabel
+                detail: lowStockDetail(for: consumable)
             )
         }
 
@@ -643,6 +645,17 @@ private func lowStockSummary(for count: Int) -> String {
     default:
         return "\(count) items are below threshold."
     }
+}
+
+private func lowStockDetail(for consumable: AtlasConsumableSummary) -> String {
+    if consumable.needsProcurementReview {
+        return consumable.procurementStatusLabel ?? "Procurement review now."
+    }
+
+    return consumable.procurementStatusLabel
+        ?? consumable.lowStockLabel
+        ?? consumable.projectedDepletionLabel
+        ?? consumable.quantityLabel
 }
 
 private extension Array {

@@ -96,8 +96,6 @@ enum AtlasAppBootstrap {
 private extension AtlasAppBootstrap {
     @MainActor
     static func applyQALaunchOverrides(to model: AtlasAppModel) {
-        let environment = ProcessInfo.processInfo.environment
-
         if let rawTab = atlasQALaunchValue(
             environmentKey: "ATLAS_QA_ACTIVE_TAB",
             argumentName: "--atlas-qa-active-tab"

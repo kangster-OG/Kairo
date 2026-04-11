@@ -31,6 +31,7 @@ public protocol HealthKitManaging: Sendable {
     func isConnected() async -> Bool
     func requestAuthorization() async throws -> Bool
     func disconnect() async
+    func fetchWorkouts(since: Date?) async throws -> [AtlasHealthWorkoutSample]
     func saveWeightSample(value: Double, unit: AtlasWeightUnit, recordedAt: Date) async throws
     func connectionDescription() -> String
 }
@@ -273,9 +274,13 @@ public struct AtlasHealthKitManager: HealthKitManaging {
               let weightType = HKObjectType.quantityType(forIdentifier: .bodyMass) else {
             return false
         }
+        let workoutType = HKObjectType.workoutType()
 
         return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Bool, Error>) in
-            store.requestAuthorization(toShare: Set([weightType]), read: Set([weightType])) { success, error in
+            store.requestAuthorization(
+                toShare: Set([weightType]),
+                read: Set([weightType, workoutType])
+            ) { success, error in
                 if let error {
                     continuation.resume(throwing: error)
                 } else {
@@ -291,6 +296,50 @@ public struct AtlasHealthKitManager: HealthKitManaging {
     public func disconnect() async {
         // HealthKit permissions are managed by the system. Atlas can clear its local
         // connection state, but revocation still happens in the Health app / Settings.
+    }
+
+    public func fetchWorkouts(since: Date?) async throws -> [AtlasHealthWorkoutSample] {
+        #if canImport(HealthKit)
+        guard let store = makeStore() else {
+            return []
+        }
+
+        let predicate = since.map {
+            HKQuery.predicateForSamples(withStart: $0, end: nil, options: .strictStartDate)
+        }
+        let sortDescriptors = [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)]
+
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[AtlasHealthWorkoutSample], Error>) in
+            let query = HKSampleQuery(
+                sampleType: .workoutType(),
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: sortDescriptors
+            ) { _, samples, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                let workouts = (samples as? [HKWorkout] ?? []).map { workout in
+                    AtlasHealthWorkoutSample(
+                        id: workout.uuid.uuidString,
+                        activityKind: mapWorkoutActivityKind(workout.workoutActivityType),
+                        startedAt: workout.startDate,
+                        endedAt: workout.endDate,
+                        durationMinutes: max(workout.duration / 60, 1),
+                        energyBurnedKilocalories: workout.totalEnergyBurned?.doubleValue(for: .kilocalorie()),
+                        distanceMeters: workout.totalDistance?.doubleValue(for: .meter())
+                    )
+                }
+                continuation.resume(returning: workouts)
+            }
+
+            store.execute(query)
+        }
+        #else
+        return []
+        #endif
     }
 
     public func saveWeightSample(value: Double, unit: AtlasWeightUnit, recordedAt: Date) async throws {
@@ -326,10 +375,93 @@ public struct AtlasHealthKitManager: HealthKitManaging {
         guard isAvailable() else {
             return "Apple Health is unavailable on this device."
         }
-        return "Apple Health can read and write weight data when you connect it. Atlas remains fully usable without it."
+        return "Apple Health can import workouts and sync weight entries when you connect it. Atlas remains fully usable without it."
     }
 
     #if canImport(HealthKit)
+    private func mapWorkoutActivityKind(_ type: HKWorkoutActivityType) -> AtlasWorkoutActivityKind {
+        switch type {
+        case .walking, .wheelchairWalkPace:
+            return .walk
+        case .running, .wheelchairRunPace:
+            return .run
+        case .cycling, .handCycling:
+            return .cycle
+        case .traditionalStrengthTraining, .functionalStrengthTraining, .coreTraining:
+            return .strength
+        case .yoga:
+            return .yoga
+        case .barre, .cooldown, .flexibility, .mindAndBody, .pilates, .preparationAndRecovery, .taiChi:
+            return .mobility
+        case .swimming, .waterFitness, .waterPolo, .waterSports, .underwaterDiving:
+            return .swim
+        case .fishing, .hiking, .hunting:
+            return .hike
+        case .cardioDance,
+             .crossTraining,
+             .dance,
+             .danceInspiredTraining,
+             .elliptical,
+             .fitnessGaming,
+             .highIntensityIntervalTraining,
+             .jumpRope,
+             .mixedCardio,
+             .mixedMetabolicCardioTraining,
+             .rowing,
+             .stairClimbing,
+             .stairs,
+             .stepTraining,
+             .swimBikeRun,
+             .transition:
+            return .cardio
+        case .americanFootball,
+             .archery,
+             .australianFootball,
+             .badminton,
+             .baseball,
+             .basketball,
+             .bowling,
+             .boxing,
+             .climbing,
+             .cricket,
+             .crossCountrySkiing,
+             .curling,
+             .discSports,
+             .downhillSkiing,
+             .equestrianSports,
+             .fencing,
+             .golf,
+             .gymnastics,
+             .handball,
+             .hockey,
+             .kickboxing,
+             .lacrosse,
+             .martialArts,
+             .paddleSports,
+             .pickleball,
+             .play,
+             .racquetball,
+             .rugby,
+             .sailing,
+             .skatingSports,
+             .snowboarding,
+             .snowSports,
+             .socialDance,
+             .soccer,
+             .softball,
+             .squash,
+             .surfingSports,
+             .tableTennis,
+             .tennis,
+             .trackAndField,
+             .volleyball,
+             .wrestling:
+            return .sport
+        default:
+            return .other
+        }
+    }
+
     private func makeStore() -> HKHealthStore? {
         guard HKHealthStore.isHealthDataAvailable() else {
             return nil

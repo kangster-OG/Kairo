@@ -824,6 +824,8 @@ struct AtlasConsumableAdjustmentDBRecord: Codable, FetchableRecord, PersistableR
     var resultingQuantity: Double
     var quantityUnit: String
     var note: String?
+    var vendorLabel: String?
+    var sourceDetail: String?
     var recordedAt: String
     var createdAt: String
 
@@ -837,6 +839,8 @@ struct AtlasConsumableAdjustmentDBRecord: Codable, FetchableRecord, PersistableR
         case resultingQuantity = "resulting_quantity"
         case quantityUnit = "quantity_unit"
         case note
+        case vendorLabel = "vendor_label"
+        case sourceDetail = "source_detail"
         case recordedAt = "recorded_at"
         case createdAt = "created_at"
     }
@@ -851,6 +855,8 @@ struct AtlasConsumableAdjustmentDBRecord: Codable, FetchableRecord, PersistableR
         resultingQuantity = record.resultingQuantity
         quantityUnit = record.quantityUnit
         note = record.note
+        vendorLabel = record.vendorLabel
+        sourceDetail = record.sourceDetail
         recordedAt = record.recordedAt
         createdAt = record.createdAt
     }
@@ -866,6 +872,8 @@ struct AtlasConsumableAdjustmentDBRecord: Codable, FetchableRecord, PersistableR
             resultingQuantity: resultingQuantity,
             quantityUnit: quantityUnit,
             note: note,
+            vendorLabel: vendorLabel,
+            sourceDetail: sourceDetail,
             recordedAt: recordedAt,
             createdAt: createdAt
         )
@@ -1249,6 +1257,65 @@ struct AtlasMetricValueLogDBRecord: Codable, FetchableRecord, PersistableRecord 
     }
 }
 
+struct AtlasWorkoutLogDBRecord: Codable, FetchableRecord, PersistableRecord {
+    static let databaseTableName = "workout_logs"
+    var id: String
+    var activityKind: AtlasWorkoutActivityKind
+    var startedAt: String
+    var endedAt: String
+    var durationMinutes: Double
+    var energyBurnedKilocalories: Double?
+    var distanceMeters: Double?
+    var source: AtlasHealthDataSource
+    var externalSourceId: String?
+    var createdAt: String
+    var updatedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case activityKind = "activity_kind"
+        case startedAt = "started_at"
+        case endedAt = "ended_at"
+        case durationMinutes = "duration_minutes"
+        case energyBurnedKilocalories = "energy_burned_kilocalories"
+        case distanceMeters = "distance_meters"
+        case source
+        case externalSourceId = "external_source_id"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+
+    init(record: AtlasWorkoutLogRecord) {
+        id = record.id
+        activityKind = record.activityKind
+        startedAt = record.startedAt
+        endedAt = record.endedAt
+        durationMinutes = record.durationMinutes
+        energyBurnedKilocalories = record.energyBurnedKilocalories
+        distanceMeters = record.distanceMeters
+        source = record.source
+        externalSourceId = record.externalSourceId
+        createdAt = record.createdAt
+        updatedAt = record.updatedAt
+    }
+
+    var domain: AtlasWorkoutLogRecord {
+        AtlasWorkoutLogRecord.make(
+            id: id,
+            activityKind: activityKind,
+            startedAt: startedAt,
+            endedAt: endedAt,
+            durationMinutes: durationMinutes,
+            energyBurnedKilocalories: energyBurnedKilocalories,
+            distanceMeters: distanceMeters,
+            source: source,
+            externalSourceId: externalSourceId,
+            createdAt: createdAt,
+            updatedAt: updatedAt
+        )
+    }
+}
+
 private func atlasJSONString<T: Encodable>(for value: T, fallback: String) -> String {
     let encoder = JSONEncoder()
     guard let data = try? encoder.encode(value),
@@ -1272,12 +1339,15 @@ struct AtlasContextLogDBRecord: Codable, FetchableRecord, PersistableRecord {
     var protocolId: String?
     var loggedAt: String
     var mealTiming: AtlasContextMealTiming?
+    var mealSize: AtlasContextMealSize?
+    var mealComposition: AtlasContextMealComposition?
     var fedState: AtlasContextFedState?
     var appetite: AtlasContextAppetiteState?
     var hydration: AtlasContextHydrationState?
     var giContextJson: String
     var note: String?
     var tagsJson: String
+    var presetKey: String?
     var source: AtlasHealthDataSource
     var createdAt: String
     var updatedAt: String
@@ -1287,12 +1357,15 @@ struct AtlasContextLogDBRecord: Codable, FetchableRecord, PersistableRecord {
         case protocolId = "protocol_id"
         case loggedAt = "logged_at"
         case mealTiming = "meal_timing"
+        case mealSize = "meal_size"
+        case mealComposition = "meal_composition"
         case fedState = "fed_state"
         case appetite
         case hydration
         case giContextJson = "gi_context_json"
         case note
         case tagsJson = "tags_json"
+        case presetKey = "preset_key"
         case source
         case createdAt = "created_at"
         case updatedAt = "updated_at"
@@ -1303,12 +1376,15 @@ struct AtlasContextLogDBRecord: Codable, FetchableRecord, PersistableRecord {
         protocolId = record.protocolId
         loggedAt = record.loggedAt
         mealTiming = record.mealTiming
+        mealSize = record.mealSize
+        mealComposition = record.mealComposition
         fedState = record.fedState
         appetite = record.appetite
         hydration = record.hydration
         giContextJson = atlasJSONString(for: record.giTags, fallback: "[]")
         note = record.note
         tagsJson = atlasJSONString(for: record.tags, fallback: "[]")
+        presetKey = record.presetKey
         source = record.source
         createdAt = record.createdAt
         updatedAt = record.updatedAt
@@ -1320,15 +1396,81 @@ struct AtlasContextLogDBRecord: Codable, FetchableRecord, PersistableRecord {
             protocolId: protocolId,
             loggedAt: loggedAt,
             mealTiming: mealTiming,
+            mealSize: mealSize,
+            mealComposition: mealComposition,
             fedState: fedState,
             appetite: appetite,
             hydration: hydration,
             giTags: atlasDecodeJSON([AtlasContextGITag].self, from: giContextJson, fallback: []),
             note: note,
             tags: atlasDecodeJSON([String].self, from: tagsJson, fallback: []),
+            presetKey: presetKey,
             source: source,
             createdAt: createdAt,
             updatedAt: updatedAt
+        )
+    }
+}
+
+struct AtlasContextPresetDBRecord: Codable, FetchableRecord, PersistableRecord {
+    static let databaseTableName = "context_presets"
+    var id: String
+    var title: String
+    var mealTiming: AtlasContextMealTiming?
+    var mealSize: AtlasContextMealSize?
+    var mealComposition: AtlasContextMealComposition?
+    var fedState: AtlasContextFedState?
+    var appetite: AtlasContextAppetiteState?
+    var hydration: AtlasContextHydrationState?
+    var giContextJson: String
+    var createdAt: String
+    var updatedAt: String
+    var lastUsedAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case title
+        case mealTiming = "meal_timing"
+        case mealSize = "meal_size"
+        case mealComposition = "meal_composition"
+        case fedState = "fed_state"
+        case appetite
+        case hydration
+        case giContextJson = "gi_context_json"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+        case lastUsedAt = "last_used_at"
+    }
+
+    init(record: AtlasContextPresetRecord) {
+        id = record.id
+        title = record.title
+        mealTiming = record.mealTiming
+        mealSize = record.mealSize
+        mealComposition = record.mealComposition
+        fedState = record.fedState
+        appetite = record.appetite
+        hydration = record.hydration
+        giContextJson = atlasJSONString(for: record.giTags, fallback: "[]")
+        createdAt = record.createdAt
+        updatedAt = record.updatedAt
+        lastUsedAt = record.lastUsedAt
+    }
+
+    var domain: AtlasContextPresetRecord {
+        AtlasContextPresetRecord.make(
+            id: id,
+            title: title,
+            mealTiming: mealTiming,
+            mealSize: mealSize,
+            mealComposition: mealComposition,
+            fedState: fedState,
+            appetite: appetite,
+            hydration: hydration,
+            giTags: atlasDecodeJSON([AtlasContextGITag].self, from: giContextJson, fallback: []),
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            lastUsedAt: lastUsedAt
         )
     }
 }
@@ -1623,6 +1765,7 @@ func canonicalSnapshot(from db: Database) throws -> AtlasExportSnapshot {
         compounds: try AtlasCompoundDBRecord.fetchAll(db).map(\.domain),
         consumableAdjustments: try AtlasConsumableAdjustmentDBRecord.fetchAll(db).map(\.domain),
         consumables: try AtlasConsumableDBRecord.fetchAll(db).map(\.domain),
+        contextPresets: try AtlasContextPresetDBRecord.fetchAll(db).map(\.domain),
         contextLogs: try AtlasContextLogDBRecord.fetchAll(db).map(\.domain),
         customMetrics: try AtlasCustomMetricDBRecord.fetchAll(db).map(\.domain),
         healthConnections: try AtlasHealthConnectionDBRecord.fetchAll(db).map(\.domain),
@@ -1641,6 +1784,7 @@ func canonicalSnapshot(from db: Database) throws -> AtlasExportSnapshot {
         sites: try AtlasSiteDBRecord.fetchAll(db).map(\.domain),
         symptomLogs: try AtlasSymptomLogDBRecord.fetchAll(db).map(\.domain),
         vials: try AtlasVialDBRecord.fetchAll(db).map(\.domain),
+        workoutLogs: try AtlasWorkoutLogDBRecord.fetchAll(db).map(\.domain),
         weightLogs: try AtlasWeightLogDBRecord.fetchAll(db).map(\.domain)
     )
 }
@@ -1655,6 +1799,7 @@ func clearCanonicalTables(in db: Database) throws {
         "log_events",
         "consumable_adjustments",
         "consumables",
+        "context_presets",
         "context_logs",
         "vials",
         "sites",
@@ -1664,6 +1809,7 @@ func clearCanonicalTables(in db: Database) throws {
         "protocol_rules",
         "metric_value_logs",
         "custom_metrics",
+        "workout_logs",
         "weight_logs",
         "symptom_logs",
         "review_sessions",
@@ -1688,6 +1834,7 @@ func writeSnapshot(_ snapshot: AtlasExportSnapshot, to db: Database) throws {
     for record in snapshot.protocolChangeAudits { try AtlasProtocolChangeAuditDBRecord(record: record).insert(db) }
     for record in snapshot.consumables { try AtlasConsumableDBRecord(record: record).insert(db) }
     for record in snapshot.consumableAdjustments { try AtlasConsumableAdjustmentDBRecord(record: record).insert(db) }
+    for record in snapshot.contextPresets { try AtlasContextPresetDBRecord(record: record).insert(db) }
     for record in snapshot.contextLogs { try AtlasContextLogDBRecord(record: record).insert(db) }
     for record in snapshot.vials { try AtlasVialDBRecord(record: record).insert(db) }
     for record in snapshot.sites { try AtlasSiteDBRecord(record: record).insert(db) }
@@ -1701,6 +1848,7 @@ func writeSnapshot(_ snapshot: AtlasExportSnapshot, to db: Database) throws {
     for record in snapshot.metricValueLogs { try AtlasMetricValueLogDBRecord(record: record).insert(db) }
     for record in snapshot.healthConnections { try AtlasHealthConnectionDBRecord(record: record).save(db) }
     for record in snapshot.symptomLogs { try AtlasSymptomLogDBRecord(record: record).insert(db) }
+    for record in snapshot.workoutLogs { try AtlasWorkoutLogDBRecord(record: record).insert(db) }
     for record in snapshot.weightLogs { try AtlasWeightLogDBRecord(record: record).insert(db) }
 }
 
@@ -1720,8 +1868,10 @@ func countUserRows(in db: Database) throws -> Int {
     let vialCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM vials") ?? 0
     let consumableCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM consumables") ?? 0
     let consumableAdjustmentCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM consumable_adjustments") ?? 0
+    let contextPresetCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM context_presets") ?? 0
     let contextCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM context_logs") ?? 0
-    return protocolCount + logCount + vialCount + consumableCount + consumableAdjustmentCount + contextCount
+    let workoutCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM workout_logs") ?? 0
+    return protocolCount + logCount + vialCount + consumableCount + consumableAdjustmentCount + contextPresetCount + contextCount + workoutCount
 }
 
 func existingIdentifiers(in db: Database, for dataset: AtlasImportDataset) throws -> Set<String> {
@@ -1734,6 +1884,8 @@ func existingIdentifiers(in db: Database, for dataset: AtlasImportDataset) throw
         return Set(try String.fetchAll(db, sql: "SELECT id FROM consumable_adjustments"))
     case .consumables:
         return Set(try String.fetchAll(db, sql: "SELECT id FROM consumables"))
+    case .contextPresets:
+        return Set(try String.fetchAll(db, sql: "SELECT id FROM context_presets"))
     case .contextLogs:
         return Set(try String.fetchAll(db, sql: "SELECT id FROM context_logs"))
     case .customMetrics:
@@ -1770,6 +1922,8 @@ func existingIdentifiers(in db: Database, for dataset: AtlasImportDataset) throw
         return Set(try String.fetchAll(db, sql: "SELECT id FROM symptom_logs"))
     case .vials:
         return Set(try String.fetchAll(db, sql: "SELECT id FROM vials"))
+    case .workoutLogs:
+        return Set(try String.fetchAll(db, sql: "SELECT id FROM workout_logs"))
     case .weightLogs:
         return Set(try String.fetchAll(db, sql: "SELECT id FROM weight_logs"))
     }
@@ -1785,6 +1939,8 @@ func datasetIdentifiers(from snapshot: AtlasExportSnapshot, for dataset: AtlasIm
         return snapshot.consumableAdjustments.map(\.id)
     case .consumables:
         return snapshot.consumables.map(\.id)
+    case .contextPresets:
+        return snapshot.contextPresets.map(\.id)
     case .contextLogs:
         return snapshot.contextLogs.map(\.id)
     case .customMetrics:
@@ -1821,6 +1977,8 @@ func datasetIdentifiers(from snapshot: AtlasExportSnapshot, for dataset: AtlasIm
         return snapshot.symptomLogs.map(\.id)
     case .vials:
         return snapshot.vials.map(\.id)
+    case .workoutLogs:
+        return snapshot.workoutLogs.map(\.id)
     case .weightLogs:
         return snapshot.weightLogs.map(\.id)
     }

@@ -49,35 +49,78 @@ public struct AtlasContextEntryDraft: Equatable, Sendable {
     public var protocolID: String?
     public var loggedAt: Date
     public var mealTiming: AtlasContextMealTiming?
+    public var mealSize: AtlasContextMealSize?
+    public var mealComposition: AtlasContextMealComposition?
     public var fedState: AtlasContextFedState?
     public var appetite: AtlasContextAppetiteState?
     public var hydration: AtlasContextHydrationState?
     public var giTags: [AtlasContextGITag]
     public var note: String?
     public var tags: [String]
+    public var presetKey: String?
 
     public init(
         id: String? = nil,
         protocolID: String? = nil,
         loggedAt: Date = Date(),
         mealTiming: AtlasContextMealTiming? = nil,
+        mealSize: AtlasContextMealSize? = nil,
+        mealComposition: AtlasContextMealComposition? = nil,
         fedState: AtlasContextFedState? = nil,
         appetite: AtlasContextAppetiteState? = nil,
         hydration: AtlasContextHydrationState? = nil,
         giTags: [AtlasContextGITag] = [],
         note: String? = nil,
-        tags: [String] = []
+        tags: [String] = [],
+        presetKey: String? = nil
     ) {
         self.id = id
         self.protocolID = protocolID
         self.loggedAt = loggedAt
         self.mealTiming = mealTiming
+        self.mealSize = mealSize
+        self.mealComposition = mealComposition
         self.fedState = fedState
         self.appetite = appetite
         self.hydration = hydration
         self.giTags = giTags
         self.note = note
         self.tags = tags
+        self.presetKey = presetKey
+    }
+}
+
+public struct AtlasContextPresetDraft: Equatable, Sendable {
+    public var id: String?
+    public var title: String
+    public var mealTiming: AtlasContextMealTiming?
+    public var mealSize: AtlasContextMealSize?
+    public var mealComposition: AtlasContextMealComposition?
+    public var fedState: AtlasContextFedState?
+    public var appetite: AtlasContextAppetiteState?
+    public var hydration: AtlasContextHydrationState?
+    public var giTags: [AtlasContextGITag]
+
+    public init(
+        id: String? = nil,
+        title: String = "",
+        mealTiming: AtlasContextMealTiming? = nil,
+        mealSize: AtlasContextMealSize? = nil,
+        mealComposition: AtlasContextMealComposition? = nil,
+        fedState: AtlasContextFedState? = nil,
+        appetite: AtlasContextAppetiteState? = nil,
+        hydration: AtlasContextHydrationState? = nil,
+        giTags: [AtlasContextGITag] = []
+    ) {
+        self.id = id
+        self.title = title
+        self.mealTiming = mealTiming
+        self.mealSize = mealSize
+        self.mealComposition = mealComposition
+        self.fedState = fedState
+        self.appetite = appetite
+        self.hydration = hydration
+        self.giTags = giTags
     }
 }
 
@@ -154,6 +197,34 @@ public struct AtlasWeightEntrySummary: Identifiable, Equatable, Sendable {
     }
 }
 
+public struct AtlasWorkoutEntrySummary: Identifiable, Equatable, Sendable {
+    public var id: String
+    public var activityKind: AtlasWorkoutActivityKind
+    public var startedAt: Date
+    public var endedAt: Date
+    public var durationLabel: String
+    public var detailLabel: String?
+    public var source: AtlasHealthDataSource
+
+    public init(
+        id: String,
+        activityKind: AtlasWorkoutActivityKind,
+        startedAt: Date,
+        endedAt: Date,
+        durationLabel: String,
+        detailLabel: String?,
+        source: AtlasHealthDataSource
+    ) {
+        self.id = id
+        self.activityKind = activityKind
+        self.startedAt = startedAt
+        self.endedAt = endedAt
+        self.durationLabel = durationLabel
+        self.detailLabel = detailLabel
+        self.source = source
+    }
+}
+
 public struct AtlasSymptomEntrySummary: Identifiable, Equatable, Sendable {
     public var id: String
     public var loggedAt: Date
@@ -177,12 +248,15 @@ public struct AtlasContextEntrySummary: Identifiable, Equatable, Sendable {
     public var aliasProtocolTitle: String?
     public var loggedAt: Date
     public var mealTiming: AtlasContextMealTiming?
+    public var mealSize: AtlasContextMealSize?
+    public var mealComposition: AtlasContextMealComposition?
     public var fedState: AtlasContextFedState?
     public var appetite: AtlasContextAppetiteState?
     public var hydration: AtlasContextHydrationState?
     public var giTags: [AtlasContextGITag]
     public var note: String?
     public var tags: [String]
+    public var presetKey: String?
 
     public init(
         id: String,
@@ -191,12 +265,15 @@ public struct AtlasContextEntrySummary: Identifiable, Equatable, Sendable {
         aliasProtocolTitle: String?,
         loggedAt: Date,
         mealTiming: AtlasContextMealTiming?,
+        mealSize: AtlasContextMealSize?,
+        mealComposition: AtlasContextMealComposition?,
         fedState: AtlasContextFedState?,
         appetite: AtlasContextAppetiteState?,
         hydration: AtlasContextHydrationState?,
         giTags: [AtlasContextGITag],
         note: String?,
-        tags: [String]
+        tags: [String],
+        presetKey: String?
     ) {
         self.id = id
         self.protocolID = protocolID
@@ -204,12 +281,58 @@ public struct AtlasContextEntrySummary: Identifiable, Equatable, Sendable {
         self.aliasProtocolTitle = aliasProtocolTitle
         self.loggedAt = loggedAt
         self.mealTiming = mealTiming
+        self.mealSize = mealSize
+        self.mealComposition = mealComposition
         self.fedState = fedState
         self.appetite = appetite
         self.hydration = hydration
         self.giTags = giTags
         self.note = note
         self.tags = tags
+        self.presetKey = presetKey
+    }
+}
+
+public struct AtlasContextPresetSummary: Identifiable, Equatable, Sendable {
+    public var id: String
+    public var title: String
+    public var mealTiming: AtlasContextMealTiming?
+    public var mealSize: AtlasContextMealSize?
+    public var mealComposition: AtlasContextMealComposition?
+    public var fedState: AtlasContextFedState?
+    public var appetite: AtlasContextAppetiteState?
+    public var hydration: AtlasContextHydrationState?
+    public var giTags: [AtlasContextGITag]
+    public var createdAt: Date
+    public var updatedAt: Date
+    public var lastUsedAt: Date?
+
+    public init(
+        id: String,
+        title: String,
+        mealTiming: AtlasContextMealTiming?,
+        mealSize: AtlasContextMealSize?,
+        mealComposition: AtlasContextMealComposition?,
+        fedState: AtlasContextFedState?,
+        appetite: AtlasContextAppetiteState?,
+        hydration: AtlasContextHydrationState?,
+        giTags: [AtlasContextGITag],
+        createdAt: Date,
+        updatedAt: Date,
+        lastUsedAt: Date?
+    ) {
+        self.id = id
+        self.title = title
+        self.mealTiming = mealTiming
+        self.mealSize = mealSize
+        self.mealComposition = mealComposition
+        self.fedState = fedState
+        self.appetite = appetite
+        self.hydration = hydration
+        self.giTags = giTags
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.lastUsedAt = lastUsedAt
     }
 }
 
@@ -435,10 +558,41 @@ public struct AtlasAmountEstimateItem: Identifiable, Equatable, Sendable {
     }
 }
 
+public enum AtlasDeterministicInsightKind: String, CaseIterable, Sendable {
+    case symptomContext
+    case symptomWorkout
+    case symptomWeight
+    case symptomMetric
+}
+
+public struct AtlasDeterministicInsightCard: Identifiable, Equatable, Sendable {
+    public var id: String
+    public var kind: AtlasDeterministicInsightKind
+    public var title: String
+    public var summary: String
+    public var facts: [AtlasExplainerFact]
+
+    public init(
+        id: String,
+        kind: AtlasDeterministicInsightKind,
+        title: String,
+        summary: String,
+        facts: [AtlasExplainerFact]
+    ) {
+        self.id = id
+        self.kind = kind
+        self.title = title
+        self.summary = summary
+        self.facts = facts
+    }
+}
+
 public struct AtlasInsightsSnapshot: Equatable, Sendable {
     public var weightTrend: AtlasWeightTrendSummary
     public var symptomTrend: [AtlasSymptomTrendItem]
     public var contextTrend: AtlasContextTrendSummary
+    public var deterministicExplanations: [AtlasDeterministicInsightCard]
+    public var savedContextPresets: [AtlasContextPresetSummary]
     public var inventoryBurnDown: [AtlasInventoryBurnDownInsight]
     public var adherenceTrend: AtlasAdherenceTrendSummary
     public var amountInSystemDisclaimer: String
@@ -447,6 +601,7 @@ public struct AtlasInsightsSnapshot: Equatable, Sendable {
     public var customMetricDefinitions: [AtlasMetricDefinitionSummary]
     public var recentContextEntries: [AtlasContextEntrySummary]
     public var recentWeightEntries: [AtlasWeightEntrySummary]
+    public var recentWorkoutEntries: [AtlasWorkoutEntrySummary]
     public var recentSymptomEntries: [AtlasSymptomEntrySummary]
     public var recentMetricEntries: [AtlasMetricValueEntrySummary]
     public var weeklyRecapSummary: AtlasGeneratedSummary?
@@ -457,6 +612,8 @@ public struct AtlasInsightsSnapshot: Equatable, Sendable {
         weightTrend: AtlasWeightTrendSummary = .init(),
         symptomTrend: [AtlasSymptomTrendItem] = [],
         contextTrend: AtlasContextTrendSummary = .init(),
+        deterministicExplanations: [AtlasDeterministicInsightCard] = [],
+        savedContextPresets: [AtlasContextPresetSummary] = [],
         inventoryBurnDown: [AtlasInventoryBurnDownInsight] = [],
         adherenceTrend: AtlasAdherenceTrendSummary = .init(),
         amountInSystemDisclaimer: String = "Estimate only. Atlas spreads logged quantities across each protocol interval as a scheduling model, not a medical or pharmacokinetic calculation.",
@@ -465,6 +622,7 @@ public struct AtlasInsightsSnapshot: Equatable, Sendable {
         customMetricDefinitions: [AtlasMetricDefinitionSummary] = [],
         recentContextEntries: [AtlasContextEntrySummary] = [],
         recentWeightEntries: [AtlasWeightEntrySummary] = [],
+        recentWorkoutEntries: [AtlasWorkoutEntrySummary] = [],
         recentSymptomEntries: [AtlasSymptomEntrySummary] = [],
         recentMetricEntries: [AtlasMetricValueEntrySummary] = [],
         weeklyRecapSummary: AtlasGeneratedSummary? = nil,
@@ -474,6 +632,8 @@ public struct AtlasInsightsSnapshot: Equatable, Sendable {
         self.weightTrend = weightTrend
         self.symptomTrend = symptomTrend
         self.contextTrend = contextTrend
+        self.deterministicExplanations = deterministicExplanations
+        self.savedContextPresets = savedContextPresets
         self.inventoryBurnDown = inventoryBurnDown
         self.adherenceTrend = adherenceTrend
         self.amountInSystemDisclaimer = amountInSystemDisclaimer
@@ -482,6 +642,7 @@ public struct AtlasInsightsSnapshot: Equatable, Sendable {
         self.customMetricDefinitions = customMetricDefinitions
         self.recentContextEntries = recentContextEntries
         self.recentWeightEntries = recentWeightEntries
+        self.recentWorkoutEntries = recentWorkoutEntries
         self.recentSymptomEntries = recentSymptomEntries
         self.recentMetricEntries = recentMetricEntries
         self.weeklyRecapSummary = weeklyRecapSummary

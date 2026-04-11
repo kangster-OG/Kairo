@@ -5,6 +5,7 @@ public enum AtlasImportDataset: String, CaseIterable, Sendable {
     case compounds
     case consumableAdjustments
     case consumables
+    case contextPresets
     case contextLogs
     case customMetrics
     case healthConnections
@@ -23,5 +24,6 @@ public enum AtlasImportDataset: String, CaseIterable, Sendable {
     case sites
     case symptomLogs
     case vials
+    case workoutLogs
     case weightLogs
 }

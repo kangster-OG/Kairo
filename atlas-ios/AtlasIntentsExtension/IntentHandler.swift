@@ -41,25 +41,6 @@ private enum AtlasPendingIntentActionStore {
     }
 }
 
-private struct AtlasIntentQuickAction: Codable {
-    var id: String
-    var protocolID: String
-    var occurrenceID: String
-}
-
-private struct AtlasIntentFeatureFlags: Codable {
-    var nativeIntents: Bool
-}
-
-private struct AtlasIntentFeatureFlagProjection: Codable {
-    var flags: AtlasIntentFeatureFlags
-}
-
-private struct AtlasIntentProjectionSnapshot: Codable {
-    var quickActions: [AtlasIntentQuickAction]
-    var featureFlags: AtlasIntentFeatureFlagProjection
-}
-
 private enum AtlasIntentProjectionStore {
     static func load() -> AtlasIntentProjectionSnapshot? {
         guard let containerURL = FileManager.default.containerURL(
@@ -79,13 +60,65 @@ private enum AtlasIntentProjectionStore {
     }
 }
 
+private struct AtlasIntentQuickAction: Codable {
+    var id: String
+    var protocolID: String
+    var occurrenceID: String
+}
+
+private struct AtlasIntentFeatureFlags: Codable {
+    var nativeIntents: Bool
+}
+
+private struct AtlasIntentFeatureFlagProjection: Codable {
+    var flags: AtlasIntentFeatureFlags
+}
+
+private struct AtlasIntentProjectionSnapshot: Codable {
+    var generatedAt: String
+    var quickActions: [AtlasIntentQuickAction]
+    var featureFlags: AtlasIntentFeatureFlagProjection
+}
+
+private enum AtlasIntentTime {
+    static func date(from value: String) -> Date? {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter.date(from: value)
+    }
+}
+
+private struct AtlasIntentProjectionFreshness {
+    var generatedAt: Date?
+    var referenceDate: Date
+
+    var isStale: Bool {
+        guard let generatedAt else {
+            return true
+        }
+        return max(referenceDate.timeIntervalSince(generatedAt), 0) >= (2 * 60 * 60)
+    }
+}
+
+private extension AtlasIntentProjectionSnapshot {
+    func freshness(referenceDate: Date = Date()) -> AtlasIntentProjectionFreshness {
+        AtlasIntentProjectionFreshness(
+            generatedAt: AtlasIntentTime.date(from: generatedAt),
+            referenceDate: referenceDate
+        )
+    }
+}
+
 private enum AtlasIntentError: LocalizedError {
     case nextDueUnavailable
+    case nextDueProjectionStale
 
     var errorDescription: String? {
         switch self {
         case .nextDueUnavailable:
             return "Atlas does not have a projected next-due action ready right now."
+        case .nextDueProjectionStale:
+            return "Open Atlas first to refresh your local next-due action before running this shortcut."
         }
     }
 }
@@ -98,8 +131,15 @@ private enum AtlasNextDueIntentAction: String {
 private enum AtlasNextDueQuickLogRouteWriter {
     static func write(action: AtlasNextDueIntentAction) throws {
         guard let snapshot = AtlasIntentProjectionStore.load(),
-              snapshot.featureFlags.flags.nativeIntents,
-              let quickAction = snapshot.quickActions.first else {
+              snapshot.featureFlags.flags.nativeIntents else {
+            throw AtlasIntentError.nextDueUnavailable
+        }
+
+        guard snapshot.freshness().isStale == false else {
+            throw AtlasIntentError.nextDueProjectionStale
+        }
+
+        guard let quickAction = snapshot.quickActions.first else {
             throw AtlasIntentError.nextDueUnavailable
         }
 
@@ -143,6 +183,17 @@ struct AtlasOpenInventoryIntent: AppIntent {
 
     func perform() async throws -> some IntentResult {
         try AtlasPendingIntentActionStore.write(route: "inventory")
+        return .result()
+    }
+}
+
+struct AtlasOpenTrustVaultIntent: AppIntent {
+    static let title: LocalizedStringResource = "Open Trust Vault"
+    static let description = IntentDescription("Open Atlas to Trust Vault privacy controls.")
+    static let openAppWhenRun = true
+
+    func perform() async throws -> some IntentResult {
+        try AtlasPendingIntentActionStore.write(route: "trust-vault")
         return .result()
     }
 }
@@ -275,6 +326,15 @@ struct AtlasShortcutsProvider: AppShortcutsProvider {
                 ],
                 shortTitle: "Open Inventory",
                 systemImageName: "shippingbox.fill"
+            ),
+            AppShortcut(
+                intent: AtlasOpenTrustVaultIntent(),
+                phrases: [
+                    "Open Trust Vault in \(.applicationName)",
+                    "Show \(.applicationName) privacy controls"
+                ],
+                shortTitle: "Trust Vault",
+                systemImageName: "lock.shield.fill"
             ),
             AppShortcut(
                 intent: AtlasMarkNextDueTakenIntent(),

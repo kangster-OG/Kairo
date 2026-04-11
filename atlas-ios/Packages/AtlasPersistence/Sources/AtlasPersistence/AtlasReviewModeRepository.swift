@@ -457,6 +457,8 @@ private extension GRDBReviewModeRepository {
                 .map { context in
                     let details = [
                         context.mealTiming?.title,
+                        context.mealSize?.title,
+                        context.mealComposition?.title,
                         context.fedState?.title,
                         context.appetite?.title,
                         context.hydration?.title

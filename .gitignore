@@ -17,6 +17,13 @@ expo-env.d.ts
 *.p12
 *.key
 *.mobileprovision
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/
+*.xcworkspace/xcuserdata/
+**/xcuserdata/
+**/project.xcworkspace/
+**/.build/
+**/.swiftpm/
 
 # Metro
 .metro-health-check*

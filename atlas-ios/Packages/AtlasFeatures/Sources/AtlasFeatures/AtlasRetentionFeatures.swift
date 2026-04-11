@@ -14,7 +14,7 @@ struct AtlasRetentionTodayCard: View {
 
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
-                    Text("Optional local progress")
+                    Text("Optional local continuity")
                         .font(.body.weight(.semibold))
                         .foregroundStyle(AtlasPalette.textPrimary)
                     Text("\(snapshot.earnedMilestoneCount) of \(snapshot.milestones.count) calm signals are active.")
@@ -51,13 +51,13 @@ struct AtlasRetentionInsightSection: View {
 
     var body: some View {
         if snapshot.settings.progressEnabled {
-            Section("Calm progress") {
+            Section("Calm continuity") {
                 AtlasSectionCard {
                     if let companion = snapshot.companion {
                         AtlasRetentionCompanionView(companion: companion, emphasis: .inline)
                     }
 
-                    Text("These signals stay descriptive, local, and low-pressure. They never reward unsafe behavior and they never ask you to fill in logs that did not happen.")
+                    Text("These signals stay descriptive, local, and low-pressure. They describe continuity rather than score it, and they never ask you to fill in logs that did not happen.")
                         .foregroundStyle(AtlasPalette.textSecondary)
 
                     ForEach(snapshot.milestones) { milestone in
@@ -116,39 +116,32 @@ private struct AtlasRetentionCompanionView: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: AtlasSpacing.medium) {
-            ZStack(alignment: .bottomTrailing) {
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: mascotGradient,
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: emphasis == .featured ? 68 : 54, height: emphasis == .featured ? 68 : 54)
-
-                Circle()
-                    .fill(.white.opacity(0.2))
-                    .frame(width: emphasis == .featured ? 22 : 18, height: emphasis == .featured ? 22 : 18)
-                    .offset(x: -6, y: -6)
-
-                Image(systemName: companion.systemImage)
-                    .font(.system(size: emphasis == .featured ? 24 : 20, weight: .bold))
-                    .foregroundStyle(.white)
-            }
-            .overlay(
-                Circle()
-                    .stroke(.white.opacity(0.35), lineWidth: 1)
-            )
-            .shadow(color: companionTint.opacity(0.18), radius: 12, x: 0, y: 6)
+            RoundedRectangle(cornerRadius: iconCornerRadius, style: .continuous)
+                .fill(companionTint.opacity(emphasis == .featured ? 0.12 : 0.08))
+                .frame(width: iconDimension, height: iconDimension)
+                .overlay(
+                    RoundedRectangle(cornerRadius: iconCornerRadius, style: .continuous)
+                        .stroke(companionTint.opacity(0.18), lineWidth: 1)
+                )
+                .overlay(
+                    Image(systemName: companion.systemImage)
+                        .font(.system(size: emphasis == .featured ? 20 : 17, weight: .semibold))
+                        .foregroundStyle(companionTint)
+                )
+                .overlay(alignment: .topTrailing) {
+                    Circle()
+                        .fill(companionTint.opacity(emphasis == .featured ? 0.18 : 0.14))
+                        .frame(width: emphasis == .featured ? 12 : 10, height: emphasis == .featured ? 12 : 10)
+                        .padding(8)
+                }
 
             VStack(alignment: .leading, spacing: emphasis == .featured ? 6 : 4) {
-                Text("Atlas companion")
+                Text("Companion")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(companionTint)
                     .textCase(.uppercase)
                 Text(companion.title)
-                    .font((emphasis == .featured ? Font.title3 : Font.body).weight(.bold))
+                    .font((emphasis == .featured ? Font.title3 : Font.body).weight(.semibold))
                     .foregroundStyle(AtlasPalette.textPrimary)
                 Text(companion.subtitle)
                     .font(emphasis == .featured ? .body : .callout)
@@ -157,7 +150,7 @@ private struct AtlasRetentionCompanionView: View {
 
             Spacer(minLength: 0)
         }
-        .padding(emphasis == .featured ? 18 : 0)
+        .padding(emphasis == .featured ? 16 : 0)
         .background(backgroundSurface)
     }
 
@@ -172,31 +165,28 @@ private struct AtlasRetentionCompanionView: View {
         }
     }
 
-    private var mascotGradient: [Color] {
-        switch companion.mood {
-        case .quiet:
-            return [AtlasPalette.primary.opacity(0.92), AtlasPalette.shellTopAccent]
-        case .steady:
-            return [AtlasPalette.success.opacity(0.92), AtlasPalette.primary]
-        case .settled:
-            return [AtlasPalette.primaryPressed, AtlasPalette.shellTop]
-        }
+    private var iconDimension: CGFloat {
+        emphasis == .featured ? 54 : 44
+    }
+
+    private var iconCornerRadius: CGFloat {
+        emphasis == .featured ? 18 : 14
     }
 
     @ViewBuilder
     private var backgroundSurface: some View {
         if emphasis == .featured {
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .fill(
                     LinearGradient(
-                        colors: [Color.white.opacity(0.98), companionTint.opacity(0.08)],
+                        colors: [Color.white.opacity(0.96), companionTint.opacity(0.05)],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .stroke(companionTint.opacity(0.16), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .stroke(companionTint.opacity(0.14), lineWidth: 1)
                 )
         } else {
             Color.clear
@@ -211,8 +201,8 @@ private struct AtlasRetentionMilestoneChip: View {
         HStack(spacing: AtlasSpacing.xSmall) {
             Image(systemName: milestone.symbolName)
             Text(milestone.title)
-            if let streakCount = milestone.streakCount {
-                Text("\(streakCount)")
+            if let continuityLabel = milestone.continuityLabel {
+                Text(continuityLabel)
             }
         }
         .font(.caption.weight(.semibold))
@@ -253,9 +243,9 @@ private struct AtlasRetentionMilestoneRow: View {
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
                 Spacer()
-                if let streakCount = milestone.streakCount {
+                if let continuityLabel = milestone.continuityLabel {
                     AtlasStatusBadge(
-                        "\(streakCount) streak",
+                        continuityLabel,
                         tint: tint
                     )
                 } else {

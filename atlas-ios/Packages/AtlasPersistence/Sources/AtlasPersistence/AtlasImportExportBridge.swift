@@ -1,6 +1,7 @@
 import AtlasDomain
 import AtlasPrivacy
 import AtlasSystem
+import CryptoKit
 import GRDB
 import Foundation
 
@@ -9,6 +10,9 @@ public enum AtlasImportError: Error, LocalizedError, Sendable {
     case unsupportedFormat(String)
     case unsupportedVersion(Int)
     case replaceImportRequired
+    case restorePointUnavailable(String)
+    case restorePointCorrupted(String)
+    case restorePointIntegrityMismatch(String)
 
     public var errorDescription: String? {
         switch self {
@@ -20,6 +24,12 @@ public enum AtlasImportError: Error, LocalizedError, Sendable {
             "Atlas Export version \(version) is not supported."
         case .replaceImportRequired:
             "Existing native Atlas data was found. Phase 2 requires an explicit replace-import flow."
+        case let .restorePointUnavailable(title):
+            "Restore point '\(title)' is no longer available on this device."
+        case let .restorePointCorrupted(title):
+            "Restore point '\(title)' could not be validated. The saved backup file may be damaged or incomplete."
+        case let .restorePointIntegrityMismatch(title):
+            "Restore point '\(title)' no longer matches Atlas's saved integrity checks, so restore was blocked."
         }
     }
 }
@@ -77,6 +87,8 @@ struct AtlasRestorePointDBRecord: Codable, FetchableRecord, PersistableRecord {
     var sourceSummary: String
     var fileURL: String
     var rowCount: Int
+    var fileSHA256: String?
+    var fileByteCount: Int?
     var createdAt: String
 
     enum CodingKeys: String, CodingKey {
@@ -86,6 +98,8 @@ struct AtlasRestorePointDBRecord: Codable, FetchableRecord, PersistableRecord {
         case sourceSummary = "source_summary"
         case fileURL = "file_url"
         case rowCount = "row_count"
+        case fileSHA256 = "file_sha256"
+        case fileByteCount = "file_byte_count"
         case createdAt = "created_at"
     }
 
@@ -101,15 +115,52 @@ struct AtlasRestorePointDBRecord: Codable, FetchableRecord, PersistableRecord {
         )
     }
 
-    init(summary: AtlasRestorePointSummary) {
+    init(
+        summary: AtlasRestorePointSummary,
+        fileSHA256: String? = nil,
+        fileByteCount: Int? = nil
+    ) {
         id = summary.id
         title = summary.title
         actionKind = summary.actionKind
         sourceSummary = summary.sourceSummary
         fileURL = summary.fileURL.path
         rowCount = summary.rowCount
+        self.fileSHA256 = fileSHA256
+        self.fileByteCount = fileByteCount
         createdAt = atlasTimestamp(from: summary.createdAt)
     }
+}
+
+struct AtlasRestorePointIntegrity: Equatable {
+    var fileSHA256: String
+    var fileByteCount: Int
+}
+
+private extension AtlasRestorePointDBRecord {
+    var hasIntegrityMetadata: Bool {
+        guard let fileSHA256, fileSHA256.isEmpty == false, let fileByteCount else {
+            return false
+        }
+        return fileByteCount >= 0
+    }
+
+    func matchesIntegrity(_ integrity: AtlasRestorePointIntegrity) -> Bool {
+        fileSHA256 == integrity.fileSHA256 && fileByteCount == integrity.fileByteCount
+    }
+
+    mutating func applyIntegrity(_ integrity: AtlasRestorePointIntegrity) {
+        fileSHA256 = integrity.fileSHA256
+        fileByteCount = integrity.fileByteCount
+    }
+}
+
+func atlasRestorePointIntegrity(for data: Data) -> AtlasRestorePointIntegrity {
+    let digest = SHA256.hash(data: data)
+    return AtlasRestorePointIntegrity(
+        fileSHA256: digest.map { String(format: "%02x", $0) }.joined(),
+        fileByteCount: data.count
+    )
 }
 
 private func atlasImportEncode<T: Encodable>(_ value: T?) -> String? {
@@ -309,24 +360,44 @@ public actor GRDBImportExportBridge: ImportExportBridging {
     }
 
     public func listRestorePoints() async throws -> [AtlasRestorePointSummary] {
-        try await stack.canonical.read { db in
+        let records = try await stack.canonical.read { db in
             try AtlasRestorePointDBRecord
                 .order(Column("created_at").desc)
                 .fetchAll(db)
-                .map(\.domain)
-                .filter { FileManager.default.fileExists(atPath: $0.fileURL.path) }
         }
+        var summaries: [AtlasRestorePointSummary] = []
+        var healedRecords: [AtlasRestorePointDBRecord] = []
+
+        for var record in records {
+            let fileURL = URL(fileURLWithPath: record.fileURL)
+            guard FileManager.default.fileExists(atPath: fileURL.path) else {
+                continue
+            }
+
+            if record.hasIntegrityMetadata == false,
+               let data = try? Data(contentsOf: fileURL) {
+                let integrity = atlasRestorePointIntegrity(for: data)
+                record.applyIntegrity(integrity)
+                healedRecords.append(record)
+            }
+
+            summaries.append(record.domain)
+        }
+
+        if healedRecords.isEmpty == false {
+            let recordsToHeal = healedRecords
+            try await stack.canonical.write { db in
+                for record in recordsToHeal {
+                    try record.update(db)
+                }
+            }
+        }
+
+        return summaries
     }
 
     public func previewRestorePoint(id: String) async throws -> AtlasRestorePointPreview {
-        let restorePoint = try await stack.canonical.read { db in
-            guard let record = try AtlasRestorePointDBRecord.fetchOne(db, key: id) else {
-                throw AtlasImportError.invalidPayload
-            }
-            return record.domain
-        }
-
-        let prepared = try await prepareImport(at: restorePoint.fileURL)
+        let (restorePoint, prepared) = try await loadPreparedRestorePoint(id: id)
         return AtlasRestorePointPreview(
             restorePoint: restorePoint,
             datasetDiffs: prepared.dryRun.datasetDiffs,
@@ -346,13 +417,7 @@ public actor GRDBImportExportBridge: ImportExportBridging {
         id: String,
         now: Date
     ) async throws -> AtlasRestoreCommitResult {
-        let restorePoint = try await stack.canonical.read { db in
-            guard let record = try AtlasRestorePointDBRecord.fetchOne(db, key: id) else {
-                throw AtlasImportError.invalidPayload
-            }
-            return record.domain
-        }
-        let prepared = try await prepareImport(at: restorePoint.fileURL)
+        let (restorePoint, prepared) = try await loadPreparedRestorePoint(id: id)
         let result = try await commitSnapshot(
             prepared.stagedSnapshot,
             mode: .replaceExisting,
@@ -388,6 +453,53 @@ public actor GRDBImportExportBridge: ImportExportBridging {
         guard manifest.version == 1 else {
             throw AtlasImportError.unsupportedVersion(manifest.version)
         }
+    }
+
+    private func loadPreparedRestorePoint(id: String) async throws -> (AtlasRestorePointSummary, AtlasPreparedImport) {
+        var record = try await stack.canonical.read { db in
+            guard let record = try AtlasRestorePointDBRecord.fetchOne(db, key: id) else {
+                throw AtlasImportError.invalidPayload
+            }
+            return record
+        }
+        let fileURL = URL(fileURLWithPath: record.fileURL)
+        guard FileManager.default.fileExists(atPath: fileURL.path) else {
+            throw AtlasImportError.restorePointUnavailable(record.title)
+        }
+
+        let data = try Data(contentsOf: fileURL)
+        let integrity = atlasRestorePointIntegrity(for: data)
+        if record.hasIntegrityMetadata {
+            guard record.matchesIntegrity(integrity) else {
+                throw AtlasImportError.restorePointIntegrityMismatch(record.title)
+            }
+        } else {
+            record.applyIntegrity(integrity)
+            let healedRecord = record
+            try await stack.canonical.write { db in
+                try healedRecord.update(db)
+            }
+        }
+
+        let prepared: AtlasPreparedImport
+        do {
+            prepared = try await prepareImport(at: fileURL)
+        } catch let error as AtlasImportError {
+            switch error {
+            case .invalidPayload, .unsupportedFormat, .unsupportedVersion:
+                throw AtlasImportError.restorePointCorrupted(record.title)
+            default:
+                throw error
+            }
+        } catch {
+            throw AtlasImportError.restorePointCorrupted(record.title)
+        }
+
+        guard snapshotRowCount(prepared.stagedSnapshot) == record.rowCount else {
+            throw AtlasImportError.restorePointIntegrityMismatch(record.title)
+        }
+
+        return (record.domain, prepared)
     }
 
     private func decodeBundle(at url: URL) throws -> (AtlasExportBundle, Set<String>, [String]) {

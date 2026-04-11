@@ -580,6 +580,63 @@ final class AtlasDatabaseStack: @unchecked Sendable {
             try db.create(index: "idx_context_logs_protocol_id", on: "context_logs", columns: ["protocol_id", "logged_at"])
         }
 
+        migrator.registerMigration("v11_expand_context_logs_for_meal_detail") { db in
+            try db.alter(table: "context_logs") { table in
+                table.add(column: "meal_size", .text)
+                table.add(column: "meal_composition", .text)
+                table.add(column: "preset_key", .text)
+            }
+        }
+
+        migrator.registerMigration("v12_add_context_presets") { db in
+            try db.create(table: "context_presets") { table in
+                table.column("id", .text).primaryKey()
+                table.column("title", .text).notNull()
+                table.column("meal_timing", .text)
+                table.column("meal_size", .text)
+                table.column("meal_composition", .text)
+                table.column("fed_state", .text)
+                table.column("appetite", .text)
+                table.column("hydration", .text)
+                table.column("gi_context_json", .text).notNull()
+                table.column("created_at", .text).notNull()
+                table.column("updated_at", .text).notNull()
+                table.column("last_used_at", .text)
+            }
+            try db.create(index: "idx_context_presets_last_used", on: "context_presets", columns: ["last_used_at", "updated_at"])
+        }
+
+        migrator.registerMigration("v13_add_workout_logs") { db in
+            try db.create(table: "workout_logs") { table in
+                table.column("id", .text).primaryKey()
+                table.column("activity_kind", .text).notNull()
+                table.column("started_at", .text).notNull()
+                table.column("ended_at", .text).notNull()
+                table.column("duration_minutes", .double).notNull()
+                table.column("energy_burned_kilocalories", .double)
+                table.column("distance_meters", .double)
+                table.column("source", .text).notNull()
+                table.column("external_source_id", .text).unique()
+                table.column("created_at", .text).notNull()
+                table.column("updated_at", .text).notNull()
+            }
+            try db.create(index: "idx_workout_logs_started_at", on: "workout_logs", columns: ["started_at"])
+        }
+
+        migrator.registerMigration("v14_add_restore_point_integrity_columns") { db in
+            try db.alter(table: "restore_points") { table in
+                table.add(column: "file_sha256", .text)
+                table.add(column: "file_byte_count", .integer)
+            }
+        }
+
+        migrator.registerMigration("v15_add_consumable_procurement_metadata") { db in
+            try db.alter(table: "consumable_adjustments") { table in
+                table.add(column: "vendor_label", .text)
+                table.add(column: "source_detail", .text)
+            }
+        }
+
         return migrator
     }
 

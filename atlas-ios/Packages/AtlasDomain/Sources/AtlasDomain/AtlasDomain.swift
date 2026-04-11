@@ -262,6 +262,20 @@ public enum AtlasContextHydrationState: String, Codable, CaseIterable, Sendable 
     case high
 }
 
+public enum AtlasContextMealSize: String, Codable, CaseIterable, Sendable {
+    case light
+    case standard
+    case heavy
+}
+
+public enum AtlasContextMealComposition: String, Codable, CaseIterable, Sendable {
+    case proteinHeavy = "protein_heavy"
+    case carbHeavy = "carb_heavy"
+    case fatHeavy = "fat_heavy"
+    case mixed
+    case unsure
+}
+
 public enum AtlasContextGITag: String, Codable, CaseIterable, Sendable {
     case calm
     case nausea
@@ -275,6 +289,49 @@ public enum AtlasHealthDataSource: String, Codable, CaseIterable, Sendable {
     case manual
     case health
     case `import`
+}
+
+public enum AtlasWorkoutActivityKind: String, Codable, CaseIterable, Sendable {
+    case walk
+    case run
+    case cycle
+    case strength
+    case yoga
+    case swim
+    case hike
+    case mobility
+    case cardio
+    case sport
+    case other
+}
+
+public extension AtlasWorkoutActivityKind {
+    var title: String {
+        switch self {
+        case .walk:
+            return "Walk"
+        case .run:
+            return "Run"
+        case .cycle:
+            return "Cycle"
+        case .strength:
+            return "Strength"
+        case .yoga:
+            return "Yoga"
+        case .swim:
+            return "Swim"
+        case .hike:
+            return "Hike"
+        case .mobility:
+            return "Mobility"
+        case .cardio:
+            return "Cardio"
+        case .sport:
+            return "Sport"
+        case .other:
+            return "Workout"
+        }
+    }
 }
 
 public extension AtlasProtocolRevisionLifecycle {
@@ -366,6 +423,36 @@ public extension AtlasContextHydrationState {
             return "Hydration felt steady"
         case .high:
             return "Hydrated"
+        }
+    }
+}
+
+public extension AtlasContextMealSize {
+    var title: String {
+        switch self {
+        case .light:
+            return "Light meal"
+        case .standard:
+            return "Standard meal"
+        case .heavy:
+            return "Heavy meal"
+        }
+    }
+}
+
+public extension AtlasContextMealComposition {
+    var title: String {
+        switch self {
+        case .proteinHeavy:
+            return "Protein-heavy"
+        case .carbHeavy:
+            return "Carb-heavy"
+        case .fatHeavy:
+            return "Fat-heavy"
+        case .mixed:
+            return "Mixed meal"
+        case .unsure:
+            return "Composition unsure"
         }
     }
 }
@@ -672,17 +759,20 @@ public struct AtlasSharedLowStockItem: Codable, Equatable, Sendable, Identifiabl
 
 public struct AtlasSharedLowStockSnapshot: Codable, Equatable, Sendable {
     public var lowStockCount: Int
+    public var procurementReviewCount: Int
     public var summary: String
     public var items: [AtlasSharedLowStockItem]
     public var updatedAt: String
 
     public init(
         lowStockCount: Int,
+        procurementReviewCount: Int = 0,
         summary: String,
         items: [AtlasSharedLowStockItem],
         updatedAt: String
     ) {
         self.lowStockCount = lowStockCount
+        self.procurementReviewCount = procurementReviewCount
         self.summary = summary
         self.items = items
         self.updatedAt = updatedAt
@@ -839,6 +929,20 @@ public struct AtlasMetricValueLogRecord: Codable, Equatable, Sendable, Identifia
     public var textValue: String?
     public var booleanValue: Bool?
     public var source: AtlasHealthDataSource
+    public var createdAt: String
+    public var updatedAt: String
+}
+
+public struct AtlasWorkoutLogRecord: Codable, Equatable, Sendable, Identifiable {
+    public var id: String
+    public var activityKind: AtlasWorkoutActivityKind
+    public var startedAt: String
+    public var endedAt: String
+    public var durationMinutes: Double
+    public var energyBurnedKilocalories: Double?
+    public var distanceMeters: Double?
+    public var source: AtlasHealthDataSource
+    public var externalSourceId: String?
     public var createdAt: String
     public var updatedAt: String
 }
@@ -1123,8 +1227,92 @@ public struct AtlasConsumableAdjustmentRecord: Codable, Equatable, Sendable, Ide
     public var resultingQuantity: Double
     public var quantityUnit: String
     public var note: String?
+    public var vendorLabel: String?
+    public var sourceDetail: String?
     public var recordedAt: String
     public var createdAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case consumableId
+        case protocolId
+        case occurrenceId
+        case kind
+        case deltaQuantity
+        case resultingQuantity
+        case quantityUnit
+        case note
+        case vendorLabel
+        case sourceDetail
+        case recordedAt
+        case createdAt
+    }
+
+    public init(
+        id: String,
+        consumableId: String,
+        protocolId: String?,
+        occurrenceId: String?,
+        kind: AtlasConsumableAdjustmentKind,
+        deltaQuantity: Double,
+        resultingQuantity: Double,
+        quantityUnit: String,
+        note: String?,
+        vendorLabel: String?,
+        sourceDetail: String?,
+        recordedAt: String,
+        createdAt: String
+    ) {
+        self.id = id
+        self.consumableId = consumableId
+        self.protocolId = protocolId
+        self.occurrenceId = occurrenceId
+        self.kind = kind
+        self.deltaQuantity = deltaQuantity
+        self.resultingQuantity = resultingQuantity
+        self.quantityUnit = quantityUnit
+        self.note = note
+        self.vendorLabel = vendorLabel
+        self.sourceDetail = sourceDetail
+        self.recordedAt = recordedAt
+        self.createdAt = createdAt
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            id: try container.decode(String.self, forKey: .id),
+            consumableId: try container.decode(String.self, forKey: .consumableId),
+            protocolId: try container.decodeIfPresent(String.self, forKey: .protocolId),
+            occurrenceId: try container.decodeIfPresent(String.self, forKey: .occurrenceId),
+            kind: try container.decode(AtlasConsumableAdjustmentKind.self, forKey: .kind),
+            deltaQuantity: try container.decode(Double.self, forKey: .deltaQuantity),
+            resultingQuantity: try container.decode(Double.self, forKey: .resultingQuantity),
+            quantityUnit: try container.decode(String.self, forKey: .quantityUnit),
+            note: try container.decodeIfPresent(String.self, forKey: .note),
+            vendorLabel: try container.decodeIfPresent(String.self, forKey: .vendorLabel),
+            sourceDetail: try container.decodeIfPresent(String.self, forKey: .sourceDetail),
+            recordedAt: try container.decode(String.self, forKey: .recordedAt),
+            createdAt: try container.decode(String.self, forKey: .createdAt)
+        )
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(consumableId, forKey: .consumableId)
+        try container.encodeIfPresent(protocolId, forKey: .protocolId)
+        try container.encodeIfPresent(occurrenceId, forKey: .occurrenceId)
+        try container.encode(kind, forKey: .kind)
+        try container.encode(deltaQuantity, forKey: .deltaQuantity)
+        try container.encode(resultingQuantity, forKey: .resultingQuantity)
+        try container.encode(quantityUnit, forKey: .quantityUnit)
+        try container.encodeIfPresent(note, forKey: .note)
+        try container.encodeIfPresent(vendorLabel, forKey: .vendorLabel)
+        try container.encodeIfPresent(sourceDetail, forKey: .sourceDetail)
+        try container.encode(recordedAt, forKey: .recordedAt)
+        try container.encode(createdAt, forKey: .createdAt)
+    }
 }
 
 public struct AtlasContextLogRecord: Codable, Equatable, Sendable, Identifiable {
@@ -1132,15 +1320,33 @@ public struct AtlasContextLogRecord: Codable, Equatable, Sendable, Identifiable 
     public var protocolId: String?
     public var loggedAt: String
     public var mealTiming: AtlasContextMealTiming?
+    public var mealSize: AtlasContextMealSize?
+    public var mealComposition: AtlasContextMealComposition?
     public var fedState: AtlasContextFedState?
     public var appetite: AtlasContextAppetiteState?
     public var hydration: AtlasContextHydrationState?
     public var giTags: [AtlasContextGITag]
     public var note: String?
     public var tags: [String]
+    public var presetKey: String?
     public var source: AtlasHealthDataSource
     public var createdAt: String
     public var updatedAt: String
+}
+
+public struct AtlasContextPresetRecord: Codable, Equatable, Sendable, Identifiable {
+    public var id: String
+    public var title: String
+    public var mealTiming: AtlasContextMealTiming?
+    public var mealSize: AtlasContextMealSize?
+    public var mealComposition: AtlasContextMealComposition?
+    public var fedState: AtlasContextFedState?
+    public var appetite: AtlasContextAppetiteState?
+    public var hydration: AtlasContextHydrationState?
+    public var giTags: [AtlasContextGITag]
+    public var createdAt: String
+    public var updatedAt: String
+    public var lastUsedAt: String?
 }
 
 public struct AtlasSymptomLogRecord: Codable, Equatable, Sendable, Identifiable {
@@ -1183,6 +1389,34 @@ public struct AtlasWeightLogRecord: Codable, Equatable, Sendable, Identifiable {
     public var notes: String?
     public var createdAt: String
     public var updatedAt: String
+}
+
+public struct AtlasHealthWorkoutSample: Codable, Equatable, Sendable, Identifiable {
+    public var id: String
+    public var activityKind: AtlasWorkoutActivityKind
+    public var startedAt: Date
+    public var endedAt: Date
+    public var durationMinutes: Double
+    public var energyBurnedKilocalories: Double?
+    public var distanceMeters: Double?
+
+    public init(
+        id: String,
+        activityKind: AtlasWorkoutActivityKind,
+        startedAt: Date,
+        endedAt: Date,
+        durationMinutes: Double,
+        energyBurnedKilocalories: Double? = nil,
+        distanceMeters: Double? = nil
+    ) {
+        self.id = id
+        self.activityKind = activityKind
+        self.startedAt = startedAt
+        self.endedAt = endedAt
+        self.durationMinutes = durationMinutes
+        self.energyBurnedKilocalories = energyBurnedKilocalories
+        self.distanceMeters = distanceMeters
+    }
 }
 
 public struct AtlasOccurrenceProjectionRecord: Codable, Equatable, Sendable, Identifiable {
@@ -1252,6 +1486,36 @@ public extension AtlasLogEventRecord {
 public extension AtlasMetricValueLogRecord {
     static func make(id: String, metricId: String, protocolId: String?, loggedAt: String, numberValue: Double?, textValue: String?, booleanValue: Bool?, source: AtlasHealthDataSource, createdAt: String, updatedAt: String) -> Self {
         .init(id: id, metricId: metricId, protocolId: protocolId, loggedAt: loggedAt, numberValue: numberValue, textValue: textValue, booleanValue: booleanValue, source: source, createdAt: createdAt, updatedAt: updatedAt)
+    }
+}
+
+public extension AtlasWorkoutLogRecord {
+    static func make(
+        id: String,
+        activityKind: AtlasWorkoutActivityKind,
+        startedAt: String,
+        endedAt: String,
+        durationMinutes: Double,
+        energyBurnedKilocalories: Double?,
+        distanceMeters: Double?,
+        source: AtlasHealthDataSource,
+        externalSourceId: String?,
+        createdAt: String,
+        updatedAt: String
+    ) -> Self {
+        .init(
+            id: id,
+            activityKind: activityKind,
+            startedAt: startedAt,
+            endedAt: endedAt,
+            durationMinutes: durationMinutes,
+            energyBurnedKilocalories: energyBurnedKilocalories,
+            distanceMeters: distanceMeters,
+            source: source,
+            externalSourceId: externalSourceId,
+            createdAt: createdAt,
+            updatedAt: updatedAt
+        )
     }
 }
 
@@ -1362,6 +1626,8 @@ public extension AtlasConsumableAdjustmentRecord {
         resultingQuantity: Double,
         quantityUnit: String,
         note: String?,
+        vendorLabel: String? = nil,
+        sourceDetail: String? = nil,
         recordedAt: String,
         createdAt: String
     ) -> Self {
@@ -1375,6 +1641,8 @@ public extension AtlasConsumableAdjustmentRecord {
             resultingQuantity: resultingQuantity,
             quantityUnit: quantityUnit,
             note: note,
+            vendorLabel: vendorLabel,
+            sourceDetail: sourceDetail,
             recordedAt: recordedAt,
             createdAt: createdAt
         )
@@ -1387,12 +1655,15 @@ public extension AtlasContextLogRecord {
         protocolId: String?,
         loggedAt: String,
         mealTiming: AtlasContextMealTiming?,
+        mealSize: AtlasContextMealSize?,
+        mealComposition: AtlasContextMealComposition?,
         fedState: AtlasContextFedState?,
         appetite: AtlasContextAppetiteState?,
         hydration: AtlasContextHydrationState?,
         giTags: [AtlasContextGITag],
         note: String?,
         tags: [String],
+        presetKey: String?,
         source: AtlasHealthDataSource,
         createdAt: String,
         updatedAt: String
@@ -1402,15 +1673,50 @@ public extension AtlasContextLogRecord {
             protocolId: protocolId,
             loggedAt: loggedAt,
             mealTiming: mealTiming,
+            mealSize: mealSize,
+            mealComposition: mealComposition,
             fedState: fedState,
             appetite: appetite,
             hydration: hydration,
             giTags: giTags,
             note: note,
             tags: tags,
+            presetKey: presetKey,
             source: source,
             createdAt: createdAt,
             updatedAt: updatedAt
+        )
+    }
+}
+
+public extension AtlasContextPresetRecord {
+    static func make(
+        id: String,
+        title: String,
+        mealTiming: AtlasContextMealTiming?,
+        mealSize: AtlasContextMealSize?,
+        mealComposition: AtlasContextMealComposition?,
+        fedState: AtlasContextFedState?,
+        appetite: AtlasContextAppetiteState?,
+        hydration: AtlasContextHydrationState?,
+        giTags: [AtlasContextGITag],
+        createdAt: String,
+        updatedAt: String,
+        lastUsedAt: String?
+    ) -> Self {
+        .init(
+            id: id,
+            title: title,
+            mealTiming: mealTiming,
+            mealSize: mealSize,
+            mealComposition: mealComposition,
+            fedState: fedState,
+            appetite: appetite,
+            hydration: hydration,
+            giTags: giTags,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            lastUsedAt: lastUsedAt
         )
     }
 }
@@ -1444,6 +1750,7 @@ public struct AtlasExportSnapshot: Codable, Equatable, Sendable {
     public var compounds: [AtlasCompoundRecord]
     public var consumableAdjustments: [AtlasConsumableAdjustmentRecord]
     public var consumables: [AtlasConsumableRecord]
+    public var contextPresets: [AtlasContextPresetRecord]
     public var contextLogs: [AtlasContextLogRecord]
     public var customMetrics: [AtlasCustomMetricRecord]
     public var healthConnections: [AtlasHealthConnectionRecord]
@@ -1462,6 +1769,7 @@ public struct AtlasExportSnapshot: Codable, Equatable, Sendable {
     public var sites: [AtlasSiteRecord]
     public var symptomLogs: [AtlasSymptomLogRecord]
     public var vials: [AtlasVialRecord]
+    public var workoutLogs: [AtlasWorkoutLogRecord]
     public var weightLogs: [AtlasWeightLogRecord]
 
     public init(
@@ -1469,6 +1777,7 @@ public struct AtlasExportSnapshot: Codable, Equatable, Sendable {
         compounds: [AtlasCompoundRecord] = [],
         consumableAdjustments: [AtlasConsumableAdjustmentRecord] = [],
         consumables: [AtlasConsumableRecord] = [],
+        contextPresets: [AtlasContextPresetRecord] = [],
         contextLogs: [AtlasContextLogRecord] = [],
         customMetrics: [AtlasCustomMetricRecord] = [],
         healthConnections: [AtlasHealthConnectionRecord] = [],
@@ -1487,12 +1796,14 @@ public struct AtlasExportSnapshot: Codable, Equatable, Sendable {
         sites: [AtlasSiteRecord] = [],
         symptomLogs: [AtlasSymptomLogRecord] = [],
         vials: [AtlasVialRecord] = [],
+        workoutLogs: [AtlasWorkoutLogRecord] = [],
         weightLogs: [AtlasWeightLogRecord] = []
     ) {
         self.calculatorProfiles = calculatorProfiles
         self.compounds = compounds
         self.consumableAdjustments = consumableAdjustments
         self.consumables = consumables
+        self.contextPresets = contextPresets
         self.contextLogs = contextLogs
         self.customMetrics = customMetrics
         self.healthConnections = healthConnections
@@ -1511,6 +1822,7 @@ public struct AtlasExportSnapshot: Codable, Equatable, Sendable {
         self.sites = sites
         self.symptomLogs = symptomLogs
         self.vials = vials
+        self.workoutLogs = workoutLogs
         self.weightLogs = weightLogs
     }
 
@@ -1519,6 +1831,7 @@ public struct AtlasExportSnapshot: Codable, Equatable, Sendable {
         case compounds
         case consumableAdjustments
         case consumables
+        case contextPresets
         case contextLogs
         case customMetrics
         case healthConnections
@@ -1537,6 +1850,7 @@ public struct AtlasExportSnapshot: Codable, Equatable, Sendable {
         case sites
         case symptomLogs
         case vials
+        case workoutLogs
         case weightLogs
     }
 
@@ -1547,6 +1861,7 @@ public struct AtlasExportSnapshot: Codable, Equatable, Sendable {
             compounds: try container.decodeIfPresent([AtlasCompoundRecord].self, forKey: .compounds) ?? [],
             consumableAdjustments: try container.decodeIfPresent([AtlasConsumableAdjustmentRecord].self, forKey: .consumableAdjustments) ?? [],
             consumables: try container.decodeIfPresent([AtlasConsumableRecord].self, forKey: .consumables) ?? [],
+            contextPresets: try container.decodeIfPresent([AtlasContextPresetRecord].self, forKey: .contextPresets) ?? [],
             contextLogs: try container.decodeIfPresent([AtlasContextLogRecord].self, forKey: .contextLogs) ?? [],
             customMetrics: try container.decodeIfPresent([AtlasCustomMetricRecord].self, forKey: .customMetrics) ?? [],
             healthConnections: try container.decodeIfPresent([AtlasHealthConnectionRecord].self, forKey: .healthConnections) ?? [],
@@ -1565,6 +1880,7 @@ public struct AtlasExportSnapshot: Codable, Equatable, Sendable {
             sites: try container.decodeIfPresent([AtlasSiteRecord].self, forKey: .sites) ?? [],
             symptomLogs: try container.decodeIfPresent([AtlasSymptomLogRecord].self, forKey: .symptomLogs) ?? [],
             vials: try container.decodeIfPresent([AtlasVialRecord].self, forKey: .vials) ?? [],
+            workoutLogs: try container.decodeIfPresent([AtlasWorkoutLogRecord].self, forKey: .workoutLogs) ?? [],
             weightLogs: try container.decodeIfPresent([AtlasWeightLogRecord].self, forKey: .weightLogs) ?? []
         )
     }

@@ -120,6 +120,8 @@ public struct GRDBInventoryRepository: InventoryRepository, Sendable {
                     kind: .created,
                     deltaQuantity: record.quantityOnHand,
                     note: "Atlas started tracking this supply locally.",
+                    vendorLabel: record.vendorLabel,
+                    sourceDetail: record.purchaseNotes,
                     recordedAt: timestamp
                 )
             } else if existing?.archivedAt == nil, record.archivedAt != nil {
@@ -345,6 +347,48 @@ public struct GRDBInventoryRepository: InventoryRepository, Sendable {
         }
     }
 
+    public func recordConsumableProcurement(
+        _ procurement: AtlasConsumableProcurementDraft,
+        now: Date
+    ) async throws -> AtlasConsumableAdjustmentResult {
+        try await stack.canonical.write { db in
+            let normalized = try normalize(procurementDraft: procurement)
+            guard var consumable = try AtlasConsumableDBRecord.fetchOne(db, key: normalized.consumableID)?.domain else {
+                throw AtlasInventoryRepositoryError.consumableNotFound
+            }
+
+            let timestamp = atlasTimestamp(from: now)
+            let receivedAt = atlasTimestamp(from: normalized.receivedAt)
+            consumable.quantityOnHand += normalized.quantityReceived
+            consumable.updatedAt = timestamp
+            if let vendorLabel = normalized.vendorLabel {
+                consumable.vendorLabel = vendorLabel
+            }
+            if let sourceDetail = normalized.sourceDetail {
+                consumable.purchaseNotes = sourceDetail
+            }
+            try AtlasConsumableDBRecord(record: consumable).update(db)
+
+            try appendConsumableAdjustment(
+                db: db,
+                consumable: consumable,
+                protocolID: consumable.protocolId,
+                occurrenceID: nil,
+                kind: .procurement,
+                deltaQuantity: normalized.quantityReceived,
+                note: "Procurement recorded locally.",
+                vendorLabel: normalized.vendorLabel,
+                sourceDetail: normalized.sourceDetail,
+                recordedAt: receivedAt
+            )
+
+            guard let detail = try buildConsumableDetailSnapshot(db: db, consumableID: consumable.id, referenceDate: now) else {
+                throw AtlasInventoryRepositoryError.consumableNotFound
+            }
+            return AtlasConsumableAdjustmentResult(consumable: detail)
+        }
+    }
+
     public func fetchProtocolSiteOptions(protocolID: String) async throws -> AtlasProtocolSiteOptions {
         try await stack.canonical.read { db in
             guard let protocolRecord = try AtlasProtocolDBRecord.fetchOne(db, key: protocolID)?.domain else {
@@ -507,6 +551,7 @@ public struct GRDBCalculatorRepository: CalculatorRepository, Sendable {
 private enum AtlasInventoryRepositoryError: LocalizedError {
     case invalidVialLabel
     case invalidConsumableName
+    case invalidProcurementQuantity
     case invalidSiteName
     case invalidCalculatorProfile
     case protocolNotFound
@@ -519,6 +564,8 @@ private enum AtlasInventoryRepositoryError: LocalizedError {
             return "A vial label is required."
         case .invalidConsumableName:
             return "A supply name is required."
+        case .invalidProcurementQuantity:
+            return "Record a received quantity greater than zero."
         case .invalidSiteName:
             return "A site name is required."
         case .invalidCalculatorProfile:
@@ -538,6 +585,10 @@ func buildInventorySnapshot(db: Database, referenceDate: Date) throws -> AtlasIn
     let protocols = context.protocols.values.sorted { $0.createdAt > $1.createdAt }
     let vials = try AtlasVialDBRecord.fetchAll(db).map(\.domain)
     let consumables = try AtlasConsumableDBRecord.fetchAll(db).map(\.domain)
+    let consumableAdjustmentsByID = Dictionary(
+        grouping: try AtlasConsumableAdjustmentDBRecord.fetchAll(db).map(\.domain),
+        by: \.consumableId
+    )
     let profiles = Dictionary(
         uniqueKeysWithValues: try AtlasCalculatorProfileDBRecord.fetchAll(db).map { ($0.id, $0.domain) }
     )
@@ -615,7 +666,8 @@ func buildInventorySnapshot(db: Database, referenceDate: Date) throws -> AtlasIn
                 try buildConsumableSummary(
                     consumable: consumable,
                     context: context,
-                    referenceDate: referenceDate
+                    referenceDate: referenceDate,
+                    adjustments: consumableAdjustmentsByID[consumable.id] ?? []
                 )
             }
             .sorted {
@@ -702,17 +754,18 @@ private func buildConsumableDetailSnapshot(
     }
 
     let context = try loadCoreLoopContext(db: db)
-    let summary = try buildConsumableSummary(
-        consumable: consumable,
-        context: context,
-        referenceDate: referenceDate
-    )
-    let adjustments = try AtlasConsumableAdjustmentDBRecord
+    let rawAdjustments = try AtlasConsumableAdjustmentDBRecord
         .filter(Column("consumable_id") == consumableID)
         .order(Column("recorded_at").desc)
         .fetchAll(db)
         .map(\.domain)
-        .map { adjustment in
+    let summary = try buildConsumableSummary(
+        consumable: consumable,
+        context: context,
+        referenceDate: referenceDate,
+        adjustments: rawAdjustments
+    )
+    let adjustments = rawAdjustments.map { adjustment in
             AtlasConsumableAdjustmentEntry(
                 id: adjustment.id,
                 kind: adjustment.kind,
@@ -723,8 +776,13 @@ private func buildConsumableDetailSnapshot(
                     : formatInventoryCorrectionDelta(adjustment.deltaQuantity, unit: adjustment.quantityUnit),
                 resultingQuantityLabel: "\(formatAtlasQuantity(adjustment.resultingQuantity, unit: adjustment.quantityUnit)) on hand",
                 recordedAt: atlasDate(from: adjustment.recordedAt)
-            )
+                )
         }
+    let procurementHistory = buildConsumableProcurementHistory(adjustments: rawAdjustments)
+    let planning = buildConsumablePlanningSnapshot(
+        summary: summary,
+        procurementHistory: procurementHistory
+    )
 
     return AtlasConsumableDetailSnapshot(
         summary: summary,
@@ -745,6 +803,8 @@ private func buildConsumableDetailSnapshot(
             purchaseNotes: consumable.purchaseNotes,
             archivedAt: consumable.archivedAt.map(atlasDate(from:))
         ),
+        planning: planning,
+        procurementHistory: procurementHistory,
         adjustmentHistory: adjustments
     )
 }
@@ -943,7 +1003,8 @@ private func buildVialSummary(
 private func buildConsumableSummary(
     consumable: AtlasConsumableRecord,
     context: AtlasCoreLoopContext,
-    referenceDate: Date
+    referenceDate: Date,
+    adjustments: [AtlasConsumableAdjustmentRecord]
 ) throws -> AtlasConsumableSummary {
     let linkedProtocol = inventoryLinkedProtocol(
         protocolID: consumable.protocolId,
@@ -954,13 +1015,22 @@ private func buildConsumableSummary(
             .sorted { atlasDate(from: $0.scheduledAt) < atlasDate(from: $1.scheduledAt) }
         return sorted.first(where: { atlasDate(from: $0.scheduledAt) >= referenceDate }) ?? sorted.first
     }
-    let projectedDepletionLabel = linkedProtocol.flatMap { protocolRecord in
-        inventoryProjectedConsumableLabel(
+    let projectedTargetDate = linkedProtocol.flatMap { protocolRecord in
+        inventoryProjectedConsumableTargetDate(
             protocolRecord: protocolRecord,
             context: context,
             nextScheduledAt: nextOccurrence.map { atlasDate(from: $0.scheduledAt) },
             consumable: consumable
         )
+    }
+    let projectedDepletionLabel = projectedTargetDate.map { targetDate in
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        if consumable.reorderThreshold != nil {
+            return "Projected reorder point \(formatter.string(from: targetDate))"
+        }
+        return "Projected depletion \(formatter.string(from: targetDate))"
     }
     let reorderLeadTimeLabel = consumable.reorderLeadTimeDays.flatMap { leadTime in
         leadTime > 0 ? "Lead time \(leadTime) day\(leadTime == 1 ? "" : "s")" : nil
@@ -969,6 +1039,19 @@ private func buildConsumableSummary(
         "Reorder at \(formatAtlasQuantity($0, unit: consumable.unit))"
     }
     let isLowStock = consumable.reorderThreshold.map { consumable.quantityOnHand <= $0 } ?? false
+    let procurementHistory = buildConsumableProcurementHistory(adjustments: adjustments)
+    let planning = buildConsumablePlanningSnapshot(
+        consumable: consumable,
+        lowStockLabel: lowStockLabel,
+        projectedDepletionLabel: projectedDepletionLabel,
+        usageLabel: consumable.quantityPerUse.map {
+            "Planned use \(formatAtlasQuantity($0, unit: consumable.unit)) per taken log"
+        },
+        reorderLeadTimeLabel: reorderLeadTimeLabel,
+        projectedTargetDate: projectedTargetDate,
+        procurementHistory: procurementHistory,
+        referenceDate: referenceDate
+    )
 
     return AtlasConsumableSummary(
         id: consumable.id,
@@ -981,14 +1064,15 @@ private func buildConsumableSummary(
         quantityLabel: "\(formatAtlasQuantity(consumable.quantityOnHand, unit: consumable.unit)) on hand",
         lowStockLabel: lowStockLabel,
         projectedDepletionLabel: projectedDepletionLabel,
-        usageLabel: consumable.quantityPerUse.map {
-            "Planned use \(formatAtlasQuantity($0, unit: consumable.unit)) per taken log"
-        },
+        usageLabel: planning.usageLabel,
         reorderLeadTimeLabel: reorderLeadTimeLabel,
+        procurementStatusLabel: planning.procurementStatusLabel,
+        lastProcurementLabel: planning.lastProcurementLabel,
         quantityOnHand: consumable.quantityOnHand,
         quantityUnit: consumable.unit,
         reorderThreshold: consumable.reorderThreshold,
         isLowStock: isLowStock,
+        needsProcurementReview: planning.needsProcurementReview,
         archivedAt: consumable.archivedAt.map(atlasDate(from:))
     )
 }
@@ -1124,6 +1208,8 @@ func appendConsumableAdjustment(
     kind: AtlasConsumableAdjustmentKind,
     deltaQuantity: Double,
     note: String?,
+    vendorLabel: String? = nil,
+    sourceDetail: String? = nil,
     recordedAt: String
 ) throws {
     let adjustment = AtlasConsumableAdjustmentRecord.make(
@@ -1136,6 +1222,8 @@ func appendConsumableAdjustment(
         resultingQuantity: consumable.quantityOnHand,
         quantityUnit: consumable.unit,
         note: note,
+        vendorLabel: vendorLabel,
+        sourceDetail: sourceDetail,
         recordedAt: recordedAt,
         createdAt: recordedAt
     )
@@ -1188,6 +1276,20 @@ private func normalize(consumableDraft: AtlasConsumableDraft) throws -> AtlasCon
         vendorLabel: consumableDraft.vendorLabel?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty,
         purchaseNotes: consumableDraft.purchaseNotes?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty,
         archivedAt: consumableDraft.archivedAt
+    )
+}
+
+private func normalize(procurementDraft: AtlasConsumableProcurementDraft) throws -> AtlasConsumableProcurementDraft {
+    guard procurementDraft.quantityReceived > 0 else {
+        throw AtlasInventoryRepositoryError.invalidProcurementQuantity
+    }
+
+    return AtlasConsumableProcurementDraft(
+        consumableID: procurementDraft.consumableID,
+        quantityReceived: procurementDraft.quantityReceived,
+        vendorLabel: procurementDraft.vendorLabel?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty,
+        sourceDetail: procurementDraft.sourceDetail?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty,
+        receivedAt: procurementDraft.receivedAt
     )
 }
 
@@ -1320,12 +1422,12 @@ private func inventoryProjectedDepletionLabel(
     return "Projected depletion \(formatter.string(from: depletion))"
 }
 
-private func inventoryProjectedConsumableLabel(
+private func inventoryProjectedConsumableTargetDate(
     protocolRecord: AtlasProtocolRecord,
     context: AtlasCoreLoopContext,
     nextScheduledAt: Date?,
     consumable: AtlasConsumableRecord
-) -> String? {
+) -> Date? {
     guard let nextScheduledAt,
           let quantityPerUse = consumable.quantityPerUse,
           quantityPerUse > 0 else {
@@ -1342,14 +1444,7 @@ private func inventoryProjectedConsumableLabel(
     let targetQuantity = consumable.reorderThreshold ?? 0
     let remainingToTarget = max(consumable.quantityOnHand - targetQuantity, 0)
     let remainingEvents = Int(ceil(max(remainingToTarget, 0.0001) / quantityPerUse))
-    let targetDate = nextScheduledAt.addingTimeInterval(TimeInterval(max(remainingEvents - 1, 0) * cadenceDays) * 86_400)
-    let formatter = DateFormatter()
-    formatter.dateStyle = .medium
-    formatter.timeStyle = .none
-    if consumable.reorderThreshold != nil {
-        return "Projected reorder point \(formatter.string(from: targetDate))"
-    }
-    return "Projected depletion \(formatter.string(from: targetDate))"
+    return nextScheduledAt.addingTimeInterval(TimeInterval(max(remainingEvents - 1, 0) * cadenceDays) * 86_400)
 }
 
 private func consumableAdjustmentTitle(for kind: AtlasConsumableAdjustmentKind) -> String {
@@ -1358,6 +1453,8 @@ private func consumableAdjustmentTitle(for kind: AtlasConsumableAdjustmentKind) 
         return "Supply saved"
     case .manualAdjustment:
         return "Manual adjustment"
+    case .procurement:
+        return "Procurement recorded"
     case .protocolUse:
         return "Taken-log decrement"
     case .archived:
@@ -1373,6 +1470,8 @@ private func consumableAdjustmentFallbackDetail(for kind: AtlasConsumableAdjustm
         return "Atlas started tracking this supply locally."
     case .manualAdjustment:
         return "Supply count was corrected manually."
+    case .procurement:
+        return "Procurement was recorded for future supply planning."
     case .protocolUse:
         return "This supply moved after a taken log on the linked protocol."
     case .archived:
@@ -1380,6 +1479,135 @@ private func consumableAdjustmentFallbackDetail(for kind: AtlasConsumableAdjustm
     case .unarchived:
         return "This supply returned to active planning."
     }
+}
+
+private func buildConsumableProcurementHistory(
+    adjustments: [AtlasConsumableAdjustmentRecord]
+) -> [AtlasConsumableProcurementEntry] {
+    adjustments
+        .filter { $0.kind == .created || $0.kind == .procurement }
+        .sorted {
+            if $0.recordedAt == $1.recordedAt {
+                return $0.id > $1.id
+            }
+            return $0.recordedAt > $1.recordedAt
+        }
+        .map { adjustment in
+            AtlasConsumableProcurementEntry(
+                id: adjustment.id,
+                kind: adjustment.kind,
+                title: adjustment.kind == .created ? "Opening stock" : "Procurement recorded",
+                quantityLabel: formatInventoryCorrectionDelta(adjustment.deltaQuantity, unit: adjustment.quantityUnit),
+                vendorLabel: adjustment.vendorLabel,
+                sourceDetail: adjustment.sourceDetail,
+                recordedAt: atlasDate(from: adjustment.recordedAt)
+            )
+        }
+}
+
+private func buildConsumablePlanningSnapshot(
+    summary: AtlasConsumableSummary,
+    procurementHistory: [AtlasConsumableProcurementEntry]
+) -> AtlasConsumablePlanningSnapshot {
+    AtlasConsumablePlanningSnapshot(
+        procurementStatusLabel: summary.procurementStatusLabel,
+        reorderThresholdLabel: summary.lowStockLabel,
+        projectedDepletionLabel: summary.projectedDepletionLabel,
+        reorderLeadTimeLabel: summary.reorderLeadTimeLabel,
+        usageLabel: summary.usageLabel,
+        lastProcurementLabel: summary.lastProcurementLabel,
+        vendorHistorySummary: procurementVendorHistorySummary(procurementHistory: procurementHistory),
+        needsProcurementReview: summary.needsProcurementReview
+    )
+}
+
+private func buildConsumablePlanningSnapshot(
+    consumable: AtlasConsumableRecord,
+    lowStockLabel: String?,
+    projectedDepletionLabel: String?,
+    usageLabel: String?,
+    reorderLeadTimeLabel: String?,
+    projectedTargetDate: Date?,
+    procurementHistory: [AtlasConsumableProcurementEntry],
+    referenceDate: Date
+) -> AtlasConsumablePlanningSnapshot {
+    let reorderThresholdDate = projectedTargetDate
+    let reviewDate: Date? = {
+        guard let reorderThresholdDate,
+              let leadTimeDays = consumable.reorderLeadTimeDays,
+              leadTimeDays > 0 else {
+            return nil
+        }
+        return Calendar.current.date(byAdding: .day, value: -leadTimeDays, to: reorderThresholdDate)
+    }()
+    let statusLabel: String?
+    if consumable.archivedAt != nil {
+        statusLabel = "Archived for future planning."
+    } else if let reorderThresholdDate, reorderThresholdDate <= referenceDate || (consumable.reorderThreshold.map { consumable.quantityOnHand <= $0 } ?? false) {
+        statusLabel = "Procurement review now."
+    } else if let reviewDate {
+        statusLabel = reviewDate <= referenceDate
+            ? "Review procurement now."
+            : "Review by \(inventoryMediumDateLabel(reviewDate))."
+    } else if let reorderThresholdDate, consumable.reorderThreshold != nil {
+        statusLabel = "Reorder point around \(inventoryMediumDateLabel(reorderThresholdDate))."
+    } else {
+        statusLabel = nil
+    }
+
+    let needsProcurementReview = consumable.archivedAt == nil && (
+        (consumable.reorderThreshold.map { consumable.quantityOnHand <= $0 } ?? false)
+        || ((reviewDate ?? reorderThresholdDate).map { $0 <= referenceDate } ?? false)
+    )
+
+    return AtlasConsumablePlanningSnapshot(
+        procurementStatusLabel: statusLabel,
+        reorderThresholdLabel: lowStockLabel,
+        projectedDepletionLabel: projectedDepletionLabel,
+        reorderLeadTimeLabel: reorderLeadTimeLabel,
+        usageLabel: usageLabel,
+        lastProcurementLabel: lastConsumableProcurementLabel(procurementHistory: procurementHistory),
+        vendorHistorySummary: procurementVendorHistorySummary(procurementHistory: procurementHistory),
+        needsProcurementReview: needsProcurementReview
+    )
+}
+
+private func lastConsumableProcurementLabel(
+    procurementHistory: [AtlasConsumableProcurementEntry]
+) -> String? {
+    guard let latest = procurementHistory.first else {
+        return nil
+    }
+    let prefix = latest.kind == .created ? "Opening stock" : "Last procurement"
+    return "\(prefix) \(inventoryMediumDateLabel(latest.recordedAt))"
+}
+
+private func procurementVendorHistorySummary(
+    procurementHistory: [AtlasConsumableProcurementEntry]
+) -> String? {
+    guard procurementHistory.isEmpty == false else {
+        return nil
+    }
+
+    let vendors = Set(
+        procurementHistory
+            .compactMap(\.vendorLabel)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { $0.isEmpty == false }
+    )
+    if vendors.isEmpty {
+        let count = procurementHistory.count
+        return count == 1 ? "1 procurement entry recorded" : "\(count) procurement entries recorded"
+    }
+    let count = vendors.count
+    return count == 1 ? "1 source recorded" : "\(count) sources recorded"
+}
+
+private func inventoryMediumDateLabel(_ date: Date) -> String {
+    let formatter = DateFormatter()
+    formatter.dateStyle = .medium
+    formatter.timeStyle = .none
+    return formatter.string(from: date)
 }
 
 private func inventoryCadenceDays(ruleType: AtlasProtocolRuleType?, intervalCount: Int?) -> Int? {

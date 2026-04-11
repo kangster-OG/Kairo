@@ -81,7 +81,7 @@ func buildRetentionSnapshot(
         milestones: milestones,
         earnedMilestoneCount: earnedCount,
         companion: companion,
-        note: "Calm progress is optional, local only, and never rewrites Atlas history."
+        note: "Calm continuity is optional, local only, and never rewrites Atlas history."
     )
 }
 
@@ -133,34 +133,40 @@ private func buildRetentionMilestones(
     return [
         AtlasRetentionMilestoneSnapshot(
             kind: .checkedInToday,
-            title: "Checked in today",
-            subtitle: todayCheckedIn ? "A local check-in landed today." : "Today is still open for a calm check-in.",
+            title: "Local activity today",
+            subtitle: todayCheckedIn ? "Atlas recorded local activity today." : "Today is still open for a local entry.",
             helperText: todayCheckedIn
-                ? (checkInStreak > 1 ? "\(checkInStreak)-day calm streak." : "Any local log or signal entry counts.")
+                ? (checkInStreak > 1
+                    ? "Recent local continuity spans \(checkInStreak) consecutive days."
+                    : "Any local log or signal entry counts.")
                 : "Any local log, context entry, symptom, weight, or custom metric entry counts.",
             symbolName: "checkmark.circle.fill",
             isEarned: todayCheckedIn,
-            streakCount: checkInStreak > 1 ? checkInStreak : nil,
+            continuityLabel: checkInStreak > 1 ? "\(checkInStreak) days" : nil,
             tone: todayCheckedIn ? .complete : .inProgress
         ),
         AtlasRetentionMilestoneSnapshot(
             kind: .weeklyReviewCompleted,
-            title: "Completed weekly review",
+            title: "Reviewed this week",
             subtitle: weeklyReviewCompleted ? "This week is marked reviewed." : "This week can still be marked reviewed when you are ready.",
             helperText: weeklyReviewCompleted
-                ? (reviewStreak > 1 ? "\(reviewStreak)-week review run." : "Review completion stays local to this device.")
+                ? (reviewStreak > 1
+                    ? "Review continuity spans \(reviewStreak) consecutive weeks."
+                    : "Review completion stays local to this device.")
                 : "Use this only when you have actually looked over the week. Missing a week never affects Atlas history.",
             symbolName: "calendar.badge.checkmark",
             isEarned: weeklyReviewCompleted,
-            streakCount: reviewStreak > 1 ? reviewStreak : nil,
+            continuityLabel: reviewStreak > 1 ? "\(reviewStreak) weeks" : nil,
             tone: weeklyReviewCompleted ? .complete : .neutral
         ),
         AtlasRetentionMilestoneSnapshot(
             kind: .inventoryCurrent,
-            title: "Kept inventory current",
+            title: "Inventory looks current",
             subtitle: activeInventoryCount == 0
                 ? "Inventory tracking is optional."
-                : (inventoryCurrent ? "Tracked inventory is current." : "A few tracked items need attention."),
+                : (inventoryCurrent
+                    ? "Tracked inventory is currently above low-stock thresholds."
+                    : "A few tracked items need attention."),
             helperText: activeInventoryCount == 0
                 ? "Add vials or supplies when you want Atlas to watch depletion."
                 : (inventoryCurrent
@@ -168,21 +174,23 @@ private func buildRetentionMilestones(
                     : "\(activeLowStockCount) tracked item\(activeLowStockCount == 1 ? "" : "s") are low."),
             symbolName: "shippingbox.fill",
             isEarned: inventoryCurrent,
-            streakCount: nil,
+            continuityLabel: nil,
             tone: activeInventoryCount == 0 ? .neutral : (inventoryCurrent ? .complete : .inProgress)
         ),
         AtlasRetentionMilestoneSnapshot(
             kind: .contextConsistency,
-            title: "Logged context consistently",
+            title: "Context continuity",
             subtitle: contextConsistent
-                ? "Context showed up on \(recentContextDays.count) of the last 7 days."
+                ? "Context appeared on \(recentContextDays.count) of the last 7 days."
                 : "Context has appeared on \(recentContextDays.count) of the last 7 days.",
             helperText: contextConsistent
-                ? (contextStreak > 1 ? "\(contextStreak)-day context rhythm." : "Atlas counts days with at least one context entry.")
+                ? (contextStreak > 1
+                    ? "Recent context continuity spans \(contextStreak) consecutive days."
+                    : "Atlas counts days with at least one context entry.")
                 : "Atlas counts days with at least one context entry. There is no penalty for quiet stretches.",
             symbolName: "leaf.circle.fill",
             isEarned: contextConsistent,
-            streakCount: contextStreak > 1 ? contextStreak : nil,
+            continuityLabel: contextStreak > 1 ? "\(contextStreak) days" : nil,
             tone: contextConsistent ? .complete : .neutral
         )
     ]
@@ -190,34 +198,30 @@ private func buildRetentionMilestones(
 
 private func buildRetentionCompanion(
     milestones: [AtlasRetentionMilestoneSnapshot]
-) -> AtlasRetentionCompanionSnapshot {
-    let earnedCount = milestones.filter(\.isEarned).count
+) -> AtlasRetentionCompanionSnapshot? {
     let checkedInToday = milestones.first(where: { $0.kind == .checkedInToday })?.isEarned == true
+    let weeklyReviewCompleted = milestones.first(where: { $0.kind == .weeklyReviewCompleted })?.isEarned == true
+    let contextConsistent = milestones.first(where: { $0.kind == .contextConsistency })?.isEarned == true
 
-    if earnedCount >= 3 && checkedInToday {
+    if checkedInToday && contextConsistent {
         return AtlasRetentionCompanionSnapshot(
             mood: .settled,
-            title: "Steady orbit",
-            subtitle: "The calm progress board looks current today.",
-            systemImage: "sparkles"
+            title: "Board settled",
+            subtitle: "Atlas has enough recent continuity to keep this board current.",
+            systemImage: "checkmark.circle.fill"
         )
     }
 
-    if earnedCount >= 1 {
+    if checkedInToday || weeklyReviewCompleted || contextConsistent {
         return AtlasRetentionCompanionSnapshot(
             mood: .steady,
-            title: "Keeping pace",
-            subtitle: "A few calm signals are active. Atlas will keep updating as you log.",
+            title: "Quietly current",
+            subtitle: "Atlas has a recent continuity update to reflect here.",
             systemImage: "leaf.fill"
         )
     }
 
-    return AtlasRetentionCompanionSnapshot(
-        mood: .quiet,
-        title: "Quiet board",
-        subtitle: "No pressure. The companion wakes up with the next real check-in.",
-        systemImage: "circle.dashed"
-    )
+    return nil
 }
 
 private func readCompletedReviewWeeks(

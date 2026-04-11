@@ -478,6 +478,8 @@ extension GRDBTimelineRepository {
                         type: .contextLogged,
                         summary: privacyFormatter.contextTimelineSummary(
                             mealTiming: log.mealTiming,
+                            mealSize: log.mealSize,
+                            mealComposition: log.mealComposition,
                             fedState: log.fedState,
                             appetite: log.appetite,
                             hydration: log.hydration,
@@ -573,18 +575,12 @@ public struct GRDBCoreLoopRepository: CoreLoopRepository, Sendable {
                     ) ? protocolRecord.id : nil
                 }
             )
-            let pending = context.pendingOccurrences.values.flatMap { $0 }
-            let hasLegacyBootstrapRows = pending.contains {
-                $0.id.hasPrefix("bootstrap:") || $0.id.hasPrefix("reminder:")
-            }
-            let protocolsMissingPendingRows = activeProtocolIDs.filter { protocolID in
-                (context.pendingOccurrences[protocolID] ?? []).isEmpty
-            }
-
-            guard hasLegacyBootstrapRows || protocolsMissingPendingRows.isEmpty == false else {
+            guard activeProtocolIDs.isEmpty == false else {
                 return
             }
 
+            // Occurrence projections are a rebuildable cache. Always refresh them for the
+            // requested reference date so imports/restores can't strand the app on a stale horizon.
             try regenerateFutureOccurrences(
                 db: db,
                 protocolIDs: Array(activeProtocolIDs),

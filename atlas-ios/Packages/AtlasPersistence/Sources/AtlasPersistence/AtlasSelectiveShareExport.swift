@@ -281,6 +281,14 @@ func sanitizeExportSnapshot(
         }
         return value
     }
+    sanitized.consumableAdjustments = snapshot.consumableAdjustments.map { adjustment in
+        var value = adjustment
+        if renderMode != .full {
+            value.vendorLabel = nil
+            value.sourceDetail = nil
+        }
+        return value
+    }
     sanitized.contextLogs = snapshot.contextLogs.map { record in
         var value = record
         if renderMode != .full {
@@ -289,6 +297,7 @@ func sanitizeExportSnapshot(
         }
         return value
     }
+    sanitized.contextPresets = []
     sanitized.customMetrics = snapshot.customMetrics.map { record in
         var value = record
         value.label = privacyFormatter.metricLabel(
@@ -306,6 +315,7 @@ func sortExportSnapshot(_ snapshot: AtlasExportSnapshot) -> AtlasExportSnapshot 
         compounds: snapshot.compounds.sorted { $0.id < $1.id },
         consumableAdjustments: snapshot.consumableAdjustments.sorted { $0.id < $1.id },
         consumables: snapshot.consumables.sorted { $0.id < $1.id },
+        contextPresets: snapshot.contextPresets.sorted { $0.id < $1.id },
         contextLogs: snapshot.contextLogs.sorted { $0.id < $1.id },
         customMetrics: snapshot.customMetrics.sorted { $0.id < $1.id },
         healthConnections: snapshot.healthConnections.sorted { $0.providerKey.rawValue < $1.providerKey.rawValue },
@@ -324,6 +334,7 @@ func sortExportSnapshot(_ snapshot: AtlasExportSnapshot) -> AtlasExportSnapshot 
         sites: snapshot.sites.sorted { $0.id < $1.id },
         symptomLogs: snapshot.symptomLogs.sorted { $0.id < $1.id },
         vials: snapshot.vials.sorted { $0.id < $1.id },
+        workoutLogs: snapshot.workoutLogs.sorted { $0.id < $1.id },
         weightLogs: snapshot.weightLogs.sorted { $0.id < $1.id }
     )
 }
@@ -333,6 +344,7 @@ func snapshotRowCount(_ snapshot: AtlasExportSnapshot) -> Int {
     let compoundCount = snapshot.compounds.count
     let consumableAdjustmentCount = snapshot.consumableAdjustments.count
     let consumableCount = snapshot.consumables.count
+    let contextPresetCount = snapshot.contextPresets.count
     let contextCount = snapshot.contextLogs.count
     let customMetricCount = snapshot.customMetrics.count
     let connectionCount = snapshot.healthConnections.count
@@ -349,12 +361,14 @@ func snapshotRowCount(_ snapshot: AtlasExportSnapshot) -> Int {
     let siteCount = snapshot.sites.count
     let symptomCount = snapshot.symptomLogs.count
     let vialCount = snapshot.vials.count
+    let workoutCount = snapshot.workoutLogs.count
     let weightCount = snapshot.weightLogs.count
 
     return profileCount
         + compoundCount
         + consumableAdjustmentCount
         + consumableCount
+        + contextPresetCount
         + contextCount
         + customMetricCount
         + connectionCount
@@ -373,6 +387,7 @@ func snapshotRowCount(_ snapshot: AtlasExportSnapshot) -> Int {
         + siteCount
         + symptomCount
         + vialCount
+        + workoutCount
         + weightCount
 }
 
@@ -405,19 +420,56 @@ private func buildAtlasCsvContents(snapshot: AtlasExportSnapshot) -> String {
         buildCsvRows(snapshot.consumableAdjustments) {
             buildCsvRow("consumable_adjustment", $0.id, $0.consumableId, $0.recordedAt, $0.deltaQuantity, $0.quantityUnit, $0.kind.rawValue)
         },
+        buildCsvRows(snapshot.contextPresets) {
+            buildCsvRow(
+                "context_preset",
+                $0.id,
+                $0.title,
+                $0.updatedAt,
+                [$0.mealTiming?.rawValue, $0.mealSize?.rawValue, $0.mealComposition?.rawValue]
+                    .compactMap { $0 }
+                    .joined(separator: "|"),
+                [$0.fedState?.rawValue, $0.appetite?.rawValue, $0.hydration?.rawValue]
+                    .compactMap { $0 }
+                    .joined(separator: "|"),
+                $0.lastUsedAt
+            )
+        },
         buildCsvRows(snapshot.contextLogs) {
             buildCsvRow(
                 "context_log",
                 $0.id,
                 $0.protocolId,
                 $0.loggedAt,
-                $0.mealTiming?.rawValue,
-                $0.fedState?.rawValue ?? $0.appetite?.rawValue ?? $0.hydration?.rawValue,
+                [$0.mealTiming?.rawValue, $0.mealSize?.rawValue, $0.mealComposition?.rawValue]
+                    .compactMap { $0 }
+                    .joined(separator: "|"),
+                [$0.fedState?.rawValue, $0.appetite?.rawValue, $0.hydration?.rawValue, $0.presetKey]
+                    .compactMap { $0 }
+                    .joined(separator: "|"),
                 $0.note ?? $0.tags.joined(separator: "|")
             )
         },
         buildCsvRows(snapshot.weightLogs) {
             buildCsvRow("weight_log", $0.id, $0.unit.rawValue, $0.loggedAt, $0.value, $0.source.rawValue, $0.notes)
+        },
+        buildCsvRows(snapshot.workoutLogs) {
+            buildCsvRow(
+                "workout_log",
+                $0.id,
+                $0.activityKind.rawValue,
+                $0.startedAt,
+                $0.durationMinutes,
+                $0.source.rawValue,
+                [
+                    $0.endedAt,
+                    $0.energyBurnedKilocalories.map(String.init(describing:)),
+                    $0.distanceMeters.map(String.init(describing:)),
+                    $0.externalSourceId
+                ]
+                .compactMap { $0 }
+                .joined(separator: "|")
+            )
         },
         buildCsvRows(snapshot.symptomLogs) {
             buildCsvRow("symptom_log", $0.id, $0.symptomKey, $0.loggedAt, $0.severity, $0.source.rawValue, $0.notes)
@@ -538,13 +590,61 @@ func selectiveShareSnapshot(
     request: AtlasSelectiveShareRequest,
     now: Date
 ) -> AtlasExportSnapshot {
-    let range30 = AtlasDateRange(
-        start: Calendar.current.date(byAdding: .day, value: -30, to: now) ?? now,
-        end: now
+    func recentRange(anchoredAt anchor: Date) -> AtlasDateRange {
+        AtlasDateRange(
+            start: Calendar.current.date(byAdding: .day, value: -30, to: anchor) ?? anchor,
+            end: anchor
+        )
+    }
+
+    func scopedReferenceDate(
+        protocolIDs: Set<String>,
+        includeGlobalSignals: Bool
+    ) -> Date {
+        var timestamps = snapshot.logEvents
+            .filter { protocolIDs.contains($0.protocolId) }
+            .map { atlasDate(from: $0.loggedAt) }
+
+        timestamps += snapshot.contextLogs
+            .filter { ($0.protocolId.map(protocolIDs.contains) ?? includeGlobalSignals) }
+            .map { atlasDate(from: $0.loggedAt) }
+
+        timestamps += snapshot.metricValueLogs
+            .filter { ($0.protocolId.map(protocolIDs.contains) ?? includeGlobalSignals) }
+            .map { atlasDate(from: $0.loggedAt) }
+
+        timestamps += snapshot.protocolChangeAudits
+            .filter { protocolIDs.contains($0.protocolId) }
+            .map { atlasDate(from: $0.createdAt) }
+
+        timestamps += snapshot.reminders
+            .filter { protocolIDs.contains($0.protocolId) }
+            .map { atlasDate(from: $0.scheduledFor) }
+
+        if includeGlobalSignals {
+            timestamps += snapshot.symptomLogs.map { atlasDate(from: $0.loggedAt) }
+            timestamps += snapshot.weightLogs.map { atlasDate(from: $0.loggedAt) }
+            timestamps += snapshot.workoutLogs.map { atlasDate(from: $0.endedAt) }
+        }
+
+        timestamps += snapshot.consumableAdjustments
+            .filter { $0.protocolId.map(protocolIDs.contains) ?? false }
+            .map { atlasDate(from: $0.recordedAt) }
+
+        return timestamps.max() ?? now
+    }
+
+    let allDataReferenceDate = scopedReferenceDate(
+        protocolIDs: Set(snapshot.protocols.map(\.id)),
+        includeGlobalSignals: true
     )
+    let range30 = recentRange(anchoredAt: allDataReferenceDate)
     let requestedRange = request.dateRange ?? range30
 
     func protocolScopedSnapshot(protocolIDs: Set<String>, includeLogs: Bool) -> AtlasExportSnapshot {
+        let scopedRange = request.dateRange ?? recentRange(
+            anchoredAt: scopedReferenceDate(protocolIDs: protocolIDs, includeGlobalSignals: true)
+        )
         let protocols = snapshot.protocols.filter { protocolIDs.contains($0.id) }
         let revisions = snapshot.protocolRevisions.filter { protocolIDs.contains($0.protocolId) }
         let revisionIDs = Set(revisions.map(\.id))
@@ -561,15 +661,15 @@ func selectiveShareSnapshot(
         }
         let contextLogs = includeLogs
             ? snapshot.contextLogs.filter {
-                ($0.protocolId.map(protocolIDs.contains) ?? false) && matchesRange($0.loggedAt, range: requestedRange)
+                ($0.protocolId.map(protocolIDs.contains) ?? false) && matchesRange($0.loggedAt, range: scopedRange)
             }
             : []
         let logEvents = includeLogs
-            ? snapshot.logEvents.filter { protocolIDs.contains($0.protocolId) && matchesRange($0.loggedAt, range: requestedRange) }
+            ? snapshot.logEvents.filter { protocolIDs.contains($0.protocolId) && matchesRange($0.loggedAt, range: scopedRange) }
             : []
         let consumableAdjustments = includeLogs
             ? snapshot.consumableAdjustments.filter {
-                ($0.protocolId.map(protocolIDs.contains) ?? false) && matchesRange($0.recordedAt, range: requestedRange)
+                ($0.protocolId.map(protocolIDs.contains) ?? false) && matchesRange($0.recordedAt, range: scopedRange)
             }
             : []
         let customMetrics = snapshot.customMetrics.filter { metric in
@@ -579,7 +679,7 @@ func selectiveShareSnapshot(
         let metricValueLogs = includeLogs
             ? snapshot.metricValueLogs.filter {
                 (($0.protocolId.map(protocolIDs.contains) ?? false) || metricIDs.contains($0.metricId))
-                    && matchesRange($0.loggedAt, range: requestedRange)
+                    && matchesRange($0.loggedAt, range: scopedRange)
             }
             : []
         let sites = snapshot.sites.filter { site in
@@ -713,6 +813,9 @@ func selectiveShareSnapshot(
         )
     case .customDateRange:
         let selectedProtocolIDs = request.protocolIDs.isEmpty ? Set(snapshot.protocols.map(\.id)) : Set(request.protocolIDs)
+        let customRange = request.dateRange ?? recentRange(
+            anchoredAt: scopedReferenceDate(protocolIDs: selectedProtocolIDs, includeGlobalSignals: true)
+        )
         rawSubset = AtlasExportSnapshot(
             calculatorProfiles: request.include.contains(.inventory) ? snapshot.calculatorProfiles : [],
             compounds: snapshot.compounds.filter { compound in
@@ -720,7 +823,7 @@ func selectiveShareSnapshot(
             },
             consumableAdjustments: request.include.contains(.inventory)
                 ? snapshot.consumableAdjustments.filter {
-                    ($0.protocolId.map(selectedProtocolIDs.contains) ?? false) && matchesRange($0.recordedAt, range: requestedRange)
+                    ($0.protocolId.map(selectedProtocolIDs.contains) ?? false) && matchesRange($0.recordedAt, range: customRange)
                 }
                 : [],
             consumables: request.include.contains(.inventory)
@@ -729,26 +832,26 @@ func selectiveShareSnapshot(
             contextLogs: (request.include.contains(.logs) || request.include.contains(.symptoms))
                 ? snapshot.contextLogs.filter {
                     (($0.protocolId.map(selectedProtocolIDs.contains) ?? false) || $0.protocolId == nil)
-                        && matchesRange($0.loggedAt, range: requestedRange)
+                        && matchesRange($0.loggedAt, range: customRange)
                 }
                 : [],
             customMetrics: [],
             healthConnections: [],
             logEvents: request.include.contains(.logs)
                 ? snapshot.logEvents.filter {
-                    selectedProtocolIDs.contains($0.protocolId) && matchesRange($0.loggedAt, range: requestedRange)
+                    selectedProtocolIDs.contains($0.protocolId) && matchesRange($0.loggedAt, range: customRange)
                 }
                 : [],
             metricValueLogs: request.include.contains(.logs)
                 ? snapshot.metricValueLogs.filter {
                     (($0.protocolId.map(selectedProtocolIDs.contains) ?? false) || selectedProtocolIDs.isEmpty)
-                        && matchesRange($0.loggedAt, range: requestedRange)
+                        && matchesRange($0.loggedAt, range: customRange)
                 }
                 : [],
             privacyProfile: snapshot.privacyProfile,
             protocolChangeAudits: request.include.contains(.logs)
                 ? snapshot.protocolChangeAudits.filter {
-                    selectedProtocolIDs.contains($0.protocolId) && matchesRange($0.createdAt, range: requestedRange)
+                    selectedProtocolIDs.contains($0.protocolId) && matchesRange($0.createdAt, range: customRange)
                 }
                 : [],
             protocolAliases: snapshot.protocolAliases.filter { selectedProtocolIDs.contains($0.protocolId) },
@@ -771,13 +874,13 @@ func selectiveShareSnapshot(
             sensitiveActionAudits: [],
             sites: request.include.contains(.inventory) ? snapshot.sites : [],
             symptomLogs: request.include.contains(.symptoms)
-                ? snapshot.symptomLogs.filter { matchesRange($0.loggedAt, range: requestedRange) }
+                ? snapshot.symptomLogs.filter { matchesRange($0.loggedAt, range: customRange) }
                 : [],
             vials: request.include.contains(.inventory)
                 ? snapshot.vials.filter { $0.protocolId.map(selectedProtocolIDs.contains) ?? false }
                 : [],
             weightLogs: request.include.contains(.logs)
-                ? snapshot.weightLogs.filter { matchesRange($0.loggedAt, range: requestedRange) }
+                ? snapshot.weightLogs.filter { matchesRange($0.loggedAt, range: customRange) }
                 : []
         )
         if request.include.contains(.logs) {

@@ -1207,6 +1207,7 @@ private extension GRDBImportExportBridge {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let data = try encoder.encode(bundle)
+        let integrity = atlasRestorePointIntegrity(for: data)
         let directoryURL = stack.locations?.backupDirectoryURL ?? URL(fileURLWithPath: NSTemporaryDirectory())
         try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
         let url = directoryURL.appendingPathComponent("atlas-native-backup-\(generatedAt.replacingOccurrences(of: ":", with: "-")).json")
@@ -1222,7 +1223,11 @@ private extension GRDBImportExportBridge {
         )
 
         try await stack.canonical.write { db in
-            try AtlasRestorePointDBRecord(summary: summary).insert(db)
+            try AtlasRestorePointDBRecord(
+                summary: summary,
+                fileSHA256: integrity.fileSHA256,
+                fileByteCount: integrity.fileByteCount
+            ).insert(db)
         }
 
         return summary

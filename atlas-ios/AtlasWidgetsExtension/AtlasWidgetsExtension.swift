@@ -8,6 +8,24 @@ private enum AtlasWidgetConfiguration {
     static let projectionFileName = "atlas-extension-projection.json"
 }
 
+private enum AtlasWidgetProjectionStore {
+    static func load() -> AtlasWidgetProjectionSnapshot? {
+        guard let containerURL = FileManager.default.containerURL(
+            forSecurityApplicationGroupIdentifier: AtlasWidgetConfiguration.appGroupIdentifier
+        ) else {
+            return nil
+        }
+
+        let url = containerURL
+            .appendingPathComponent("AtlasShared", isDirectory: true)
+            .appendingPathComponent(AtlasWidgetConfiguration.projectionFileName)
+        guard let data = try? Data(contentsOf: url) else {
+            return nil
+        }
+        return try? JSONDecoder().decode(AtlasWidgetProjectionSnapshot.self, from: data)
+    }
+}
+
 private enum AtlasWidgetRenderMode: String, Codable {
     case full
     case discreet
@@ -57,6 +75,7 @@ private struct AtlasWidgetLowStockItem: Codable, Identifiable {
 
 private struct AtlasWidgetLowStockSnapshot: Codable {
     var lowStockCount: Int
+    var procurementReviewCount: Int
     var summary: String
     var items: [AtlasWidgetLowStockItem]
     var updatedAt: String
@@ -84,21 +103,48 @@ private struct AtlasWidgetProjectionSnapshot: Codable {
     var featureFlags: AtlasWidgetFeatureFlagProjection
 }
 
-private enum AtlasWidgetProjectionStore {
-    static func load() -> AtlasWidgetProjectionSnapshot? {
-        guard let containerURL = FileManager.default.containerURL(
-            forSecurityApplicationGroupIdentifier: AtlasWidgetConfiguration.appGroupIdentifier
-        ) else {
-            return nil
-        }
+private enum AtlasWidgetProjectionSurface {
+    case nextDue
+    case lowStock
 
-        let url = containerURL
-            .appendingPathComponent("AtlasShared", isDirectory: true)
-            .appendingPathComponent(AtlasWidgetConfiguration.projectionFileName)
-        guard let data = try? Data(contentsOf: url) else {
-            return nil
+    var staleAfter: TimeInterval {
+        switch self {
+        case .nextDue:
+            return 2 * 60 * 60
+        case .lowStock:
+            return 12 * 60 * 60
         }
-        return try? JSONDecoder().decode(AtlasWidgetProjectionSnapshot.self, from: data)
+    }
+}
+
+private struct AtlasWidgetProjectionFreshness {
+    var generatedAt: Date?
+    var referenceDate: Date
+    var staleAfter: TimeInterval
+
+    var isStale: Bool {
+        guard let generatedAt else {
+            return true
+        }
+        return max(referenceDate.timeIntervalSince(generatedAt), 0) >= staleAfter
+    }
+}
+
+private enum AtlasWidgetTime {
+    static func date(from value: String) -> Date? {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter.date(from: value)
+    }
+}
+
+private extension AtlasWidgetProjectionSnapshot {
+    func freshness(for surface: AtlasWidgetProjectionSurface, referenceDate: Date) -> AtlasWidgetProjectionFreshness {
+        AtlasWidgetProjectionFreshness(
+            generatedAt: AtlasWidgetTime.date(from: generatedAt),
+            referenceDate: referenceDate,
+            staleAfter: surface.staleAfter
+        )
     }
 }
 
@@ -135,6 +181,23 @@ private enum AtlasPendingWidgetActionStore {
 private struct AtlasWidgetEntry: TimelineEntry {
     var date: Date
     var snapshot: AtlasWidgetProjectionSnapshot?
+}
+
+private struct AtlasWidgetSnapshotContext {
+    var snapshot: AtlasWidgetProjectionSnapshot
+    var freshness: AtlasWidgetProjectionFreshness
+}
+
+private extension AtlasWidgetEntry {
+    func snapshotContext(for surface: AtlasWidgetProjectionSurface) -> AtlasWidgetSnapshotContext? {
+        guard let snapshot else {
+            return nil
+        }
+        return AtlasWidgetSnapshotContext(
+            snapshot: snapshot,
+            freshness: snapshot.freshness(for: surface, referenceDate: date)
+        )
+    }
 }
 
 private struct AtlasNextDueProvider: TimelineProvider {
@@ -309,15 +372,32 @@ private struct AtlasStatusBadge: View {
     }
 }
 
+private struct AtlasProjectionTimestampLine: View {
+    var prefix: String
+    var date: Date
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Text(prefix)
+            Text(date, style: .relative)
+        }
+        .font(.caption2)
+        .foregroundStyle(.white.opacity(0.68))
+        .lineLimit(1)
+    }
+}
+
 private struct AtlasNextDueWidgetView: View {
     var entry: AtlasWidgetEntry
     @Environment(\.widgetFamily) private var family
 
     var body: some View {
         Group {
-            if let snapshot = entry.snapshot,
-               snapshot.featureFlags.flags.nativeWidgets,
-               let nextDue = snapshot.nextDue {
+            let context = entry.snapshotContext(for: .nextDue)
+            if let context,
+               context.snapshot.featureFlags.flags.nativeWidgets,
+               context.freshness.isStale == false,
+               let nextDue = context.snapshot.nextDue {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack(alignment: .top) {
                         VStack(alignment: .leading, spacing: 6) {
@@ -351,7 +431,7 @@ private struct AtlasNextDueWidgetView: View {
 
                     Spacer(minLength: 0)
 
-                    if let quickAction = snapshot.quickActions.first {
+                    if let quickAction = context.snapshot.quickActions.first {
                         if family == .systemSmall {
                             HStack(spacing: 8) {
                                 Button(intent: AtlasMarkTakenWidgetIntent(
@@ -393,11 +473,16 @@ private struct AtlasNextDueWidgetView: View {
                             .tint(.white.opacity(0.18))
                         }
                     } else {
-                        Button(intent: AtlasOpenTodayWidgetIntent()) {
-                            Label("Open Atlas", systemImage: "arrow.up.forward.app")
+                        HStack {
+                            Button(intent: AtlasOpenTodayWidgetIntent()) {
+                                Label("Open Atlas", systemImage: "arrow.up.forward.app")
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(.white.opacity(0.18))
                         }
-                        .buttonStyle(.bordered)
-                        .tint(.white.opacity(0.18))
+                    }
+                    if let generatedAt = context.freshness.generatedAt {
+                        AtlasProjectionTimestampLine(prefix: "Updated", date: generatedAt)
                     }
                 }
                 .atlasWidgetCardBackground()
@@ -406,10 +491,17 @@ private struct AtlasNextDueWidgetView: View {
                     Text("Next due")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.white.opacity(0.72))
-                    Text("Open Atlas to refresh your next due summary.")
+                    Text(
+                        (context?.freshness.isStale ?? false)
+                            ? "Open Atlas to refresh your local next due summary before taking action."
+                            : "Open Atlas to refresh your next due summary."
+                    )
                         .font(.headline.weight(.semibold))
                         .foregroundStyle(.white)
                         .lineLimit(3)
+                    if let generatedAt = context?.freshness.generatedAt {
+                        AtlasProjectionTimestampLine(prefix: "Last refreshed", date: generatedAt)
+                    }
                     Spacer()
                     Button(intent: AtlasOpenTodayWidgetIntent()) {
                         Label("Open Atlas", systemImage: "arrow.up.forward.app")
@@ -446,24 +538,26 @@ private struct AtlasLowStockWidgetView: View {
 
     var body: some View {
         Group {
-            if let snapshot = entry.snapshot,
-               snapshot.featureFlags.flags.nativeWidgets {
+            let context = entry.snapshotContext(for: .lowStock)
+            if let context,
+               context.snapshot.featureFlags.flags.nativeWidgets,
+               context.freshness.isStale == false {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
                         VStack(alignment: .leading, spacing: 6) {
                             Text("Low stock")
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(.white.opacity(0.72))
-                            Text(snapshot.lowStock.summary)
+                            Text(atlasHeadline(for: context.snapshot.lowStock))
                                 .font(family == .systemSmall ? .headline.weight(.semibold) : .title3.weight(.semibold))
                                 .foregroundStyle(.white)
                                 .lineLimit(family == .systemSmall ? 3 : 2)
                         }
                         Spacer(minLength: 8)
-                        AtlasStatusBadge(text: "\(snapshot.lowStock.lowStockCount)")
+                        AtlasStatusBadge(text: atlasBadgeText(for: context.snapshot.lowStock))
                     }
 
-                    if let firstItem = snapshot.lowStock.items.first {
+                    if let firstItem = context.snapshot.lowStock.items.first {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(firstItem.displayTitle)
                                 .font(.subheadline.weight(.semibold))
@@ -483,11 +577,17 @@ private struct AtlasLowStockWidgetView: View {
 
                     Spacer(minLength: 0)
 
-                    Button(intent: AtlasOpenInventoryWidgetIntent()) {
-                        Label("Open Inventory", systemImage: "shippingbox.fill")
+                    HStack {
+                        Button(intent: AtlasOpenInventoryWidgetIntent()) {
+                            Label("Open Inventory", systemImage: "shippingbox.fill")
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.white.opacity(0.18))
+                        Spacer(minLength: 8)
+                        if let generatedAt = context.freshness.generatedAt {
+                            AtlasProjectionTimestampLine(prefix: "Updated", date: generatedAt)
+                        }
                     }
-                    .buttonStyle(.bordered)
-                    .tint(.white.opacity(0.18))
                 }
                 .atlasWidgetCardBackground()
             } else {
@@ -495,10 +595,17 @@ private struct AtlasLowStockWidgetView: View {
                     Text("Low stock")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.white.opacity(0.72))
-                    Text("Open Atlas to refresh supplies and inventory status.")
+                    Text(
+                        (context?.freshness.isStale ?? false)
+                            ? "Open Atlas to refresh supplies and procurement review status."
+                            : "Open Atlas to refresh supplies and inventory status."
+                    )
                         .font(.headline.weight(.semibold))
                         .foregroundStyle(.white)
                         .lineLimit(3)
+                    if let generatedAt = context?.freshness.generatedAt {
+                        AtlasProjectionTimestampLine(prefix: "Last refreshed", date: generatedAt)
+                    }
                     Spacer()
                     Button(intent: AtlasOpenInventoryWidgetIntent()) {
                         Label("Open Atlas", systemImage: "arrow.up.forward.app")
@@ -509,6 +616,23 @@ private struct AtlasLowStockWidgetView: View {
                 .atlasWidgetCardBackground()
             }
         }
+    }
+
+    private func atlasHeadline(for snapshot: AtlasWidgetLowStockSnapshot) -> String {
+        if snapshot.procurementReviewCount > 0 {
+            let count = snapshot.procurementReviewCount
+            return count == 1
+                ? "1 supply plan needs review."
+                : "\(count) supply plans need review."
+        }
+        return snapshot.summary
+    }
+
+    private func atlasBadgeText(for snapshot: AtlasWidgetLowStockSnapshot) -> String {
+        if snapshot.procurementReviewCount > 0 {
+            return "\(snapshot.procurementReviewCount) review"
+        }
+        return "\(snapshot.lowStockCount)"
     }
 }
 

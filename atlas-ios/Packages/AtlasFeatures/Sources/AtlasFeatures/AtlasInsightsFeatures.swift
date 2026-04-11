@@ -55,7 +55,7 @@ public struct AtlasInsightsScreen: View {
                 AtlasQuickActionGrid(columns: 2) {
                     AtlasQuickActionTile(
                         title: "Log context",
-                        subtitle: "Meal timing, hydration, GI, and surrounding context",
+                        subtitle: "Meal timing, meal shape, hydration, GI, and surrounding context",
                         symbol: "fork.knife.circle.fill",
                         prominence: .primary
                     ) {
@@ -104,6 +104,30 @@ public struct AtlasInsightsScreen: View {
                     metricValueSheetPresented = true
                 }
                 .disabled(state.insightsSnapshot.customMetricDefinitions.filter { $0.archivedAt == nil }.isEmpty)
+
+                let quickPresets = model.contextQuickPresets(limit: 4)
+                if quickPresets.isEmpty == false {
+                    Divider()
+
+                    VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+                        Text("Quick reuse")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(AtlasPalette.primary)
+                            .textCase(.uppercase)
+
+                        Text(
+                            state.insightsSnapshot.savedContextPresets.isEmpty
+                                ? "Curated starting points for meal and surrounding context."
+                                : "Saved presets also surface here for one-tap context capture."
+                        )
+                        .font(.caption)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+
+                        AtlasContextQuickPresetRail(presets: quickPresets) { preset in
+                            Task { await model.saveContextEntry(preset.makeDraft(loggedAt: model.currentDate())) }
+                        }
+                    }
+                }
             }
             .listRowInsets(EdgeInsets())
             .listRowBackground(Color.clear)
@@ -128,6 +152,8 @@ public struct AtlasInsightsScreen: View {
                     episodeRecapSummary: state.insightsSnapshot.episodeRecapSummary
                 )
 
+                AtlasDeterministicExplainabilitySection(snapshot: state.insightsSnapshot)
+
                 AtlasContextInsightSection(
                     model: model,
                     snapshot: state.insightsSnapshot,
@@ -145,6 +171,8 @@ public struct AtlasInsightsScreen: View {
                         weightSheetPresented = true
                     }
                 )
+
+                AtlasWorkoutInsightSection(snapshot: state.insightsSnapshot)
 
                 AtlasSymptomInsightSection(
                     snapshot: state.insightsSnapshot,
@@ -228,6 +256,59 @@ private struct AtlasSummaryInsightSection: View {
     }
 }
 
+private struct AtlasDeterministicExplainabilitySection: View {
+    let snapshot: AtlasInsightsSnapshot
+
+    var body: some View {
+        if snapshot.deterministicExplanations.isEmpty == false {
+            Section("Why this appears") {
+                AtlasSectionCard {
+                    Text("Atlas is describing nearby timing patterns from local records only. These cards are descriptive, bounded, and do not claim cause or recommend changes.")
+                        .font(.caption)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+
+                    ForEach(Array(snapshot.deterministicExplanations.enumerated()), id: \.element.id) { index, card in
+                        if index > 0 {
+                            Divider()
+                        }
+
+                        VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+                            Text(card.title)
+                                .font(.body.weight(.semibold))
+                                .foregroundStyle(AtlasPalette.textPrimary)
+
+                            Text(card.summary)
+                                .foregroundStyle(AtlasPalette.textSecondary)
+
+                            AtlasDeterministicInsightFactList(facts: card.facts)
+                        }
+                        .padding(.vertical, AtlasSpacing.xSmall)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct AtlasDeterministicInsightFactList: View {
+    let facts: [AtlasExplainerFact]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
+            ForEach(facts) { fact in
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(fact.label)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(AtlasPalette.primary)
+                    Text(fact.value)
+                        .font(.caption)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                }
+            }
+        }
+    }
+}
+
 private struct AtlasContextInsightSection: View {
     let model: AtlasAppModel
     let snapshot: AtlasInsightsSnapshot
@@ -265,14 +346,28 @@ private struct AtlasContextInsightSection: View {
                             .foregroundStyle(AtlasPalette.textSecondary)
                     }
 
+                    if snapshot.savedContextPresets.isEmpty == false {
+                        Text("\(snapshot.savedContextPresets.count) saved preset\(snapshot.savedContextPresets.count == 1 ? "" : "s") ready for Today and quick capture")
+                            .font(.caption)
+                            .foregroundStyle(AtlasPalette.textSecondary)
+                    }
+
                     ForEach(snapshot.recentContextEntries) { entry in
                         Button {
                             onEdit(entry)
                         } label: {
                             VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
                                 HStack(alignment: .top) {
-                                    Text(model.renderedContextTitle(entry, renderMode: renderMode))
-                                        .foregroundStyle(AtlasPalette.textPrimary)
+                                    VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
+                                        Text(model.renderedContextTitle(entry, renderMode: renderMode))
+                                            .foregroundStyle(AtlasPalette.textPrimary)
+
+                                        if let presetTitle = model.contextPresetTitle(for: entry.presetKey) {
+                                            Text("Preset: \(presetTitle)")
+                                                .font(.caption2)
+                                                .foregroundStyle(AtlasPalette.textTertiary)
+                                        }
+                                    }
                                     Spacer(minLength: 12)
                                     Text(entry.loggedAt.formatted(date: .abbreviated, time: .shortened))
                                         .font(.caption)
@@ -286,6 +381,48 @@ private struct AtlasContextInsightSection: View {
                             }
                         }
                         .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct AtlasWorkoutInsightSection: View {
+    let snapshot: AtlasInsightsSnapshot
+
+    var body: some View {
+        Section("Activity") {
+            AtlasSectionCard {
+                if snapshot.recentWorkoutEntries.isEmpty {
+                    Text("No imported workouts yet.")
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                } else {
+                    Text("Recent workouts imported from Apple Health stay local to this Atlas timeline.")
+                        .font(.caption)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+
+                    ForEach(snapshot.recentWorkoutEntries) { entry in
+                        VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
+                            HStack(alignment: .firstTextBaseline) {
+                                Text(entry.activityKind.title)
+                                    .foregroundStyle(AtlasPalette.textPrimary)
+                                Spacer()
+                                Text(entry.durationLabel)
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(AtlasPalette.textSecondary)
+                            }
+
+                            Text(entry.startedAt.formatted(date: .abbreviated, time: .shortened))
+                                .font(.caption)
+                                .foregroundStyle(AtlasPalette.textSecondary)
+
+                            if let detailLabel = entry.detailLabel {
+                                Text(detailLabel)
+                                    .font(.caption)
+                                    .foregroundStyle(AtlasPalette.textSecondary)
+                            }
+                        }
                     }
                 }
             }
@@ -754,7 +891,7 @@ private struct AtlasEpisodeIntelligenceSection: View {
     }
 }
 
-private struct AtlasContextEntrySheet: View {
+struct AtlasContextEntrySheet: View {
     let model: AtlasAppModel
     @Environment(\.dismiss) private var dismiss
     @State private var state: AtlasContextEditorState
@@ -766,24 +903,121 @@ private struct AtlasContextEntrySheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                DatePicker("Logged at", selection: $state.loggedAt)
+            AtlasScreen {
+                AtlasSectionCard(style: .hero) {
+                    VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+                        Text("Capture the context Atlas can actually use.")
+                            .font(.headline)
+                            .foregroundStyle(AtlasPalette.textPrimary)
+                        Text("Start with a preset or a few quick taps. Notes stay optional.")
+                            .foregroundStyle(AtlasPalette.textSecondary)
 
-                Picker("Meal timing", selection: $state.mealTiming) {
-                    Text("Not set").tag(AtlasContextMealTiming?.none)
-                    ForEach(AtlasContextMealTiming.allCases, id: \.self) { timing in
-                        Text(timing.title).tag(AtlasContextMealTiming?.some(timing))
+                        AtlasContextQuickPresetRail(
+                            title: "Built-in presets",
+                            presets: AtlasContextBuiltinPreset.allCases.map { AtlasContextQuickPreset($0) },
+                            selectedPresetKey: state.presetKey
+                        ) { preset in
+                            state.applyQuickPreset(preset)
+                        }
+
+                        if model.insightsSnapshot.savedContextPresets.isEmpty == false {
+                            AtlasContextQuickPresetRail(
+                                title: "Saved presets",
+                                presets: model.insightsSnapshot.savedContextPresets.map { AtlasContextQuickPreset(preset: $0) },
+                                selectedPresetKey: state.presetKey
+                            ) { preset in
+                                state.applyQuickPreset(preset)
+                            }
+                        }
                     }
                 }
 
-                Picker("Fed / fasted", selection: $state.fedState) {
-                    Text("Not set").tag(AtlasContextFedState?.none)
-                    ForEach(AtlasContextFedState.allCases, id: \.self) { state in
-                        Text(state.title).tag(AtlasContextFedState?.some(state))
+                AtlasSectionCard(style: .elevated, title: "Quick capture") {
+                    DatePicker("Logged at", selection: $state.loggedAt)
+
+                    AtlasContextSelectionSection(
+                        title: "Meal timing",
+                        options: AtlasContextMealTiming.allCases,
+                        selected: state.mealTiming,
+                        noneTitle: "Skip",
+                        tint: AtlasPalette.primary
+                    ) { state.setMealTiming($0) }
+
+                    AtlasContextSelectionSection(
+                        title: "Meal size",
+                        options: AtlasContextMealSize.allCases,
+                        selected: state.mealSize,
+                        noneTitle: "Skip",
+                        tint: AtlasPalette.secondaryText
+                    ) { state.setMealSize($0) }
+
+                    AtlasContextSelectionSection(
+                        title: "Meal composition",
+                        options: AtlasContextMealComposition.allCases,
+                        selected: state.mealComposition,
+                        noneTitle: "Skip",
+                        tint: AtlasPalette.secondaryText
+                    ) { state.setMealComposition($0) }
+
+                    AtlasContextSelectionSection(
+                        title: "Fed / fasted",
+                        options: AtlasContextFedState.allCases,
+                        selected: state.fedState,
+                        noneTitle: "Skip",
+                        tint: AtlasPalette.primary
+                    ) { state.setFedState($0) }
+                }
+
+                AtlasSectionCard(style: .utility, title: "Reuse later") {
+                    Text("Save the current quick-capture shape as a reusable preset. Notes stay per entry.")
+                        .foregroundStyle(AtlasPalette.textSecondary)
+
+                    TextField("Optional preset name", text: $state.presetTitle)
+                        .atlasStandaloneInputSurface()
+
+                    Text("Leave the name blank and Atlas will suggest one from the selected context.")
+                        .font(.caption)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+
+                    Button("Save preset") {
+                        let presetDraft = state.presetDraft
+                        Task { @MainActor in
+                            if let savedPreset = await model.saveContextPreset(presetDraft) {
+                                state.presetKey = savedPreset.id
+                                state.presetTitle = ""
+                            }
+                        }
+                    }
+                    .buttonStyle(AtlasSecondaryButtonStyle())
+                    .disabled(state.canSavePreset == false)
+
+                    if model.insightsSnapshot.savedContextPresets.isEmpty == false {
+                        Divider()
+
+                        VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+                            Text("Manage saved presets")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(AtlasPalette.primary)
+                                .textCase(.uppercase)
+
+                            ForEach(model.insightsSnapshot.savedContextPresets) { preset in
+                                AtlasSavedContextPresetRow(
+                                    preset: preset,
+                                    isSelected: state.presetKey == preset.id,
+                                    onUse: { state.applyQuickPreset(AtlasContextQuickPreset(preset: preset)) },
+                                    onDelete: {
+                                        if state.presetKey == preset.id {
+                                            state.presetKey = nil
+                                        }
+                                        Task { await model.deleteContextPreset(id: preset.id) }
+                                    }
+                                )
+                            }
+                        }
                     }
                 }
 
-                DisclosureGroup("More detail") {
+                AtlasSectionCard(title: "More detail") {
                     Picker("Related protocol", selection: $state.protocolID) {
                         Text("None").tag(String?.none)
                         ForEach(model.libraryProtocols) { protocolSummary in
@@ -792,31 +1026,39 @@ private struct AtlasContextEntrySheet: View {
                         }
                     }
 
-                    Picker("Appetite", selection: $state.appetite) {
-                        Text("Not set").tag(AtlasContextAppetiteState?.none)
-                        ForEach(AtlasContextAppetiteState.allCases, id: \.self) { appetite in
-                            Text(appetite.title).tag(AtlasContextAppetiteState?.some(appetite))
-                        }
-                    }
+                    AtlasContextSelectionSection(
+                        title: "Appetite",
+                        options: AtlasContextAppetiteState.allCases,
+                        selected: state.appetite,
+                        noneTitle: "Skip",
+                        tint: AtlasPalette.secondaryText
+                    ) { state.setAppetite($0) }
 
-                    Picker("Hydration", selection: $state.hydration) {
-                        Text("Not set").tag(AtlasContextHydrationState?.none)
-                        ForEach(AtlasContextHydrationState.allCases, id: \.self) { hydration in
-                            Text(hydration.title).tag(AtlasContextHydrationState?.some(hydration))
-                        }
-                    }
+                    AtlasContextSelectionSection(
+                        title: "Hydration",
+                        options: AtlasContextHydrationState.allCases,
+                        selected: state.hydration,
+                        noneTitle: "Skip",
+                        tint: AtlasPalette.secondaryText
+                    ) { state.setHydration($0) }
 
-                    Section("GI context") {
-                        ForEach(AtlasContextGITag.allCases, id: \.self) { tag in
-                            Toggle(
-                                tag.title,
-                                isOn: Binding(
-                                    get: { state.giTags.contains(tag) },
-                                    set: { isOn in
-                                        state.setGITag(tag, enabled: isOn)
-                                    }
+                    VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+                        Text("GI context")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(AtlasPalette.primary)
+                            .textCase(.uppercase)
+
+                        AtlasChipFlowLayout(spacing: AtlasSpacing.small) {
+                            ForEach(AtlasContextGITag.allCases, id: \.self) { tag in
+                                Button(tag.title) {
+                                    state.setGITag(tag, enabled: state.giTags.contains(tag) == false)
+                                }
+                                .buttonStyle(
+                                    AtlasChipButtonStyle(
+                                        tint: state.giTags.contains(tag) ? AtlasPalette.warning : AtlasPalette.textSecondary
+                                    )
                                 )
-                            )
+                            }
                         }
                     }
 
@@ -826,6 +1068,7 @@ private struct AtlasContextEntrySheet: View {
                 }
             }
             .atlasFormSurface()
+            .atlasKeyboardDoneToolbar()
             .navigationTitle(state.id == nil ? "Log context" : "Edit context")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -838,6 +1081,7 @@ private struct AtlasContextEntrySheet: View {
                             dismiss()
                         }
                     }
+                    .disabled(state.canSave == false)
                 }
             }
         }
@@ -1078,32 +1322,41 @@ private struct AtlasMetricValueSheet: View {
     }
 }
 
-private struct AtlasContextEditorState {
+struct AtlasContextEditorState {
     var id: String?
     var protocolID: String?
     var loggedAt: Date
     var mealTiming: AtlasContextMealTiming?
+    var mealSize: AtlasContextMealSize?
+    var mealComposition: AtlasContextMealComposition?
     var fedState: AtlasContextFedState?
     var appetite: AtlasContextAppetiteState?
     var hydration: AtlasContextHydrationState?
     var giTags: Set<AtlasContextGITag>
     var note: String
     var tags: String
+    var presetKey: String?
+    var presetTitle: String
 
     init(entry: AtlasContextEntrySummary? = nil, referenceDate: Date) {
         id = entry?.id
         protocolID = entry?.protocolID
         loggedAt = entry?.loggedAt ?? referenceDate
         mealTiming = entry?.mealTiming
+        mealSize = entry?.mealSize
+        mealComposition = entry?.mealComposition
         fedState = entry?.fedState
         appetite = entry?.appetite
         hydration = entry?.hydration
         giTags = Set(entry?.giTags ?? [])
         note = entry?.note ?? ""
         tags = (entry?.tags ?? []).joined(separator: ", ")
+        presetKey = entry?.presetKey
+        presetTitle = ""
     }
 
     mutating func setGITag(_ tag: AtlasContextGITag, enabled: Bool) {
+        clearAppliedPreset()
         if enabled {
             if tag == .calm {
                 giTags = [.calm]
@@ -1116,12 +1369,99 @@ private struct AtlasContextEditorState {
         }
     }
 
+    mutating func setMealTiming(_ value: AtlasContextMealTiming?) {
+        clearAppliedPreset()
+        mealTiming = value
+    }
+
+    mutating func setMealSize(_ value: AtlasContextMealSize?) {
+        clearAppliedPreset()
+        mealSize = value
+    }
+
+    mutating func setMealComposition(_ value: AtlasContextMealComposition?) {
+        clearAppliedPreset()
+        mealComposition = value
+    }
+
+    mutating func setFedState(_ value: AtlasContextFedState?) {
+        clearAppliedPreset()
+        fedState = value
+    }
+
+    mutating func setAppetite(_ value: AtlasContextAppetiteState?) {
+        clearAppliedPreset()
+        appetite = value
+    }
+
+    mutating func setHydration(_ value: AtlasContextHydrationState?) {
+        clearAppliedPreset()
+        hydration = value
+    }
+
+    mutating func applyQuickPreset(_ preset: AtlasContextQuickPreset) {
+        presetKey = preset.presetKey
+        mealTiming = preset.mealTiming
+        mealSize = preset.mealSize
+        mealComposition = preset.mealComposition
+        fedState = preset.fedState
+        appetite = preset.appetite
+        hydration = preset.hydration
+        giTags = Set(preset.giTags)
+    }
+
+    var canSave: Bool {
+        mealTiming != nil
+            || mealSize != nil
+            || mealComposition != nil
+            || fedState != nil
+            || appetite != nil
+            || hydration != nil
+            || giTags.isEmpty == false
+            || note.nilIfEmpty != nil
+            || tags.split(separator: ",").isEmpty == false
+    }
+
+    var canSavePreset: Bool {
+        mealTiming != nil
+            || mealSize != nil
+            || mealComposition != nil
+            || fedState != nil
+            || appetite != nil
+            || hydration != nil
+            || giTags.isEmpty == false
+    }
+
+    var presetDraft: AtlasContextPresetDraft {
+        AtlasContextPresetDraft(
+            title: resolvedPresetTitle,
+            mealTiming: mealTiming,
+            mealSize: mealSize,
+            mealComposition: mealComposition,
+            fedState: fedState,
+            appetite: appetite,
+            hydration: hydration,
+            giTags: giTags.sorted { $0.rawValue < $1.rawValue }
+        )
+    }
+
+    private var resolvedPresetTitle: String {
+        let trimmed = presetTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? atlasSuggestedContextPresetTitle(from: self) : trimmed
+    }
+
+    private mutating func clearAppliedPreset() {
+        presetKey = nil
+    }
+
     var domainDraft: AtlasContextEntryDraft {
         AtlasContextEntryDraft(
             id: id,
             protocolID: protocolID,
             loggedAt: loggedAt,
             mealTiming: mealTiming,
+            mealSize: mealSize,
+            mealComposition: mealComposition,
             fedState: fedState,
             appetite: appetite,
             hydration: hydration,
@@ -1130,8 +1470,554 @@ private struct AtlasContextEditorState {
             tags: tags
                 .split(separator: ",")
                 .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                .filter { $0.isEmpty == false }
+                .filter { $0.isEmpty == false },
+            presetKey: presetKey
         )
+    }
+}
+
+enum AtlasContextBuiltinPreset: CaseIterable {
+    case breakfastStandard
+    case fastedMorning
+    case proteinMeal
+    case heavyDinner
+    case steadyHydration
+    case giOff
+
+    var id: String {
+        switch self {
+        case .breakfastStandard: "breakfast_standard"
+        case .fastedMorning: "fasted_morning"
+        case .proteinMeal: "protein_meal"
+        case .heavyDinner: "heavy_dinner"
+        case .steadyHydration: "steady_hydration"
+        case .giOff: "gi_off"
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .breakfastStandard: "Breakfast"
+        case .fastedMorning: "Fasted morning"
+        case .proteinMeal: "Protein meal"
+        case .heavyDinner: "Heavy dinner"
+        case .steadyHydration: "Hydrated"
+        case .giOff: "GI off"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .breakfastStandard: "Standard meal check-in"
+        case .fastedMorning: "Quick baseline check-in"
+        case .proteinMeal: "Simple meal context"
+        case .heavyDinner: "Useful for evening patterns"
+        case .steadyHydration: "Capture hydration context"
+        case .giOff: "When the gut feels off"
+        }
+    }
+
+    var mealTiming: AtlasContextMealTiming? {
+        switch self {
+        case .breakfastStandard, .fastedMorning: .breakfast
+        case .proteinMeal: .lunch
+        case .heavyDinner: .dinner
+        case .steadyHydration, .giOff: nil
+        }
+    }
+
+    var mealSize: AtlasContextMealSize? {
+        switch self {
+        case .breakfastStandard, .proteinMeal: .standard
+        case .fastedMorning, .steadyHydration, .giOff: nil
+        case .heavyDinner: .heavy
+        }
+    }
+
+    var mealComposition: AtlasContextMealComposition? {
+        switch self {
+        case .proteinMeal: .proteinHeavy
+        case .heavyDinner: .mixed
+        case .breakfastStandard, .fastedMorning, .steadyHydration, .giOff: nil
+        }
+    }
+
+    var fedState: AtlasContextFedState? {
+        switch self {
+        case .breakfastStandard, .proteinMeal, .heavyDinner: .fed
+        case .fastedMorning: .fasted
+        case .steadyHydration, .giOff: nil
+        }
+    }
+
+    var appetite: AtlasContextAppetiteState? {
+        switch self {
+        case .giOff: .low
+        case .breakfastStandard, .fastedMorning, .proteinMeal, .heavyDinner, .steadyHydration: nil
+        }
+    }
+
+    var hydration: AtlasContextHydrationState? {
+        switch self {
+        case .steadyHydration: .high
+        case .breakfastStandard, .fastedMorning, .proteinMeal, .heavyDinner, .giOff: nil
+        }
+    }
+
+    var giTags: [AtlasContextGITag] {
+        switch self {
+        case .giOff:
+            return [.nausea]
+        case .steadyHydration:
+            return [.calm]
+        case .breakfastStandard, .fastedMorning, .proteinMeal, .heavyDinner:
+            return []
+        }
+    }
+}
+
+struct AtlasContextQuickPreset: Identifiable {
+    let id: String
+    let title: String
+    let subtitle: String?
+    let tint: Color
+    let presetKey: String
+    let mealTiming: AtlasContextMealTiming?
+    let mealSize: AtlasContextMealSize?
+    let mealComposition: AtlasContextMealComposition?
+    let fedState: AtlasContextFedState?
+    let appetite: AtlasContextAppetiteState?
+    let hydration: AtlasContextHydrationState?
+    let giTags: [AtlasContextGITag]
+
+    init(_ preset: AtlasContextBuiltinPreset) {
+        self.init(
+            id: preset.id,
+            title: preset.title,
+            subtitle: preset.subtitle,
+            tint: atlasContextPresetTint(
+                fedState: preset.fedState,
+                hydration: preset.hydration,
+                giTags: preset.giTags
+            ),
+            presetKey: preset.id,
+            mealTiming: preset.mealTiming,
+            mealSize: preset.mealSize,
+            mealComposition: preset.mealComposition,
+            fedState: preset.fedState,
+            appetite: preset.appetite,
+            hydration: preset.hydration,
+            giTags: preset.giTags
+        )
+    }
+
+    init(preset: AtlasContextPresetSummary) {
+        self.init(
+            id: preset.id,
+            title: preset.title,
+            subtitle: atlasContextPresetSubtitle(
+                mealTiming: preset.mealTiming,
+                mealSize: preset.mealSize,
+                mealComposition: preset.mealComposition,
+                fedState: preset.fedState,
+                appetite: preset.appetite,
+                hydration: preset.hydration,
+                giTags: preset.giTags
+            ),
+            tint: atlasContextPresetTint(
+                fedState: preset.fedState,
+                hydration: preset.hydration,
+                giTags: preset.giTags
+            ),
+            presetKey: preset.id,
+            mealTiming: preset.mealTiming,
+            mealSize: preset.mealSize,
+            mealComposition: preset.mealComposition,
+            fedState: preset.fedState,
+            appetite: preset.appetite,
+            hydration: preset.hydration,
+            giTags: preset.giTags
+        )
+    }
+
+    private init(
+        id: String,
+        title: String,
+        subtitle: String?,
+        tint: Color,
+        presetKey: String,
+        mealTiming: AtlasContextMealTiming?,
+        mealSize: AtlasContextMealSize?,
+        mealComposition: AtlasContextMealComposition?,
+        fedState: AtlasContextFedState?,
+        appetite: AtlasContextAppetiteState?,
+        hydration: AtlasContextHydrationState?,
+        giTags: [AtlasContextGITag]
+    ) {
+        self.id = id
+        self.title = title
+        self.subtitle = subtitle
+        self.tint = tint
+        self.presetKey = presetKey
+        self.mealTiming = mealTiming
+        self.mealSize = mealSize
+        self.mealComposition = mealComposition
+        self.fedState = fedState
+        self.appetite = appetite
+        self.hydration = hydration
+        self.giTags = giTags
+    }
+
+    func makeDraft(loggedAt: Date) -> AtlasContextEntryDraft {
+        AtlasContextEntryDraft(
+            loggedAt: loggedAt,
+            mealTiming: mealTiming,
+            mealSize: mealSize,
+            mealComposition: mealComposition,
+            fedState: fedState,
+            appetite: appetite,
+            hydration: hydration,
+            giTags: giTags,
+            presetKey: presetKey
+        )
+    }
+}
+
+struct AtlasContextQuickPresetRail: View {
+    let title: String?
+    let presets: [AtlasContextQuickPreset]
+    let selectedPresetKey: String?
+    let onSelect: (AtlasContextQuickPreset) -> Void
+
+    init(
+        title: String? = nil,
+        presets: [AtlasContextQuickPreset],
+        selectedPresetKey: String? = nil,
+        onSelect: @escaping (AtlasContextQuickPreset) -> Void
+    ) {
+        self.title = title
+        self.presets = presets
+        self.selectedPresetKey = selectedPresetKey
+        self.onSelect = onSelect
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+            if let title {
+                Text(title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AtlasPalette.primary)
+                    .textCase(.uppercase)
+            }
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: AtlasSpacing.small) {
+                    ForEach(presets) { preset in
+                        Button {
+                            onSelect(preset)
+                        } label: {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(preset.title)
+                                    .lineLimit(1)
+                                if let subtitle = preset.subtitle {
+                                    Text(subtitle)
+                                        .font(.caption2)
+                                        .foregroundStyle(AtlasPalette.textSecondary)
+                                        .lineLimit(2)
+                                }
+                            }
+                        }
+                        .buttonStyle(
+                            AtlasChipButtonStyle(
+                                tint: selectedPresetKey == preset.presetKey ? preset.tint : AtlasPalette.secondaryText
+                            )
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct AtlasSavedContextPresetRow: View {
+    let preset: AtlasContextPresetSummary
+    let isSelected: Bool
+    let onUse: () -> Void
+    let onDelete: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: AtlasSpacing.small) {
+            VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
+                HStack(spacing: AtlasSpacing.xSmall) {
+                    Text(preset.title)
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(AtlasPalette.textPrimary)
+                    if isSelected {
+                        AtlasStatusBadge("Selected", tint: AtlasPalette.secondaryText)
+                    }
+                }
+
+                if let subtitle = atlasContextPresetSubtitle(
+                    mealTiming: preset.mealTiming,
+                    mealSize: preset.mealSize,
+                    mealComposition: preset.mealComposition,
+                    fedState: preset.fedState,
+                    appetite: preset.appetite,
+                    hydration: preset.hydration,
+                    giTags: preset.giTags
+                ) {
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                }
+
+                if let lastUsedAt = preset.lastUsedAt {
+                    Text("Used \(lastUsedAt.formatted(date: .abbreviated, time: .omitted))")
+                        .font(.caption2)
+                        .foregroundStyle(AtlasPalette.textTertiary)
+                }
+            }
+
+            Spacer(minLength: 12)
+
+            Button("Use", action: onUse)
+                .buttonStyle(AtlasChipButtonStyle(tint: AtlasPalette.primary))
+
+            Button(role: .destructive, action: onDelete) {
+                Image(systemName: "trash")
+                    .font(.caption.weight(.semibold))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(AtlasPalette.textSecondary)
+        }
+    }
+}
+
+private func atlasContextPresetTint(
+    fedState: AtlasContextFedState?,
+    hydration: AtlasContextHydrationState?,
+    giTags: [AtlasContextGITag]
+) -> Color {
+    let hasGiSignal = giTags.contains(where: { $0 != .calm })
+    if hasGiSignal {
+        return AtlasPalette.warning
+    }
+    if hydration == .high {
+        return AtlasPalette.success
+    }
+    if fedState == .fasted {
+        return AtlasPalette.secondaryText
+    }
+    return AtlasPalette.primary
+}
+
+private func atlasContextDescriptorTitles(
+    mealTiming: AtlasContextMealTiming?,
+    mealSize: AtlasContextMealSize?,
+    mealComposition: AtlasContextMealComposition?,
+    fedState: AtlasContextFedState?,
+    appetite: AtlasContextAppetiteState?,
+    hydration: AtlasContextHydrationState?,
+    giTags: [AtlasContextGITag]
+) -> [String] {
+    var parts: [String] = []
+    if let mealTiming {
+        parts.append(mealTiming.title)
+    }
+    if let mealSize {
+        parts.append(mealSize.title)
+    }
+    if let mealComposition {
+        parts.append(mealComposition.title)
+    }
+    if let fedState {
+        parts.append(fedState.title)
+    }
+    if let appetite {
+        parts.append(appetite.title)
+    }
+    if let hydration {
+        parts.append(hydration.title)
+    }
+    parts.append(contentsOf: giTags.map(\.title))
+    return parts
+}
+
+private func atlasContextPresetSubtitle(
+    mealTiming: AtlasContextMealTiming?,
+    mealSize: AtlasContextMealSize?,
+    mealComposition: AtlasContextMealComposition?,
+    fedState: AtlasContextFedState?,
+    appetite: AtlasContextAppetiteState?,
+    hydration: AtlasContextHydrationState?,
+    giTags: [AtlasContextGITag]
+) -> String? {
+    let parts = atlasContextDescriptorTitles(
+        mealTiming: mealTiming,
+        mealSize: mealSize,
+        mealComposition: mealComposition,
+        fedState: fedState,
+        appetite: appetite,
+        hydration: hydration,
+        giTags: giTags
+    )
+    guard parts.isEmpty == false else {
+        return nil
+    }
+    return Array(parts.prefix(3)).joined(separator: " • ")
+}
+
+private func atlasSuggestedContextPresetTitle(from state: AtlasContextEditorState) -> String {
+    let parts = atlasContextDescriptorTitles(
+        mealTiming: state.mealTiming,
+        mealSize: state.mealSize,
+        mealComposition: state.mealComposition,
+        fedState: state.fedState,
+        appetite: state.appetite,
+        hydration: state.hydration,
+        giTags: state.giTags.sorted { $0.rawValue < $1.rawValue }
+    )
+
+    guard parts.isEmpty == false else {
+        return "Context preset"
+    }
+
+    return Array(parts.prefix(2)).joined(separator: " • ")
+}
+
+private struct AtlasContextSelectionSection<Option: Hashable & CaseIterable>: View where Option.AllCases: RandomAccessCollection, Option: AtlasContextSelectionOption {
+    let title: String
+    let options: Option.AllCases
+    let selected: Option?
+    let noneTitle: String
+    let tint: Color
+    let onSelect: (Option?) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(AtlasPalette.primary)
+                .textCase(.uppercase)
+
+            AtlasChipFlowLayout(spacing: AtlasSpacing.small) {
+                Button(noneTitle) {
+                    onSelect(nil)
+                }
+                .buttonStyle(AtlasChipButtonStyle(tint: selected == nil ? tint : AtlasPalette.textSecondary))
+
+                ForEach(Array(options), id: \.self) { option in
+                    Button(option.selectionTitle) {
+                        onSelect(option)
+                    }
+                    .buttonStyle(
+                        AtlasChipButtonStyle(
+                            tint: selected == option ? tint : AtlasPalette.textSecondary
+                        )
+                    )
+                }
+            }
+        }
+    }
+}
+
+private protocol AtlasContextSelectionOption {
+    var selectionTitle: String { get }
+}
+
+extension AtlasContextMealTiming: AtlasContextSelectionOption {
+    var selectionTitle: String { title }
+}
+
+extension AtlasContextMealSize: AtlasContextSelectionOption {
+    var selectionTitle: String { title }
+}
+
+extension AtlasContextMealComposition: AtlasContextSelectionOption {
+    var selectionTitle: String { title }
+}
+
+extension AtlasContextFedState: AtlasContextSelectionOption {
+    var selectionTitle: String { title }
+}
+
+extension AtlasContextAppetiteState: AtlasContextSelectionOption {
+    var selectionTitle: String { title }
+}
+
+extension AtlasContextHydrationState: AtlasContextSelectionOption {
+    var selectionTitle: String { title }
+}
+
+private struct AtlasChipFlowLayout<Content: View>: View {
+    let spacing: CGFloat
+    let content: Content
+
+    init(spacing: CGFloat, @ViewBuilder content: () -> Content) {
+        self.spacing = spacing
+        self.content = content()
+    }
+
+    var body: some View {
+        AnyLayout(AtlasFlowLayout(spacing: spacing)) {
+            content
+        }
+    }
+}
+
+private struct AtlasFlowLayout: Layout {
+    let spacing: CGFloat
+
+    func sizeThatFits(
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) -> CGSize {
+        let width = proposal.width ?? 320
+        var currentX: CGFloat = 0
+        var currentY: CGFloat = 0
+        var rowHeight: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if currentX + size.width > width, currentX > 0 {
+                currentX = 0
+                currentY += rowHeight + spacing
+                rowHeight = 0
+            }
+            rowHeight = max(rowHeight, size.height)
+            currentX += size.width + spacing
+        }
+
+        return CGSize(width: width, height: currentY + rowHeight)
+    }
+
+    func placeSubviews(
+        in bounds: CGRect,
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) {
+        var currentX = bounds.minX
+        var currentY = bounds.minY
+        var rowHeight: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if currentX + size.width > bounds.maxX, currentX > bounds.minX {
+                currentX = bounds.minX
+                currentY += rowHeight + spacing
+                rowHeight = 0
+            }
+
+            subview.place(
+                at: CGPoint(x: currentX, y: currentY),
+                proposal: ProposedViewSize(width: size.width, height: size.height)
+            )
+
+            currentX += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
     }
 }
 

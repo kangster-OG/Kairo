@@ -1,16 +1,18 @@
 # Codex Launch Handoff
 
-Last updated: 2026-04-10
+Last updated: 2026-04-10 (post-local-path recovery)
 
 ## Current status
 
-- Canonical repo root: `/Users/donghokang/Documents/New project 4/Atlas`
-- iOS app root: `/Users/donghokang/Documents/New project 4/Atlas/atlas-ios`
+- Canonical local repo root for Codex + Xcode: `/Users/donghokang/Developer/Atlas`
+- Canonical iOS app root for Xcode: `/Users/donghokang/Developer/Atlas/atlas-ios`
+- Legacy repo copy still exists at `/Users/donghokang/Documents/New project 4/Atlas`, but it should not be used for active Xcode work.
 - Atlas is now wired to a live Supabase project for launch auth/sync/review.
 - Google auth is enabled in Supabase.
 - Apple auth is enabled in Supabase for native iOS sign-in.
 - Email/password auth is enabled in Supabase.
 - Live review edge function and launch schema are deployed.
+- `master` has been pushed with the current Atlas iOS launch tree.
 
 ## Live backend
 
@@ -20,6 +22,10 @@ Last updated: 2026-04-10
 - Redirect allow-list includes `atlas://**`.
 - Google provider is configured and enabled.
 - Apple provider is configured for native iOS flow and enabled.
+- `live-review-session` was redeployed from CLI on 2026-04-10.
+- Remote migration history now includes both:
+  - `20260410023520_Atlas public launch infra.sql`
+  - local idempotent launch migration `20260409_public_launch_infra.sql`
 
 ## Code already landed
 
@@ -79,6 +85,8 @@ Last updated: 2026-04-10
 
 ## Important environment note
 
-- The original repo location under `Documents` contains file-provider/iCloud-style `dataless` files that can stall raw `xcodebuild`.
-- When the native build lane hangs on project/package resolution, reuse the temp copied project strategy under `/tmp/AtlasAppOnly/atlas-ios`.
+- The original repo location under `Documents` contains file-provider/iCloud-style metadata on the Xcode project and can make Xcode go gray / spin indefinitely.
+- The durable fix was to clone the repo to `/Users/donghokang/Developer/Atlas` and use that path as the canonical local checkout.
+- Do not use the `Documents` copy for active Xcode work unless there is a specific reason to inspect old local state.
+- If the native build lane still hangs even from the `Developer` path, reuse the temp copied project strategy under `/tmp/AtlasAppOnly/atlas-ios`.
 - XcodeBuildMCP transport was unavailable in this thread, so shell-driven simulator control was used instead.

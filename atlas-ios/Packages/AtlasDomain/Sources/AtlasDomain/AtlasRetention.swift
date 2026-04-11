@@ -49,7 +49,7 @@ public struct AtlasRetentionMilestoneSnapshot: Sendable, Equatable, Identifiable
     public var helperText: String
     public var symbolName: String
     public var isEarned: Bool
-    public var streakCount: Int?
+    public var continuityLabel: String?
     public var tone: AtlasRetentionMilestoneTone
 
     public init(
@@ -59,7 +59,7 @@ public struct AtlasRetentionMilestoneSnapshot: Sendable, Equatable, Identifiable
         helperText: String,
         symbolName: String,
         isEarned: Bool,
-        streakCount: Int? = nil,
+        continuityLabel: String? = nil,
         tone: AtlasRetentionMilestoneTone
     ) {
         self.kind = kind
@@ -68,7 +68,7 @@ public struct AtlasRetentionMilestoneSnapshot: Sendable, Equatable, Identifiable
         self.helperText = helperText
         self.symbolName = symbolName
         self.isEarned = isEarned
-        self.streakCount = streakCount
+        self.continuityLabel = continuityLabel
         self.tone = tone
     }
 }
@@ -110,7 +110,7 @@ public struct AtlasRetentionSnapshot: Sendable, Equatable {
         milestones: [AtlasRetentionMilestoneSnapshot] = [],
         earnedMilestoneCount: Int = 0,
         companion: AtlasRetentionCompanionSnapshot? = nil,
-        note: String = "Calm progress is optional, local only, and never changes Atlas history."
+        note: String = "Calm continuity is optional, local only, and never changes Atlas history."
     ) {
         self.settings = settings
         self.milestones = milestones

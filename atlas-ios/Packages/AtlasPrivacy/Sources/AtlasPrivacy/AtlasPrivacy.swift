@@ -322,6 +322,8 @@ public struct AtlasPrivacyFormatter: Sendable {
 
     public func contextTimelineSummary(
         mealTiming: AtlasContextMealTiming?,
+        mealSize: AtlasContextMealSize?,
+        mealComposition: AtlasContextMealComposition?,
         fedState: AtlasContextFedState?,
         appetite: AtlasContextAppetiteState?,
         hydration: AtlasContextHydrationState?,
@@ -334,6 +336,8 @@ public struct AtlasPrivacyFormatter: Sendable {
         case .full, .alias:
             let details = contextDescriptorList(
                 mealTiming: mealTiming,
+                mealSize: mealSize,
+                mealComposition: mealComposition,
                 fedState: fedState,
                 appetite: appetite,
                 hydration: hydration,
@@ -349,6 +353,8 @@ public struct AtlasPrivacyFormatter: Sendable {
 
     public func contextEntryTitle(
         mealTiming: AtlasContextMealTiming?,
+        mealSize: AtlasContextMealSize?,
+        mealComposition: AtlasContextMealComposition?,
         fedState: AtlasContextFedState?,
         appetite: AtlasContextAppetiteState?,
         hydration: AtlasContextHydrationState?,
@@ -361,6 +367,8 @@ public struct AtlasPrivacyFormatter: Sendable {
         case .full, .alias:
             let details = contextDescriptorList(
                 mealTiming: mealTiming,
+                mealSize: mealSize,
+                mealComposition: mealComposition,
                 fedState: fedState,
                 appetite: appetite,
                 hydration: hydration,
@@ -404,6 +412,8 @@ public struct AtlasPrivacyFormatter: Sendable {
 
     private func contextDescriptorList(
         mealTiming: AtlasContextMealTiming?,
+        mealSize: AtlasContextMealSize?,
+        mealComposition: AtlasContextMealComposition?,
         fedState: AtlasContextFedState?,
         appetite: AtlasContextAppetiteState?,
         hydration: AtlasContextHydrationState?,
@@ -417,6 +427,12 @@ public struct AtlasPrivacyFormatter: Sendable {
             var parts: [String] = []
             if let mealTiming {
                 parts.append(mealTiming.title)
+            }
+            if let mealSize {
+                parts.append(mealSize.title)
+            }
+            if let mealComposition {
+                parts.append(mealComposition.title)
             }
             if let fedState {
                 parts.append(fedState.title)
