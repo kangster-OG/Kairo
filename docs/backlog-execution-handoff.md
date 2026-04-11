@@ -18,6 +18,7 @@ Use it when continuing backlog implementation work in `/Users/donghokang/Develop
 
 - Do not redo already-completed launch prep, backend deploy, simulator smoke, or the premium UI pass unless a specific regression blocks new work.
 - Keep Atlas local-first and guest-first.
+- Keep Atlas positioned as a protocol operating system for committed peptide / GLP / injectable users, not as a peptide discovery marketplace.
 - Keep meal logging as context capture, not a nutrition tracker.
 - Keep wearable integration HealthKit-first.
 - Keep copy calm, serious, premium, and non-judgmental.
@@ -43,6 +44,31 @@ Strategic defaults already chosen:
 - Local-first summaries: after deterministic explainability
 - Procurement: local planning hub, not commerce
 - Retention tone: subtle premium, optional, non-punitive
+
+## Protocol intelligence direction
+
+Atlas now has an initial compound-intelligence layer and two related operating-system features:
+
+- compound metadata for common GLPs, peptides, and injectable hormone / steroid protocols
+- Library compare / swap guidance
+- Protocol Change Studio interaction guidance
+
+These features should be extended as operational protocol support, not as a public encyclopedia.
+
+Good fits:
+
+- clearer compare / replace flows inside existing protocol editing
+- better interaction warnings for active overlaps, cadence changes, unit mismatches, and stack burden
+- richer but bounded compound metadata such as route, cadence, common units, availability/source type, and operational tags
+
+Avoid turning this into:
+
+- a provider directory
+- a provider map
+- a public review marketplace
+- a broad educational content hub
+- a sourcing recommendation engine
+- a generic AI concierge
 
 ## Current execution status
 
