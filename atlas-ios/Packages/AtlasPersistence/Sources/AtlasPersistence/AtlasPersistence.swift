@@ -29,6 +29,26 @@ public protocol SettingsRepository: Sendable {
     func currentSettingsSnapshot() async throws -> AtlasSettingsSnapshot
     func updateAccountMode(_ accountMode: AtlasAccountMode, now: Date) async throws -> AtlasSettingsSnapshot
     func updateTrustVaultRenderMode(_ renderMode: AtlasPrivacyRenderMode, now: Date) async throws -> AtlasSettingsSnapshot
+    func updateMascotSelection(_ mascotSelection: AtlasMascotSelection, now: Date) async throws -> AtlasSettingsSnapshot
+    func updateMascotNickname(_ nickname: String?, now: Date) async throws -> AtlasSettingsSnapshot
+    func recordMascotEvolution(
+        selection: AtlasMascotSelection,
+        stage: AtlasMascotStage,
+        earnedAt: Date,
+        now: Date
+    ) async throws -> AtlasSettingsSnapshot
+    func recordMascotMoment(
+        _ moment: AtlasMascotMomentRecord,
+        now: Date
+    ) async throws -> AtlasSettingsSnapshot
+    func recordMascotArchivedRecap(
+        _ recap: AtlasMascotArchivedRecapRecord,
+        now: Date
+    ) async throws -> AtlasSettingsSnapshot
+    func updateMascotRecapNotificationSettings(
+        _ settings: AtlasMascotRecapNotificationSettings,
+        now: Date
+    ) async throws -> AtlasSettingsSnapshot
     func updateSummarySettings(_ update: AtlasSummarySettingsUpdate, now: Date) async throws -> AtlasSettingsSnapshot
     func updateRetentionSettings(_ update: AtlasRetentionSettingsUpdate, now: Date) async throws -> AtlasSettingsSnapshot
     func updateRewardsSettings(_ update: AtlasRewardsSettingsUpdate, now: Date) async throws -> AtlasSettingsSnapshot

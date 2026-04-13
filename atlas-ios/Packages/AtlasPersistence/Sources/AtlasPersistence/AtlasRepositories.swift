@@ -167,6 +167,173 @@ public struct GRDBSettingsRepository: SettingsRepository, Sendable {
         }
     }
 
+    public func updateMascotSelection(_ mascotSelection: AtlasMascotSelection, now: Date) async throws -> AtlasSettingsSnapshot {
+        try await stack.canonical.write { db in
+            try writeAppSetting(db: db, key: "mascot_selection", value: mascotSelection.rawValue, now: now)
+            try writeAppSetting(db: db, key: "mascot_selection_confirmed", value: "1", now: now)
+            return try buildSettingsSnapshot(
+                db: db,
+                healthKit: healthKit,
+                featureFlags: featureFlags
+            )
+        }
+    }
+
+    public func updateMascotNickname(_ nickname: String?, now: Date) async throws -> AtlasSettingsSnapshot {
+        try await stack.canonical.write { db in
+            try writeAppSetting(
+                db: db,
+                key: "mascot_nickname",
+                value: atlasMascotSanitizedNickname(nickname),
+                now: now
+            )
+            return try buildSettingsSnapshot(
+                db: db,
+                healthKit: healthKit,
+                featureFlags: featureFlags
+            )
+        }
+    }
+
+    public func recordMascotEvolution(
+        selection: AtlasMascotSelection,
+        stage: AtlasMascotStage,
+        earnedAt: Date,
+        now: Date
+    ) async throws -> AtlasSettingsSnapshot {
+        try await stack.canonical.write { db in
+            let currentUnlocks = try atlasReadMascotUnlockSnapshots(db: db)
+            let currentStage = currentUnlocks.first(where: { $0.selection == selection })?.highestUnlockedStage ?? .stage1
+
+            guard stage.rank > currentStage.rank else {
+                return try buildSettingsSnapshot(
+                    db: db,
+                    healthKit: healthKit,
+                    featureFlags: featureFlags
+                )
+            }
+
+            try writeAppSetting(
+                db: db,
+                key: atlasMascotUnlockedStageSettingKey(for: selection),
+                value: stage.rawValue,
+                now: now
+            )
+
+            var history = try atlasReadMascotEvolutionHistory(db: db)
+            if history.contains(where: { $0.selection == selection && $0.stage == stage }) == false {
+                history.insert(
+                    AtlasMascotEvolutionRecord(
+                        selection: selection,
+                        stage: stage,
+                        earnedAt: atlasTimestamp(from: earnedAt)
+                    ),
+                    at: 0
+                )
+                try writeAppSetting(
+                    db: db,
+                    key: "mascot_evolution_history_json",
+                    value: try atlasEncodeMascotEvolutionHistory(history),
+                    now: now
+                )
+            }
+
+            return try buildSettingsSnapshot(
+                db: db,
+                healthKit: healthKit,
+                featureFlags: featureFlags
+            )
+        }
+    }
+
+    public func recordMascotMoment(
+        _ moment: AtlasMascotMomentRecord,
+        now: Date
+    ) async throws -> AtlasSettingsSnapshot {
+        try await stack.canonical.write { db in
+            var moments = try atlasReadMascotMoments(db: db)
+            if let eventKey = moment.eventKey,
+               moments.contains(where: { $0.selection == moment.selection && $0.eventKey == eventKey }) {
+                return try buildSettingsSnapshot(
+                    db: db,
+                    healthKit: healthKit,
+                    featureFlags: featureFlags
+                )
+            }
+
+            moments.insert(moment, at: 0)
+            if moments.count > 60 {
+                moments = Array(moments.prefix(60))
+            }
+
+            try writeAppSetting(
+                db: db,
+                key: "mascot_moments_json",
+                value: try atlasEncodeMascotMoments(moments),
+                now: now
+            )
+
+            return try buildSettingsSnapshot(
+                db: db,
+                healthKit: healthKit,
+                featureFlags: featureFlags
+            )
+        }
+    }
+
+    public func recordMascotArchivedRecap(
+        _ recap: AtlasMascotArchivedRecapRecord,
+        now: Date
+    ) async throws -> AtlasSettingsSnapshot {
+        try await stack.canonical.write { db in
+            var recaps = try atlasReadMascotArchivedRecaps(db: db)
+            recaps.removeAll { $0.id == recap.id }
+            recaps.insert(recap, at: 0)
+            if recaps.count > 40 {
+                recaps = Array(recaps.prefix(40))
+            }
+
+            try writeAppSetting(
+                db: db,
+                key: "mascot_archived_recaps_json",
+                value: try atlasEncodeMascotArchivedRecaps(recaps),
+                now: now
+            )
+
+            return try buildSettingsSnapshot(
+                db: db,
+                healthKit: healthKit,
+                featureFlags: featureFlags
+            )
+        }
+    }
+
+    public func updateMascotRecapNotificationSettings(
+        _ settings: AtlasMascotRecapNotificationSettings,
+        now: Date
+    ) async throws -> AtlasSettingsSnapshot {
+        try await stack.canonical.write { db in
+            try writeAppSetting(
+                db: db,
+                key: "mascot_recap_daily_enabled",
+                value: settings.dailyEnabled ? "1" : "0",
+                now: now
+            )
+            try writeAppSetting(
+                db: db,
+                key: "mascot_recap_weekly_enabled",
+                value: settings.weeklyEnabled ? "1" : "0",
+                now: now
+            )
+
+            return try buildSettingsSnapshot(
+                db: db,
+                healthKit: healthKit,
+                featureFlags: featureFlags
+            )
+        }
+    }
+
     public func updateSummarySettings(_ update: AtlasSummarySettingsUpdate, now: Date) async throws -> AtlasSettingsSnapshot {
         try await stack.canonical.write { db in
             let current = try readSummarySettings(db: db, featureFlags: featureFlags)
@@ -332,6 +499,7 @@ public actor GRDBSharedProjectionWriter: SharedProjectionWriting {
                     items: [],
                     updatedAt: atlasTimestamp(from: Date())
                 ),
+                mascot: nil,
                 featureFlags: featureFlags
             )
         )
@@ -595,6 +763,7 @@ private func buildProjectionWriteState(
         updatedAt: atlasTimestamp(from: referenceDate)
     )
     let featureFlagProjection = AtlasSharedFeatureFlagProjection(flags: featureFlags)
+    let mascotSnapshot = try buildMascotProjection(db: db, referenceDate: referenceDate)
 
     return AtlasProjectionWriteState(
         nextDue: nextDue,
@@ -608,9 +777,124 @@ private func buildProjectionWriteState(
             nextDue: nextDue,
             quickActions: quickActions,
             lowStock: lowStockSnapshot,
+            mascot: mascotSnapshot,
             featureFlags: featureFlagProjection
         )
     )
+}
+
+private func buildMascotProjection(
+    db: Database,
+    referenceDate: Date
+) throws -> AtlasSharedMascotSnapshot? {
+    let rewardsSnapshot = try buildRewardsSnapshot(db: db, referenceDate: referenceDate)
+    guard rewardsSnapshot.settings.enabled else {
+        return nil
+    }
+
+    let onboardingDraft = try readMascotProjectionOnboardingDraft(db: db)
+    let selectionRaw = try String.fetchOne(
+        db,
+        sql: "SELECT value FROM atlas_app_settings WHERE key = 'mascot_selection'"
+    )
+    let selectionConfirmedRaw = try String.fetchOne(
+        db,
+        sql: "SELECT value FROM atlas_app_settings WHERE key = 'mascot_selection_confirmed'"
+    )
+    let nicknameRaw = try String.fetchOne(
+        db,
+        sql: "SELECT value FROM atlas_app_settings WHERE key = 'mascot_nickname'"
+    )
+    let selection = selectionRaw.flatMap(AtlasMascotSelection.init(rawValue:))
+        ?? onboardingDraft?.profile.mascotSelection
+        ?? atlasInferredMascotSelection(from: onboardingDraft?.profile.gender)
+        ?? .aetherion
+    guard selectionConfirmedRaw == "1" else {
+        return nil
+    }
+
+    let stage = AtlasMascotMilestone.stage(for: rewardsSnapshot.totalPoints)
+    let nextThresholdPoints = AtlasMascotMilestone.nextThreshold(after: stage)
+    let nextFormName = nextThresholdPoints.map { _ in
+        switch stage {
+        case .stage1:
+            return selection.stage2Title
+        case .stage2:
+            return selection.stage3Title
+        case .stage3:
+            return selection.stage3Title
+        }
+    }
+    let currentFormName = selection.title(for: stage)
+    let nickname = atlasMascotSanitizedNickname(nicknameRaw ?? onboardingDraft?.profile.mascotNickname)
+    let displayName = atlasMascotDisplayName(selection: selection, stage: stage, nickname: nickname)
+    let milestoneHeadline: String
+    let progressLabel: String
+    if let nextThresholdPoints, let nextFormName {
+        milestoneHeadline = "\(currentFormName) evolves into \(nextFormName) at \(mascotPointLabel(nextThresholdPoints))."
+        progressLabel = "\(max(nextThresholdPoints - rewardsSnapshot.totalPoints, 0)) points to \(nextFormName)."
+    } else {
+        milestoneHeadline = "\(currentFormName) has reached its final evolution."
+        progressLabel = "Final form unlocked."
+    }
+
+    let history = try atlasReadMascotEvolutionHistory(db: db)
+        .filter { $0.selection == selection }
+    let latestMoment = try atlasReadMascotMoments(db: db)
+        .first(where: { $0.selection == selection })
+    let pose = atlasMascotSharedPose(
+        rewardsSnapshot: rewardsSnapshot,
+        latestMoment: latestMoment
+    )
+    let reaction = atlasMascotReactionSummary(
+        selection: selection,
+        nickname: nickname,
+        rewardsSnapshot: rewardsSnapshot,
+        history: history
+    )
+    let statusLine = atlasMascotStatusLine(
+        selection: selection,
+        nickname: nickname,
+        rewardsSnapshot: rewardsSnapshot
+    )
+
+    return AtlasSharedMascotSnapshot(
+        selection: selection,
+        nickname: nickname,
+        displayName: displayName,
+        stage: stage,
+        pose: pose,
+        currentFormName: currentFormName,
+        nextFormName: nextThresholdPoints == nil ? nil : nextFormName,
+        nextThresholdPoints: nextThresholdPoints,
+        totalPoints: rewardsSnapshot.totalPoints,
+        milestoneHeadline: milestoneHeadline,
+        progressLabel: progressLabel,
+        statusLine: statusLine,
+        reactionTitle: reaction?.title,
+        reactionSymbolName: reaction?.symbolName,
+        lastEvolution: history.first,
+        latestMomentTitle: latestMoment?.title,
+        latestMomentDetail: latestMoment?.detail,
+        latestMomentSymbolName: latestMoment?.symbolName,
+        latestMomentRecordedAt: latestMoment?.recordedAt
+    )
+}
+
+private func mascotPointLabel(_ points: Int) -> String {
+    let formatter = NumberFormatter()
+    formatter.numberStyle = .decimal
+    return "\(formatter.string(from: NSNumber(value: points)) ?? "\(points)") points"
+}
+
+private func readMascotProjectionOnboardingDraft(db: Database) throws -> AtlasOnboardingDraft? {
+    guard let json = try String.fetchOne(
+        db,
+        sql: "SELECT value FROM atlas_app_settings WHERE key = 'onboarding_draft_json'"
+    ) else {
+        return nil
+    }
+    return try? JSONDecoder().decode(AtlasOnboardingDraft.self, from: Data(json.utf8))
 }
 
 private func sharedProjectionStatusSummary(

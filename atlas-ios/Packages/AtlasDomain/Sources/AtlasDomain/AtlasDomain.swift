@@ -36,6 +36,7 @@ public enum AtlasRoute: Hashable, Sendable {
     case protocolEdit(String)
     case protocolChange(String)
     case inventory
+    case mascot
     case calculator
     case trustVault
     case importFlow
@@ -614,6 +615,289 @@ public struct TrustVaultStatus: Sendable, Equatable {
     }
 }
 
+public enum AtlasMascotSelection: String, Codable, CaseIterable, Sendable {
+    case aetherion
+    case aurielle
+
+    public var title: String {
+        switch self {
+        case .aetherion:
+            return "Aetherion"
+        case .aurielle:
+            return "Aurielle"
+        }
+    }
+
+    public var subtitle: String {
+        switch self {
+        case .aetherion:
+            return "Storm-forged drake guardian"
+        case .aurielle:
+            return "Aurora hare guardian"
+        }
+    }
+
+    public var stage1Title: String {
+        switch self {
+        case .aetherion:
+            return "Cindlet"
+        case .aurielle:
+            return "Moppet"
+        }
+    }
+
+    public var stage2Title: String {
+        switch self {
+        case .aetherion:
+            return "Voltflare"
+        case .aurielle:
+            return "Glisshare"
+        }
+    }
+
+    public var stage3Title: String {
+        switch self {
+        case .aetherion:
+            return "Aetherion"
+        case .aurielle:
+            return "Aurielle"
+        }
+    }
+
+    public func title(for stage: AtlasMascotStage) -> String {
+        switch stage {
+        case .stage1:
+            return stage1Title
+        case .stage2:
+            return stage2Title
+        case .stage3:
+            return stage3Title
+        }
+    }
+}
+
+public enum AtlasMascotStage: String, Codable, CaseIterable, Sendable {
+    case stage1
+    case stage2
+    case stage3
+
+    public var rank: Int {
+        switch self {
+        case .stage1:
+            return 1
+        case .stage2:
+            return 2
+        case .stage3:
+            return 3
+        }
+    }
+}
+
+public enum AtlasMascotMilestone {
+    public static let stage2Points = 500
+    public static let stage3Points = 1_250
+
+    public static func stage(for totalPoints: Int) -> AtlasMascotStage {
+        switch totalPoints {
+        case stage3Points...:
+            return .stage3
+        case stage2Points...:
+            return .stage2
+        default:
+            return .stage1
+        }
+    }
+
+    public static func nextThreshold(after stage: AtlasMascotStage) -> Int? {
+        switch stage {
+        case .stage1:
+            return stage2Points
+        case .stage2:
+            return stage3Points
+        case .stage3:
+            return nil
+        }
+    }
+}
+
+public struct AtlasMascotUnlockSnapshot: Codable, Equatable, Sendable, Identifiable {
+    public var id: AtlasMascotSelection { selection }
+    public var selection: AtlasMascotSelection
+    public var highestUnlockedStage: AtlasMascotStage
+
+    public init(
+        selection: AtlasMascotSelection,
+        highestUnlockedStage: AtlasMascotStage = .stage1
+    ) {
+        self.selection = selection
+        self.highestUnlockedStage = highestUnlockedStage
+    }
+}
+
+public struct AtlasMascotEvolutionRecord: Codable, Equatable, Sendable, Identifiable {
+    public var selection: AtlasMascotSelection
+    public var stage: AtlasMascotStage
+    public var earnedAt: String
+
+    public var id: String { "\(selection.rawValue)-\(stage.rawValue)-\(earnedAt)" }
+
+    public init(
+        selection: AtlasMascotSelection,
+        stage: AtlasMascotStage,
+        earnedAt: String
+    ) {
+        self.selection = selection
+        self.stage = stage
+        self.earnedAt = earnedAt
+    }
+}
+
+public enum AtlasMascotMomentKind: String, Codable, CaseIterable, Sendable {
+    case interaction
+    case evolution
+    case badge
+    case goal
+    case streak
+    case shortcut
+}
+
+public enum AtlasMascotRecapAudience: String, Codable, CaseIterable, Sendable {
+    case personal
+    case coach
+    case share
+
+    public var title: String {
+        switch self {
+        case .personal:
+            return "Personal"
+        case .coach:
+            return "Coach"
+        case .share:
+            return "Share"
+        }
+    }
+}
+
+public enum AtlasMascotRecapPrivacyMode: String, Codable, CaseIterable, Sendable {
+    case fullDetail
+    case privacySafe
+
+    public var title: String {
+        switch self {
+        case .fullDetail:
+            return "Full detail"
+        case .privacySafe:
+            return "Privacy-safe"
+        }
+    }
+}
+
+public struct AtlasMascotRecapNotificationSettings: Codable, Equatable, Sendable {
+    public var dailyEnabled: Bool
+    public var weeklyEnabled: Bool
+
+    public init(
+        dailyEnabled: Bool = false,
+        weeklyEnabled: Bool = false
+    ) {
+        self.dailyEnabled = dailyEnabled
+        self.weeklyEnabled = weeklyEnabled
+    }
+}
+
+public struct AtlasMascotArchivedRecapRecord: Codable, Equatable, Sendable, Identifiable {
+    public var id: String
+    public var selection: AtlasMascotSelection
+    public var stage: AtlasMascotStage
+    public var kind: String
+    public var audience: AtlasMascotRecapAudience
+    public var privacyMode: AtlasMascotRecapPrivacyMode
+    public var displayName: String
+    public var currentFormName: String
+    public var eyebrow: String
+    public var headline: String
+    public var detail: String
+    public var secondaryDetail: String
+    public var footer: String
+    public var symbolName: String
+    public var fileName: String
+    public var createdAt: String
+
+    public init(
+        id: String,
+        selection: AtlasMascotSelection,
+        stage: AtlasMascotStage,
+        kind: String,
+        audience: AtlasMascotRecapAudience,
+        privacyMode: AtlasMascotRecapPrivacyMode,
+        displayName: String,
+        currentFormName: String,
+        eyebrow: String,
+        headline: String,
+        detail: String,
+        secondaryDetail: String,
+        footer: String,
+        symbolName: String,
+        fileName: String,
+        createdAt: String
+    ) {
+        self.id = id
+        self.selection = selection
+        self.stage = stage
+        self.kind = kind
+        self.audience = audience
+        self.privacyMode = privacyMode
+        self.displayName = displayName
+        self.currentFormName = currentFormName
+        self.eyebrow = eyebrow
+        self.headline = headline
+        self.detail = detail
+        self.secondaryDetail = secondaryDetail
+        self.footer = footer
+        self.symbolName = symbolName
+        self.fileName = fileName
+        self.createdAt = createdAt
+    }
+}
+
+public struct AtlasMascotMomentRecord: Codable, Equatable, Sendable, Identifiable {
+    public var selection: AtlasMascotSelection
+    public var stage: AtlasMascotStage
+    public var kind: AtlasMascotMomentKind
+    public var title: String
+    public var detail: String
+    public var symbolName: String
+    public var recordedAt: String
+    public var eventKey: String?
+
+    public var id: String {
+        if let eventKey, eventKey.isEmpty == false {
+            return "\(selection.rawValue)-\(eventKey)"
+        }
+        return "\(selection.rawValue)-\(kind.rawValue)-\(recordedAt)-\(title)"
+    }
+
+    public init(
+        selection: AtlasMascotSelection,
+        stage: AtlasMascotStage,
+        kind: AtlasMascotMomentKind,
+        title: String,
+        detail: String,
+        symbolName: String,
+        recordedAt: String,
+        eventKey: String? = nil
+    ) {
+        self.selection = selection
+        self.stage = stage
+        self.kind = kind
+        self.title = title
+        self.detail = detail
+        self.symbolName = symbolName
+        self.recordedAt = recordedAt
+        self.eventKey = eventKey
+    }
+}
+
 public struct AtlasSettingsSnapshot: Sendable, Equatable {
     public var accountMode: AtlasAccountMode
     public var accountStartMode: AtlasOnboardingAccountMode?
@@ -621,6 +905,14 @@ public struct AtlasSettingsSnapshot: Sendable, Equatable {
     public var syncStatus: AtlasSyncScaffoldStatus
     public var healthScaffold: AtlasHealthScaffoldSnapshot
     public var trustVaultStatus: TrustVaultStatus
+    public var mascotSelection: AtlasMascotSelection
+    public var mascotNickname: String?
+    public var mascotSelectionConfirmed: Bool
+    public var mascotUnlocks: [AtlasMascotUnlockSnapshot]
+    public var mascotEvolutionHistory: [AtlasMascotEvolutionRecord]
+    public var mascotMoments: [AtlasMascotMomentRecord]
+    public var mascotArchivedRecaps: [AtlasMascotArchivedRecapRecord]
+    public var mascotRecapNotificationSettings: AtlasMascotRecapNotificationSettings
     public var summarySettings: AtlasSummarySettingsSnapshot
     public var retentionSettings: AtlasRetentionSettingsSnapshot
     public var rewardsSettings: AtlasRewardsSettingsSnapshot
@@ -632,6 +924,16 @@ public struct AtlasSettingsSnapshot: Sendable, Equatable {
         syncStatus: AtlasSyncScaffoldStatus = .localOnly,
         healthScaffold: AtlasHealthScaffoldSnapshot = .init(),
         trustVaultStatus: TrustVaultStatus = .init(),
+        mascotSelection: AtlasMascotSelection = .aetherion,
+        mascotNickname: String? = nil,
+        mascotSelectionConfirmed: Bool = false,
+        mascotUnlocks: [AtlasMascotUnlockSnapshot] = AtlasMascotSelection.allCases.map {
+            AtlasMascotUnlockSnapshot(selection: $0, highestUnlockedStage: .stage1)
+        },
+        mascotEvolutionHistory: [AtlasMascotEvolutionRecord] = [],
+        mascotMoments: [AtlasMascotMomentRecord] = [],
+        mascotArchivedRecaps: [AtlasMascotArchivedRecapRecord] = [],
+        mascotRecapNotificationSettings: AtlasMascotRecapNotificationSettings = .init(),
         summarySettings: AtlasSummarySettingsSnapshot = .init(),
         retentionSettings: AtlasRetentionSettingsSnapshot = .init(),
         rewardsSettings: AtlasRewardsSettingsSnapshot = .init()
@@ -642,9 +944,21 @@ public struct AtlasSettingsSnapshot: Sendable, Equatable {
         self.syncStatus = syncStatus
         self.healthScaffold = healthScaffold
         self.trustVaultStatus = trustVaultStatus
+        self.mascotSelection = mascotSelection
+        self.mascotNickname = mascotNickname
+        self.mascotSelectionConfirmed = mascotSelectionConfirmed
+        self.mascotUnlocks = mascotUnlocks
+        self.mascotEvolutionHistory = mascotEvolutionHistory
+        self.mascotMoments = mascotMoments
+        self.mascotArchivedRecaps = mascotArchivedRecaps
+        self.mascotRecapNotificationSettings = mascotRecapNotificationSettings
         self.summarySettings = summarySettings
         self.retentionSettings = retentionSettings
         self.rewardsSettings = rewardsSettings
+    }
+
+    public func highestUnlockedStage(for selection: AtlasMascotSelection) -> AtlasMascotStage {
+        mascotUnlocks.first(where: { $0.selection == selection })?.highestUnlockedStage ?? .stage1
     }
 }
 
@@ -799,12 +1113,86 @@ public struct AtlasSharedFeatureFlagProjection: Codable, Equatable, Sendable {
     }
 }
 
+public enum AtlasSharedMascotPose: String, Codable, Equatable, Sendable {
+    case idle
+    case happy
+    case recovery
+    case evolutionReady
+    case milestone
+    case rest
+}
+
+public struct AtlasSharedMascotSnapshot: Codable, Equatable, Sendable {
+    public var selection: AtlasMascotSelection
+    public var nickname: String?
+    public var displayName: String
+    public var stage: AtlasMascotStage
+    public var pose: AtlasSharedMascotPose
+    public var currentFormName: String
+    public var nextFormName: String?
+    public var nextThresholdPoints: Int?
+    public var totalPoints: Int
+    public var milestoneHeadline: String
+    public var progressLabel: String
+    public var statusLine: String
+    public var reactionTitle: String?
+    public var reactionSymbolName: String?
+    public var lastEvolution: AtlasMascotEvolutionRecord?
+    public var latestMomentTitle: String?
+    public var latestMomentDetail: String?
+    public var latestMomentSymbolName: String?
+    public var latestMomentRecordedAt: String?
+
+    public init(
+        selection: AtlasMascotSelection,
+        nickname: String? = nil,
+        displayName: String,
+        stage: AtlasMascotStage,
+        pose: AtlasSharedMascotPose,
+        currentFormName: String,
+        nextFormName: String?,
+        nextThresholdPoints: Int?,
+        totalPoints: Int,
+        milestoneHeadline: String,
+        progressLabel: String,
+        statusLine: String,
+        reactionTitle: String? = nil,
+        reactionSymbolName: String? = nil,
+        lastEvolution: AtlasMascotEvolutionRecord? = nil,
+        latestMomentTitle: String? = nil,
+        latestMomentDetail: String? = nil,
+        latestMomentSymbolName: String? = nil,
+        latestMomentRecordedAt: String? = nil
+    ) {
+        self.selection = selection
+        self.nickname = nickname
+        self.displayName = displayName
+        self.stage = stage
+        self.pose = pose
+        self.currentFormName = currentFormName
+        self.nextFormName = nextFormName
+        self.nextThresholdPoints = nextThresholdPoints
+        self.totalPoints = totalPoints
+        self.milestoneHeadline = milestoneHeadline
+        self.progressLabel = progressLabel
+        self.statusLine = statusLine
+        self.reactionTitle = reactionTitle
+        self.reactionSymbolName = reactionSymbolName
+        self.lastEvolution = lastEvolution
+        self.latestMomentTitle = latestMomentTitle
+        self.latestMomentDetail = latestMomentDetail
+        self.latestMomentSymbolName = latestMomentSymbolName
+        self.latestMomentRecordedAt = latestMomentRecordedAt
+    }
+}
+
 public struct AtlasSharedExtensionProjectionSnapshot: Codable, Equatable, Sendable {
     public var generatedAt: String
     public var renderMode: AtlasPrivacyRenderMode
     public var nextDue: AtlasSharedNextDueSnapshot?
     public var quickActions: [AtlasSharedQuickAction]
     public var lowStock: AtlasSharedLowStockSnapshot
+    public var mascot: AtlasSharedMascotSnapshot?
     public var featureFlags: AtlasSharedFeatureFlagProjection
 
     public init(
@@ -813,6 +1201,7 @@ public struct AtlasSharedExtensionProjectionSnapshot: Codable, Equatable, Sendab
         nextDue: AtlasSharedNextDueSnapshot?,
         quickActions: [AtlasSharedQuickAction],
         lowStock: AtlasSharedLowStockSnapshot,
+        mascot: AtlasSharedMascotSnapshot? = nil,
         featureFlags: AtlasSharedFeatureFlagProjection
     ) {
         self.generatedAt = generatedAt
@@ -820,6 +1209,7 @@ public struct AtlasSharedExtensionProjectionSnapshot: Codable, Equatable, Sendab
         self.nextDue = nextDue
         self.quickActions = quickActions
         self.lowStock = lowStock
+        self.mascot = mascot
         self.featureFlags = featureFlags
     }
 }

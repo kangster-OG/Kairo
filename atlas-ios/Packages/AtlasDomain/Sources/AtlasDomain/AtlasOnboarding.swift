@@ -49,6 +49,7 @@ public enum AtlasOnboardingStep: String, Codable, CaseIterable, Identifiable, Se
     case privacyMode
     case trackType
     case profile
+    case mascot
     case glpSetup
     case peptideSetup
     case connectApps
@@ -78,6 +79,8 @@ public struct AtlasOnboardingPrivacy: Codable, Equatable, Sendable {
 
 public struct AtlasOnboardingProfile: Codable, Equatable, Sendable {
     public var gender: String?
+    public var mascotSelection: AtlasMascotSelection?
+    public var mascotNickname: String?
     public var age: Int?
     public var goalWeight: Double?
     public var height: Double?
@@ -87,6 +90,8 @@ public struct AtlasOnboardingProfile: Codable, Equatable, Sendable {
 
     public init(
         gender: String? = nil,
+        mascotSelection: AtlasMascotSelection? = nil,
+        mascotNickname: String? = nil,
         age: Int? = nil,
         goalWeight: Double? = nil,
         height: Double? = nil,
@@ -95,6 +100,8 @@ public struct AtlasOnboardingProfile: Codable, Equatable, Sendable {
         weightUnit: AtlasWeightUnit? = nil
     ) {
         self.gender = gender
+        self.mascotSelection = mascotSelection
+        self.mascotNickname = mascotNickname
         self.age = age
         self.goalWeight = goalWeight
         self.height = height
@@ -223,7 +230,8 @@ public struct AtlasOnboardingDraft: Codable, Equatable, Sendable {
             .accountMode,
             .privacyMode,
             .trackType,
-            .profile
+            .profile,
+            .mascot
         ]
         if needsGlpSetup {
             steps.append(.glpSetup)

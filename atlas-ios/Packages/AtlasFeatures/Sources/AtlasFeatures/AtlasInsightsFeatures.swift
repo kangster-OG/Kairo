@@ -144,12 +144,33 @@ public struct AtlasInsightsScreen: View {
             .listRowInsets(EdgeInsets())
             .listRowBackground(Color.clear)
 
+            if state.rewardsSnapshot.settings.enabled {
+                Section("Mascot") {
+                    AtlasMascotHomeCard(
+                        selection: model.settingsSnapshot.mascotSelection,
+                        nickname: model.settingsSnapshot.mascotNickname,
+                        rewardsSnapshot: state.rewardsSnapshot,
+                        history: model.settingsSnapshot.mascotEvolutionHistory,
+                        moments: model.settingsSnapshot.mascotMoments,
+                        onOpenDetail: {
+                            model.open(.mascot)
+                        }
+                    )
+                }
+            }
+
             AtlasRetentionInsightSection(
                 model: model,
-                snapshot: state.retentionSnapshot
+                snapshot: state.retentionSnapshot,
+                mascotSelection: model.settingsSnapshot.mascotSelection
             )
 
-            AtlasRewardsInsightSection(snapshot: state.rewardsSnapshot)
+            AtlasRewardsInsightSection(
+                snapshot: state.rewardsSnapshot,
+                mascotSelection: model.settingsSnapshot.mascotSelection,
+                mascotNickname: model.settingsSnapshot.mascotNickname,
+                mascotHistory: model.settingsSnapshot.mascotEvolutionHistory
+            )
 
             AtlasNutritionInsightSection(snapshot: state.insightsSnapshot.nutritionSnapshot)
 

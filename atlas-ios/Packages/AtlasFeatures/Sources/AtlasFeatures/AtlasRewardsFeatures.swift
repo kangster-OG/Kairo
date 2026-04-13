@@ -4,23 +4,57 @@ import SwiftUI
 
 struct AtlasRewardsTodayCard: View {
     let snapshot: AtlasRewardsSnapshot
+    let mascotSelection: AtlasMascotSelection
+    let mascotNickname: String?
+    let mascotHistory: [AtlasMascotEvolutionRecord]
 
     var body: some View {
+        let evolution = atlasRewardsEvolutionProgress(for: snapshot, selection: mascotSelection)
+        let profile = atlasMascotProfileSummary(
+            selection: mascotSelection,
+            nickname: mascotNickname,
+            rewardsSnapshot: snapshot,
+            history: mascotHistory
+        )
+
         AtlasSectionCard {
-            HStack(alignment: .firstTextBaseline) {
+            HStack(alignment: .top, spacing: AtlasSpacing.medium) {
                 VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
-                    Text("Rewards board")
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(AtlasPalette.textPrimary)
-                    Text("Level \(snapshot.level) with \(snapshot.totalPoints) points.")
+                    HStack(alignment: .firstTextBaseline, spacing: AtlasSpacing.small) {
+                        VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
+                            Text("Rewards board")
+                                .font(.body.weight(.semibold))
+                                .foregroundStyle(AtlasPalette.textPrimary)
+                            Text("Level \(snapshot.level) with \(snapshot.totalPoints) points.")
+                                .foregroundStyle(AtlasPalette.textSecondary)
+                        }
+
+                        Spacer()
+
+                        AtlasStatusBadge(
+                            evolution.currentFormName,
+                            tint: earnedBadgeCount > 0 ? AtlasPalette.success : AtlasPalette.primary
+                        )
+                    }
+
+                    Text(evolution.milestoneHeadline)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(AtlasPalette.primary)
+
+                    Text(evolution.progressLabel)
+                        .font(.caption)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+
+                    Text(profile.statusLine)
+                        .font(.caption)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
 
-                Spacer()
-
-                AtlasStatusBadge(
-                    "\(earnedBadgeCount) badges",
-                    tint: earnedBadgeCount > 0 ? AtlasPalette.success : AtlasPalette.primary
+                AtlasMascotSprite(
+                    line: atlasMascotLine(for: mascotSelection),
+                    stage: evolution.stage,
+                    pose: atlasRewardsMascotPose(for: snapshot),
+                    size: 88
                 )
             }
 
@@ -37,6 +71,12 @@ struct AtlasRewardsTodayCard: View {
 
             if let headlineGoal {
                 AtlasRewardGoalRow(goal: headlineGoal)
+            }
+
+            if let reaction = profile.reaction {
+                Text("\(reaction.title) • \(reaction.detail)")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AtlasPalette.primary)
             }
 
             if let headlineBadge {
@@ -69,25 +109,59 @@ struct AtlasRewardsTodayCard: View {
 
 struct AtlasRewardsInsightSection: View {
     let snapshot: AtlasRewardsSnapshot
+    let mascotSelection: AtlasMascotSelection
+    let mascotNickname: String?
+    let mascotHistory: [AtlasMascotEvolutionRecord]
 
     var body: some View {
         if snapshot.settings.enabled {
+            let evolution = atlasRewardsEvolutionProgress(for: snapshot, selection: mascotSelection)
+            let profile = atlasMascotProfileSummary(
+                selection: mascotSelection,
+                nickname: mascotNickname,
+                rewardsSnapshot: snapshot,
+                history: mascotHistory
+            )
+
             Section("Rewards") {
                 AtlasSectionCard {
-                    HStack(alignment: .firstTextBaseline) {
+                    HStack(alignment: .top, spacing: AtlasSpacing.medium) {
                         VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
-                            Text("Level \(snapshot.level)")
-                                .font(.title3.weight(.semibold))
-                                .foregroundStyle(AtlasPalette.textPrimary)
-                            Text("\(snapshot.totalPoints) total points • \(snapshot.nextLevelPoints - snapshot.totalPoints) to next level")
+                            HStack(alignment: .firstTextBaseline) {
+                                VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
+                                    Text("Level \(snapshot.level)")
+                                        .font(.title3.weight(.semibold))
+                                        .foregroundStyle(AtlasPalette.textPrimary)
+                                    Text("\(snapshot.totalPoints) total points • \(snapshot.nextLevelPoints - snapshot.totalPoints) to next level")
+                                        .foregroundStyle(AtlasPalette.textSecondary)
+                                }
+
+                                Spacer()
+
+                                AtlasStatusBadge(
+                                    evolution.currentFormName,
+                                    tint: snapshot.badges.filter(\.isEarned).isEmpty ? AtlasPalette.primary : AtlasPalette.success
+                                )
+                            }
+
+                            Text(evolution.milestoneHeadline)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(AtlasPalette.primary)
+
+                            Text(evolution.progressLabel)
+                                .font(.caption)
+                                .foregroundStyle(AtlasPalette.textSecondary)
+
+                            Text(profile.statusLine)
+                                .font(.caption)
                                 .foregroundStyle(AtlasPalette.textSecondary)
                         }
 
-                        Spacer()
-
-                        AtlasStatusBadge(
-                            "\(snapshot.badges.filter(\.isEarned).count) earned",
-                            tint: AtlasPalette.success
+                        AtlasMascotSprite(
+                            line: atlasMascotLine(for: mascotSelection),
+                            stage: evolution.stage,
+                            pose: atlasRewardsMascotPose(for: snapshot),
+                            size: 96
                         )
                     }
 
@@ -101,6 +175,12 @@ struct AtlasRewardsInsightSection: View {
                         ForEach(snapshot.badges) { badge in
                             AtlasRewardBadgeRow(badge: badge)
                         }
+                    }
+
+                    if let reaction = profile.reaction {
+                        Text("\(reaction.title) • \(reaction.detail)")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(AtlasPalette.primary)
                     }
 
                     Text(snapshot.note)

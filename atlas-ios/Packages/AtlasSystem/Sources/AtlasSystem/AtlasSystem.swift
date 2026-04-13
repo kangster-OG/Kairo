@@ -18,6 +18,7 @@ public protocol NotificationManaging: Sendable {
         handler: (@Sendable (AtlasReminderNotificationResponse) async -> Void)?
     ) async throws
     func scheduleReminder(_ request: AtlasReminderScheduleRequest) async throws -> String
+    func scheduleMascotNotification(_ request: AtlasMascotNotificationRequest) async throws -> String
     func cancelReminder(identifier: String) async throws
 }
 
@@ -195,6 +196,28 @@ public actor AtlasNotificationManager: NotificationManaging {
 
         try await center.add(notificationRequest)
         return identifier
+    }
+
+    public func scheduleMascotNotification(_ request: AtlasMascotNotificationRequest) async throws -> String {
+        let content = UNMutableNotificationContent()
+        content.title = request.title
+        content.body = request.body
+        content.sound = request.isSilent ? nil : .default
+        content.userInfo = [
+            "route": request.route,
+            "notificationKind": "mascot"
+        ]
+
+        let interval = max(request.triggerAt.timeIntervalSinceNow, 1)
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: interval, repeats: false)
+        let notificationRequest = UNNotificationRequest(
+            identifier: request.identifier,
+            content: content,
+            trigger: trigger
+        )
+
+        try await center.add(notificationRequest)
+        return request.identifier
     }
 
     public func cancelReminder(identifier: String) async throws {

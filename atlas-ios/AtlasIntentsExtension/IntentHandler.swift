@@ -198,6 +198,31 @@ struct AtlasOpenTrustVaultIntent: AppIntent {
     }
 }
 
+struct AtlasOpenMascotIntent: AppIntent {
+    static let title: LocalizedStringResource = "Open Mascot"
+    static let description = IntentDescription("Open Atlas to the mascot detail screen.")
+    static let openAppWhenRun = true
+
+    func perform() async throws -> some IntentResult {
+        try AtlasPendingIntentActionStore.write(route: "mascot")
+        return .result()
+    }
+}
+
+struct AtlasCheckInWithMascotIntent: AppIntent {
+    static let title: LocalizedStringResource = "Check In With Mascot"
+    static let description = IntentDescription("Open Atlas, let the mascot react, and add a fresh mascot-moment entry.")
+    static let openAppWhenRun = true
+
+    func perform() async throws -> some IntentResult {
+        try AtlasPendingIntentActionStore.write(
+            route: "mascot-moment",
+            query: [URLQueryItem(name: "kind", value: "shortcut")]
+        )
+        return .result()
+    }
+}
+
 struct AtlasMarkNextDueTakenIntent: AppIntent {
     static let title: LocalizedStringResource = "Mark Next Due Taken"
     static let description = IntentDescription("Open Atlas and mark the projected next-due item as taken.")
@@ -335,6 +360,24 @@ struct AtlasShortcutsProvider: AppShortcutsProvider {
                 ],
                 shortTitle: "Trust Vault",
                 systemImageName: "lock.shield.fill"
+            ),
+            AppShortcut(
+                intent: AtlasOpenMascotIntent(),
+                phrases: [
+                    "Open mascot in \(.applicationName)",
+                    "Show my mascot in \(.applicationName)"
+                ],
+                shortTitle: "Open Mascot",
+                systemImageName: "sparkles.rectangle.stack"
+            ),
+            AppShortcut(
+                intent: AtlasCheckInWithMascotIntent(),
+                phrases: [
+                    "Check in with mascot in \(.applicationName)",
+                    "Capture a mascot moment in \(.applicationName)"
+                ],
+                shortTitle: "Mascot Check-In",
+                systemImageName: "sparkles"
             ),
             AppShortcut(
                 intent: AtlasMarkNextDueTakenIntent(),

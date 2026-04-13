@@ -1,0 +1,100 @@
+<svg width="1600" height="1000" viewBox="0 0 1600 1000" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="160" y1="80" x2="1440" y2="920" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1B2D4F"/>
+      <stop offset="0.55" stop-color="#355894"/>
+      <stop offset="1" stop-color="#DCE7F6"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0" y1="120" x2="0" y2="840" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" stop-opacity="0.96"/>
+      <stop offset="1" stop-color="#F4F8FD" stop-opacity="0.98"/>
+    </linearGradient>
+    <linearGradient id="orb" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#8CB2FF"/>
+      <stop offset="1" stop-color="#386CD7"/>
+    </linearGradient>
+    <linearGradient id="ember" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#FFD58A"/>
+      <stop offset="1" stop-color="#F08B2A"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="20" stdDeviation="18" flood-color="#0E1D3A" flood-opacity="0.18"/>
+    </filter>
+  </defs>
+
+  <rect width="1600" height="1000" rx="36" fill="url(#bg)"/>
+  <circle cx="1320" cy="120" r="180" fill="#8CB2FF" fill-opacity="0.16"/>
+  <circle cx="220" cy="860" r="220" fill="#FFFFFF" fill-opacity="0.12"/>
+
+  <text x="100" y="118" fill="white" font-family="Avenir Next, Helvetica, Arial, sans-serif" font-size="56" font-weight="700">Atlas Mascot Concept</text>
+  <text x="100" y="170" fill="#DCE7F6" font-family="Avenir Next, Helvetica, Arial, sans-serif" font-size="24" font-weight="500">Emberdrake line • masculine-coded guardian path • starts scrappy, ends mythic</text>
+
+  <g filter="url(#shadow)">
+    <rect x="72" y="238" width="452" height="660" rx="34" fill="url(#card)"/>
+    <rect x="574" y="238" width="452" height="660" rx="34" fill="url(#card)"/>
+    <rect x="1076" y="238" width="452" height="660" rx="34" fill="url(#card)"/>
+  </g>
+
+  <g>
+    <circle cx="298" cy="490" r="138" fill="url(#orb)" fill-opacity="0.16"/>
+    <ellipse cx="296" cy="584" rx="102" ry="88" fill="#243D69"/>
+    <ellipse cx="316" cy="500" rx="76" ry="68" fill="#2B4A7E"/>
+    <ellipse cx="239" cy="560" rx="30" ry="52" transform="rotate(-26 239 560)" fill="#243D69"/>
+    <ellipse cx="352" cy="562" rx="30" ry="52" transform="rotate(28 352 562)" fill="#243D69"/>
+    <path d="M218 542C195 510 180 478 188 446C224 454 238 474 246 512Z" fill="#355894"/>
+    <path d="M386 548C409 515 421 480 413 446C379 456 362 476 350 514Z" fill="#355894"/>
+    <path d="M330 444L344 406L364 440Z" fill="#243D69"/>
+    <path d="M272 438L250 406L246 446Z" fill="#243D69"/>
+    <ellipse cx="303" cy="548" rx="24" ry="32" fill="url(#ember)"/>
+    <circle cx="286" cy="494" r="6" fill="#F9FBFF"/>
+    <circle cx="335" cy="496" r="6" fill="#F9FBFF"/>
+    <path d="M294 514C302 520 316 520 324 514" stroke="#DCE7F6" stroke-width="5" stroke-linecap="round"/>
+    <text x="110" y="310" fill="#386CD7" font-family="Avenir Next, Helvetica, Arial, sans-serif" font-size="24" font-weight="700">FORM 1</text>
+    <text x="110" y="350" fill="#121C2D" font-family="Avenir Next, Helvetica, Arial, sans-serif" font-size="44" font-weight="700">Cindlet</text>
+    <text x="110" y="390" fill="#55627A" font-family="Avenir Next, Helvetica, Arial, sans-serif" font-size="20">Ember hatchling with oversized paws,</text>
+    <text x="110" y="420" fill="#55627A" font-family="Avenir Next, Helvetica, Arial, sans-serif" font-size="20">wing buds, and a bright core.</text>
+    <text x="110" y="814" fill="#2A4E9E" font-family="Avenir Next, Helvetica, Arial, sans-serif" font-size="22" font-weight="600">Mood</text>
+    <text x="184" y="814" fill="#55627A" font-family="Avenir Next, Helvetica, Arial, sans-serif" font-size="22">Power is coming.</text>
+  </g>
+
+  <g>
+    <circle cx="800" cy="488" r="146" fill="url(#orb)" fill-opacity="0.18"/>
+    <path d="M744 668C728 628 734 592 760 564C804 516 886 526 906 584C921 625 902 668 852 694L820 652C852 636 868 606 858 578C847 547 798 543 772 570C752 591 748 625 765 652Z" fill="#223A63"/>
+    <path d="M760 562L690 468L726 442L790 538Z" fill="#355894"/>
+    <path d="M844 544L934 454L962 492L876 570Z" fill="#355894"/>
+    <path d="M818 460L838 404L874 450Z" fill="#223A63"/>
+    <path d="M776 458L734 420L736 468Z" fill="#223A63"/>
+    <path d="M772 610L812 612L824 648L780 646Z" fill="url(#ember)"/>
+    <circle cx="782" cy="520" r="8" fill="#F9FBFF"/>
+    <circle cx="838" cy="516" r="8" fill="#F9FBFF"/>
+    <path d="M792 544C804 552 821 550 834 540" stroke="#DCE7F6" stroke-width="6" stroke-linecap="round"/>
+    <path d="M868 638C906 652 936 681 952 722" stroke="#223A63" stroke-width="20" stroke-linecap="round"/>
+    <text x="612" y="310" fill="#386CD7" font-family="Avenir Next, Helvetica, Arial, sans-serif" font-size="24" font-weight="700">FORM 2</text>
+    <text x="612" y="350" fill="#121C2D" font-family="Avenir Next, Helvetica, Arial, sans-serif" font-size="44" font-weight="700">Voltflare</text>
+    <text x="612" y="390" fill="#55627A" font-family="Avenir Next, Helvetica, Arial, sans-serif" font-size="20">Storm drake with stronger wings,</text>
+    <text x="612" y="420" fill="#55627A" font-family="Avenir Next, Helvetica, Arial, sans-serif" font-size="20">split tail energy, brighter core.</text>
+    <text x="612" y="814" fill="#2A4E9E" font-family="Avenir Next, Helvetica, Arial, sans-serif" font-size="22" font-weight="600">Mood</text>
+    <text x="686" y="814" fill="#55627A" font-family="Avenir Next, Helvetica, Arial, sans-serif" font-size="22">Momentum is real.</text>
+  </g>
+
+  <g>
+    <circle cx="1302" cy="484" r="150" fill="url(#orb)" fill-opacity="0.22"/>
+    <circle cx="1298" cy="452" r="108" stroke="#8CB2FF" stroke-width="10" stroke-dasharray="16 18" opacity="0.8"/>
+    <path d="M1202 716C1178 642 1194 566 1260 514C1330 458 1436 474 1472 556C1506 634 1466 734 1364 782L1328 718C1392 688 1420 626 1398 572C1376 518 1298 518 1254 560C1218 594 1209 646 1232 692Z" fill="#182A49"/>
+    <path d="M1254 540L1144 446L1188 404L1302 514Z" fill="#2A4E9E"/>
+    <path d="M1362 520L1498 432L1522 482L1384 556Z" fill="#2A4E9E"/>
+    <path d="M1332 416L1358 344L1408 404Z" fill="#182A49"/>
+    <path d="M1272 424L1220 364L1218 430Z" fill="#182A49"/>
+    <path d="M1280 616L1330 620L1348 674L1292 672Z" fill="url(#ember)"/>
+    <circle cx="1294" cy="496" r="9" fill="#F9FBFF"/>
+    <circle cx="1362" cy="490" r="9" fill="#F9FBFF"/>
+    <path d="M1308 528C1324 540 1344 538 1358 526" stroke="#DCE7F6" stroke-width="7" stroke-linecap="round"/>
+    <path d="M1400 686C1444 710 1478 748 1490 800" stroke="#182A49" stroke-width="24" stroke-linecap="round"/>
+    <text x="1114" y="310" fill="#386CD7" font-family="Avenir Next, Helvetica, Arial, sans-serif" font-size="24" font-weight="700">FORM 3</text>
+    <text x="1114" y="350" fill="#121C2D" font-family="Avenir Next, Helvetica, Arial, sans-serif" font-size="44" font-weight="700">Atlasdrake</text>
+    <text x="1114" y="390" fill="#55627A" font-family="Avenir Next, Helvetica, Arial, sans-serif" font-size="20">Mythic final form with cobalt armor,</text>
+    <text x="1114" y="420" fill="#55627A" font-family="Avenir Next, Helvetica, Arial, sans-serif" font-size="20">atlas halo, and ember core.</text>
+    <text x="1114" y="814" fill="#2A4E9E" font-family="Avenir Next, Helvetica, Arial, sans-serif" font-size="22" font-weight="600">Mood</text>
+    <text x="1188" y="814" fill="#55627A" font-family="Avenir Next, Helvetica, Arial, sans-serif" font-size="22">Mythic final payoff.</text>
+  </g>
+</svg>

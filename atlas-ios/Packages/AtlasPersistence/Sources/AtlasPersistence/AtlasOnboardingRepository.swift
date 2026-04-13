@@ -40,6 +40,21 @@ public struct GRDBOnboardingRepository: OnboardingRepository, Sendable {
             if let accountMode = draft.accountMode {
                 try writeAppSetting(db: db, key: "account_start_mode", value: accountMode.rawValue, now: now)
             }
+            try writeAppSetting(
+                db: db,
+                key: "mascot_nickname",
+                value: atlasMascotSanitizedNickname(draft.profile.mascotNickname),
+                now: now
+            )
+            if let mascotSelection = draft.profile.mascotSelection ?? atlasInferredMascotSelection(from: draft.profile.gender) {
+                try writeAppSetting(db: db, key: "mascot_selection", value: mascotSelection.rawValue, now: now)
+                try writeAppSetting(
+                    db: db,
+                    key: "mascot_selection_confirmed",
+                    value: draft.profile.mascotSelection == nil ? "0" : "1",
+                    now: now
+                )
+            }
             return try buildBootstrapSnapshot(db: db)
         }
     }
@@ -56,6 +71,19 @@ public struct GRDBOnboardingRepository: OnboardingRepository, Sendable {
             try writeAppSetting(db: db, key: "onboarding_completed", value: "1", now: now)
             try writeAppSetting(db: db, key: "onboarding_completed_at", value: atlasTimestamp(from: now), now: now)
             try writeAppSetting(db: db, key: "account_start_mode", value: draft.accountMode?.rawValue, now: now)
+            try writeAppSetting(
+                db: db,
+                key: "mascot_selection",
+                value: (draft.profile.mascotSelection ?? atlasInferredMascotSelection(from: draft.profile.gender) ?? .aetherion).rawValue,
+                now: now
+            )
+            try writeAppSetting(
+                db: db,
+                key: "mascot_nickname",
+                value: atlasMascotSanitizedNickname(draft.profile.mascotNickname),
+                now: now
+            )
+            try writeAppSetting(db: db, key: "mascot_selection_confirmed", value: "1", now: now)
             try writeAppSetting(
                 db: db,
                 key: "account_mode",
@@ -114,6 +142,9 @@ public struct GRDBOnboardingRepository: OnboardingRepository, Sendable {
             try writeAppSetting(db: db, key: "onboarding_completed", value: "0", now: now)
             try writeAppSetting(db: db, key: "onboarding_completed_at", value: nil, now: now)
             try writeAppSetting(db: db, key: "account_start_mode", value: nil, now: now)
+            try writeAppSetting(db: db, key: "mascot_selection", value: nil, now: now)
+            try writeAppSetting(db: db, key: "mascot_nickname", value: nil, now: now)
+            try writeAppSetting(db: db, key: "mascot_selection_confirmed", value: nil, now: now)
             return try buildBootstrapSnapshot(db: db)
         }
     }
@@ -180,9 +211,32 @@ func buildSettingsSnapshot(
         db,
         sql: "SELECT value FROM atlas_app_settings WHERE key = 'onboarding_completed'"
     )
+    let mascotSelectionRaw = try String.fetchOne(
+        db,
+        sql: "SELECT value FROM atlas_app_settings WHERE key = 'mascot_selection'"
+    )
+    let mascotSelectionConfirmedRaw = try String.fetchOne(
+        db,
+        sql: "SELECT value FROM atlas_app_settings WHERE key = 'mascot_selection_confirmed'"
+    )
+    let mascotNicknameRaw = try String.fetchOne(
+        db,
+        sql: "SELECT value FROM atlas_app_settings WHERE key = 'mascot_nickname'"
+    )
+    let mascotUnlocks = try atlasReadMascotUnlockSnapshots(db: db)
+    let mascotEvolutionHistory = try atlasReadMascotEvolutionHistory(db: db)
+    let mascotMoments = try atlasReadMascotMoments(db: db)
+    let mascotArchivedRecaps = try atlasReadMascotArchivedRecaps(db: db)
+    let mascotRecapNotificationSettings = try atlasReadMascotRecapNotificationSettings(db: db)
     let accountMode = AtlasAccountMode(rawValue: accountModeRaw ?? AtlasAccountMode.guest.rawValue) ?? .guest
     let accountStartMode = accountStartModeRaw.flatMap(AtlasOnboardingAccountMode.init(rawValue:))
     let onboardingCompleted = onboardingCompletedRaw == "1"
+    let onboardingDraft = try readDraft(db: db)
+    let mascotSelection = mascotSelectionRaw.flatMap(AtlasMascotSelection.init(rawValue:))
+        ?? onboardingDraft?.profile.mascotSelection
+        ?? atlasInferredMascotSelection(from: onboardingDraft?.profile.gender)
+        ?? .aetherion
+    let mascotSelectionConfirmed = mascotSelectionConfirmedRaw == "1"
     let profile = try AtlasPrivacyProfileDBRecord.fetchOne(db)?.domain ?? .default()
     let connections = try AtlasHealthConnectionDBRecord.fetchAll(db).map(\.domain).sorted {
         $0.providerKey.rawValue < $1.providerKey.rawValue
@@ -205,6 +259,14 @@ func buildSettingsSnapshot(
             renderMode: profile.renderMode ?? (profile.aliasModeEnabled ? .alias : .full),
             biometricLockEnabled: profile.biometricLockEnabled
         ),
+        mascotSelection: mascotSelection,
+        mascotNickname: atlasMascotSanitizedNickname(mascotNicknameRaw ?? onboardingDraft?.profile.mascotNickname),
+        mascotSelectionConfirmed: mascotSelectionConfirmed,
+        mascotUnlocks: mascotUnlocks,
+        mascotEvolutionHistory: mascotEvolutionHistory,
+        mascotMoments: mascotMoments,
+        mascotArchivedRecaps: mascotArchivedRecaps,
+        mascotRecapNotificationSettings: mascotRecapNotificationSettings,
         summarySettings: summarySettings,
         retentionSettings: retentionSettings,
         rewardsSettings: rewardsSettings
@@ -353,6 +415,111 @@ private func encodeDraft(_ draft: AtlasOnboardingDraft) throws -> String {
     encoder.outputFormatting = [.sortedKeys]
     let data = try encoder.encode(draft)
     return String(decoding: data, as: UTF8.self)
+}
+
+func atlasMascotUnlockedStageSettingKey(for selection: AtlasMascotSelection) -> String {
+    "mascot_unlocked_stage_\(selection.rawValue)"
+}
+
+func atlasReadMascotUnlockSnapshots(db: Database) throws -> [AtlasMascotUnlockSnapshot] {
+    try AtlasMascotSelection.allCases.map { selection in
+        let stageRaw = try String.fetchOne(
+            db,
+            sql: "SELECT value FROM atlas_app_settings WHERE key = ?",
+            arguments: [atlasMascotUnlockedStageSettingKey(for: selection)]
+        )
+        let stage = stageRaw.flatMap(AtlasMascotStage.init(rawValue:)) ?? .stage1
+        return AtlasMascotUnlockSnapshot(selection: selection, highestUnlockedStage: stage)
+    }
+}
+
+func atlasReadMascotEvolutionHistory(db: Database) throws -> [AtlasMascotEvolutionRecord] {
+    guard let json = try String.fetchOne(
+        db,
+        sql: "SELECT value FROM atlas_app_settings WHERE key = 'mascot_evolution_history_json'"
+    ), json.isEmpty == false else {
+        return []
+    }
+    return try JSONDecoder().decode([AtlasMascotEvolutionRecord].self, from: Data(json.utf8))
+}
+
+func atlasEncodeMascotEvolutionHistory(_ history: [AtlasMascotEvolutionRecord]) throws -> String {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys]
+    let data = try encoder.encode(history)
+    return String(decoding: data, as: UTF8.self)
+}
+
+func atlasReadMascotMoments(db: Database) throws -> [AtlasMascotMomentRecord] {
+    guard let json = try String.fetchOne(
+        db,
+        sql: "SELECT value FROM atlas_app_settings WHERE key = 'mascot_moments_json'"
+    ), json.isEmpty == false else {
+        return []
+    }
+    return try JSONDecoder().decode([AtlasMascotMomentRecord].self, from: Data(json.utf8))
+}
+
+func atlasEncodeMascotMoments(_ moments: [AtlasMascotMomentRecord]) throws -> String {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys]
+    let data = try encoder.encode(moments)
+    return String(decoding: data, as: UTF8.self)
+}
+
+func atlasReadMascotArchivedRecaps(db: Database) throws -> [AtlasMascotArchivedRecapRecord] {
+    guard let json = try String.fetchOne(
+        db,
+        sql: "SELECT value FROM atlas_app_settings WHERE key = 'mascot_archived_recaps_json'"
+    ), json.isEmpty == false else {
+        return []
+    }
+    return try JSONDecoder().decode([AtlasMascotArchivedRecapRecord].self, from: Data(json.utf8))
+}
+
+func atlasEncodeMascotArchivedRecaps(_ recaps: [AtlasMascotArchivedRecapRecord]) throws -> String {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys]
+    let data = try encoder.encode(recaps)
+    return String(decoding: data, as: UTF8.self)
+}
+
+func atlasReadMascotRecapNotificationSettings(
+    db: Database
+) throws -> AtlasMascotRecapNotificationSettings {
+    let dailyEnabled = try String.fetchOne(
+        db,
+        sql: "SELECT value FROM atlas_app_settings WHERE key = 'mascot_recap_daily_enabled'"
+    ) == "1"
+    let weeklyEnabled = try String.fetchOne(
+        db,
+        sql: "SELECT value FROM atlas_app_settings WHERE key = 'mascot_recap_weekly_enabled'"
+    ) == "1"
+    return AtlasMascotRecapNotificationSettings(
+        dailyEnabled: dailyEnabled,
+        weeklyEnabled: weeklyEnabled
+    )
+}
+
+func atlasInferredMascotSelection(from gender: String?) -> AtlasMascotSelection? {
+    guard let normalized = gender?
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .lowercased(),
+          normalized.isEmpty == false else {
+        return nil
+    }
+
+    let femaleTokens = ["female", "woman", "girl", "f", "she", "her"]
+    if femaleTokens.contains(where: { normalized == $0 || normalized.contains($0) }) {
+        return .aurielle
+    }
+
+    let maleTokens = ["male", "man", "boy", "m", "he", "him"]
+    if maleTokens.contains(where: { normalized == $0 || normalized.contains($0) }) {
+        return .aetherion
+    }
+
+    return nil
 }
 
 func writeAppSetting(

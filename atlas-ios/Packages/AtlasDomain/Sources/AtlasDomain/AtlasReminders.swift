@@ -111,3 +111,28 @@ public struct AtlasReminderNotificationResponse: Equatable, Sendable {
         self.scheduledAt = scheduledAt
     }
 }
+
+public struct AtlasMascotNotificationRequest: Equatable, Sendable {
+    public var identifier: String
+    public var title: String
+    public var body: String
+    public var triggerAt: Date
+    public var isSilent: Bool
+    public var route: String
+
+    public init(
+        identifier: String,
+        title: String,
+        body: String,
+        triggerAt: Date,
+        isSilent: Bool = false,
+        route: String = "mascot"
+    ) {
+        self.identifier = identifier
+        self.title = title
+        self.body = body
+        self.triggerAt = triggerAt
+        self.isSilent = isSilent
+        self.route = route
+    }
+}

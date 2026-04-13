@@ -223,6 +223,7 @@ public final class AtlasAppModel {
     public var trustVaultSnapshot: AtlasTrustVaultSnapshot
     public var reviewOwnerSnapshot: AtlasReviewOwnerSnapshot
     public var reviewWorkspace: AtlasReviewWorkspace?
+    public var pendingMascotCelebration: AtlasMascotCelebrationState?
     public var cloudSession: AtlasCloudSessionSnapshot?
     public var cloudStatusDescription: String
     public var isPerformingCloudAction: Bool
@@ -324,6 +325,7 @@ public final class AtlasAppModel {
         self.trustVaultSnapshot = trustVaultSnapshot
         self.reviewOwnerSnapshot = reviewOwnerSnapshot
         self.reviewWorkspace = nil
+        self.pendingMascotCelebration = nil
         self.cloudSession = nil
         self.cloudStatusDescription = dependencies.cloudSync.isConfigured()
             ? "Cloud sync is ready for sign-in."
@@ -441,6 +443,9 @@ public final class AtlasAppModel {
             rewardsSnapshot = try await rewards
             trustVaultSnapshot = try await trustVault
             reviewOwnerSnapshot = decorateReviewOwnerSnapshot(try await reviewOwner)
+            await processMascotEvolutionIfNeeded(referenceDate: now)
+            await processMascotMomentsIfNeeded(referenceDate: now)
+            await scheduleMascotRecapNotificationsIfNeeded(referenceDate: now)
             hasLoadedShellData = true
             await refreshCloudStatus()
             syncShellViewStates()
@@ -623,6 +628,81 @@ public final class AtlasAppModel {
         } catch {
             setLoadErrorMessage(error.localizedDescription)
         }
+    }
+
+    public func updateMascotSelection(_ mascotSelection: AtlasMascotSelection) async {
+        do {
+            settingsSnapshot = try await dependencies.persistence.settings.updateMascotSelection(mascotSelection, now: currentDate())
+            await refreshShellData()
+        } catch {
+            setLoadErrorMessage(error.localizedDescription)
+        }
+    }
+
+    public func updateMascotNickname(_ nickname: String?) async {
+        do {
+            settingsSnapshot = try await dependencies.persistence.settings.updateMascotNickname(nickname, now: currentDate())
+            await refreshShellData()
+        } catch {
+            setLoadErrorMessage(error.localizedDescription)
+        }
+    }
+
+    public func updateMascotRecapNotificationSettings(
+        _ recapSettings: AtlasMascotRecapNotificationSettings
+    ) async {
+        do {
+            settingsSnapshot = try await dependencies.persistence.settings.updateMascotRecapNotificationSettings(
+                recapSettings,
+                now: currentDate()
+            )
+            syncShellViewStates()
+        } catch {
+            setLoadErrorMessage(error.localizedDescription)
+        }
+    }
+
+    public func exportMascotRecapCard(
+        _ descriptor: AtlasMascotRecapDescriptor
+    ) async throws -> AtlasMascotExportArtifact {
+        let now = currentDate()
+        let artifact = try atlasExportMascotRecapCard(
+            descriptor: descriptor,
+            exportedAt: now
+        )
+        settingsSnapshot = try await dependencies.persistence.settings.recordMascotArchivedRecap(
+            artifact.archiveRecord,
+            now: now
+        )
+        syncShellViewStates()
+        return artifact
+    }
+
+    public func recordMascotInteractionMoment(kind: AtlasMascotMomentKind = .interaction) async {
+        guard settingsSnapshot.mascotSelectionConfirmed,
+              rewardsSnapshot.settings.enabled else {
+            return
+        }
+
+        do {
+            let selection = settingsSnapshot.mascotSelection
+            let stage = atlasRewardsMascotStage(for: rewardsSnapshot)
+            let moment = atlasMascotManualMoment(
+                selection: selection,
+                nickname: settingsSnapshot.mascotNickname,
+                stage: stage,
+                kind: kind,
+                recordedAt: currentDate()
+            )
+            settingsSnapshot = try await dependencies.persistence.settings.recordMascotMoment(moment, now: currentDate())
+            await refreshShellData()
+        } catch {
+            setLoadErrorMessage(error.localizedDescription)
+        }
+    }
+
+    public func dismissMascotCelebration() {
+        pendingMascotCelebration = nil
     }
 
     public func updateRewardsSettings(_ update: AtlasRewardsSettingsUpdate) async {
@@ -1248,6 +1328,18 @@ public final class AtlasAppModel {
         case "today":
             routePath.removeAll()
             activeTab = .today
+        case "mascot":
+            routePath.removeAll()
+            activeTab = .today
+            open(.mascot)
+        case "mascot-moment":
+            routePath.removeAll()
+            activeTab = .today
+            let kind = AtlasMascotMomentKind(
+                rawValue: atlasURLValue("kind", in: query)?.lowercased() ?? ""
+            ) ?? .shortcut
+            await recordMascotInteractionMoment(kind: kind)
+            open(.mascot)
         case "inventory", "supplies":
             routePath.removeAll()
             activeTab = .library
@@ -1496,6 +1588,106 @@ public final class AtlasAppModel {
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter
     }()
+
+    private func processMascotEvolutionIfNeeded(referenceDate: Date) async {
+        guard settingsSnapshot.mascotSelectionConfirmed,
+              rewardsSnapshot.settings.enabled else {
+            return
+        }
+
+        let selection = settingsSnapshot.mascotSelection
+        let evolution = atlasRewardsEvolutionProgress(for: rewardsSnapshot, selection: selection)
+        let unlockedStage = settingsSnapshot.highestUnlockedStage(for: selection)
+
+        guard evolution.stage.rank > unlockedStage.rank,
+              evolution.stage != .stage1 else {
+            return
+        }
+
+        do {
+            let missingStages = AtlasMascotStage.allCases.filter {
+                $0 != .stage1 && $0.rank > unlockedStage.rank && $0.rank <= evolution.stage.rank
+            }
+
+            for stage in missingStages {
+                settingsSnapshot = try await dependencies.persistence.settings.recordMascotEvolution(
+                    selection: selection,
+                    stage: stage,
+                    earnedAt: referenceDate,
+                    now: referenceDate
+                )
+            }
+
+            pendingMascotCelebration = AtlasMascotCelebrationState(
+                selection: selection,
+                stage: evolution.stage,
+                totalPoints: rewardsSnapshot.totalPoints,
+                earnedAt: referenceDate
+            )
+        } catch {
+            setLoadErrorMessage(error.localizedDescription)
+        }
+    }
+
+    private func processMascotMomentsIfNeeded(referenceDate: Date) async {
+        guard settingsSnapshot.mascotSelectionConfirmed,
+              rewardsSnapshot.settings.enabled else {
+            return
+        }
+
+        let selection = settingsSnapshot.mascotSelection
+        let candidates = atlasMascotAutomaticMomentCandidates(
+            selection: selection,
+            nickname: settingsSnapshot.mascotNickname,
+            rewardsSnapshot: rewardsSnapshot,
+            evolutionHistory: settingsSnapshot.mascotEvolutionHistory,
+            existingMoments: settingsSnapshot.mascotMoments,
+            recordedAt: referenceDate
+        )
+
+        guard candidates.isEmpty == false else {
+            return
+        }
+
+        do {
+            for candidate in candidates {
+                settingsSnapshot = try await dependencies.persistence.settings.recordMascotMoment(
+                    candidate,
+                    now: referenceDate
+                )
+
+                if let request = atlasMascotNotificationRequest(
+                    for: candidate,
+                    referenceDate: referenceDate
+                ) {
+                    _ = try? await dependencies.notifications.scheduleMascotNotification(request)
+                }
+            }
+        } catch {
+            setLoadErrorMessage(error.localizedDescription)
+        }
+    }
+
+    private func scheduleMascotRecapNotificationsIfNeeded(referenceDate: Date) async {
+        guard settingsSnapshot.mascotSelectionConfirmed,
+              rewardsSnapshot.settings.enabled else {
+            return
+        }
+
+        let requests = atlasMascotTimelineNotificationRequests(
+            selection: settingsSnapshot.mascotSelection,
+            nickname: settingsSnapshot.mascotNickname,
+            notificationSettings: settingsSnapshot.mascotRecapNotificationSettings,
+            rewardsSnapshot: rewardsSnapshot,
+            evolutionHistory: settingsSnapshot.mascotEvolutionHistory,
+            moments: settingsSnapshot.mascotMoments,
+            referenceDate: referenceDate
+        )
+
+        for request in requests {
+            _ = try? await dependencies.notifications.scheduleMascotNotification(request)
+        }
+    }
 }
 
 private enum AtlasCloudRestoreError: LocalizedError {
@@ -1538,6 +1730,8 @@ public struct AtlasRootView: View {
                             AtlasProtocolChangeStudioScreen(model: model, protocolID: id)
                         case .inventory:
                             AtlasInventoryScreen(model: model)
+                        case .mascot:
+                            AtlasMascotDetailScreen(model: model)
                         case .calculator:
                             AtlasCalculatorScreen(model: model)
                         case .trustVault:
@@ -1567,6 +1761,20 @@ private struct AtlasShellView: View {
 
             currentScreen
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        }
+        .sheet(
+            item: Binding(
+                get: { model.pendingMascotCelebration },
+                set: { value in
+                    if value == nil {
+                        model.dismissMascotCelebration()
+                    }
+                }
+            )
+        ) { celebration in
+            AtlasMascotCelebrationSheet(celebration: celebration) {
+                model.dismissMascotCelebration()
+            }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             AtlasBottomTabBar(selection: $model.activeTab)
@@ -1789,14 +1997,50 @@ public struct AtlasTodayScreen: View {
                 )
             }
 
+            if atlasShouldPromptForMascotConfirmation(
+                bootstrapSnapshot: model.bootstrapSnapshot,
+                settingsSnapshot: model.settingsSnapshot
+            ) {
+                AtlasRootSectionHeader("Mascot line")
+                AtlasMascotConfirmationCard(
+                    bootstrapReason: model.bootstrapSnapshot.reason,
+                    currentSelection: model.settingsSnapshot.mascotSelection
+                ) { selection in
+                    Task { await model.updateMascotSelection(selection) }
+                }
+            }
+
+            if state.rewardsSnapshot.settings.enabled {
+                AtlasRootSectionHeader("Mascot")
+                AtlasMascotHomeCard(
+                    selection: model.settingsSnapshot.mascotSelection,
+                    nickname: model.settingsSnapshot.mascotNickname,
+                    rewardsSnapshot: state.rewardsSnapshot,
+                    history: model.settingsSnapshot.mascotEvolutionHistory,
+                    moments: model.settingsSnapshot.mascotMoments,
+                    onOpenDetail: {
+                        model.open(.mascot)
+                    }
+                )
+            }
+
             if state.rewardsSnapshot.settings.enabled {
                 AtlasRootSectionHeader("Rewards")
-                AtlasRewardsTodayCard(snapshot: state.rewardsSnapshot)
+                AtlasRewardsTodayCard(
+                    snapshot: state.rewardsSnapshot,
+                    mascotSelection: model.settingsSnapshot.mascotSelection,
+                    mascotNickname: model.settingsSnapshot.mascotNickname,
+                    mascotHistory: model.settingsSnapshot.mascotEvolutionHistory
+                )
             }
 
             if state.retentionSnapshot.settings.progressEnabled {
                 AtlasRootSectionHeader("Calm continuity")
-                AtlasRetentionTodayCard(model: model, snapshot: state.retentionSnapshot)
+                AtlasRetentionTodayCard(
+                    model: model,
+                    snapshot: state.retentionSnapshot,
+                    mascotSelection: model.settingsSnapshot.mascotSelection
+                )
             }
 
             if state.todaySnapshot.overdue.isEmpty == false {
@@ -2392,6 +2636,7 @@ public struct AtlasSettingsScreen: View {
     let state: AtlasSettingsViewState
     @State private var cloudEmail = ""
     @State private var cloudPassword = ""
+    @State private var mascotNicknameDraft = ""
 
     public var body: some View {
         AtlasRootScrollSurface {
@@ -2631,6 +2876,101 @@ public struct AtlasSettingsScreen: View {
                 Text("Self-defined rewards use Yes/No custom metrics from Insights. Weight milestones automatically use the goal weight from onboarding when Atlas has one, but stay descriptive instead of over-rewarding every change.")
                     .font(.caption)
                     .foregroundStyle(AtlasPalette.textSecondary)
+
+                Picker(
+                    "Mascot line",
+                    selection: Binding(
+                        get: { state.settingsSnapshot.mascotSelection },
+                        set: { value in
+                            state.settingsSnapshot.mascotSelection = value
+                            state.settingsSnapshot.mascotSelectionConfirmed = true
+                            model.settingsSnapshot.mascotSelection = value
+                            model.settingsSnapshot.mascotSelectionConfirmed = true
+                            Task { await model.updateMascotSelection(value) }
+                        }
+                    )
+                ) {
+                    ForEach(AtlasMascotSelection.allCases, id: \.self) { selection in
+                        Text(selection.title).tag(selection)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                Text("Mascot selection applies across rewards, calm continuity, and companion previews. You can change it any time.")
+                    .font(.caption)
+                    .foregroundStyle(AtlasPalette.textSecondary)
+
+                TextField("Mascot nickname", text: $mascotNicknameDraft)
+                    .autocorrectionDisabled()
+                    .atlasStandaloneInputSurface()
+
+                HStack(spacing: AtlasSpacing.small) {
+                    Button("Save nickname") {
+                        Task { await model.updateMascotNickname(mascotNicknameDraft) }
+                    }
+                    .buttonStyle(AtlasPrimaryButtonStyle())
+
+                    Button("Use form name") {
+                        mascotNicknameDraft = ""
+                        Task { await model.updateMascotNickname(nil) }
+                    }
+                    .buttonStyle(AtlasSecondaryButtonStyle())
+                }
+
+                Text(
+                    atlasMascotSanitizedNickname(state.settingsSnapshot.mascotNickname) == nil
+                        ? "Atlas is currently using the active form name everywhere."
+                        : "Current mascot nickname: \(state.settingsSnapshot.mascotNickname ?? "")"
+                )
+                .font(.caption)
+                .foregroundStyle(AtlasPalette.textSecondary)
+
+                Button("Open mascot detail") {
+                    model.open(.mascot)
+                }
+                .buttonStyle(AtlasSecondaryButtonStyle())
+
+                AtlasSettingsToggleRow(
+                    title: "Daily mascot recaps",
+                    subtitle: "Allow Atlas to schedule a nightly mascot recap notification when there was meaningful progress that day.",
+                    isOn: Binding(
+                        get: { state.settingsSnapshot.mascotRecapNotificationSettings.dailyEnabled },
+                        set: { value in
+                            state.settingsSnapshot.mascotRecapNotificationSettings.dailyEnabled = value
+                            model.settingsSnapshot.mascotRecapNotificationSettings.dailyEnabled = value
+                            let updatedSettings = state.settingsSnapshot.mascotRecapNotificationSettings
+                            Task {
+                                await model.updateMascotRecapNotificationSettings(updatedSettings)
+                            }
+                        }
+                    )
+                )
+
+                AtlasSettingsToggleRow(
+                    title: "Weekly mascot recaps",
+                    subtitle: "Allow Atlas to schedule a weekly mascot recap notification after a meaningful week of mascot progress.",
+                    isOn: Binding(
+                        get: { state.settingsSnapshot.mascotRecapNotificationSettings.weeklyEnabled },
+                        set: { value in
+                            state.settingsSnapshot.mascotRecapNotificationSettings.weeklyEnabled = value
+                            model.settingsSnapshot.mascotRecapNotificationSettings.weeklyEnabled = value
+                            let updatedSettings = state.settingsSnapshot.mascotRecapNotificationSettings
+                            Task {
+                                await model.updateMascotRecapNotificationSettings(updatedSettings)
+                            }
+                        }
+                    )
+                )
+
+                Text("Mascot recap notifications stay privacy-aware, only schedule when there was meaningful progress, and still respect Atlas notification permission on this device.")
+                    .font(.caption)
+                    .foregroundStyle(AtlasPalette.textSecondary)
+
+                if state.settingsSnapshot.mascotSelectionConfirmed == false {
+                    Text("Atlas is still using a starting default for this line. Changing it here confirms your choice and dismisses the one-time Today prompt.")
+                        .font(.caption)
+                        .foregroundStyle(AtlasPalette.primary)
+                }
             }
 
             AtlasSectionCard(title: "Calm continuity") {
@@ -2695,6 +3035,7 @@ public struct AtlasSettingsScreen: View {
                             subtitle: "The companion stays hidden until Atlas has a calm continuity update.",
                             systemImage: "circle.dashed"
                         ),
+                        mascotSelection: state.settingsSnapshot.mascotSelection,
                         title: "Companion preview",
                         caption: state.settingsSnapshot.retentionSettings.companionEnabled
                             ? "This is the current restrained companion style."
@@ -2845,6 +3186,11 @@ public struct AtlasSettingsScreen: View {
                     .foregroundStyle(AtlasPalette.textSecondary)
                 Text(model.dependencies.diagnostics.statusDescription())
                     .foregroundStyle(AtlasPalette.textSecondary)
+            }
+        }
+        .task(id: state.settingsSnapshot.mascotNickname ?? "") {
+            if mascotNicknameDraft != (state.settingsSnapshot.mascotNickname ?? "") {
+                mascotNicknameDraft = state.settingsSnapshot.mascotNickname ?? ""
             }
         }
     }

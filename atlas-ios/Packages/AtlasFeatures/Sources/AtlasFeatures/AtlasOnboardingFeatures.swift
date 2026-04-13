@@ -93,6 +93,8 @@ public struct AtlasOnboardingFlowScreen: View {
             AtlasOnboardingTrackTypeStep(model: model, draft: draft)
         case .profile:
             AtlasOnboardingProfileStep(model: model, draft: draft)
+        case .mascot:
+            AtlasOnboardingMascotStep(model: model, draft: draft)
         case .glpSetup:
             AtlasOnboardingGlpStep(model: model, draft: draft)
         case .peptideSetup:
@@ -123,7 +125,7 @@ public struct AtlasOnboardingFlowScreen: View {
         switch step {
         case .intro:
             "Sign in"
-        case .profile, .glpSetup, .peptideSetup:
+        case .profile, .mascot, .glpSetup, .peptideSetup:
             "Skip for now"
         case .connectApps:
             "Open later"
@@ -143,7 +145,7 @@ public struct AtlasOnboardingFlowScreen: View {
                     model.activeOnboardingStep = .accountMode
                 }
             }
-        case .profile, .glpSetup, .peptideSetup:
+        case .profile, .mascot, .glpSetup, .peptideSetup:
             return {
                 AtlasKeyboard.dismiss()
                 model.advanceOnboarding()
@@ -535,6 +537,10 @@ private struct AtlasOnboardingProfileStep: View {
                     }
                 }
 
+                Text("Atlas will preview both mascot lines and let you pick and name one on the next step.")
+                    .font(.caption)
+                    .foregroundStyle(AtlasPalette.textSecondary)
+
                 AtlasOnboardingStepperRow(
                     title: "Age",
                     subtitle: "Use the counter for a bounded value instead of typing freeform text.",
@@ -644,6 +650,184 @@ private struct AtlasOnboardingProfileStep: View {
                     unitLabel: draft.profile.weightUnit == .kg ? "kg" : "lb"
                 )
             }
+        }
+    }
+}
+
+private struct AtlasOnboardingMascotStep: View {
+    let model: AtlasAppModel
+    let draft: AtlasOnboardingDraft
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AtlasSpacing.large) {
+            AtlasOnboardingTitle(
+                title: "Choose and name your mascot",
+                subtitle: "Pick the guardian line Atlas should use across rewards, calm continuity, celebrations, and widgets. The nickname is optional and editable later."
+            )
+
+            AtlasSectionCard(style: .utility, title: "Nickname") {
+                AtlasOnboardingDraftField(
+                    title: "Mascot nickname",
+                    initialValue: draft.profile.mascotNickname ?? ""
+                ) { value in
+                    await model.updateOnboardingDraft { current in
+                        current.profile.mascotNickname = value.nilIfBlank
+                    }
+                }
+
+                Text("Leave it empty if you want Atlas to use the current form name instead.")
+                    .font(.caption)
+                    .foregroundStyle(AtlasPalette.textSecondary)
+            }
+
+            VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+                Text("Evolution lines")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AtlasPalette.primary)
+                    .textCase(.uppercase)
+
+                VStack(spacing: AtlasSpacing.medium) {
+                    ForEach(AtlasMascotSelection.allCases, id: \.self) { selection in
+                        AtlasOnboardingMascotChoiceCard(
+                            selection: selection,
+                            nickname: draft.profile.mascotNickname,
+                            isSelected: draft.profile.mascotSelection == selection
+                        ) {
+                            Task {
+                                await model.updateOnboardingDraft { current in
+                                    current.profile.mascotSelection = selection
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            AtlasSectionCard(style: .utility, title: "How Atlas uses this") {
+                Text("The chosen line shows up on Today, Insights, mascot milestones, and widgets. If you skip this step, Atlas can still choose a calm starting default and you can always change it later in Settings.")
+                    .foregroundStyle(AtlasPalette.textSecondary)
+            }
+        }
+    }
+}
+
+private struct AtlasOnboardingMascotChoiceCard: View {
+    let selection: AtlasMascotSelection
+    let nickname: String?
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: AtlasSpacing.medium) {
+                HStack(alignment: .top, spacing: AtlasSpacing.medium) {
+                    VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+                        HStack(spacing: AtlasSpacing.small) {
+                            Text(selection.title)
+                                .font(.body.weight(.semibold))
+                                .foregroundStyle(AtlasPalette.textPrimary)
+
+                            AtlasStatusBadge(
+                                isSelected ? "Selected" : "Choose",
+                                tint: isSelected ? AtlasPalette.success : AtlasPalette.primary
+                            )
+                        }
+
+                        Text(selection.subtitle)
+                            .font(.caption)
+                            .foregroundStyle(AtlasPalette.textSecondary)
+
+                        Text(nicknamePreview)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(AtlasPalette.primary)
+                    }
+
+                    Spacer(minLength: 0)
+
+                    AtlasMascotIllustration(
+                        line: atlasMascotLine(for: selection),
+                        stage: .stage3,
+                        size: 108
+                    )
+                }
+
+                HStack(spacing: AtlasSpacing.small) {
+                    AtlasOnboardingMascotStagePreview(selection: selection, stage: .stage1)
+                    AtlasOnboardingMascotStagePreview(selection: selection, stage: .stage2)
+                    AtlasOnboardingMascotStagePreview(selection: selection, stage: .stage3)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(14)
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: isSelected
+                                ? [Color.white.opacity(0.98), AtlasPalette.secondaryFill]
+                                : [Color.white.opacity(0.96), AtlasPalette.surfaceSecondary],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(isSelected ? AtlasPalette.primary.opacity(0.45) : Color.white.opacity(0.82), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var nicknamePreview: String {
+        guard let nickname = atlasMascotSanitizedNickname(nickname) else {
+            return "Default starter name: \(selection.stage1Title)"
+        }
+        return "Nickname preview: \(nickname)"
+    }
+}
+
+private struct AtlasOnboardingMascotStagePreview: View {
+    let selection: AtlasMascotSelection
+    let stage: AtlasMascotStage
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            AtlasMascotSprite(
+                line: atlasMascotLine(for: selection),
+                stage: stage,
+                pose: .idle,
+                size: 52
+            )
+
+            Text(selection.title(for: stage))
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(AtlasPalette.textPrimary)
+
+            Text(stageLabel)
+                .font(.caption2)
+                .foregroundStyle(AtlasPalette.textSecondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color.white.opacity(0.88))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(AtlasPalette.border.opacity(0.8), lineWidth: 1)
+        )
+    }
+
+    private var stageLabel: String {
+        switch stage {
+        case .stage1:
+            return "Starter"
+        case .stage2:
+            return "Evolution"
+        case .stage3:
+            return "Final form"
         }
     }
 }

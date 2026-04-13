@@ -228,6 +228,390 @@ final class AtlasPhaseOneTests: XCTestCase {
         XCTAssertEqual(snapshot.lowStock.items.first?.detail, "Procurement review now.")
     }
 
+    func testOnboardingSequenceIncludesDedicatedMascotStepAfterProfile() {
+        let sequence = AtlasOnboardingDraft.empty().sequence()
+
+        XCTAssertTrue(sequence.contains(.mascot))
+        XCTAssertEqual(sequence.firstIndex(of: .profile).map { sequence.index(after: $0) }.flatMap { sequence.indices.contains($0) ? sequence[$0] : nil }, .mascot)
+    }
+
+    func testMascotMilestoneThresholdsResolveExpectedStages() {
+        XCTAssertEqual(AtlasMascotMilestone.stage(for: 0), .stage1)
+        XCTAssertEqual(AtlasMascotMilestone.stage(for: 499), .stage1)
+        XCTAssertEqual(AtlasMascotMilestone.stage(for: 500), .stage2)
+        XCTAssertEqual(AtlasMascotMilestone.stage(for: 1_249), .stage2)
+        XCTAssertEqual(AtlasMascotMilestone.stage(for: 1_250), .stage3)
+        XCTAssertEqual(AtlasMascotMilestone.nextThreshold(after: .stage1), 500)
+        XCTAssertEqual(AtlasMascotMilestone.nextThreshold(after: .stage2), 1_250)
+        XCTAssertNil(AtlasMascotMilestone.nextThreshold(after: .stage3))
+    }
+
+    func testMascotEvolutionPersistenceDeduplicatesHistoryAndUnlocksHighestStage() async throws {
+        let controller = try makeInMemoryController()
+        let now = Date(timeIntervalSince1970: 1_773_950_400)
+
+        _ = try await controller.container.settings.updateMascotSelection(.aetherion, now: now)
+        _ = try await controller.container.settings.recordMascotEvolution(
+            selection: .aetherion,
+            stage: .stage2,
+            earnedAt: now,
+            now: now
+        )
+        let snapshot = try await controller.container.settings.recordMascotEvolution(
+            selection: .aetherion,
+            stage: .stage2,
+            earnedAt: now.addingTimeInterval(60),
+            now: now.addingTimeInterval(60)
+        )
+
+        XCTAssertEqual(snapshot.highestUnlockedStage(for: .aetherion), .stage2)
+        XCTAssertEqual(snapshot.mascotEvolutionHistory.filter { $0.selection == .aetherion && $0.stage == .stage2 }.count, 1)
+        XCTAssertEqual(snapshot.mascotEvolutionHistory.first?.selection, .aetherion)
+        XCTAssertEqual(snapshot.mascotEvolutionHistory.first?.stage, .stage2)
+    }
+
+    func testMascotMomentPersistenceDeduplicatesStableEventKeys() async throws {
+        let controller = try makeInMemoryController()
+        let now = Date(timeIntervalSince1970: 1_773_950_400)
+
+        let first = AtlasMascotMomentRecord(
+            selection: .aurielle,
+            stage: .stage1,
+            kind: .goal,
+            title: "Nova noticed a goal closeout",
+            detail: "Weekly goal complete.",
+            symbolName: "flag.checkered",
+            recordedAt: atlasMascotMomentTimestamp(from: now),
+            eventKey: "goal-aurielle-weekly_workouts"
+        )
+        _ = try await controller.container.settings.recordMascotMoment(first, now: now)
+
+        let second = AtlasMascotMomentRecord(
+            selection: .aurielle,
+            stage: .stage1,
+            kind: .goal,
+            title: "Nova noticed a goal closeout",
+            detail: "Weekly goal complete.",
+            symbolName: "flag.checkered",
+            recordedAt: atlasMascotMomentTimestamp(from: now.addingTimeInterval(60)),
+            eventKey: "goal-aurielle-weekly_workouts"
+        )
+        let snapshot = try await controller.container.settings.recordMascotMoment(
+            second,
+            now: now.addingTimeInterval(60)
+        )
+
+        XCTAssertEqual(snapshot.mascotMoments.count, 1)
+        XCTAssertEqual(snapshot.mascotMoments.first?.eventKey, "goal-aurielle-weekly_workouts")
+    }
+
+    func testMascotAutomaticMomentCandidatesUseRecoveryCopyForOneDayStreak() {
+        let snapshot = AtlasRewardsSnapshot(
+            settings: AtlasRewardsSettingsSnapshot(enabled: true),
+            totalPoints: 120,
+            streaks: [
+                AtlasRewardStreakSnapshot(
+                    kind: .activityDays,
+                    title: "Workout streak",
+                    valueLabel: "1 day",
+                    helperText: "Momentum restarted.",
+                    symbolName: "figure.run",
+                    count: 1,
+                    isActive: true
+                )
+            ]
+        )
+
+        let moments = atlasMascotAutomaticMomentCandidates(
+            selection: .aurielle,
+            nickname: "Nova",
+            rewardsSnapshot: snapshot,
+            evolutionHistory: [],
+            existingMoments: [],
+            recordedAt: Date(timeIntervalSince1970: 1_773_950_400)
+        )
+
+        XCTAssertEqual(moments.count, 1)
+        XCTAssertEqual(moments.first?.kind, .streak)
+        XCTAssertEqual(moments.first?.title, "Nova restarted a streak")
+        XCTAssertEqual(moments.first?.detail, "Workout streak is back on track.")
+        XCTAssertEqual(moments.first?.symbolName, "arrow.clockwise.circle.fill")
+    }
+
+    func testMascotNotificationRequestOnlyReturnsEvolutionAndRecoveryEvents() {
+        let referenceDate = Date(timeIntervalSince1970: 1_773_950_400)
+        let evolution = AtlasMascotMomentRecord(
+            selection: .aetherion,
+            stage: .stage2,
+            kind: .evolution,
+            title: "Voltflare unlocked",
+            detail: "Aetherion reached the second form.",
+            symbolName: "sparkles",
+            recordedAt: atlasMascotMomentTimestamp(from: referenceDate),
+            eventKey: "evolution-aetherion-stage2"
+        )
+        let recovery = AtlasMascotMomentRecord(
+            selection: .aurielle,
+            stage: .stage1,
+            kind: .streak,
+            title: "Nova restarted a streak",
+            detail: "Workout streak is back on track.",
+            symbolName: "arrow.clockwise.circle.fill",
+            recordedAt: atlasMascotMomentTimestamp(from: referenceDate),
+            eventKey: "streak-aurielle-activity_days-1"
+        )
+        let goal = AtlasMascotMomentRecord(
+            selection: .aurielle,
+            stage: .stage1,
+            kind: .goal,
+            title: "Nova noticed a goal closeout",
+            detail: "Weekly goal complete.",
+            symbolName: "flag.checkered",
+            recordedAt: atlasMascotMomentTimestamp(from: referenceDate),
+            eventKey: "goal-aurielle-weekly_workouts"
+        )
+
+        let evolutionRequest = atlasMascotNotificationRequest(for: evolution, referenceDate: referenceDate)
+        let recoveryRequest = atlasMascotNotificationRequest(for: recovery, referenceDate: referenceDate)
+        let goalRequest = atlasMascotNotificationRequest(for: goal, referenceDate: referenceDate)
+
+        XCTAssertEqual(evolutionRequest?.identifier, "atlas.mascot.aetherion.evolution-aetherion-stage2")
+        XCTAssertEqual(recoveryRequest?.identifier, "atlas.mascot.aurielle.streak-aurielle-activity_days-1")
+        XCTAssertNil(goalRequest)
+    }
+
+    func testMascotRecapDescriptorUsesLatestMomentContentWhenAvailable() {
+        let snapshot = AtlasRewardsSnapshot(
+            settings: AtlasRewardsSettingsSnapshot(enabled: true),
+            totalPoints: 620,
+            level: 3,
+            nextLevelPoints: 750,
+            goals: [
+                AtlasRewardGoalSnapshot(
+                    kind: .weeklyWorkouts,
+                    title: "Weekly workouts",
+                    progressLabel: "3/3 complete",
+                    helperText: "Goal met.",
+                    symbolName: "figure.strengthtraining.traditional",
+                    currentValue: 3,
+                    targetValue: 3,
+                    progress: 1,
+                    isMet: true
+                )
+            ]
+        )
+        let moment = AtlasMascotMomentRecord(
+            selection: .aurielle,
+            stage: .stage2,
+            kind: .interaction,
+            title: "Nova glides closer",
+            detail: "Glisshare mirrors your momentum with quiet focus.",
+            symbolName: "wind",
+            recordedAt: "2026-04-12T11:00:00.000Z"
+        )
+
+        let descriptor = atlasMascotRecapDescriptor(
+            kind: .latestMoment,
+            audience: .personal,
+            privacyMode: .fullDetail,
+            selection: .aurielle,
+            nickname: "Nova",
+            rewardsSnapshot: snapshot,
+            evolutionHistory: [],
+            moments: [moment]
+        )
+
+        XCTAssertEqual(descriptor.stage, .stage2)
+        XCTAssertEqual(descriptor.headline, "Nova glides closer")
+        XCTAssertEqual(descriptor.detail, "Glisshare mirrors your momentum with quiet focus.")
+        XCTAssertEqual(descriptor.symbolName, "wind")
+        XCTAssertTrue(descriptor.footer.contains("points"))
+    }
+
+    func testMascotSharedPoseResolvesRecoveryAndEvolutionReadyStates() {
+        let recoverySnapshot = AtlasRewardsSnapshot(
+            settings: AtlasRewardsSettingsSnapshot(enabled: true),
+            totalPoints: 120,
+            level: 1,
+            nextLevelPoints: 250,
+            streaks: [
+                AtlasRewardStreakSnapshot(
+                    kind: .activityDays,
+                    title: "Activity days",
+                    valueLabel: "Recovered",
+                    helperText: "Recovered",
+                    symbolName: "figure.walk",
+                    count: 1,
+                    isActive: true
+                )
+            ]
+        )
+        XCTAssertEqual(atlasMascotSharedPose(rewardsSnapshot: recoverySnapshot), .recovery)
+
+        let evolutionReadySnapshot = AtlasRewardsSnapshot(
+            settings: AtlasRewardsSettingsSnapshot(enabled: true),
+            totalPoints: 455,
+            level: 2,
+            nextLevelPoints: 500
+        )
+        XCTAssertEqual(atlasMascotSharedPose(rewardsSnapshot: evolutionReadySnapshot), .evolutionReady)
+    }
+
+    @MainActor
+    func testMascotArchivedRecapPersistenceStoresMostRecentExports() async throws {
+        let controller = try makeInMemoryController()
+        let now = Date(timeIntervalSince1970: 1_776_000_000)
+
+        let older = AtlasMascotArchivedRecapRecord(
+            id: "older",
+            selection: .aetherion,
+            stage: .stage1,
+            kind: AtlasMascotRecapCardKind.weeklyRecap.rawValue,
+            audience: .personal,
+            privacyMode: .fullDetail,
+            displayName: "Cindlet",
+            currentFormName: "Cindlet",
+            eyebrow: "Weekly recap",
+            headline: "Older recap",
+            detail: "Older detail",
+            secondaryDetail: "Older secondary",
+            footer: "Footer",
+            symbolName: "bolt.fill",
+            fileName: "older.png",
+            createdAt: atlasMascotMomentTimestamp(from: now.addingTimeInterval(-60))
+        )
+        let newer = AtlasMascotArchivedRecapRecord(
+            id: "newer",
+            selection: .aetherion,
+            stage: .stage2,
+            kind: AtlasMascotRecapCardKind.evolutionMilestone.rawValue,
+            audience: .coach,
+            privacyMode: .privacySafe,
+            displayName: "Voltflare",
+            currentFormName: "Voltflare",
+            eyebrow: "Evolution milestone",
+            headline: "Newer recap",
+            detail: "Newer detail",
+            secondaryDetail: "Newer secondary",
+            footer: "Footer",
+            symbolName: "sparkles",
+            fileName: "newer.png",
+            createdAt: atlasMascotMomentTimestamp(from: now)
+        )
+
+        _ = try await controller.container.settings.recordMascotArchivedRecap(older, now: now.addingTimeInterval(-60))
+        let snapshot = try await controller.container.settings.recordMascotArchivedRecap(newer, now: now)
+
+        XCTAssertEqual(snapshot.mascotArchivedRecaps.map(\.id), ["newer", "older"])
+    }
+
+    @MainActor
+    func testMascotRecapNotificationSettingsPersist() async throws {
+        let controller = try makeInMemoryController()
+        let now = Date(timeIntervalSince1970: 1_776_000_100)
+
+        let snapshot = try await controller.container.settings.updateMascotRecapNotificationSettings(
+            AtlasMascotRecapNotificationSettings(dailyEnabled: false, weeklyEnabled: true),
+            now: now
+        )
+
+        XCTAssertFalse(snapshot.mascotRecapNotificationSettings.dailyEnabled)
+        XCTAssertTrue(snapshot.mascotRecapNotificationSettings.weeklyEnabled)
+    }
+
+    func testMascotTimelineNotificationRequestsCreateDailyAndWeeklyRecapsWhenProgressExists() {
+        let referenceDate = Date(timeIntervalSince1970: 1_776_000_200)
+        let recordedAt = atlasMascotMomentTimestamp(from: referenceDate.addingTimeInterval(-2 * 60 * 60))
+        let snapshot = AtlasRewardsSnapshot(
+            settings: AtlasRewardsSettingsSnapshot(enabled: true),
+            totalPoints: 840,
+            level: 4,
+            nextLevelPoints: 1_000,
+            goals: [
+                AtlasRewardGoalSnapshot(
+                    kind: .weeklyWorkouts,
+                    title: "Weekly workouts",
+                    progressLabel: "4/4 complete",
+                    helperText: "Closed out.",
+                    symbolName: "figure.strengthtraining.traditional",
+                    currentValue: 4,
+                    targetValue: 4,
+                    progress: 1,
+                    isMet: true
+                )
+            ]
+        )
+        let moment = AtlasMascotMomentRecord(
+            selection: .aetherion,
+            stage: .stage2,
+            kind: .goal,
+            title: "Voltflare noticed the closeout",
+            detail: "Weekly workouts were completed and recorded.",
+            symbolName: "flag.checkered",
+            recordedAt: recordedAt
+        )
+
+        let requests = atlasMascotTimelineNotificationRequests(
+            selection: .aetherion,
+            nickname: "Nova",
+            notificationSettings: AtlasMascotRecapNotificationSettings(dailyEnabled: true, weeklyEnabled: true),
+            rewardsSnapshot: snapshot,
+            evolutionHistory: [],
+            moments: [moment],
+            referenceDate: referenceDate
+        )
+
+        XCTAssertEqual(requests.count, 2)
+        XCTAssertEqual(requests.first?.identifier.contains("atlas.mascot.recap.daily"), true)
+        XCTAssertEqual(requests.last?.identifier.contains("atlas.mascot.recap.weekly"), true)
+        XCTAssertTrue(requests.allSatisfy { $0.body.isEmpty == false })
+    }
+
+    @MainActor
+    func testRefreshShellDataWritesMascotProjectionSnapshot() async throws {
+        let directory = try makeTemporaryDirectory()
+        let controller = try AtlasPersistenceController.temporary(
+            baseURL: directory,
+            featureFlags: AtlasFeatureFlagState(),
+            privacyFormatter: AtlasPrivacyFormatter(),
+            notifications: TestNotificationManager()
+        )
+        let model = makeAppModel(controller: controller)
+        let now = Date(timeIntervalSince1970: 1_773_950_400)
+
+        _ = try await controller.container.settings.updateMascotSelection(.aurielle, now: now)
+        _ = try await controller.container.settings.updateMascotNickname("Nova", now: now)
+        _ = try await controller.container.settings.updateRewardsSettings(
+            AtlasRewardsSettingsUpdate(enabled: true),
+            now: now
+        )
+        _ = try await controller.container.settings.recordMascotMoment(
+            AtlasMascotMomentRecord(
+                selection: .aurielle,
+                stage: .stage1,
+                kind: .interaction,
+                title: "Nova perks up",
+                detail: "Moppet brightens the moment when you stop by.",
+                symbolName: "star.fill",
+                recordedAt: atlasMascotMomentTimestamp(from: now)
+            ),
+            now: now
+        )
+
+        await model.refreshShellData()
+        let snapshot = try await controller.sharedProjectionWriter.loadExtensionProjectionSnapshot()
+
+        XCTAssertEqual(snapshot?.mascot?.selection, .aurielle)
+        XCTAssertEqual(snapshot?.mascot?.stage, .stage1)
+        XCTAssertEqual(snapshot?.mascot?.currentFormName, "Moppet")
+        XCTAssertEqual(snapshot?.mascot?.nickname, "Nova")
+        XCTAssertEqual(snapshot?.mascot?.displayName, "Nova")
+        XCTAssertFalse(snapshot?.mascot?.statusLine.isEmpty ?? true)
+        XCTAssertEqual(snapshot?.mascot?.nextThresholdPoints, 500)
+        XCTAssertEqual(snapshot?.mascot?.latestMomentTitle, "Nova perks up")
+        XCTAssertEqual(snapshot?.mascot?.latestMomentSymbolName, "star.fill")
+    }
+
     func testExtensionProjectionFreshnessUsesSurfaceSpecificWindows() {
         let generatedAt = Date(timeIntervalSince1970: 1_773_950_400)
 
@@ -246,10 +630,91 @@ final class AtlasPhaseOneTests: XCTestCase {
             generatedAt: generatedAt,
             referenceDate: generatedAt.addingTimeInterval(3 * 60 * 60)
         )
+        let mascotFreshness = AtlasExtensionProjectionFreshness(
+            surface: .mascotWidget,
+            generatedAt: generatedAt,
+            referenceDate: generatedAt.addingTimeInterval(3 * 60 * 60)
+        )
 
         XCTAssertTrue(nextDueFreshness.isStale)
         XCTAssertTrue(intentFreshness.isStale)
+        XCTAssertTrue(mascotFreshness.isStale)
         XCTAssertFalse(lowStockFreshness.isStale)
+    }
+
+    @MainActor
+    func testHandleIncomingMascotURLOpensMascotRoute() async throws {
+        let directory = try makeTemporaryDirectory()
+        let controller = try AtlasPersistenceController.temporary(
+            baseURL: directory,
+            featureFlags: AtlasFeatureFlagState(),
+            privacyFormatter: AtlasPrivacyFormatter(),
+            notifications: TestNotificationManager()
+        )
+        let now = Date(timeIntervalSince1970: 1_773_950_400)
+        let model = makeAppModel(controller: controller, referenceDate: now)
+
+        _ = try await controller.container.protocols.createProtocol(
+            AtlasProtocolDraft(
+                name: "Mascot route protocol",
+                kind: .glp,
+                cadenceType: .daily,
+                intervalDays: 1,
+                weekday: nil,
+                defaultTimeOfDay: "09:00",
+                doseAmount: 1,
+                doseUnit: "mg"
+            ),
+            now: now
+        )
+
+        let url = try XCTUnwrap(URL(string: "atlas://mascot"))
+
+        await model.handleIncomingURL(url)
+
+        XCTAssertEqual(model.activeTab, .today)
+        XCTAssertEqual(model.routePath.last, .mascot)
+    }
+
+    @MainActor
+    func testHandleIncomingMascotMomentURLRecordsMomentAndOpensMascotRoute() async throws {
+        let directory = try makeTemporaryDirectory()
+        let controller = try AtlasPersistenceController.temporary(
+            baseURL: directory,
+            featureFlags: AtlasFeatureFlagState(),
+            privacyFormatter: AtlasPrivacyFormatter(),
+            notifications: TestNotificationManager()
+        )
+        let now = Date(timeIntervalSince1970: 1_773_950_400)
+        let model = makeAppModel(controller: controller, referenceDate: now)
+
+        _ = try await controller.container.protocols.createProtocol(
+            AtlasProtocolDraft(
+                name: "Mascot moment protocol",
+                kind: .glp,
+                cadenceType: .daily,
+                intervalDays: 1,
+                weekday: nil,
+                defaultTimeOfDay: "09:00",
+                doseAmount: 1,
+                doseUnit: "mg"
+            ),
+            now: now
+        )
+        _ = try await controller.container.settings.updateMascotSelection(.aetherion, now: now)
+        _ = try await controller.container.settings.updateRewardsSettings(
+            AtlasRewardsSettingsUpdate(enabled: true),
+            now: now
+        )
+
+        await model.refreshShellData()
+
+        let url = try XCTUnwrap(URL(string: "atlas://mascot-moment?kind=shortcut"))
+        await model.handleIncomingURL(url)
+
+        XCTAssertEqual(model.activeTab, .today)
+        XCTAssertEqual(model.routePath.last, .mascot)
+        XCTAssertEqual(model.settingsSnapshot.mascotMoments.first?.kind, .shortcut)
     }
 
     @MainActor
@@ -6923,6 +7388,7 @@ actor TestNotificationManager: NotificationManaging {
     private let requestedStatus: AtlasNotificationAuthorizationStatus
     private var handler: (@Sendable (AtlasReminderNotificationResponse) async -> Void)?
     private var pending: [String: AtlasReminderScheduleRequest]
+    private var pendingMascot: [String: AtlasMascotNotificationRequest]
     private var canceled: [String]
     private var requestCount: Int
 
@@ -6933,6 +7399,7 @@ actor TestNotificationManager: NotificationManaging {
         self.status = currentStatus
         self.requestedStatus = requestedStatus
         self.pending = [:]
+        self.pendingMascot = [:]
         self.canceled = []
         self.requestCount = 0
     }
@@ -6964,8 +7431,17 @@ actor TestNotificationManager: NotificationManaging {
         canceled.append(identifier)
     }
 
+    func scheduleMascotNotification(_ request: AtlasMascotNotificationRequest) async throws -> String {
+        pendingMascot[request.identifier] = request
+        return request.identifier
+    }
+
     func pendingRequests() -> [AtlasReminderScheduleRequest] {
         pending.keys.sorted().compactMap { pending[$0] }
+    }
+
+    func pendingMascotNotifications() -> [AtlasMascotNotificationRequest] {
+        pendingMascot.keys.sorted().compactMap { pendingMascot[$0] }
     }
 
     func pendingIdentifiers() -> [String] {
