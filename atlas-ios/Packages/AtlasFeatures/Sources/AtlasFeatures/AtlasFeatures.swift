@@ -1118,6 +1118,24 @@ public final class AtlasAppModel {
         }
     }
 
+    public func saveProgressMeasurement(_ draft: AtlasProgressMeasurementDraft) async {
+        do {
+            _ = try await dependencies.persistence.metrics.saveProgressMeasurement(draft, now: currentDate())
+            await refreshShellData()
+        } catch {
+            setLoadErrorMessage(error.localizedDescription)
+        }
+    }
+
+    public func saveProgressPhoto(_ draft: AtlasProgressPhotoDraft) async {
+        do {
+            _ = try await dependencies.persistence.metrics.saveProgressPhoto(draft, now: currentDate())
+            await refreshShellData()
+        } catch {
+            setLoadErrorMessage(error.localizedDescription)
+        }
+    }
+
     public func saveMetricDefinition(_ draft: AtlasMetricDefinitionDraft) async {
         do {
             _ = try await dependencies.persistence.metrics.saveMetricDefinition(draft, now: currentDate())
@@ -1329,6 +1347,23 @@ public final class AtlasAppModel {
         case "today":
             routePath.removeAll()
             activeTab = .today
+        case "compound-intelligence", "compoundintelligence":
+            guard let slug = atlasURLValue("slug", in: query),
+                  slug.isEmpty == false else {
+                return
+            }
+
+            routePath.removeAll()
+            activeTab = .library
+            open(.compoundIntelligence(slug))
+        case "watch-companion", "watchcompanion":
+            routePath.removeAll()
+            activeTab = .today
+            open(.watchCompanion)
+        case "watch-recovery", "watchrecovery":
+            routePath.removeAll()
+            activeTab = .today
+            open(.watchCompanion)
         case "weekly-review", "weeklyreview":
             routePath.removeAll()
             activeTab = .insights
@@ -1420,6 +1455,28 @@ public final class AtlasAppModel {
                     notes: atlasURLValue("notes", in: query)
                 )
             )
+        case "context-shortcut":
+            guard let shortcut = AtlasTodayContextShortcut(
+                rawValue: atlasURLValue("kind", in: query) ?? ""
+            ) else {
+                return
+            }
+
+            routePath.removeAll()
+            activeTab = .today
+            await refreshShellData()
+
+            switch shortcut.delivery {
+            case .saveNow:
+                await saveContextEntry(
+                    shortcut.makeDraft(
+                        loggedAt: atlasURLDateValue("loggedat", in: query) ?? currentDate(),
+                        protocolID: atlasTodayContextProtocolID(snapshot: todaySnapshot)
+                    )
+                )
+            case .openEditor:
+                open(.watchCompanion)
+            }
         default:
             return
         }
@@ -1780,6 +1837,8 @@ public struct AtlasRootView: View {
                             AtlasProtocolEditorScreen(model: model, mode: .edit(id))
                         case .protocolChange(let id):
                             AtlasProtocolChangeStudioScreen(model: model, protocolID: id)
+                        case .compoundIntelligence(let slug):
+                            AtlasCompoundIntelligenceScreen(model: model, knowledgeSlug: slug)
                         case .inventory:
                             AtlasInventoryScreen(model: model)
                         case .mascot:
@@ -1794,6 +1853,10 @@ public struct AtlasRootView: View {
                             AtlasReviewModeScreen(model: model)
                         case .weeklyReview:
                             AtlasWeeklyReviewScreen(model: model)
+                        case .progressEvidence:
+                            AtlasProgressEvidenceScreen(model: model)
+                        case .watchCompanion:
+                            AtlasWatchCompanionScreen(model: model)
                         }
                     }
                 }
@@ -2097,6 +2160,25 @@ public struct AtlasTodayScreen: View {
                         contextSheetPresented = true
                     }
                 )
+            }
+
+            if state.todaySnapshot.hasProtocols {
+                AtlasRootSectionHeader("Apple Watch companion")
+                AtlasSectionCard(style: .utility, title: "Wrist-ready handoff") {
+                    Text("Keep next due, recovery handling, and quick context close through App Shortcuts and the focused watch companion surface.")
+                        .foregroundStyle(AtlasPalette.textSecondary)
+
+                    HStack(spacing: AtlasSpacing.small) {
+                        AtlasStatusBadge("Next due")
+                        AtlasStatusBadge("Recovery", tint: AtlasPalette.warning)
+                        AtlasStatusBadge("Quick context", tint: AtlasPalette.secondaryText)
+                    }
+
+                    Button("Open Apple Watch companion") {
+                        model.open(.watchCompanion)
+                    }
+                    .buttonStyle(AtlasSecondaryButtonStyle())
+                }
             }
 
             if let weeklyReview,
@@ -3134,6 +3216,46 @@ public struct AtlasProtocolDetailScreen: View {
                     }
                 }
 
+                if let medicationLevel = detail.medicationLevel {
+                    Section("Level view") {
+                        AtlasMedicationLevelCard(
+                            model: model,
+                            item: medicationLevel,
+                            actionTitle: "Open Change Studio"
+                        ) {
+                            model.open(.protocolChange(protocolID))
+                        }
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+                    }
+                }
+
+                if let knowledge = detail.compoundKnowledge {
+                    Section("Compound intelligence") {
+                        AtlasSectionCard(title: "Atlas profile") {
+                            Text(knowledge.protocolSummary)
+                                .foregroundStyle(AtlasPalette.textSecondary)
+
+                            Text("\(knowledge.categoryLabel) • \(knowledge.routeLabel)")
+                                .font(.caption)
+                                .foregroundStyle(AtlasPalette.textSecondary)
+
+                            if let kineticsProfile = knowledge.kineticsProfile {
+                                Text("Atlas can model a relative level curve here from a \(atlasCompoundHalfLifeLabel(hours: kineticsProfile.halfLifeHours)) half-life profile.")
+                                    .font(.caption)
+                                    .foregroundStyle(AtlasPalette.textSecondary)
+                            }
+
+                            Button("Open compound intelligence") {
+                                model.open(.compoundIntelligence(knowledge.slug))
+                            }
+                            .buttonStyle(AtlasSecondaryButtonStyle())
+                        }
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+                    }
+                }
+
                 if detail.recentChanges.isEmpty == false {
                     Section("Recent changes") {
                         ForEach(detail.recentChanges) { change in
@@ -3549,6 +3671,29 @@ public struct AtlasSettingsScreen: View {
                     model.routePath.removeAll()
                     model.activeTab = .insights
                     model.open(.weeklyReview)
+                }
+                .buttonStyle(AtlasSecondaryButtonStyle())
+            }
+
+            AtlasSectionCard(title: "Apple Watch companion") {
+                Text("Atlas now exposes a wrist-ready companion layer through App Shortcuts and a dedicated in-app handoff surface. Keep next due, recovery handling, and quick context close without turning Atlas into a second client on watch.")
+                    .foregroundStyle(AtlasPalette.textSecondary)
+
+                VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+                    Text("Available wrist actions")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(AtlasPalette.primary)
+                        .textCase(.uppercase)
+
+                    Text("Mark Next Due Taken, Skip Next Due, Open Recovery Handling, Log Hydration, and Log Low Appetite are all exposed to Shortcuts and Siri.")
+                        .font(.caption)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                }
+
+                Button("Open Apple Watch companion") {
+                    model.routePath.removeAll()
+                    model.activeTab = .today
+                    model.open(.watchCompanion)
                 }
                 .buttonStyle(AtlasSecondaryButtonStyle())
             }

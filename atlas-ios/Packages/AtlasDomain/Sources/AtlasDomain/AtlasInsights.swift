@@ -1090,6 +1090,16 @@ public struct AtlasAmountEstimateItem: Identifiable, Equatable, Sendable {
     public var cadenceLabel: String
     public var estimateLabel: String
     public var notesLabel: String
+    public var modelKind: AtlasMedicationLevelModelKind
+    public var modelLabel: String
+    public var halfLifeLabel: String?
+    public var compareLabel: String?
+    public var peakWindowLabel: String?
+    public var currentEstimateValue: Double?
+    public var estimateUnit: String?
+    public var points: [AtlasMedicationLevelPoint]
+    public var doseEvents: [AtlasMedicationLevelDoseEvent]
+    public var sourceFacts: [AtlasExplainerFact]
 
     public init(
         protocolID: String,
@@ -1097,7 +1107,17 @@ public struct AtlasAmountEstimateItem: Identifiable, Equatable, Sendable {
         aliasProtocolTitle: String?,
         cadenceLabel: String,
         estimateLabel: String,
-        notesLabel: String
+        notesLabel: String,
+        modelKind: AtlasMedicationLevelModelKind = .scheduleWindowEstimate,
+        modelLabel: String = "Schedule window model",
+        halfLifeLabel: String? = nil,
+        compareLabel: String? = nil,
+        peakWindowLabel: String? = nil,
+        currentEstimateValue: Double? = nil,
+        estimateUnit: String? = nil,
+        points: [AtlasMedicationLevelPoint] = [],
+        doseEvents: [AtlasMedicationLevelDoseEvent] = [],
+        sourceFacts: [AtlasExplainerFact] = []
     ) {
         self.protocolID = protocolID
         self.canonicalProtocolTitle = canonicalProtocolTitle
@@ -1105,6 +1125,16 @@ public struct AtlasAmountEstimateItem: Identifiable, Equatable, Sendable {
         self.cadenceLabel = cadenceLabel
         self.estimateLabel = estimateLabel
         self.notesLabel = notesLabel
+        self.modelKind = modelKind
+        self.modelLabel = modelLabel
+        self.halfLifeLabel = halfLifeLabel
+        self.compareLabel = compareLabel
+        self.peakWindowLabel = peakWindowLabel
+        self.currentEstimateValue = currentEstimateValue
+        self.estimateUnit = estimateUnit
+        self.points = points
+        self.doseEvents = doseEvents
+        self.sourceFacts = sourceFacts
     }
 }
 
@@ -1159,6 +1189,7 @@ public struct AtlasInsightsSnapshot: Equatable, Sendable {
     public var episodeRecapSummary: AtlasGeneratedSummary?
     public var weeklyReviewSeed: AtlasWeeklyReviewSeed?
     public var weeklyReviewHistory: [AtlasWeeklyReviewSeed]
+    public var progressEvidence: AtlasProgressEvidenceSnapshot
     public var hasAnyInsightData: Bool
 
     public init(
@@ -1170,7 +1201,7 @@ public struct AtlasInsightsSnapshot: Equatable, Sendable {
         savedContextPresets: [AtlasContextPresetSummary] = [],
         inventoryBurnDown: [AtlasInventoryBurnDownInsight] = [],
         adherenceTrend: AtlasAdherenceTrendSummary = .init(),
-        amountInSystemDisclaimer: String = "Estimate only. Atlas spreads logged quantities across each protocol interval as a scheduling model, not a medical or pharmacokinetic calculation.",
+        amountInSystemDisclaimer: String = "Estimate only. Atlas uses logged quantities with known half-life profiles when available, and falls back to the saved schedule window when it does not. These are planning estimates, not serum measurements.",
         amountInSystem: [AtlasAmountEstimateItem] = [],
         episodeIntelligence: AtlasEpisodeInsightsSnapshot = .init(),
         customMetricDefinitions: [AtlasMetricDefinitionSummary] = [],
@@ -1183,6 +1214,7 @@ public struct AtlasInsightsSnapshot: Equatable, Sendable {
         episodeRecapSummary: AtlasGeneratedSummary? = nil,
         weeklyReviewSeed: AtlasWeeklyReviewSeed? = nil,
         weeklyReviewHistory: [AtlasWeeklyReviewSeed] = [],
+        progressEvidence: AtlasProgressEvidenceSnapshot = .init(),
         hasAnyInsightData: Bool = false
     ) {
         self.weightTrend = weightTrend
@@ -1206,6 +1238,7 @@ public struct AtlasInsightsSnapshot: Equatable, Sendable {
         self.episodeRecapSummary = episodeRecapSummary
         self.weeklyReviewSeed = weeklyReviewSeed
         self.weeklyReviewHistory = weeklyReviewHistory
+        self.progressEvidence = progressEvidence
         self.hasAnyInsightData = hasAnyInsightData
     }
 }

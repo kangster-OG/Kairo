@@ -1569,6 +1569,104 @@ struct AtlasWeightLogDBRecord: Codable, FetchableRecord, PersistableRecord {
     }
 }
 
+struct AtlasProgressMeasurementDBRecord: Codable, FetchableRecord, PersistableRecord {
+    static let databaseTableName = "progress_measurements"
+    var id: String
+    var protocolId: String?
+    var kind: AtlasProgressMeasurementKind
+    var value: Double
+    var unit: String
+    var note: String?
+    var loggedAt: String
+    var createdAt: String
+    var updatedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case protocolId = "protocol_id"
+        case kind
+        case value
+        case unit
+        case note
+        case loggedAt = "logged_at"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+
+    init(record: AtlasProgressMeasurementRecord) {
+        id = record.id
+        protocolId = record.protocolID
+        kind = record.kind
+        value = record.value
+        unit = record.unit
+        note = record.note
+        loggedAt = record.loggedAt
+        createdAt = record.createdAt
+        updatedAt = record.updatedAt
+    }
+
+    var domain: AtlasProgressMeasurementRecord {
+        AtlasProgressMeasurementRecord(
+            id: id,
+            protocolID: protocolId,
+            kind: kind,
+            value: value,
+            unit: unit,
+            note: note,
+            loggedAt: loggedAt,
+            createdAt: createdAt,
+            updatedAt: updatedAt
+        )
+    }
+}
+
+struct AtlasProgressPhotoDBRecord: Codable, FetchableRecord, PersistableRecord {
+    static let databaseTableName = "progress_photos"
+    var id: String
+    var protocolId: String?
+    var angle: AtlasProgressPhotoAngle
+    var note: String?
+    var relativeAssetPath: String
+    var loggedAt: String
+    var createdAt: String
+    var updatedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case protocolId = "protocol_id"
+        case angle
+        case note
+        case relativeAssetPath = "relative_asset_path"
+        case loggedAt = "logged_at"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+
+    init(record: AtlasProgressPhotoRecord) {
+        id = record.id
+        protocolId = record.protocolID
+        angle = record.angle
+        note = record.note
+        relativeAssetPath = record.relativeAssetPath
+        loggedAt = record.loggedAt
+        createdAt = record.createdAt
+        updatedAt = record.updatedAt
+    }
+
+    var domain: AtlasProgressPhotoRecord {
+        AtlasProgressPhotoRecord(
+            id: id,
+            protocolID: protocolId,
+            angle: angle,
+            note: note,
+            relativeAssetPath: relativeAssetPath,
+            loggedAt: loggedAt,
+            createdAt: createdAt,
+            updatedAt: updatedAt
+        )
+    }
+}
+
 struct AtlasOccurrenceProjectionDBRecord: Codable, FetchableRecord, PersistableRecord {
     static let databaseTableName = "occurrence_projections"
     var id: String
@@ -1811,6 +1909,8 @@ func clearCanonicalTables(in db: Database) throws {
         "custom_metrics",
         "workout_logs",
         "weight_logs",
+        "progress_measurements",
+        "progress_photos",
         "symptom_logs",
         "review_sessions",
         "health_connections",
@@ -1871,7 +1971,9 @@ func countUserRows(in db: Database) throws -> Int {
     let contextPresetCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM context_presets") ?? 0
     let contextCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM context_logs") ?? 0
     let workoutCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM workout_logs") ?? 0
-    return protocolCount + logCount + vialCount + consumableCount + consumableAdjustmentCount + contextPresetCount + contextCount + workoutCount
+    let progressMeasurementCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM progress_measurements") ?? 0
+    let progressPhotoCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM progress_photos") ?? 0
+    return protocolCount + logCount + vialCount + consumableCount + consumableAdjustmentCount + contextPresetCount + contextCount + workoutCount + progressMeasurementCount + progressPhotoCount
 }
 
 func existingIdentifiers(in db: Database, for dataset: AtlasImportDataset) throws -> Set<String> {

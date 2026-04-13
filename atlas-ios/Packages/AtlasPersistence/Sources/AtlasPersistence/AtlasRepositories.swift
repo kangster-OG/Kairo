@@ -597,6 +597,13 @@ public actor GRDBSharedProjectionWriter: SharedProjectionWriting {
                     updatedAt: atlasTimestamp(from: Date())
                 ),
                 mascot: nil,
+                watchCompanion: buildWatchCompanionProjectionSnapshot(
+                    referenceDate: Date(),
+                    nextDue: nextDue,
+                    quickActions: quickActions,
+                    overdueCount: nextDue?.overdueCount ?? 0,
+                    upcomingCount: max(quickActions.count - min(nextDue == nil ? 0 : 1, quickActions.count), 0)
+                ),
                 featureFlags: featureFlags
             )
         )
@@ -861,6 +868,13 @@ private func buildProjectionWriteState(
     )
     let featureFlagProjection = AtlasSharedFeatureFlagProjection(flags: featureFlags)
     let mascotSnapshot = try buildMascotProjection(db: db, referenceDate: referenceDate)
+    let watchCompanionSnapshot = buildWatchCompanionProjectionSnapshot(
+        referenceDate: referenceDate,
+        nextDue: nextDue,
+        quickActions: quickActions,
+        overdueCount: overdue.count,
+        upcomingCount: dueAndUpcoming.count
+    )
 
     return AtlasProjectionWriteState(
         nextDue: nextDue,
@@ -875,8 +889,54 @@ private func buildProjectionWriteState(
             quickActions: quickActions,
             lowStock: lowStockSnapshot,
             mascot: mascotSnapshot,
+            watchCompanion: watchCompanionSnapshot,
             featureFlags: featureFlagProjection
         )
+    )
+}
+
+private func buildWatchCompanionProjectionSnapshot(
+    referenceDate: Date,
+    nextDue: AtlasSharedNextDueSnapshot?,
+    quickActions: [AtlasSharedQuickAction],
+    overdueCount: Int,
+    upcomingCount: Int
+) -> AtlasSharedWatchCompanionSnapshot {
+    let headline: String
+    let summary: String
+    let recoverySummary: String?
+
+    if overdueCount > 0 {
+        headline = "Recovery comes first on wrist."
+        summary = "Atlas keeps the next recovery move visible so you can clear drift before touching later plans."
+        recoverySummary = "\(overdueCount) overdue item\(overdueCount == 1 ? "" : "s") still need attention."
+    } else if let nextDue {
+        headline = "One next due action is ready."
+        summary = "\(nextDue.displayTitle) is the current anchor, with later items intentionally pushed into the background."
+        recoverySummary = nil
+    } else {
+        headline = "Atlas is quiet right now."
+        summary = "There is nothing due at the moment, so the watch companion stays focused on quick context capture and recovery readiness."
+        recoverySummary = nil
+    }
+
+    let nextDueDetail = nextDue.map { "\($0.dueLabel) • \($0.statusSummary)" }
+    let laterCount = max(upcomingCount - (nextDue == nil ? 0 : 1), 0)
+    let adjustedSummary: String
+    if laterCount > 0 {
+        adjustedSummary = summary + " \(laterCount) later item\(laterCount == 1 ? "" : "s") can wait."
+    } else {
+        adjustedSummary = summary
+    }
+
+    return AtlasSharedWatchCompanionSnapshot(
+        generatedAt: atlasTimestamp(from: referenceDate),
+        headline: headline,
+        summary: adjustedSummary,
+        nextDueTitle: nextDue?.displayTitle,
+        nextDueDetail: nextDueDetail,
+        recoverySummary: recoverySummary,
+        quickContextShortcuts: AtlasWatchCompanionContextShortcut.allCases
     )
 }
 

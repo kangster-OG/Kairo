@@ -121,6 +121,11 @@ public struct AtlasProtocolChangeStudioScreen: View {
                                     }
                                 }
                             }
+
+                            Button("Open compound intelligence") {
+                                model.open(.compoundIntelligence(knowledge.slug))
+                            }
+                            .buttonStyle(AtlasSecondaryButtonStyle())
                         }
                         .padding(.vertical, AtlasSpacing.xSmall)
                     }

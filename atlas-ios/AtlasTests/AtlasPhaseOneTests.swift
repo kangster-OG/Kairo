@@ -158,6 +158,8 @@ final class AtlasPhaseOneTests: XCTestCase {
         XCTAssertEqual(snapshot?.renderMode, .full)
         XCTAssertEqual(snapshot?.nextDue?.displayTitle, "Widget protocol")
         XCTAssertFalse(snapshot?.quickActions.isEmpty ?? true)
+        XCTAssertEqual(snapshot?.watchCompanion?.nextDueTitle, "Widget protocol")
+        XCTAssertFalse(snapshot?.watchCompanion?.quickContextShortcuts.isEmpty ?? true)
     }
 
     @MainActor
@@ -865,6 +867,57 @@ final class AtlasPhaseOneTests: XCTestCase {
 
         XCTAssertEqual(model.activeTab, .settings)
         XCTAssertEqual(model.routePath, [.trustVault])
+    }
+
+    @MainActor
+    func testHandleIncomingWatchCompanionURLOpensCompanionRoute() async throws {
+        let controller = try makeInMemoryController()
+        let model = makeAppModel(controller: controller)
+        try await completeOnboardingIfNeeded(controller: controller)
+
+        await model.handleIncomingURL(URL(string: "atlas://watch-companion")!)
+
+        XCTAssertEqual(model.activeTab, .today)
+        XCTAssertEqual(model.routePath, [.watchCompanion])
+    }
+
+    @MainActor
+    func testHandleIncomingCompoundIntelligenceURLOpensLibraryRoute() async throws {
+        let controller = try makeInMemoryController()
+        let model = makeAppModel(controller: controller)
+        try await completeOnboardingIfNeeded(controller: controller)
+
+        await model.handleIncomingURL(URL(string: "atlas://compound-intelligence?slug=semaglutide")!)
+
+        XCTAssertEqual(model.activeTab, .library)
+        XCTAssertEqual(model.routePath, [.compoundIntelligence("semaglutide")])
+    }
+
+    @MainActor
+    func testHandleIncomingContextShortcutURLWritesHydrationEntry() async throws {
+        let controller = try makeInMemoryController()
+        let model = makeAppModel(controller: controller)
+        try await completeOnboardingIfNeeded(controller: controller)
+
+        _ = try await controller.container.protocols.createProtocol(
+            AtlasProtocolDraft(
+                name: "Watch shortcut protocol",
+                kind: .glp,
+                cadenceType: .daily,
+                intervalDays: 1,
+                weekday: nil,
+                defaultTimeOfDay: "09:00",
+                doseAmount: 1,
+                doseUnit: "mg"
+            ),
+            now: importedFixtureReferenceDate
+        )
+
+        await model.handleIncomingURL(URL(string: "atlas://context-shortcut?kind=hydration")!)
+
+        let refreshed = try await controller.container.metrics.fetchInsightsSnapshot(referenceDate: importedFixtureReferenceDate)
+        XCTAssertEqual(refreshed.recentContextEntries.first?.hydration, .high)
+        XCTAssertTrue(refreshed.recentContextEntries.first?.tags.contains("today-quick-capture") ?? false)
     }
 
     func testContextEntryPersistenceTimelineAndDiscreetPrivacyStayCalm() async throws {
@@ -4771,12 +4824,129 @@ final class AtlasPhaseOneTests: XCTestCase {
 
         XCTAssertEqual(
             snapshot.amountInSystemDisclaimer,
-            "Estimate only. Atlas spreads logged quantities across each protocol interval as a scheduling model, not a medical or pharmacokinetic calculation."
+            "Estimate only. Atlas uses logged quantities with known half-life profiles when available, and falls back to the saved schedule window when it does not. These are planning estimates, not serum measurements."
         )
         XCTAssertTrue(snapshot.adherenceTrend.completedCount > 0)
         XCTAssertFalse(snapshot.amountInSystem.isEmpty)
         XCTAssertEqual(snapshot.amountInSystem.first?.canonicalProtocolTitle, "Insight protocol")
-        XCTAssertEqual(snapshot.amountInSystem.first?.estimateLabel.contains("in the current schedule window"), true)
+        XCTAssertEqual(snapshot.amountInSystem.first?.estimateLabel.contains("estimated active now"), true)
+        XCTAssertFalse(snapshot.amountInSystem.first?.points.isEmpty ?? true)
+        XCTAssertFalse(snapshot.amountInSystem.first?.sourceFacts.isEmpty ?? true)
+    }
+
+    func testProtocolDetailCarriesMedicationLevelViewForKnownCompound() async throws {
+        let controller = try makeInMemoryController()
+        let now = Date(timeIntervalSince1970: 1_773_950_400)
+        let detail = try await controller.container.protocols.createProtocol(
+            AtlasProtocolDraft(
+                name: "Semaglutide",
+                kind: .glp,
+                cadenceType: .weekly,
+                intervalDays: 1,
+                weekday: 1,
+                defaultTimeOfDay: "09:00",
+                doseAmount: 1,
+                doseUnit: "mg"
+            ),
+            now: now
+        )
+        let todaySnapshot = try await controller.container.today.fetchTodaySnapshot(referenceDate: now)
+        let occurrence = try XCTUnwrap(todaySnapshot.nextDue)
+
+        try await controller.container.coreLoop.logOccurrence(
+            AtlasOccurrenceLogRequest(
+                occurrenceID: occurrence.id,
+                protocolID: detail.id,
+                action: .taken
+            ),
+            now: now
+        )
+
+        let fetchedDetail = try await controller.container.protocols.fetchProtocolDetail(id: detail.id)
+        let level = try XCTUnwrap(fetchedDetail?.medicationLevel)
+
+        XCTAssertEqual(level.modelKind, .halfLifeEstimate)
+        XCTAssertEqual(level.halfLifeLabel, "168 hour half-life profile")
+        XCTAssertFalse(level.points.isEmpty)
+        XCTAssertTrue(level.sourceFacts.contains(where: { $0.label == "Profile" }))
+    }
+
+    func testProgressEvidenceSnapshotReflectsMeasurementsAndPhotos() async throws {
+        let controller = try makeInMemoryController()
+        let now = Date(timeIntervalSince1970: 1_773_950_400)
+
+        _ = try await controller.container.metrics.saveProgressMeasurement(
+            AtlasProgressMeasurementDraft(
+                kind: .waist,
+                value: 34,
+                unit: "in",
+                loggedAt: now.addingTimeInterval(-7 * 24 * 3600)
+            ),
+            now: now
+        )
+        _ = try await controller.container.metrics.saveProgressMeasurement(
+            AtlasProgressMeasurementDraft(
+                kind: .waist,
+                value: 33.5,
+                unit: "in",
+                loggedAt: now
+            ),
+            now: now
+        )
+        _ = try await controller.container.metrics.saveProgressPhoto(
+            AtlasProgressPhotoDraft(
+                angle: .front,
+                note: "Week one",
+                loggedAt: now,
+                jpegData: Data(repeating: 0xFF, count: 64)
+            ),
+            now: now
+        )
+
+        let snapshot = try await controller.container.metrics.fetchInsightsSnapshot(referenceDate: now)
+        let waistTrend = try XCTUnwrap(snapshot.progressEvidence.measurementTrends.first(where: { $0.kind == .waist }))
+        let photo = try XCTUnwrap(snapshot.progressEvidence.recentPhotos.first)
+
+        XCTAssertEqual(waistTrend.points.count, 2)
+        XCTAssertEqual(waistTrend.changeLabel, "-0.5 in vs prior check-in")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: photo.absolutePath))
+        XCTAssertEqual(snapshot.progressEvidence.recentPhotos.count, 1)
+    }
+
+    func testProgressEvidenceRouteCanOpen() async throws {
+        let controller = try makeInMemoryController()
+        let model = makeAppModel(controller: controller)
+
+        model.open(.progressEvidence)
+
+        XCTAssertEqual(model.routePath.last, .progressEvidence)
+    }
+
+    func testWatchCompanionRouteCanOpen() async throws {
+        let controller = try makeInMemoryController()
+        let model = makeAppModel(controller: controller)
+
+        model.open(.watchCompanion)
+
+        XCTAssertEqual(model.routePath.last, .watchCompanion)
+    }
+
+    func testCompoundIntelligenceRouteCanOpen() async throws {
+        let controller = try makeInMemoryController()
+        let model = makeAppModel(controller: controller)
+
+        model.open(.compoundIntelligence("semaglutide"))
+
+        XCTAssertEqual(model.routePath.last, .compoundIntelligence("semaglutide"))
+    }
+
+    func testCompoundKnowledgeLookupBySlugReturnsKnownCandidates() throws {
+        let semaglutide = try XCTUnwrap(AtlasCompoundKnowledgeCatalog.knowledge(slug: "semaglutide"))
+        let compareCandidates = AtlasCompoundKnowledgeCatalog.compareCandidates(for: semaglutide, kind: .glp)
+
+        XCTAssertEqual(semaglutide.displayName, "Semaglutide")
+        XCTAssertNotNil(semaglutide.kineticsProfile)
+        XCTAssertTrue(compareCandidates.contains(where: { $0.slug == "tirzepatide" }))
     }
 
     @MainActor

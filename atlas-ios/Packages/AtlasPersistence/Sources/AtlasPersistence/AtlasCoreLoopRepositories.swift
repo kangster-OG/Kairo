@@ -919,6 +919,18 @@ private func buildProtocolDetailSnapshot(
         protocolName: protocolRecord.name,
         kind: protocolRecord.kind
     )
+    let logEvents = try AtlasLogEventDBRecord
+        .filter(Column("protocol_id") == protocolID)
+        .order(Column("effective_at").asc)
+        .fetchAll(db)
+        .map(\.domain)
+    let medicationLevel = buildMedicationLevelEstimateItem(
+        protocolRecord: protocolRecord,
+        aliasTitle: context.aliases[protocolID]?.aliasLabel,
+        revisionSlices: revisionSlices,
+        logEvents: logEvents,
+        now: now
+    )
 
     let draft = AtlasProtocolDraft(
         name: protocolRecord.name,
@@ -943,6 +955,7 @@ private func buildProtocolDetailSnapshot(
         doseLabel: doseAmount.flatMap { amount in doseUnit.map { "\(amount.cleanAtlasNumber) \($0)" } },
         notes: activeSlice?.revision.notes ?? protocolRecord.notes,
         compoundKnowledge: compoundKnowledge,
+        medicationLevel: medicationLevel,
         editableDraft: draft,
         nextOccurrence: nextOccurrence,
         recentChanges: try AtlasProtocolChangeAuditDBRecord

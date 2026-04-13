@@ -234,6 +234,47 @@ public struct GRDBMetricsRepository: MetricsRepository, Sendable {
         }
     }
 
+    public func saveProgressMeasurement(_ draft: AtlasProgressMeasurementDraft, now: Date) async throws -> AtlasProgressMeasurementRecord {
+        try await stack.canonical.write { db in
+            let timestamp = atlasTimestamp(from: now)
+            let existing = draft.id.flatMap { try? AtlasProgressMeasurementDBRecord.fetchOne(db, key: $0)?.domain }
+            let record = AtlasProgressMeasurementRecord(
+                id: existing?.id ?? draft.id ?? "progress_measurement_\(UUID().uuidString.lowercased())",
+                protocolID: draft.protocolID,
+                kind: draft.kind,
+                value: draft.value,
+                unit: draft.unit,
+                note: draft.note.flatMap(stringNilIfEmpty),
+                loggedAt: atlasTimestamp(from: draft.loggedAt),
+                createdAt: existing?.createdAt ?? timestamp,
+                updatedAt: timestamp
+            )
+            try AtlasProgressMeasurementDBRecord(record: record).save(db)
+            return record
+        }
+    }
+
+    public func saveProgressPhoto(_ draft: AtlasProgressPhotoDraft, now: Date) async throws -> AtlasProgressPhotoRecord {
+        try await stack.canonical.write { db in
+            let timestamp = atlasTimestamp(from: now)
+            let recordID = draft.id ?? "progress_photo_\(UUID().uuidString.lowercased())"
+            let relativePath = try atlasWriteProgressPhoto(data: draft.jpegData, id: recordID)
+            let existing = draft.id.flatMap { try? AtlasProgressPhotoDBRecord.fetchOne(db, key: $0)?.domain }
+            let record = AtlasProgressPhotoRecord(
+                id: existing?.id ?? recordID,
+                protocolID: draft.protocolID,
+                angle: draft.angle,
+                note: draft.note.flatMap(stringNilIfEmpty),
+                relativeAssetPath: relativePath,
+                loggedAt: atlasTimestamp(from: draft.loggedAt),
+                createdAt: existing?.createdAt ?? timestamp,
+                updatedAt: timestamp
+            )
+            try AtlasProgressPhotoDBRecord(record: record).save(db)
+            return record
+        }
+    }
+
     public func saveMetricDefinition(_ draft: AtlasMetricDefinitionDraft, now: Date) async throws -> AtlasCustomMetricRecord {
         try await stack.canonical.write { db in
             let normalized = try normalize(metricDefinitionDraft: draft)
@@ -545,6 +586,14 @@ func buildInsightsSnapshot(
         .order(Column("started_at").desc)
         .fetchAll(db)
         .map(\.domain)
+    let progressMeasurements = try AtlasProgressMeasurementDBRecord
+        .order(Column("logged_at").desc)
+        .fetchAll(db)
+        .map(\.domain)
+    let progressPhotos = try AtlasProgressPhotoDBRecord
+        .order(Column("logged_at").desc)
+        .fetchAll(db)
+        .map(\.domain)
     let protocolChangeAudits = try AtlasProtocolChangeAuditDBRecord
         .order(Column("created_at").desc)
         .fetchAll(db)
@@ -706,6 +755,10 @@ func buildInsightsSnapshot(
         onboardingDraft: onboardingDraft,
         now: referenceDate
     )
+    let progressEvidence = buildProgressEvidenceSnapshot(
+        measurements: progressMeasurements,
+        photos: progressPhotos
+    )
     let adherenceTrend = buildAdherenceTrend(context: context, logEvents: logEvents, now: referenceDate)
     let weeklyReviewSeed = buildWeeklyReviewSeed(
         context: context,
@@ -774,11 +827,14 @@ func buildInsightsSnapshot(
         episodeRecapSummary: episodeRecapSummary,
         weeklyReviewSeed: weeklyReviewSeed,
         weeklyReviewHistory: weeklyReviewHistory,
+        progressEvidence: progressEvidence,
         hasAnyInsightData: contextLogs.isEmpty == false
             || weightLogs.isEmpty == false
             || workoutLogs.isEmpty == false
             || symptomLogs.isEmpty == false
             || metricLogs.isEmpty == false
+            || progressMeasurements.isEmpty == false
+            || progressPhotos.isEmpty == false
             || episodeIntelligence.hasAnyEpisodeData
             || context.pendingOccurrences.isEmpty == false
     )
@@ -2168,36 +2224,92 @@ private func buildAmountEstimateItems(
     return context.protocols.values
         .filter { $0.status == .active }
         .compactMap { protocolRecord in
-            let protocolLogs = logEvents.filter { $0.protocolId == protocolRecord.id }
-            let slice = effectiveRevisionSlice(context.revisionSlices[protocolRecord.id] ?? [], at: now)
-            let rule = slice.flatMap { activeRuleForDate(slice: $0, at: now) }
-            let intervalHours = ruleIntervalHours(rule)
-            let completedLogs = protocolLogs.filter {
-                $0.eventType == .completed && $0.quantity != nil && $0.quantityUnit != nil && intervalHours != nil
-            }
-
-            let estimate = completedLogs.reduce(0.0) { partialResult, event in
-                let elapsedHours = now.timeIntervalSince(atlasDate(from: event.effectiveAt)) / 3600
-                let remainingFraction = max(0, 1 - (elapsedHours / (intervalHours ?? 1)))
-                return partialResult + (event.quantity ?? 0) * remainingFraction
-            }
-
-            let doseUnit = rule?.doseUnitOverride ?? slice?.revision.doseUnit ?? protocolRecord.doseUnit
-            let alias = context.aliases[protocolRecord.id]?.aliasLabel
-
-            return AtlasAmountEstimateItem(
-                protocolID: protocolRecord.id,
-                canonicalProtocolTitle: protocolRecord.name,
-                aliasProtocolTitle: alias,
-                cadenceLabel: rule.map(describeRule) ?? "No cadence saved yet",
-                estimateLabel: estimate > 0 && doseUnit != nil
-                    ? "\(formatNumber(estimate)) \(doseUnit ?? "") in the current schedule window"
-                    : "No recent logged quantity to estimate from",
-                notesLabel: estimate > 0
-                    ? "Built from completed logs over the current \(Int(intervalHours ?? 0))-hour interval window."
-                    : "Atlas needs completed logs with saved quantities before it can show this estimate."
+            buildMedicationLevelEstimateItem(
+                protocolRecord: protocolRecord,
+                aliasTitle: context.aliases[protocolRecord.id]?.aliasLabel,
+                revisionSlices: context.revisionSlices[protocolRecord.id] ?? [],
+                logEvents: logEvents,
+                now: now
             )
         }
+}
+
+private func buildProgressEvidenceSnapshot(
+    measurements: [AtlasProgressMeasurementRecord],
+    photos: [AtlasProgressPhotoRecord]
+) -> AtlasProgressEvidenceSnapshot {
+    let measurementTrends = AtlasProgressMeasurementKind.allCases.compactMap { kind -> AtlasProgressMeasurementTrend? in
+        let items = measurements
+            .filter { $0.kind == kind }
+            .sorted { $0.loggedAt < $1.loggedAt }
+        guard items.isEmpty == false else {
+            return nil
+        }
+
+        let unit = items.last?.unit ?? kind.defaultUnit
+        let latest = items.last
+        let previous = items.dropLast().last
+        let latestLabel = latest.map { "\(formatNumber($0.value)) \(unit) logged \(formatDateLabel($0.loggedAt))" }
+        let changeLabel = previous.map {
+            let delta = (latest?.value ?? 0) - $0.value
+            let prefix = delta > 0 ? "+" : ""
+            return "\(prefix)\(formatNumber(delta)) \(unit) vs prior check-in"
+        }
+
+        return AtlasProgressMeasurementTrend(
+            kind: kind,
+            unit: unit,
+            latestLabel: latestLabel,
+            changeLabel: changeLabel,
+            points: items.map {
+                AtlasProgressMeasurementTrendPoint(
+                    timestamp: $0.loggedAt,
+                    loggedAt: atlasDate(from: $0.loggedAt),
+                    value: $0.value
+                )
+            }
+        )
+    }
+
+    let recentPhotos = photos.prefix(8).compactMap { record -> AtlasProgressPhotoEntrySummary? in
+        guard let fileURL = try? atlasProgressPhotoFileURL(relativePath: record.relativeAssetPath) else {
+            return nil
+        }
+        return AtlasProgressPhotoEntrySummary(
+            id: record.id,
+            angle: record.angle,
+            note: record.note,
+            loggedAt: atlasDate(from: record.loggedAt),
+            absolutePath: fileURL.path
+        )
+    }
+
+    let comparisonNote: String?
+    if let latestPhoto = recentPhotos.first,
+       let previousPhoto = recentPhotos.dropFirst().first {
+        comparisonNote = "Compare \(latestPhoto.angle.title.lowercased()) check-ins from \(latestPhoto.loggedAt.formatted(date: .abbreviated, time: .omitted)) and \(previousPhoto.loggedAt.formatted(date: .abbreviated, time: .omitted))."
+    } else if let trend = measurementTrends.first(where: { $0.points.count >= 2 }) {
+        comparisonNote = trend.changeLabel
+    } else {
+        comparisonNote = nil
+    }
+
+    let summaryTitle = "Progress evidence"
+    let summaryText: String
+    if measurements.isEmpty && recentPhotos.isEmpty {
+        summaryText = "Add measurements and private photo check-ins to keep a calmer record of visible change over time."
+    } else {
+        summaryText = "\(measurements.count) measurement check-in(s) and \(recentPhotos.count) private photo check-in(s) are saved locally."
+    }
+
+    return AtlasProgressEvidenceSnapshot(
+        summaryTitle: summaryTitle,
+        summaryText: summaryText,
+        measurementTrends: measurementTrends,
+        recentMeasurements: Array(measurements.prefix(12)),
+        recentPhotos: recentPhotos,
+        comparisonNote: comparisonNote
+    )
 }
 
 private func buildMetricDefinitionSummaries(

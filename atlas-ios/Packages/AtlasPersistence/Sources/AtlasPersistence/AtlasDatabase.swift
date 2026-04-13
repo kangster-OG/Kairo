@@ -637,6 +637,34 @@ final class AtlasDatabaseStack: @unchecked Sendable {
             }
         }
 
+        migrator.registerMigration("v16_add_progress_evidence") { db in
+            try db.create(table: "progress_measurements") { table in
+                table.column("id", .text).primaryKey()
+                table.column("protocol_id", .text).references("protocols", onDelete: .setNull)
+                table.column("kind", .text).notNull()
+                table.column("value", .double).notNull()
+                table.column("unit", .text).notNull()
+                table.column("note", .text)
+                table.column("logged_at", .text).notNull()
+                table.column("created_at", .text).notNull()
+                table.column("updated_at", .text).notNull()
+            }
+
+            try db.create(table: "progress_photos") { table in
+                table.column("id", .text).primaryKey()
+                table.column("protocol_id", .text).references("protocols", onDelete: .setNull)
+                table.column("angle", .text).notNull()
+                table.column("note", .text)
+                table.column("relative_asset_path", .text).notNull()
+                table.column("logged_at", .text).notNull()
+                table.column("created_at", .text).notNull()
+                table.column("updated_at", .text).notNull()
+            }
+
+            try db.create(index: "idx_progress_measurements_logged_at", on: "progress_measurements", columns: ["logged_at"])
+            try db.create(index: "idx_progress_photos_logged_at", on: "progress_photos", columns: ["logged_at"])
+        }
+
         return migrator
     }
 

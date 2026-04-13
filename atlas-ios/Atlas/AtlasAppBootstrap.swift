@@ -131,8 +131,39 @@ private extension AtlasAppBootstrap {
                 }
                 model.open(.weeklyReview)
             }
+        case "progressEvidence":
+            Task { @MainActor in
+                await model.loadBootstrapIfNeeded()
+                await model.loadShellDataIfNeeded()
+                guard model.routePath.last != .progressEvidence else {
+                    return
+                }
+                model.open(.progressEvidence)
+            }
+        case "watchCompanion":
+            Task { @MainActor in
+                await model.loadBootstrapIfNeeded()
+                await model.loadShellDataIfNeeded()
+                guard model.routePath.last != .watchCompanion else {
+                    return
+                }
+                model.open(.watchCompanion)
+            }
         default:
-            if rawRoute.hasPrefix("protocolDetail:") {
+            if rawRoute.hasPrefix("compoundIntelligence:") {
+                Task { @MainActor in
+                    await model.loadBootstrapIfNeeded()
+                    await model.loadShellDataIfNeeded()
+                    let slug = String(rawRoute.dropFirst("compoundIntelligence:".count))
+                    guard slug.isEmpty == false else {
+                        return
+                    }
+                    guard model.routePath.last != .compoundIntelligence(slug) else {
+                        return
+                    }
+                    model.open(.compoundIntelligence(slug))
+                }
+            } else if rawRoute.hasPrefix("protocolDetail:") {
                 model.open(.protocolDetail(String(rawRoute.dropFirst("protocolDetail:".count))))
             } else if rawRoute.hasPrefix("protocolEdit:") {
                 model.open(.protocolEdit(String(rawRoute.dropFirst("protocolEdit:".count))))

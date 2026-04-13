@@ -1,0 +1,475 @@
+import AtlasDesignSystem
+import AtlasDomain
+import Charts
+import Foundation
+import PhotosUI
+import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
+
+public struct AtlasProgressEvidenceScreen: View {
+    let model: AtlasAppModel
+
+    @State private var measurementSheetPresented = false
+    @State private var photoSheetPresented = false
+    @State private var measurementDraft = AtlasProgressMeasurementDraft()
+    @State private var measurementValueText = ""
+    @State private var shareArtifact: AtlasProgressEvidenceExportArtifact?
+    @State private var exportErrorMessage: String?
+
+    public var body: some View {
+        let snapshot = model.insightsSnapshot.progressEvidence
+
+        List {
+            AtlasTabHeader(
+                title: "Progress Evidence",
+                subtitle: "Private measurements and calm before-and-after check-ins that stay descriptive and local-first.",
+                fullBleed: false
+            )
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color.clear)
+
+            AtlasSectionCard(title: snapshot.summaryTitle) {
+                Text(snapshot.summaryText)
+                    .foregroundStyle(AtlasPalette.textSecondary)
+
+                if let comparisonNote = snapshot.comparisonNote {
+                    Text(comparisonNote)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                }
+
+                HStack(spacing: AtlasSpacing.small) {
+                    Button("Add measurement") {
+                        measurementDraft = AtlasProgressMeasurementDraft(loggedAt: model.currentDate())
+                        measurementValueText = ""
+                        measurementSheetPresented = true
+                    }
+                    .buttonStyle(AtlasPrimaryButtonStyle())
+
+                    Button("Add photo") {
+                        photoSheetPresented = true
+                    }
+                    .buttonStyle(AtlasSecondaryButtonStyle())
+                }
+
+                Button("Export evidence summary") {
+                    do {
+                        shareArtifact = try atlasCreateProgressEvidenceExportArtifact(
+                            snapshot: snapshot,
+                            now: model.currentDate()
+                        )
+                        exportErrorMessage = nil
+                    } catch {
+                        exportErrorMessage = error.localizedDescription
+                    }
+                }
+                .buttonStyle(AtlasSecondaryButtonStyle())
+            }
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color.clear)
+
+            Section("Measurements") {
+                if snapshot.measurementTrends.isEmpty {
+                    AtlasSectionCard {
+                        Text("No measurement check-ins yet.")
+                            .foregroundStyle(AtlasPalette.textSecondary)
+                    }
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
+                } else {
+                    ForEach(snapshot.measurementTrends) { trend in
+                        AtlasSectionCard(title: trend.kind.title) {
+                            Chart(trend.points) { point in
+                                LineMark(
+                                    x: .value("Date", point.loggedAt),
+                                    y: .value("Value", point.value)
+                                )
+                                .foregroundStyle(AtlasPalette.primary)
+
+                                PointMark(
+                                    x: .value("Date", point.loggedAt),
+                                    y: .value("Value", point.value)
+                                )
+                                .foregroundStyle(AtlasPalette.primary)
+                            }
+                            .frame(height: 160)
+
+                            if let latestLabel = trend.latestLabel {
+                                Text(latestLabel)
+                                    .font(.caption)
+                                    .foregroundStyle(AtlasPalette.textSecondary)
+                            }
+
+                            if let changeLabel = trend.changeLabel {
+                                Text(changeLabel)
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(AtlasPalette.textSecondary)
+                            }
+                        }
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+                    }
+                }
+            }
+
+            Section("Photo journal") {
+                if snapshot.recentPhotos.count >= 2 {
+                    AtlasSectionCard(title: "Latest compare") {
+                        HStack(alignment: .top, spacing: AtlasSpacing.small) {
+                            AtlasProgressPhotoTile(photo: snapshot.recentPhotos[0])
+                            AtlasProgressPhotoTile(photo: snapshot.recentPhotos[1])
+                        }
+                    }
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
+                }
+
+                if snapshot.recentPhotos.isEmpty {
+                    AtlasSectionCard {
+                        Text("No private photo check-ins yet.")
+                            .foregroundStyle(AtlasPalette.textSecondary)
+                    }
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
+                } else {
+                    ForEach(snapshot.recentPhotos) { photo in
+                        AtlasSectionCard {
+                            HStack(alignment: .top, spacing: AtlasSpacing.small) {
+                                AtlasProgressPhotoImage(path: photo.absolutePath)
+                                    .frame(width: 96, height: 112)
+                                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+
+                                VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
+                                    Text(photo.angle.title)
+                                        .font(.body.weight(.semibold))
+                                        .foregroundStyle(AtlasPalette.textPrimary)
+                                    Text(photo.loggedAt.formatted(date: .abbreviated, time: .omitted))
+                                        .font(.caption)
+                                        .foregroundStyle(AtlasPalette.textSecondary)
+                                    if let note = photo.note, note.isEmpty == false {
+                                        Text(note)
+                                            .font(.caption)
+                                            .foregroundStyle(AtlasPalette.textSecondary)
+                                    }
+                                }
+
+                                Spacer(minLength: 0)
+                            }
+                        }
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+                    }
+                }
+            }
+        }
+        .navigationTitle("Progress Evidence")
+        .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $measurementSheetPresented) {
+            NavigationStack {
+                Form {
+                    Picker("Measure", selection: $measurementDraft.kind) {
+                        ForEach(AtlasProgressMeasurementKind.allCases) { kind in
+                            Text(kind.title).tag(kind)
+                        }
+                    }
+                    .onChange(of: measurementDraft.kind) { _, newValue in
+                        measurementDraft.unit = newValue.defaultUnit
+                    }
+
+                    TextField("Value", text: $measurementValueText)
+                        .keyboardType(.decimalPad)
+                    TextField("Unit", text: $measurementDraft.unit)
+                    DatePicker("Logged at", selection: $measurementDraft.loggedAt)
+                    TextField("Optional note", text: Binding(
+                        get: { measurementDraft.note ?? "" },
+                        set: { measurementDraft.note = $0 }
+                    ), axis: .vertical)
+                }
+                .navigationTitle("Add measurement")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") { measurementSheetPresented = false }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Save") {
+                            guard let value = Double(measurementValueText) else {
+                                return
+                            }
+                            measurementDraft.value = value
+                            Task {
+                                await model.saveProgressMeasurement(measurementDraft)
+                                measurementSheetPresented = false
+                            }
+                        }
+                        .disabled(Double(measurementValueText) == nil)
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $photoSheetPresented) {
+            AtlasProgressPhotoComposerScreen(model: model) {
+                photoSheetPresented = false
+            }
+        }
+        .sheet(item: $shareArtifact) { artifact in
+            AtlasProgressEvidenceShareSheet(fileURL: artifact.fileURL)
+        }
+        .alert(
+            "Progress export unavailable",
+            isPresented: Binding(
+                get: { exportErrorMessage != nil },
+                set: { if $0 == false { exportErrorMessage = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) { exportErrorMessage = nil }
+        } message: {
+            Text(exportErrorMessage ?? "")
+        }
+    }
+}
+
+private struct AtlasProgressPhotoComposerScreen: View {
+    let model: AtlasAppModel
+    let onDismiss: () -> Void
+
+    @State private var draft = AtlasProgressPhotoDraft(jpegData: Data())
+    @State private var selectedItem: PhotosPickerItem?
+    @State private var imageData = Data()
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                PhotosPicker(selection: $selectedItem, matching: .images) {
+                    Label("Choose photo", systemImage: "photo")
+                }
+
+                if imageData.isEmpty == false {
+                    AtlasProgressPhotoImage(data: imageData)
+                        .frame(height: 240)
+                        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                }
+
+                Picker("Angle", selection: $draft.angle) {
+                    ForEach(AtlasProgressPhotoAngle.allCases) { angle in
+                        Text(angle.title).tag(angle)
+                    }
+                }
+                DatePicker("Logged at", selection: $draft.loggedAt)
+                TextField("Optional note", text: Binding(
+                    get: { draft.note ?? "" },
+                    set: { draft.note = $0 }
+                ), axis: .vertical)
+            }
+            .navigationTitle("Add photo")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { onDismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        draft.jpegData = imageData
+                        Task {
+                            await model.saveProgressPhoto(draft)
+                            onDismiss()
+                        }
+                    }
+                    .disabled(imageData.isEmpty)
+                }
+            }
+        }
+        .task(id: selectedItem) {
+            guard let selectedItem else {
+                return
+            }
+            if let data = try? await selectedItem.loadTransferable(type: Data.self),
+               let jpegData = atlasNormalizedJPEGData(from: data) {
+                imageData = jpegData
+            }
+        }
+    }
+}
+
+private struct AtlasProgressPhotoTile: View {
+    let photo: AtlasProgressPhotoEntrySummary
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
+            AtlasProgressPhotoImage(path: photo.absolutePath)
+                .frame(maxWidth: .infinity)
+                .frame(height: 180)
+                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+
+            Text(photo.angle.title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(AtlasPalette.textPrimary)
+            Text(photo.loggedAt.formatted(date: .abbreviated, time: .omitted))
+                .font(.caption)
+                .foregroundStyle(AtlasPalette.textSecondary)
+        }
+    }
+}
+
+private struct AtlasProgressPhotoImage: View {
+    var path: String?
+    var data: Data?
+
+    init(path: String) {
+        self.path = path
+        self.data = nil
+    }
+
+    init(data: Data) {
+        self.path = nil
+        self.data = data
+    }
+
+    var body: some View {
+        Group {
+            #if canImport(UIKit)
+            if let image = uiImage {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(AtlasPalette.primary.opacity(0.12))
+                    .overlay {
+                        Image(systemName: "photo")
+                            .foregroundStyle(AtlasPalette.textSecondary)
+                    }
+            }
+            #else
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(AtlasPalette.primary.opacity(0.12))
+            #endif
+        }
+    }
+
+    #if canImport(UIKit)
+    private var uiImage: UIImage? {
+        if let data, let image = UIImage(data: data) {
+            return image
+        }
+        if let path {
+            return UIImage(contentsOfFile: path)
+        }
+        return nil
+    }
+    #endif
+}
+
+public struct AtlasProgressEvidenceExportArtifact: Identifiable, Sendable {
+    public var id: String
+    public var fileURL: URL
+    public var title: String
+}
+
+private func atlasCreateProgressEvidenceExportArtifact(
+    snapshot: AtlasProgressEvidenceSnapshot,
+    now: Date
+) throws -> AtlasProgressEvidenceExportArtifact {
+    let supportDirectory = try FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
+        .first
+        .map { $0.appendingPathComponent("AtlasProgressEvidenceExports", isDirectory: true) }
+        .unwrapOrThrow(CocoaError(.fileNoSuchFile))
+    if FileManager.default.fileExists(atPath: supportDirectory.path) == false {
+        try FileManager.default.createDirectory(at: supportDirectory, withIntermediateDirectories: true)
+    }
+
+    let fileURL = supportDirectory.appendingPathComponent("atlas-progress-evidence-\(atlasProgressEvidenceTimestamp(now)).html")
+    try atlasProgressEvidenceHTML(snapshot: snapshot, generatedAt: now).write(to: fileURL, atomically: true, encoding: .utf8)
+
+    return AtlasProgressEvidenceExportArtifact(
+        id: fileURL.lastPathComponent,
+        fileURL: fileURL,
+        title: "Progress Evidence"
+    )
+}
+
+private func atlasProgressEvidenceHTML(snapshot: AtlasProgressEvidenceSnapshot, generatedAt: Date) -> String {
+    let trendBlocks = snapshot.measurementTrends.map { trend in
+        "<li><strong>\(trend.kind.title):</strong> \(trend.latestLabel ?? "No entries") \(trend.changeLabel.map { "(\($0))" } ?? "")</li>"
+    }.joined()
+
+    let photoBlocks = snapshot.recentPhotos.prefix(2).compactMap { photo -> String? in
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: photo.absolutePath)) else {
+            return nil
+        }
+        return """
+        <div style=\"margin-bottom:24px;\">
+          <h3>\(photo.angle.title) • \(photo.loggedAt.formatted(date: .abbreviated, time: .omitted))</h3>
+          <img src=\"data:image/jpeg;base64,\(data.base64EncodedString())\" style=\"max-width:100%;border-radius:20px;\" />
+          <p>\(photo.note ?? "")</p>
+        </div>
+        """
+    }.joined()
+
+    return """
+    <html>
+    <head>
+      <meta charset=\"utf-8\" />
+      <title>Atlas Progress Evidence</title>
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin: 32px; color: #14202b; background: #f7f4ef; }
+        .card { background: white; border-radius: 24px; padding: 24px; margin-bottom: 24px; box-shadow: 0 8px 24px rgba(20,32,43,0.08); }
+      </style>
+    </head>
+    <body>
+      <div class=\"card\">
+        <h1>\(snapshot.summaryTitle)</h1>
+        <p>\(snapshot.summaryText)</p>
+        <p><strong>Generated:</strong> \(generatedAt.formatted(date: .abbreviated, time: .shortened))</p>
+        <p><strong>Trust note:</strong> Atlas keeps this descriptive and local-first. Photos are visual records only and Atlas is not interpreting them.</p>
+      </div>
+      <div class=\"card\">
+        <h2>Measurements</h2>
+        <ul>\(trendBlocks)</ul>
+      </div>
+      <div class=\"card\">
+        <h2>Latest photo evidence</h2>
+        \(photoBlocks.isEmpty ? "<p>No private photo check-ins were available in this export.</p>" : photoBlocks)
+      </div>
+    </body>
+    </html>
+    """
+}
+
+private func atlasProgressEvidenceTimestamp(_ date: Date) -> String {
+    let formatter = DateFormatter()
+    formatter.dateFormat = "yyyyMMdd-HHmmss"
+    return formatter.string(from: date)
+}
+
+private func atlasNormalizedJPEGData(from data: Data) -> Data? {
+    #if canImport(UIKit)
+    guard let image = UIImage(data: data) else {
+        return nil
+    }
+    return image.jpegData(compressionQuality: 0.88)
+    #else
+    return data
+    #endif
+}
+
+#if canImport(UIKit)
+private struct AtlasProgressEvidenceShareSheet: UIViewControllerRepresentable {
+    let fileURL: URL
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: [fileURL], applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+}
+#endif
+
+private extension Optional {
+    func unwrapOrThrow(_ error: Error) throws -> Wrapped {
+        if let value = self {
+            return value
+        }
+        throw error
+    }
+}

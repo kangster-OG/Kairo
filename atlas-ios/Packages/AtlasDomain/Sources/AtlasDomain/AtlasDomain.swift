@@ -35,6 +35,7 @@ public enum AtlasRoute: Hashable, Sendable {
     case protocolCreate
     case protocolEdit(String)
     case protocolChange(String)
+    case compoundIntelligence(String)
     case inventory
     case mascot
     case calculator
@@ -42,6 +43,8 @@ public enum AtlasRoute: Hashable, Sendable {
     case importFlow
     case reviewMode
     case weeklyReview
+    case progressEvidence
+    case watchCompanion
 }
 
 public enum AtlasAccountMode: String, Codable, Sendable {
@@ -1200,6 +1203,7 @@ public struct AtlasSharedExtensionProjectionSnapshot: Codable, Equatable, Sendab
     public var quickActions: [AtlasSharedQuickAction]
     public var lowStock: AtlasSharedLowStockSnapshot
     public var mascot: AtlasSharedMascotSnapshot?
+    public var watchCompanion: AtlasSharedWatchCompanionSnapshot?
     public var featureFlags: AtlasSharedFeatureFlagProjection
 
     public init(
@@ -1209,6 +1213,7 @@ public struct AtlasSharedExtensionProjectionSnapshot: Codable, Equatable, Sendab
         quickActions: [AtlasSharedQuickAction],
         lowStock: AtlasSharedLowStockSnapshot,
         mascot: AtlasSharedMascotSnapshot? = nil,
+        watchCompanion: AtlasSharedWatchCompanionSnapshot? = nil,
         featureFlags: AtlasSharedFeatureFlagProjection
     ) {
         self.generatedAt = generatedAt
@@ -1217,6 +1222,7 @@ public struct AtlasSharedExtensionProjectionSnapshot: Codable, Equatable, Sendab
         self.quickActions = quickActions
         self.lowStock = lowStock
         self.mascot = mascot
+        self.watchCompanion = watchCompanion
         self.featureFlags = featureFlags
     }
 }

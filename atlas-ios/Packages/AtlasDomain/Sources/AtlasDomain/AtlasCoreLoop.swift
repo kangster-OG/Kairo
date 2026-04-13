@@ -137,6 +137,7 @@ public struct AtlasProtocolDetailSnapshot: Identifiable, Equatable, Sendable {
     public var doseLabel: String?
     public var notes: String?
     public var compoundKnowledge: AtlasCompoundKnowledge?
+    public var medicationLevel: AtlasAmountEstimateItem?
     public var editableDraft: AtlasProtocolDraft
     public var nextOccurrence: AtlasScheduledOccurrence?
     public var recentChanges: [AtlasProtocolChangeExplanation]
@@ -152,6 +153,7 @@ public struct AtlasProtocolDetailSnapshot: Identifiable, Equatable, Sendable {
         doseLabel: String?,
         notes: String?,
         compoundKnowledge: AtlasCompoundKnowledge? = nil,
+        medicationLevel: AtlasAmountEstimateItem? = nil,
         editableDraft: AtlasProtocolDraft,
         nextOccurrence: AtlasScheduledOccurrence?,
         recentChanges: [AtlasProtocolChangeExplanation] = []
@@ -166,6 +168,7 @@ public struct AtlasProtocolDetailSnapshot: Identifiable, Equatable, Sendable {
         self.doseLabel = doseLabel
         self.notes = notes
         self.compoundKnowledge = compoundKnowledge
+        self.medicationLevel = medicationLevel
         self.editableDraft = editableDraft
         self.nextOccurrence = nextOccurrence
         self.recentChanges = recentChanges

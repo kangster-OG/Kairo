@@ -144,6 +144,24 @@ public struct AtlasInsightsScreen: View {
             .listRowInsets(EdgeInsets())
             .listRowBackground(Color.clear)
 
+            AtlasSectionCard(title: "Progress evidence") {
+                Text(state.insightsSnapshot.progressEvidence.summaryText)
+                    .foregroundStyle(AtlasPalette.textSecondary)
+
+                if let comparisonNote = state.insightsSnapshot.progressEvidence.comparisonNote {
+                    Text(comparisonNote)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                }
+
+                Button("Open progress evidence") {
+                    model.open(.progressEvidence)
+                }
+                .buttonStyle(AtlasSecondaryButtonStyle())
+            }
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color.clear)
+
             AtlasWeeklyReviewEntrySection(model: model)
 
             if state.rewardsSnapshot.settings.enabled {
@@ -795,32 +813,34 @@ private struct AtlasAmountEstimateSection: View {
     let renderMode: AtlasPrivacyRenderMode
 
     var body: some View {
-        Section("Estimated amount in system") {
+        Section("Medication levels") {
             AtlasSectionCard {
                 Text(snapshot.amountInSystemDisclaimer)
                     .font(.caption)
                     .foregroundStyle(AtlasPalette.textSecondary)
+            }
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color.clear)
 
-                if snapshot.amountInSystem.isEmpty {
+            if snapshot.amountInSystem.isEmpty {
+                AtlasSectionCard {
                     Text("No active protocols with recent completed quantities yet.")
                         .foregroundStyle(AtlasPalette.textSecondary)
-                } else {
-                    ForEach(snapshot.amountInSystem) { item in
-                        VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
-                            Text(model.renderedTitle(canonical: item.canonicalProtocolTitle, alias: item.aliasProtocolTitle, renderMode: renderMode))
-                                .font(.body.weight(.semibold))
-                                .foregroundStyle(AtlasPalette.textPrimary)
-                            Text(item.estimateLabel)
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(AtlasPalette.textPrimary)
-                            Text(item.cadenceLabel)
-                                .font(.caption)
-                                .foregroundStyle(AtlasPalette.textSecondary)
-                            Text(item.notesLabel)
-                                .font(.caption)
-                                .foregroundStyle(AtlasPalette.textSecondary)
-                        }
+                }
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+            } else {
+                ForEach(snapshot.amountInSystem) { item in
+                    AtlasMedicationLevelCard(
+                        model: model,
+                        item: item,
+                        renderMode: renderMode,
+                        actionTitle: "Open protocol"
+                    ) {
+                        model.open(.protocolDetail(item.protocolID))
                     }
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
                 }
             }
         }

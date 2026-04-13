@@ -5,10 +5,11 @@ public enum AtlasExtensionProjectionSurface: String, Equatable, Sendable {
     case lowStockWidget
     case mascotWidget
     case nextDueIntent
+    case watchCompanionIntent
 
     public var staleAfter: TimeInterval {
         switch self {
-        case .nextDueWidget, .mascotWidget, .nextDueIntent:
+        case .nextDueWidget, .mascotWidget, .nextDueIntent, .watchCompanionIntent:
             return 2 * 60 * 60
         case .lowStockWidget:
             return 12 * 60 * 60

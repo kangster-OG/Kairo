@@ -47,6 +47,7 @@ public struct AtlasCompoundKnowledge: Identifiable, Equatable, Hashable, Sendabl
     public var typicalCadenceLabel: String
     public var availabilityLabel: String
     public var commonDoseUnits: [String]
+    public var kineticsProfile: AtlasCompoundKineticsProfile?
     public var operationalTags: [AtlasCompoundOperationalTag]
     public var protocolSummary: String
     public var compareCandidateSlugs: [String]
@@ -63,6 +64,7 @@ public struct AtlasCompoundKnowledge: Identifiable, Equatable, Hashable, Sendabl
         typicalCadenceLabel: String,
         availabilityLabel: String,
         commonDoseUnits: [String],
+        kineticsProfile: AtlasCompoundKineticsProfile? = nil,
         operationalTags: [AtlasCompoundOperationalTag],
         protocolSummary: String,
         compareCandidateSlugs: [String] = [],
@@ -78,6 +80,7 @@ public struct AtlasCompoundKnowledge: Identifiable, Equatable, Hashable, Sendabl
         self.typicalCadenceLabel = typicalCadenceLabel
         self.availabilityLabel = availabilityLabel
         self.commonDoseUnits = commonDoseUnits
+        self.kineticsProfile = kineticsProfile
         self.operationalTags = operationalTags
         self.protocolSummary = protocolSummary
         self.compareCandidateSlugs = compareCandidateSlugs
@@ -98,6 +101,11 @@ public enum AtlasCompoundKnowledgeCatalog {
             typicalCadenceLabel: "Usually weekly",
             availabilityLabel: "Prescription or managed compounding depending on source",
             commonDoseUnits: ["mg"],
+            kineticsProfile: .init(
+                halfLifeHours: 168,
+                sourceLabel: "Catalog half-life profile",
+                notes: "Atlas uses a semaglutide half-life profile to shape a deterministic planning estimate from logged doses."
+            ),
             operationalTags: [.appetiteControl, .giLoad, .bloodSugarShift, .weeklyCadence],
             protocolSummary: "Weekly GLP-1 option often used when appetite control and steady weekly adherence matter most.",
             compareCandidateSlugs: ["tirzepatide", "retatrutide", "liraglutide"],
@@ -117,6 +125,11 @@ public enum AtlasCompoundKnowledgeCatalog {
             typicalCadenceLabel: "Usually weekly",
             availabilityLabel: "Prescription or managed compounding depending on source",
             commonDoseUnits: ["mg"],
+            kineticsProfile: .init(
+                halfLifeHours: 120,
+                sourceLabel: "Catalog half-life profile",
+                notes: "Atlas uses a tirzepatide half-life profile to shape a deterministic planning estimate from logged doses."
+            ),
             operationalTags: [.appetiteControl, .giLoad, .bloodSugarShift, .weeklyCadence],
             protocolSummary: "Weekly dual-pathway option commonly treated as a stronger step up when appetite control and scale response both matter.",
             compareCandidateSlugs: ["semaglutide", "retatrutide", "liraglutide"],
@@ -155,6 +168,11 @@ public enum AtlasCompoundKnowledgeCatalog {
             typicalCadenceLabel: "Usually daily",
             availabilityLabel: "Prescription managed",
             commonDoseUnits: ["mg"],
+            kineticsProfile: .init(
+                halfLifeHours: 13,
+                sourceLabel: "Catalog half-life profile",
+                notes: "Atlas uses a liraglutide half-life profile to shape a deterministic planning estimate from logged doses."
+            ),
             operationalTags: [.appetiteControl, .giLoad, .bloodSugarShift, .dailyCadence],
             protocolSummary: "Daily GLP plan that trades a lighter single-dose load for a much higher reminder and adherence burden.",
             compareCandidateSlugs: ["semaglutide", "tirzepatide"],
@@ -353,6 +371,11 @@ public enum AtlasCompoundKnowledgeCatalog {
             typicalCadenceLabel: "Usually weekly or split weekly",
             availabilityLabel: "Prescription managed",
             commonDoseUnits: ["mg", "mL"],
+            kineticsProfile: .init(
+                halfLifeHours: 192,
+                sourceLabel: "Catalog half-life profile",
+                notes: "Atlas uses a testosterone cypionate half-life profile to shape a deterministic planning estimate from logged doses."
+            ),
             operationalTags: [.androgenicLoad, .waterRetention, .estrogenicSpillover, .weeklyCadence],
             protocolSummary: "Core TRT-style protocol where cadence consistency, labs, and inventory continuity tend to matter more than novelty.",
             compareCandidateSlugs: ["testosterone-enanthate", "nandrolone-decanoate", "hcg"],
@@ -371,6 +394,11 @@ public enum AtlasCompoundKnowledgeCatalog {
             typicalCadenceLabel: "Usually weekly or split weekly",
             availabilityLabel: "Prescription or managed compounding depending on source",
             commonDoseUnits: ["mg", "mL"],
+            kineticsProfile: .init(
+                halfLifeHours: 108,
+                sourceLabel: "Catalog half-life profile",
+                notes: "Atlas uses a testosterone enanthate half-life profile to shape a deterministic planning estimate from logged doses."
+            ),
             operationalTags: [.androgenicLoad, .waterRetention, .estrogenicSpillover, .weeklyCadence],
             protocolSummary: "Very similar operationally to testosterone cypionate, with most differences showing up in schedule preference and sourcing.",
             compareCandidateSlugs: ["testosterone-cypionate", "nandrolone-decanoate", "hcg"],
@@ -445,6 +473,17 @@ public enum AtlasCompoundKnowledgeCatalog {
             candidate.matchKeys.contains(where: { key in
                 normalizedName.contains(key) || key.contains(normalizedName)
             })
+        })
+    }
+
+    public static func knowledge(slug: String) -> AtlasCompoundKnowledge? {
+        let normalizedSlug = atlasCompoundNormalizedKey(slug)
+        guard normalizedSlug.isEmpty == false else {
+            return nil
+        }
+
+        return all.first(where: { candidate in
+            atlasCompoundNormalizedKey(candidate.slug) == normalizedSlug
         })
     }
 
