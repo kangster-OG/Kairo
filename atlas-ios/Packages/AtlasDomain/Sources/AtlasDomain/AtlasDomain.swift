@@ -35,8 +35,10 @@ public enum AtlasRoute: Hashable, Sendable {
     case protocolCreate
     case protocolEdit(String)
     case protocolChange(String)
+    case medicationLevels(String)
     case compoundIntelligence(String)
     case inventory
+    case labs
     case mascot
     case calculator
     case trustVault
@@ -127,6 +129,25 @@ public enum AtlasProtocolKind: String, Codable, CaseIterable, Sendable {
     case glp
     case peptide
     case custom
+}
+
+public enum AtlasProtocolAdministrationRoute: String, Codable, CaseIterable, Sendable {
+    case injection
+    case oral
+    case sublingual
+    case nasal
+    case topical
+    case transdermal
+    case other
+}
+
+public enum AtlasProtocolSupplyType: String, Codable, CaseIterable, Sendable {
+    case vial
+    case pen
+    case bottle
+    case blisterPack = "blister_pack"
+    case syringe
+    case other
 }
 
 public enum AtlasProtocolStatus: String, Codable, CaseIterable, Sendable {
@@ -908,6 +929,7 @@ public struct AtlasSettingsSnapshot: Sendable, Equatable {
     public var onboardingCompleted: Bool
     public var syncStatus: AtlasSyncScaffoldStatus
     public var healthScaffold: AtlasHealthScaffoldSnapshot
+    public var labsEnabled: Bool
     public var trustVaultStatus: TrustVaultStatus
     public var mascotSelection: AtlasMascotSelection
     public var mascotNickname: String?
@@ -929,6 +951,7 @@ public struct AtlasSettingsSnapshot: Sendable, Equatable {
         onboardingCompleted: Bool = false,
         syncStatus: AtlasSyncScaffoldStatus = .localOnly,
         healthScaffold: AtlasHealthScaffoldSnapshot = .init(),
+        labsEnabled: Bool = false,
         trustVaultStatus: TrustVaultStatus = .init(),
         mascotSelection: AtlasMascotSelection = .aetherion,
         mascotNickname: String? = nil,
@@ -951,6 +974,7 @@ public struct AtlasSettingsSnapshot: Sendable, Equatable {
         self.onboardingCompleted = onboardingCompleted
         self.syncStatus = syncStatus
         self.healthScaffold = healthScaffold
+        self.labsEnabled = labsEnabled
         self.trustVaultStatus = trustVaultStatus
         self.mascotSelection = mascotSelection
         self.mascotNickname = mascotNickname
@@ -1394,6 +1418,9 @@ public struct AtlasProtocolRecord: Codable, Equatable, Sendable, Identifiable {
     public var linkedVialId: String?
     public var name: String
     public var kind: AtlasProtocolKind
+    public var administrationRoute: AtlasProtocolAdministrationRoute?
+    public var supplyType: AtlasProtocolSupplyType?
+    public var dosesPerSupply: Int?
     public var status: AtlasProtocolStatus
     public var timezone: String
     public var startDate: String
@@ -1440,6 +1467,9 @@ public struct AtlasProtocolRevisionRecord: Codable, Equatable, Sendable, Identif
     public var lifecycleState: AtlasProtocolRevisionLifecycle
     public var timezone: String
     public var timezoneStrategy: AtlasProtocolTimezoneStrategy
+    public var administrationRoute: AtlasProtocolAdministrationRoute?
+    public var supplyType: AtlasProtocolSupplyType?
+    public var dosesPerSupply: Int?
     public var defaultTimeOfDay: String?
     public var doseAmount: Double?
     public var doseUnit: String?
@@ -1459,6 +1489,9 @@ public struct AtlasProtocolRevisionRecord: Codable, Equatable, Sendable, Identif
         lifecycleState: AtlasProtocolRevisionLifecycle,
         timezone: String,
         timezoneStrategy: AtlasProtocolTimezoneStrategy,
+        administrationRoute: AtlasProtocolAdministrationRoute? = nil,
+        supplyType: AtlasProtocolSupplyType? = nil,
+        dosesPerSupply: Int? = nil,
         defaultTimeOfDay: String?,
         doseAmount: Double?,
         doseUnit: String?,
@@ -1477,6 +1510,9 @@ public struct AtlasProtocolRevisionRecord: Codable, Equatable, Sendable, Identif
         self.lifecycleState = lifecycleState
         self.timezone = timezone
         self.timezoneStrategy = timezoneStrategy
+        self.administrationRoute = administrationRoute
+        self.supplyType = supplyType
+        self.dosesPerSupply = dosesPerSupply
         self.defaultTimeOfDay = defaultTimeOfDay
         self.doseAmount = doseAmount
         self.doseUnit = doseUnit
@@ -1806,6 +1842,25 @@ public struct AtlasWeightLogRecord: Codable, Equatable, Sendable, Identifiable {
     public var updatedAt: String
 }
 
+public struct AtlasHealthWeightSample: Codable, Equatable, Sendable, Identifiable {
+    public var id: String
+    public var recordedAt: Date
+    public var value: Double
+    public var unit: AtlasWeightUnit
+
+    public init(
+        id: String,
+        recordedAt: Date,
+        value: Double,
+        unit: AtlasWeightUnit
+    ) {
+        self.id = id
+        self.recordedAt = recordedAt
+        self.value = value
+        self.unit = unit
+    }
+}
+
 public struct AtlasHealthWorkoutSample: Codable, Equatable, Sendable, Identifiable {
     public var id: String
     public var activityKind: AtlasWorkoutActivityKind
@@ -1941,8 +1996,8 @@ public extension AtlasPrivacyProfileRecord {
 }
 
 public extension AtlasProtocolRecord {
-    static func make(id: String, compoundId: String?, linkedVialId: String?, name: String, kind: AtlasProtocolKind, status: AtlasProtocolStatus, timezone: String, startDate: String, defaultTimeOfDay: String?, doseAmount: Double?, doseUnit: String?, siteTrackingEnabled: Bool, siteRotationEnabled: Bool, notes: String?, createdAt: String, updatedAt: String) -> Self {
-        .init(id: id, compoundId: compoundId, linkedVialId: linkedVialId, name: name, kind: kind, status: status, timezone: timezone, startDate: startDate, defaultTimeOfDay: defaultTimeOfDay, doseAmount: doseAmount, doseUnit: doseUnit, siteTrackingEnabled: siteTrackingEnabled, siteRotationEnabled: siteRotationEnabled, notes: notes, createdAt: createdAt, updatedAt: updatedAt)
+    static func make(id: String, compoundId: String?, linkedVialId: String?, name: String, kind: AtlasProtocolKind, administrationRoute: AtlasProtocolAdministrationRoute? = nil, supplyType: AtlasProtocolSupplyType? = nil, dosesPerSupply: Int? = nil, status: AtlasProtocolStatus, timezone: String, startDate: String, defaultTimeOfDay: String?, doseAmount: Double?, doseUnit: String?, siteTrackingEnabled: Bool, siteRotationEnabled: Bool, notes: String?, createdAt: String, updatedAt: String) -> Self {
+        .init(id: id, compoundId: compoundId, linkedVialId: linkedVialId, name: name, kind: kind, administrationRoute: administrationRoute, supplyType: supplyType, dosesPerSupply: dosesPerSupply, status: status, timezone: timezone, startDate: startDate, defaultTimeOfDay: defaultTimeOfDay, doseAmount: doseAmount, doseUnit: doseUnit, siteTrackingEnabled: siteTrackingEnabled, siteRotationEnabled: siteRotationEnabled, notes: notes, createdAt: createdAt, updatedAt: updatedAt)
     }
 }
 

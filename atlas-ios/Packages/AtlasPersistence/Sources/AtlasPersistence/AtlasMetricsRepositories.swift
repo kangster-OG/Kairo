@@ -117,6 +117,37 @@ public struct GRDBMetricsRepository: MetricsRepository, Sendable {
         }
     }
 
+    public func importWeightSamples(_ samples: [AtlasHealthWeightSample], now: Date) async throws -> Int {
+        try await stack.canonical.write { db in
+            let timestamp = atlasTimestamp(from: now)
+            var importedCount = 0
+
+            for sample in samples {
+                guard sample.value > 0 else {
+                    continue
+                }
+
+                let existing = try AtlasWeightLogDBRecord.fetchOne(db, key: sample.id)?.domain
+                let record = AtlasWeightLogRecord.make(
+                    id: existing?.id ?? sample.id,
+                    loggedAt: atlasTimestamp(from: sample.recordedAt),
+                    value: sample.value,
+                    unit: sample.unit,
+                    source: .health,
+                    notes: existing?.notes,
+                    createdAt: existing?.createdAt ?? timestamp,
+                    updatedAt: timestamp
+                )
+                try AtlasWeightLogDBRecord(record: record).save(db)
+                if existing == nil {
+                    importedCount += 1
+                }
+            }
+
+            return importedCount
+        }
+    }
+
     public func saveContextEntry(_ draft: AtlasContextEntryDraft, now: Date) async throws -> AtlasContextLogRecord {
         try await stack.canonical.write { db in
             let normalized = try normalize(contextDraft: draft)

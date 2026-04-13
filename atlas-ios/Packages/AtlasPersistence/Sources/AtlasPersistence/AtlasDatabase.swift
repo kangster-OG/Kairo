@@ -155,6 +155,9 @@ final class AtlasDatabaseStack: @unchecked Sendable {
                 table.column("linked_vial_id", .text)
                 table.column("name", .text).notNull()
                 table.column("kind", .text).notNull()
+                table.column("administration_route", .text)
+                table.column("supply_type", .text)
+                table.column("doses_per_supply", .integer)
                 table.column("status", .text).notNull()
                 table.column("timezone", .text).notNull()
                 table.column("start_date", .text).notNull()
@@ -202,6 +205,9 @@ final class AtlasDatabaseStack: @unchecked Sendable {
                 table.column("lifecycle_state", .text).notNull()
                 table.column("timezone", .text).notNull()
                 table.column("timezone_strategy", .text).notNull()
+                table.column("administration_route", .text)
+                table.column("supply_type", .text)
+                table.column("doses_per_supply", .integer)
                 table.column("default_time_of_day", .text)
                 table.column("dose_amount", .double)
                 table.column("dose_unit", .text)
@@ -663,6 +669,42 @@ final class AtlasDatabaseStack: @unchecked Sendable {
 
             try db.create(index: "idx_progress_measurements_logged_at", on: "progress_measurements", columns: ["logged_at"])
             try db.create(index: "idx_progress_photos_logged_at", on: "progress_photos", columns: ["logged_at"])
+        }
+
+        migrator.registerMigration("v17_add_protocol_delivery_metadata") { db in
+            let protocolColumns = Set(try String.fetchAll(db, sql: "SELECT name FROM pragma_table_info('protocols')"))
+            if protocolColumns.contains("administration_route") == false ||
+                protocolColumns.contains("supply_type") == false ||
+                protocolColumns.contains("doses_per_supply") == false {
+                try db.alter(table: "protocols") { table in
+                    if protocolColumns.contains("administration_route") == false {
+                        table.add(column: "administration_route", .text)
+                    }
+                    if protocolColumns.contains("supply_type") == false {
+                        table.add(column: "supply_type", .text)
+                    }
+                    if protocolColumns.contains("doses_per_supply") == false {
+                        table.add(column: "doses_per_supply", .integer)
+                    }
+                }
+            }
+
+            let revisionColumns = Set(try String.fetchAll(db, sql: "SELECT name FROM pragma_table_info('protocol_revisions')"))
+            if revisionColumns.contains("administration_route") == false ||
+                revisionColumns.contains("supply_type") == false ||
+                revisionColumns.contains("doses_per_supply") == false {
+                try db.alter(table: "protocol_revisions") { table in
+                    if revisionColumns.contains("administration_route") == false {
+                        table.add(column: "administration_route", .text)
+                    }
+                    if revisionColumns.contains("supply_type") == false {
+                        table.add(column: "supply_type", .text)
+                    }
+                    if revisionColumns.contains("doses_per_supply") == false {
+                        table.add(column: "doses_per_supply", .integer)
+                    }
+                }
+            }
         }
 
         return migrator

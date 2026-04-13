@@ -30,6 +30,9 @@ public struct AtlasOccurrenceExplanation: Equatable, Hashable, Sendable {
 public struct AtlasProtocolDraft: Equatable, Sendable {
     public var name: String
     public var kind: AtlasProtocolKind
+    public var administrationRoute: AtlasProtocolAdministrationRoute
+    public var supplyType: AtlasProtocolSupplyType?
+    public var dosesPerSupply: Int?
     public var cadenceType: AtlasProtocolRuleType
     public var intervalDays: Int
     public var weekday: Int?
@@ -41,6 +44,9 @@ public struct AtlasProtocolDraft: Equatable, Sendable {
     public init(
         name: String,
         kind: AtlasProtocolKind,
+        administrationRoute: AtlasProtocolAdministrationRoute = .injection,
+        supplyType: AtlasProtocolSupplyType? = nil,
+        dosesPerSupply: Int? = nil,
         cadenceType: AtlasProtocolRuleType,
         intervalDays: Int = 1,
         weekday: Int? = nil,
@@ -51,6 +57,9 @@ public struct AtlasProtocolDraft: Equatable, Sendable {
     ) {
         self.name = name
         self.kind = kind
+        self.administrationRoute = administrationRoute
+        self.supplyType = supplyType
+        self.dosesPerSupply = dosesPerSupply
         self.cadenceType = cadenceType
         self.intervalDays = intervalDays
         self.weekday = weekday
@@ -133,6 +142,8 @@ public struct AtlasProtocolDetailSnapshot: Identifiable, Equatable, Sendable {
     public var status: AtlasProtocolStatus
     public var protocolKind: AtlasProtocolKind
     public var kindLabel: String
+    public var administrationLabel: String?
+    public var supplyLabel: String?
     public var cadenceLabel: String
     public var doseLabel: String?
     public var notes: String?
@@ -149,6 +160,8 @@ public struct AtlasProtocolDetailSnapshot: Identifiable, Equatable, Sendable {
         status: AtlasProtocolStatus,
         protocolKind: AtlasProtocolKind,
         kindLabel: String,
+        administrationLabel: String? = nil,
+        supplyLabel: String? = nil,
         cadenceLabel: String,
         doseLabel: String?,
         notes: String?,
@@ -164,6 +177,8 @@ public struct AtlasProtocolDetailSnapshot: Identifiable, Equatable, Sendable {
         self.status = status
         self.protocolKind = protocolKind
         self.kindLabel = kindLabel
+        self.administrationLabel = administrationLabel
+        self.supplyLabel = supplyLabel
         self.cadenceLabel = cadenceLabel
         self.doseLabel = doseLabel
         self.notes = notes

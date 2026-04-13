@@ -243,10 +243,21 @@ func buildSettingsSnapshot(
     let connections = try AtlasHealthConnectionDBRecord.fetchAll(db).map(\.domain).sorted {
         $0.providerKey.rawValue < $1.providerKey.rawValue
     }
+    let syncedWeightEntryCount = try Int.fetchOne(
+        db,
+        sql: "SELECT COUNT(*) FROM weight_logs WHERE source = ?",
+        arguments: [AtlasHealthDataSource.health.rawValue]
+    ) ?? 0
+    let lastWeightEntryAt = try String.fetchOne(
+        db,
+        sql: "SELECT logged_at FROM weight_logs WHERE source = ? ORDER BY logged_at DESC LIMIT 1",
+        arguments: [AtlasHealthDataSource.health.rawValue]
+    )
     let syncStatus: AtlasSyncScaffoldStatus = accountMode == .guest ? .localOnly : .accountBoundary
     let summarySettings = try readSummarySettings(db: db, featureFlags: featureFlags)
     let retentionSettings = try readRetentionSettings(db: db, featureFlags: featureFlags)
     let rewardsSettings = try readRewardsSettings(db: db)
+    let labsEnabled = try readLabsEnabled(db: db)
 
     return AtlasSettingsSnapshot(
         accountMode: accountMode,
@@ -255,8 +266,13 @@ func buildSettingsSnapshot(
         syncStatus: syncStatus,
         healthScaffold: AtlasHealthScaffoldSnapshot(
             isAvailable: healthKit.isAvailable(),
-            connections: connections
+            connections: connections,
+            syncsWeight: true,
+            syncsWorkouts: true,
+            syncedWeightEntryCount: syncedWeightEntryCount,
+            lastWeightEntryAt: lastWeightEntryAt
         ),
+        labsEnabled: labsEnabled,
         trustVaultStatus: TrustVaultStatus(
             renderMode: profile.renderMode ?? (profile.aliasModeEnabled ? .alias : .full),
             biometricLockEnabled: profile.biometricLockEnabled
@@ -347,6 +363,13 @@ func readRewardsSettings(db: Database) throws -> AtlasRewardsSettingsSnapshot {
         weeklyWorkoutGoal: max(Int(workoutGoalValue ?? "") ?? 3, 1),
         weeklySelfGoalTarget: max(Int(selfGoalTargetValue ?? "") ?? 2, 1)
     )
+}
+
+func readLabsEnabled(db: Database) throws -> Bool {
+    try String.fetchOne(
+        db,
+        sql: "SELECT value FROM atlas_app_settings WHERE key = 'labs_enabled'"
+    ) == "1"
 }
 
 func ensureDefaultHealthConnection(db: Database) throws {

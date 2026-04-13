@@ -76,6 +76,9 @@ extension GRDBProtocolRepository {
                 linkedVialId: nil,
                 name: normalized.name,
                 kind: normalized.kind,
+                administrationRoute: normalized.administrationRoute,
+                supplyType: normalized.supplyType,
+                dosesPerSupply: normalized.dosesPerSupply,
                 status: .active,
                 timezone: TimeZone.current.identifier,
                 startDate: startDate,
@@ -114,6 +117,9 @@ extension GRDBProtocolRepository {
                 lifecycleState: .active,
                 timezone: protocolRecord.timezone,
                 timezoneStrategy: .keepLocalClock,
+                administrationRoute: normalized.administrationRoute,
+                supplyType: normalized.supplyType,
+                dosesPerSupply: normalized.dosesPerSupply,
                 defaultTimeOfDay: normalized.defaultTimeOfDay,
                 doseAmount: normalized.doseAmount,
                 doseUnit: normalized.doseUnit,
@@ -196,6 +202,9 @@ extension GRDBProtocolRepository {
 
             protocolRecord.name = normalized.name
             protocolRecord.kind = normalized.kind
+            protocolRecord.administrationRoute = normalized.administrationRoute
+            protocolRecord.supplyType = normalized.supplyType
+            protocolRecord.dosesPerSupply = normalized.dosesPerSupply
             protocolRecord.defaultTimeOfDay = normalized.defaultTimeOfDay
             protocolRecord.doseAmount = normalized.doseAmount
             protocolRecord.doseUnit = normalized.doseUnit
@@ -220,6 +229,9 @@ extension GRDBProtocolRepository {
                 lifecycleState: .active,
                 timezone: protocolRecord.timezone,
                 timezoneStrategy: .keepLocalClock,
+                administrationRoute: normalized.administrationRoute,
+                supplyType: normalized.supplyType,
+                dosesPerSupply: normalized.dosesPerSupply,
                 defaultTimeOfDay: normalized.defaultTimeOfDay,
                 doseAmount: normalized.doseAmount,
                 doseUnit: normalized.doseUnit,
@@ -767,6 +779,9 @@ private func normalize(draft: AtlasProtocolDraft) throws -> AtlasProtocolDraft {
     return AtlasProtocolDraft(
         name: name,
         kind: draft.kind,
+        administrationRoute: draft.administrationRoute,
+        supplyType: draft.supplyType,
+        dosesPerSupply: draft.dosesPerSupply.flatMap { $0 > 0 ? $0 : nil },
         cadenceType: draft.cadenceType,
         intervalDays: intervalDays,
         weekday: draft.cadenceType == .weekly ? draft.weekday : nil,
@@ -935,6 +950,9 @@ private func buildProtocolDetailSnapshot(
     let draft = AtlasProtocolDraft(
         name: protocolRecord.name,
         kind: protocolRecord.kind,
+        administrationRoute: activeSlice?.revision.administrationRoute ?? protocolRecord.administrationRoute ?? .injection,
+        supplyType: activeSlice?.revision.supplyType ?? protocolRecord.supplyType,
+        dosesPerSupply: activeSlice?.revision.dosesPerSupply ?? protocolRecord.dosesPerSupply,
         cadenceType: activeRule?.ruleType ?? baseRule?.ruleType ?? .weekly,
         intervalDays: activeRule?.intervalCount ?? baseRule?.intervalCount ?? 1,
         weekday: activeRule?.weekday ?? baseRule?.weekday,
@@ -951,6 +969,11 @@ private func buildProtocolDetailSnapshot(
         status: protocolRecord.status,
         protocolKind: protocolRecord.kind,
         kindLabel: kindLabel(protocolRecord.kind),
+        administrationLabel: administrationRouteLabel(activeSlice?.revision.administrationRoute ?? protocolRecord.administrationRoute),
+        supplyLabel: supplyTypeLabel(
+            activeSlice?.revision.supplyType ?? protocolRecord.supplyType,
+            dosesPerSupply: activeSlice?.revision.dosesPerSupply ?? protocolRecord.dosesPerSupply
+        ),
         cadenceLabel: cadence,
         doseLabel: doseAmount.flatMap { amount in doseUnit.map { "\(amount.cleanAtlasNumber) \($0)" } },
         notes: activeSlice?.revision.notes ?? protocolRecord.notes,

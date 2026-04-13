@@ -67,6 +67,7 @@ public protocol SettingsRepository: Sendable {
     func updateSummarySettings(_ update: AtlasSummarySettingsUpdate, now: Date) async throws -> AtlasSettingsSnapshot
     func updateRetentionSettings(_ update: AtlasRetentionSettingsUpdate, now: Date) async throws -> AtlasSettingsSnapshot
     func updateRewardsSettings(_ update: AtlasRewardsSettingsUpdate, now: Date) async throws -> AtlasSettingsSnapshot
+    func updateLabsEnabled(_ enabled: Bool, now: Date) async throws -> AtlasSettingsSnapshot
     func updateHealthConnection(
         provider: AtlasHealthProviderKey,
         enabled: Bool,
@@ -140,6 +141,7 @@ public protocol CalculatorRepository: Sendable {
 public protocol MetricsRepository: Sendable {
     func fetchInsightsSnapshot(referenceDate: Date) async throws -> AtlasInsightsSnapshot
     func importWorkoutSamples(_ samples: [AtlasHealthWorkoutSample], now: Date) async throws -> Int
+    func importWeightSamples(_ samples: [AtlasHealthWeightSample], now: Date) async throws -> Int
     func saveContextEntry(_ draft: AtlasContextEntryDraft, now: Date) async throws -> AtlasContextLogRecord
     func saveContextPreset(_ draft: AtlasContextPresetDraft, now: Date) async throws -> AtlasContextPresetRecord
     func deleteContextPreset(id: String) async throws

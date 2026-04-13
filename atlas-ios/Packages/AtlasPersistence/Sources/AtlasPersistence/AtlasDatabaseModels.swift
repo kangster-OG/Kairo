@@ -42,6 +42,52 @@ func kindLabel(_ kind: AtlasProtocolKind) -> String {
     }
 }
 
+func administrationRouteLabel(_ route: AtlasProtocolAdministrationRoute?) -> String? {
+    switch route {
+    case .injection:
+        return "Injection"
+    case .oral:
+        return "Oral"
+    case .sublingual:
+        return "Sublingual"
+    case .nasal:
+        return "Nasal"
+    case .topical:
+        return "Topical"
+    case .transdermal:
+        return "Transdermal"
+    case .other:
+        return "Other route"
+    case nil:
+        return nil
+    }
+}
+
+func supplyTypeLabel(_ supplyType: AtlasProtocolSupplyType?, dosesPerSupply: Int?) -> String? {
+    let base: String?
+    switch supplyType {
+    case .vial:
+        base = "Vial"
+    case .pen:
+        base = "Pen"
+    case .bottle:
+        base = "Bottle"
+    case .blisterPack:
+        base = "Blister pack"
+    case .syringe:
+        base = "Prefilled syringe"
+    case .other:
+        base = "Other supply"
+    case nil:
+        base = nil
+    }
+
+    if let base, let dosesPerSupply, dosesPerSupply > 0 {
+        return "\(base) • \(dosesPerSupply) dose\(dosesPerSupply == 1 ? "" : "s")"
+    }
+    return base
+}
+
 private func cadenceLabel(from rule: AtlasProtocolRuleRecord?) -> String {
     guard let rule else {
         return "Cadence pending"
@@ -268,6 +314,9 @@ struct AtlasProtocolDBRecord: Codable, FetchableRecord, PersistableRecord {
     var linkedVialId: String?
     var name: String
     var kind: AtlasProtocolKind
+    var administrationRoute: AtlasProtocolAdministrationRoute?
+    var supplyType: AtlasProtocolSupplyType?
+    var dosesPerSupply: Int?
     var status: AtlasProtocolStatus
     var timezone: String
     var startDate: String
@@ -286,6 +335,9 @@ struct AtlasProtocolDBRecord: Codable, FetchableRecord, PersistableRecord {
         case linkedVialId = "linked_vial_id"
         case name
         case kind
+        case administrationRoute = "administration_route"
+        case supplyType = "supply_type"
+        case dosesPerSupply = "doses_per_supply"
         case status
         case timezone
         case startDate = "start_date"
@@ -305,6 +357,9 @@ struct AtlasProtocolDBRecord: Codable, FetchableRecord, PersistableRecord {
         linkedVialId = record.linkedVialId
         name = record.name
         kind = record.kind
+        administrationRoute = record.administrationRoute
+        supplyType = record.supplyType
+        dosesPerSupply = record.dosesPerSupply
         status = record.status
         timezone = record.timezone
         startDate = record.startDate
@@ -325,6 +380,9 @@ struct AtlasProtocolDBRecord: Codable, FetchableRecord, PersistableRecord {
             linkedVialId: linkedVialId,
             name: name,
             kind: kind,
+            administrationRoute: administrationRoute,
+            supplyType: supplyType,
+            dosesPerSupply: dosesPerSupply,
             status: status,
             timezone: timezone,
             startDate: startDate,
@@ -406,6 +464,9 @@ struct AtlasProtocolRevisionDBRecord: Codable, FetchableRecord, PersistableRecor
     var lifecycleState: AtlasProtocolRevisionLifecycle
     var timezone: String
     var timezoneStrategy: AtlasProtocolTimezoneStrategy
+    var administrationRoute: AtlasProtocolAdministrationRoute?
+    var supplyType: AtlasProtocolSupplyType?
+    var dosesPerSupply: Int?
     var defaultTimeOfDay: String?
     var doseAmount: Double?
     var doseUnit: String?
@@ -425,6 +486,9 @@ struct AtlasProtocolRevisionDBRecord: Codable, FetchableRecord, PersistableRecor
         case lifecycleState = "lifecycle_state"
         case timezone
         case timezoneStrategy = "timezone_strategy"
+        case administrationRoute = "administration_route"
+        case supplyType = "supply_type"
+        case dosesPerSupply = "doses_per_supply"
         case defaultTimeOfDay = "default_time_of_day"
         case doseAmount = "dose_amount"
         case doseUnit = "dose_unit"
@@ -445,6 +509,9 @@ struct AtlasProtocolRevisionDBRecord: Codable, FetchableRecord, PersistableRecor
         lifecycleState = record.lifecycleState
         timezone = record.timezone
         timezoneStrategy = record.timezoneStrategy
+        administrationRoute = record.administrationRoute
+        supplyType = record.supplyType
+        dosesPerSupply = record.dosesPerSupply
         defaultTimeOfDay = record.defaultTimeOfDay
         doseAmount = record.doseAmount
         doseUnit = record.doseUnit
@@ -466,6 +533,9 @@ struct AtlasProtocolRevisionDBRecord: Codable, FetchableRecord, PersistableRecor
             lifecycleState: lifecycleState,
             timezone: timezone,
             timezoneStrategy: timezoneStrategy,
+            administrationRoute: administrationRoute,
+            supplyType: supplyType,
+            dosesPerSupply: dosesPerSupply,
             defaultTimeOfDay: defaultTimeOfDay,
             doseAmount: doseAmount,
             doseUnit: doseUnit,

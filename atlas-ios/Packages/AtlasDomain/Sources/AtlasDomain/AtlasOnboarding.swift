@@ -267,13 +267,25 @@ public enum AtlasSyncScaffoldStatus: String, Codable, Sendable {
 public struct AtlasHealthScaffoldSnapshot: Codable, Equatable, Sendable {
     public var isAvailable: Bool
     public var connections: [AtlasHealthConnectionRecord]
+    public var syncsWeight: Bool
+    public var syncsWorkouts: Bool
+    public var syncedWeightEntryCount: Int
+    public var lastWeightEntryAt: String?
 
     public init(
         isAvailable: Bool = true,
-        connections: [AtlasHealthConnectionRecord] = []
+        connections: [AtlasHealthConnectionRecord] = [],
+        syncsWeight: Bool = true,
+        syncsWorkouts: Bool = true,
+        syncedWeightEntryCount: Int = 0,
+        lastWeightEntryAt: String? = nil
     ) {
         self.isAvailable = isAvailable
         self.connections = connections
+        self.syncsWeight = syncsWeight
+        self.syncsWorkouts = syncsWorkouts
+        self.syncedWeightEntryCount = syncedWeightEntryCount
+        self.lastWeightEntryAt = lastWeightEntryAt
     }
 }
 

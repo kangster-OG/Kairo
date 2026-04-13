@@ -268,16 +268,27 @@ public struct AtlasWeeklyReviewScreen: View {
                             )
                         }
 
-                        HStack(spacing: AtlasSpacing.small) {
-                            AtlasStatusBadge(snapshot.trustLabel, tint: AtlasPalette.secondaryText)
-                            if snapshot.reminderEnabled {
-                                AtlasStatusBadge("Reminder on", tint: AtlasPalette.primary)
+                        ViewThatFits(in: .horizontal) {
+                            HStack(spacing: AtlasSpacing.small) {
+                                AtlasStatusBadge(snapshot.trustLabel, tint: AtlasPalette.secondaryText)
+                                if snapshot.reminderEnabled {
+                                    AtlasStatusBadge("Reminder on", tint: AtlasPalette.primary)
+                                }
+                            }
+
+                            VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
+                                AtlasStatusBadge(snapshot.trustLabel, tint: AtlasPalette.secondaryText)
+                                if snapshot.reminderEnabled {
+                                    AtlasStatusBadge("Reminder on", tint: AtlasPalette.primary)
+                                }
                             }
                         }
 
                         Text(snapshot.summaryText)
                             .font(.title3.weight(.semibold))
                             .foregroundStyle(AtlasPalette.textPrimary)
+
+                        AtlasWeeklyReviewSignalStrip(snapshot: snapshot)
 
                         AtlasWeeklyReviewTrustPanel(
                             trustLabel: snapshot.trustLabel,
@@ -298,7 +309,7 @@ public struct AtlasWeeklyReviewScreen: View {
                                             await model.saveWeeklyReviewActionPlan(primaryAction, seed: snapshot.seed)
                                         }
                                     }
-                                    .buttonStyle(AtlasSecondaryButtonStyle())
+                                    .buttonStyle(AtlasTertiaryButtonStyle())
                                 }
                             }
 
@@ -309,9 +320,14 @@ public struct AtlasWeeklyReviewScreen: View {
                     }
                 }
 
+                AtlasWeeklyReviewCommandDeck(
+                    model: model,
+                    snapshot: snapshot
+                )
+
                 if snapshot.highlights.isEmpty == false {
                     AtlasSectionCard(style: .elevated, title: "Weekly highlights") {
-                        ForEach(Array(snapshot.highlights.enumerated()), id: \.element.id) { index, highlight in
+                        ForEach(Array(snapshot.highlights.prefix(3).enumerated()), id: \.element.id) { index, highlight in
                             if index > 0 {
                                 Divider()
                             }
@@ -326,7 +342,7 @@ public struct AtlasWeeklyReviewScreen: View {
                             .font(.caption)
                             .foregroundStyle(AtlasPalette.textSecondary)
 
-                        ForEach(Array(snapshot.shifts.enumerated()), id: \.element.id) { index, shift in
+                        ForEach(Array(snapshot.shifts.prefix(3).enumerated()), id: \.element.id) { index, shift in
                             if index > 0 {
                                 Divider()
                             }
@@ -375,7 +391,7 @@ public struct AtlasWeeklyReviewScreen: View {
                             }
                         }
 
-                        ForEach(Array(snapshot.history.enumerated()), id: \.element.id) { index, item in
+                        ForEach(Array(snapshot.history.prefix(2).enumerated()), id: \.element.id) { index, item in
                             if index > 0 {
                                 Divider()
                             }
@@ -582,6 +598,175 @@ public struct AtlasWeeklyReviewScreen: View {
         isExporting = true
         defer { isExporting = false }
         shareURL = await model.exportWeeklyReviewPack(snapshot)
+    }
+}
+
+private struct AtlasWeeklyReviewCommandDeck: View {
+    let model: AtlasAppModel
+    let snapshot: AtlasWeeklyReviewPresentation
+
+    var body: some View {
+        AtlasSectionCard(style: .utility, title: "At a glance") {
+            VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+                AtlasWeeklyReviewCommandCard(
+                    title: "Primary focus",
+                    value: snapshot.actions.first?.title ?? "No follow-through queued",
+                    detail: snapshot.actions.first?.detail ?? "Atlas did not detect a high-priority follow-up for this review."
+                )
+
+                AtlasWeeklyReviewCommandCard(
+                    title: "Continuity",
+                    value: continuityTitle,
+                    detail: continuityDetail
+                )
+
+                AtlasWeeklyReviewCommandCard(
+                    title: "Carry forward",
+                    value: snapshot.actionPlans.isEmpty ? "No saved plans" : "\(snapshot.actionPlans.count) saved plan\(snapshot.actionPlans.count == 1 ? "" : "s")",
+                    detail: snapshot.actionPlans.isEmpty
+                        ? "Save one action from this review to keep it visible in Today next week."
+                        : "Saved follow-through items stay anchored in Weekly Review and Today until you clear them."
+                )
+            }
+        }
+    }
+
+    private var continuityTitle: String {
+        if model.settingsSnapshot.healthScaffold.connections.contains(where: { $0.connected }) {
+            return model.settingsSnapshot.labsEnabled ? "Health connected + labs enabled" : "Health connected"
+        }
+        return model.settingsSnapshot.labsEnabled ? "Local review + labs enabled" : "Local review"
+    }
+
+    private var continuityDetail: String {
+        let health = model.settingsSnapshot.healthScaffold
+        var details: [String] = []
+
+        if health.connections.contains(where: { $0.connected }) {
+            if health.syncedWeightEntryCount > 0 {
+                details.append("\(health.syncedWeightEntryCount) Health weight import\(health.syncedWeightEntryCount == 1 ? "" : "s")")
+            } else {
+                details.append("Health connected")
+            }
+        } else {
+            details.append("Health optional")
+        }
+
+        if model.settingsSnapshot.labsEnabled {
+            details.append("Labs enabled")
+        }
+
+        if let lastSyncAt = health.connections.first?.lastSyncAt,
+           let date = ISO8601DateFormatter.atlas.date(from: lastSyncAt) {
+            details.append("Last sync \(date.formatted(date: .abbreviated, time: .shortened))")
+        }
+        details.append("Trust mode: \(snapshot.trustLabel)")
+
+        return details.joined(separator: " • ")
+    }
+}
+
+private struct AtlasWeeklyReviewSignalStrip: View {
+    let snapshot: AtlasWeeklyReviewPresentation
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: AtlasSpacing.small) {
+                signalPills
+            }
+
+            VStack(spacing: AtlasSpacing.small) {
+                HStack(spacing: AtlasSpacing.small) {
+                    AtlasWeeklyReviewSignalPill(
+                        title: "Highlights",
+                        value: "\(snapshot.highlights.count)"
+                    )
+                    AtlasWeeklyReviewSignalPill(
+                        title: "Shifts",
+                        value: "\(snapshot.shifts.count)"
+                    )
+                }
+                AtlasWeeklyReviewSignalPill(
+                    title: "Saved",
+                    value: "\(snapshot.actionPlans.count)"
+                )
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var signalPills: some View {
+        AtlasWeeklyReviewSignalPill(
+            title: "Highlights",
+            value: "\(snapshot.highlights.count)"
+        )
+        AtlasWeeklyReviewSignalPill(
+            title: "Shifts",
+            value: "\(snapshot.shifts.count)"
+        )
+        AtlasWeeklyReviewSignalPill(
+            title: "Saved",
+            value: "\(snapshot.actionPlans.count)"
+        )
+    }
+}
+
+private struct AtlasWeeklyReviewSignalPill: View {
+    let title: String
+    let value: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(AtlasPalette.primary)
+                .textCase(.uppercase)
+            Text(value)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(AtlasPalette.textPrimary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color.white.opacity(0.65))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(Color.black.opacity(0.06), lineWidth: 1)
+        )
+    }
+}
+
+private struct AtlasWeeklyReviewCommandCard: View {
+    let title: String
+    let value: String
+    let detail: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(AtlasPalette.primary)
+                .textCase(.uppercase)
+            Text(value)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(AtlasPalette.textPrimary)
+            Text(detail)
+                .font(.caption)
+                .foregroundStyle(AtlasPalette.textSecondary)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.white.opacity(0.62))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(Color.black.opacity(0.05), lineWidth: 1)
+        )
     }
 }
 

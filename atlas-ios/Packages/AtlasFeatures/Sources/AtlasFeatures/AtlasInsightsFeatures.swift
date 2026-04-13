@@ -835,9 +835,9 @@ private struct AtlasAmountEstimateSection: View {
                         model: model,
                         item: item,
                         renderMode: renderMode,
-                        actionTitle: "Open protocol"
+                        actionTitle: "Open level studio"
                     ) {
-                        model.open(.protocolDetail(item.protocolID))
+                        model.open(.medicationLevels(item.protocolID))
                     }
                     .listRowInsets(EdgeInsets())
                     .listRowBackground(Color.clear)

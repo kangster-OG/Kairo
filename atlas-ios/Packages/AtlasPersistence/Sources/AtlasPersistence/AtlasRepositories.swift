@@ -554,6 +554,22 @@ public struct GRDBSettingsRepository: SettingsRepository, Sendable {
             )
         }
     }
+
+    public func updateLabsEnabled(_ enabled: Bool, now: Date) async throws -> AtlasSettingsSnapshot {
+        try await stack.canonical.write { db in
+            try writeAppSetting(
+                db: db,
+                key: "labs_enabled",
+                value: enabled ? "1" : "0",
+                now: now
+            )
+            return try buildSettingsSnapshot(
+                db: db,
+                healthKit: healthKit,
+                featureFlags: featureFlags
+            )
+        }
+    }
 }
 
 public actor GRDBSharedProjectionWriter: SharedProjectionWriting {

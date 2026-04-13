@@ -731,7 +731,7 @@ public final class AtlasAppModel {
                 now: currentDate()
             )
             if connected {
-                try await syncHealthKitWorkouts(since: previousSyncDate)
+                try await syncHealthKitData(since: previousSyncDate)
             }
             syncShellViewStates()
         } catch {
@@ -767,9 +767,11 @@ public final class AtlasAppModel {
         }
     }
 
-    private func syncHealthKitWorkouts(since: Date?) async throws {
+    private func syncHealthKitData(since: Date?) async throws {
         let syncDate = currentDate()
+        let weights = try await dependencies.healthKit.fetchWeightSamples(since: since)
         let workouts = try await dependencies.healthKit.fetchWorkouts(since: since)
+        _ = try await dependencies.persistence.metrics.importWeightSamples(weights, now: syncDate)
         _ = try await dependencies.persistence.metrics.importWorkoutSamples(workouts, now: syncDate)
         settingsSnapshot = try await dependencies.persistence.settings.updateHealthConnection(
             provider: .appleHealth,
@@ -780,6 +782,15 @@ public final class AtlasAppModel {
             now: syncDate
         )
         await refreshShellData()
+    }
+
+    public func updateLabsEnabled(_ enabled: Bool) async {
+        do {
+            settingsSnapshot = try await dependencies.persistence.settings.updateLabsEnabled(enabled, now: currentDate())
+            await refreshShellData()
+        } catch {
+            setLoadErrorMessage(error.localizedDescription)
+        }
     }
 
     public func refreshCloudStatus() async {
@@ -1837,10 +1848,14 @@ public struct AtlasRootView: View {
                             AtlasProtocolEditorScreen(model: model, mode: .edit(id))
                         case .protocolChange(let id):
                             AtlasProtocolChangeStudioScreen(model: model, protocolID: id)
+                        case .medicationLevels(let id):
+                            AtlasMedicationLevelsScreen(model: model, protocolID: id)
                         case .compoundIntelligence(let slug):
                             AtlasCompoundIntelligenceScreen(model: model, knowledgeSlug: slug)
                         case .inventory:
                             AtlasInventoryScreen(model: model)
+                        case .labs:
+                            AtlasLabsScreen(model: model)
                         case .mascot:
                             AtlasMascotDetailScreen(model: model)
                         case .calculator:
@@ -3175,7 +3190,17 @@ public struct AtlasProtocolDetailScreen: View {
                                 Spacer()
                                 AtlasStatusBadge(detail.status.rawValue.capitalized)
                             }
-                            Text("\(detail.kindLabel) • \(detail.cadenceLabel)")
+                            Text(detail.kindLabel)
+                                .foregroundStyle(AtlasPalette.textSecondary)
+                            if let administrationLabel = detail.administrationLabel {
+                                Text(administrationLabel)
+                                    .foregroundStyle(AtlasPalette.textSecondary)
+                            }
+                            if let supplyLabel = detail.supplyLabel {
+                                Text(supplyLabel)
+                                    .foregroundStyle(AtlasPalette.textSecondary)
+                            }
+                            Text(detail.cadenceLabel)
                                 .foregroundStyle(AtlasPalette.textSecondary)
                             if let doseLabel = detail.doseLabel {
                                 Text("Dose \(doseLabel)")
@@ -3221,9 +3246,9 @@ public struct AtlasProtocolDetailScreen: View {
                         AtlasMedicationLevelCard(
                             model: model,
                             item: medicationLevel,
-                            actionTitle: "Open Change Studio"
+                            actionTitle: "Open Level Studio"
                         ) {
-                            model.open(.protocolChange(protocolID))
+                            model.open(.medicationLevels(protocolID))
                         }
                         .listRowInsets(EdgeInsets())
                         .listRowBackground(Color.clear)
@@ -3365,6 +3390,26 @@ public struct AtlasProtocolEditorScreen: View {
                     Text("Peptide").tag(AtlasProtocolKind.peptide)
                     Text("Custom").tag(AtlasProtocolKind.custom)
                 }
+                Picker("Route", selection: $form.administrationRoute) {
+                    ForEach(AtlasProtocolAdministrationRoute.allCases, id: \.self) { route in
+                        Text(route.atlasTitle).tag(route)
+                    }
+                }
+            }
+
+            Section("Delivery") {
+                Picker("Supply", selection: $form.supplyType) {
+                    Text("None").tag(AtlasProtocolSupplyType?.none)
+                    ForEach(AtlasProtocolSupplyType.allCases, id: \.self) { supplyType in
+                        Text(supplyType.atlasTitle).tag(AtlasProtocolSupplyType?.some(supplyType))
+                    }
+                }
+
+                if form.supplyType != nil {
+                    Stepper(value: $form.dosesPerSupply, in: 1...60) {
+                        Text("Planned doses per \(form.supplyType?.atlasTitle.lowercased() ?? "supply"): \(form.dosesPerSupply)")
+                    }
+                }
             }
 
             Section("Cadence") {
@@ -3453,6 +3498,67 @@ public struct AtlasSettingsScreen: View {
                 subtitle: "Privacy, reminders, and local-first controls stay visible and deliberate."
             )
 
+            AtlasSectionCard(style: .hero) {
+                VStack(alignment: .leading, spacing: AtlasSpacing.medium) {
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: AtlasSpacing.small) {
+                            heroStatusBadges
+                        }
+
+                        VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
+                            heroStatusBadges
+                        }
+                    }
+
+                    Text("Atlas keeps continuity visible: what is local, what is synced, what is private on screen, and which optional health or clinical tools are turned on.")
+                        .foregroundStyle(AtlasPalette.textSecondary)
+
+                    VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+                        AtlasSettingsStatusRow(
+                            title: "Cloud",
+                            value: model.cloudSession == nil ? "Local-first" : "Recovery-ready account"
+                        )
+                        AtlasSettingsStatusRow(
+                            title: "Health",
+                            value: state.settingsSnapshot.healthScaffold.connections.contains(where: { $0.connected }) ? "Connected" : "Optional"
+                        )
+                        AtlasSettingsStatusRow(
+                            title: "Clinical",
+                            value: state.settingsSnapshot.labsEnabled ? "Labs enabled" : "Labs off"
+                        )
+                        AtlasSettingsStatusRow(
+                            title: "On-screen privacy",
+                            value: state.settingsSnapshot.trustVaultStatus.renderMode.rawValue.capitalized
+                        )
+                    }
+
+                    VStack(spacing: AtlasSpacing.small) {
+                        Button("Open Weekly Review") {
+                            model.routePath.removeAll()
+                            model.activeTab = .insights
+                            model.open(.weeklyReview)
+                        }
+                        .buttonStyle(AtlasPrimaryButtonStyle())
+
+                        Button("Open Trust Vault") {
+                            model.routePath.removeAll()
+                            model.activeTab = .settings
+                            model.open(.trustVault)
+                        }
+                        .buttonStyle(AtlasSecondaryButtonStyle())
+                    }
+
+                    if model.settingsSnapshot.labsEnabled {
+                        Button("Open Labs") {
+                            model.routePath.removeAll()
+                            model.activeTab = .settings
+                            model.open(.labs)
+                        }
+                        .buttonStyle(AtlasTertiaryButtonStyle())
+                    }
+                }
+            }
+
             AtlasSectionCard(style: .elevated, title: "Account & sync") {
                 HStack(spacing: AtlasSpacing.small) {
                     AtlasStatusBadge(
@@ -3511,6 +3617,9 @@ public struct AtlasSettingsScreen: View {
                     }
                 } else {
                     if model.dependencies.cloudSync.isConfigured() {
+                        Text("Sign in only if you want backup, recovery, or cross-device continuity. Local tracking stays supported either way.")
+                            .font(.caption)
+                            .foregroundStyle(AtlasPalette.textSecondary)
                         TextField("Email", text: $cloudEmail)
                             .autocorrectionDisabled()
                             .atlasStandaloneInputSurface()
@@ -3585,6 +3694,45 @@ public struct AtlasSettingsScreen: View {
                     ("Import", .importFlow),
                     ("Review Mode", .reviewMode)
                 ], model: model)
+            }
+
+            AtlasSectionCard(title: "Clinical tools") {
+                Text("Advanced labs and medication-level views are optional. Atlas keeps them available for people who need deeper operating detail without making the everyday app feel clinical.")
+                    .foregroundStyle(AtlasPalette.textSecondary)
+                Text("Medication Level opens from protocol detail and Insights so the command surfaces stay focused.")
+                    .font(.caption)
+                    .foregroundStyle(AtlasPalette.textSecondary)
+
+                Toggle(
+                    "Enable advanced lab tracking",
+                    isOn: Binding(
+                        get: { state.settingsSnapshot.labsEnabled },
+                        set: { value in
+                            state.settingsSnapshot.labsEnabled = value
+                            model.settingsSnapshot.labsEnabled = value
+                            Task {
+                                await model.updateLabsEnabled(value)
+                            }
+                        }
+                    )
+                )
+                .tint(AtlasPalette.primary)
+
+                HStack(spacing: AtlasSpacing.small) {
+                    Button("Open Labs") {
+                        model.routePath.removeAll()
+                        model.activeTab = .settings
+                        model.open(.labs)
+                    }
+                    .buttonStyle(AtlasSecondaryButtonStyle())
+
+                    Button("Open Weekly Review") {
+                        model.routePath.removeAll()
+                        model.activeTab = .insights
+                        model.open(.weeklyReview)
+                    }
+                    .buttonStyle(AtlasTertiaryButtonStyle())
+                }
             }
 
             AtlasSectionCard(title: "Plain-language summaries") {
@@ -4030,6 +4178,25 @@ public struct AtlasSettingsScreen: View {
                 let health = model.settingsSnapshot.healthScaffold
                 Text(health.isAvailable ? "Apple Health is available as an optional connection." : "Apple Health is unavailable on this device.")
                     .foregroundStyle(AtlasPalette.textSecondary)
+                VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+                    AtlasSettingsStatusRow(
+                        title: "Import types",
+                        value: "\(health.syncsWeight ? "Weight" : "")\(health.syncsWeight && health.syncsWorkouts ? " + " : "")\(health.syncsWorkouts ? "Workouts" : "")"
+                    )
+                    AtlasSettingsStatusRow(
+                        title: "Health state",
+                        value: health.connections.first?.connected == true ? "Connected" : "Not connected"
+                    )
+                    if health.syncedWeightEntryCount > 0 {
+                        AtlasSettingsStatusRow(
+                            title: "Imported weights",
+                            value: "\(health.syncedWeightEntryCount)"
+                        )
+                    }
+                }
+                Text("Health imports configured: \(health.syncsWeight ? "Weight" : "")\(health.syncsWeight && health.syncsWorkouts ? " + " : "")\(health.syncsWorkouts ? "Workouts" : "")")
+                    .font(.caption)
+                    .foregroundStyle(AtlasPalette.textSecondary)
                 if let connection = health.connections.first {
                     Text("Health status: \(connection.connected ? "Connected" : "Not connected")")
                         .font(.caption.weight(.semibold))
@@ -4049,6 +4216,17 @@ public struct AtlasSettingsScreen: View {
                             .font(.caption)
                             .foregroundStyle(AtlasPalette.textSecondary)
                     }
+                }
+                if health.syncedWeightEntryCount > 0 {
+                    Text("Imported Health weight entries: \(health.syncedWeightEntryCount)")
+                        .font(.caption)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                }
+                if let lastWeightEntryAt = health.lastWeightEntryAt,
+                   let parsedWeightDate = ISO8601DateFormatter().date(from: lastWeightEntryAt) {
+                    Text("Latest Health weight: \(parsedWeightDate.formatted(date: .abbreviated, time: .shortened))")
+                        .font(.caption)
+                        .foregroundStyle(AtlasPalette.textSecondary)
                 }
                 Text(model.dependencies.healthKit.connectionDescription())
                     .foregroundStyle(AtlasPalette.textSecondary)
@@ -4108,6 +4286,22 @@ public struct AtlasSettingsScreen: View {
             return "Configured later"
         }
     }
+
+    @ViewBuilder
+    private var heroStatusBadges: some View {
+        AtlasStatusBadge(
+            model.cloudSession == nil ? "Local-first" : "Recovery ready",
+            tint: model.cloudSession == nil ? AtlasPalette.primary : AtlasPalette.success
+        )
+        AtlasStatusBadge(
+            state.settingsSnapshot.healthScaffold.connections.contains(where: { $0.connected }) ? "Health connected" : "Health optional",
+            tint: state.settingsSnapshot.healthScaffold.connections.contains(where: { $0.connected }) ? AtlasPalette.success : AtlasPalette.secondaryText
+        )
+        AtlasStatusBadge(
+            state.settingsSnapshot.trustVaultStatus.renderMode.rawValue.capitalized,
+            tint: AtlasPalette.secondaryText
+        )
+    }
 }
 
 public struct AtlasTrustVaultScreen: View {
@@ -4144,6 +4338,26 @@ public struct AtlasDetailPlaceholderScreen: View {
         }
         .navigationTitle(title)
         .atlasInlineNavigationTitle()
+    }
+}
+
+private struct AtlasSettingsStatusRow: View {
+    let title: String
+    let value: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: AtlasSpacing.small) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(AtlasPalette.primary)
+                .textCase(.uppercase)
+            Spacer(minLength: 12)
+            Text(value)
+                .font(.caption)
+                .multilineTextAlignment(.trailing)
+                .foregroundStyle(AtlasPalette.textPrimary)
+        }
+        .padding(.vertical, 4)
     }
 }
 
@@ -5308,6 +5522,9 @@ private struct AtlasLogSheet: View {
 private struct AtlasProtocolFormState {
     var name: String = ""
     var kind: AtlasProtocolKind = .glp
+    var administrationRoute: AtlasProtocolAdministrationRoute = .injection
+    var supplyType: AtlasProtocolSupplyType?
+    var dosesPerSupply: Int = 4
     var cadenceType: AtlasProtocolRuleType = .weekly
     var intervalDays: Int = 3
     var weekday: Int? = 1
@@ -5321,6 +5538,9 @@ private struct AtlasProtocolFormState {
     init(_ draft: AtlasProtocolDraft) {
         name = draft.name
         kind = draft.kind
+        administrationRoute = draft.administrationRoute
+        supplyType = draft.supplyType
+        dosesPerSupply = draft.dosesPerSupply ?? 4
         cadenceType = draft.cadenceType
         intervalDays = draft.intervalDays
         weekday = draft.weekday
@@ -5334,6 +5554,9 @@ private struct AtlasProtocolFormState {
         AtlasProtocolDraft(
             name: name,
             kind: kind,
+            administrationRoute: administrationRoute,
+            supplyType: supplyType,
+            dosesPerSupply: supplyType == nil ? nil : dosesPerSupply,
             cadenceType: cadenceType,
             intervalDays: intervalDays,
             weekday: weekday,
@@ -5363,6 +5586,46 @@ private extension AtlasProtocolEditorMode {
 
 private func weekdayName(_ weekday: Int) -> String {
     ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][weekday]
+}
+
+private extension AtlasProtocolAdministrationRoute {
+    var atlasTitle: String {
+        switch self {
+        case .injection:
+            return "Injection"
+        case .oral:
+            return "Oral"
+        case .sublingual:
+            return "Sublingual"
+        case .nasal:
+            return "Nasal"
+        case .topical:
+            return "Topical"
+        case .transdermal:
+            return "Transdermal"
+        case .other:
+            return "Other"
+        }
+    }
+}
+
+private extension AtlasProtocolSupplyType {
+    var atlasTitle: String {
+        switch self {
+        case .vial:
+            return "Vial"
+        case .pen:
+            return "Pen"
+        case .bottle:
+            return "Bottle"
+        case .blisterPack:
+            return "Blister pack"
+        case .syringe:
+            return "Prefilled syringe"
+        case .other:
+            return "Other"
+        }
+    }
 }
 
 private func permissionLabel(_ status: AtlasNotificationAuthorizationStatus) -> String {

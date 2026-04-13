@@ -5791,6 +5791,32 @@ final class AtlasPhaseOneTests: XCTestCase {
     }
 
     @MainActor
+    func testConnectHealthKitImportsRecentWeightsIntoInsights() async throws {
+        let controller = try makeInMemoryController()
+        let loggedAt = Date(timeIntervalSince1970: 1_712_800_000)
+        let healthKit = TestHealthKitManager(
+            available: true,
+            authorizationGranted: true,
+            weightSamples: [
+                AtlasHealthWeightSample(
+                    id: "hk-weight-1",
+                    recordedAt: loggedAt,
+                    value: 201.5,
+                    unit: .lb
+                )
+            ]
+        )
+        let model = makeAppModel(controller: controller, healthKit: healthKit)
+
+        await model.connectHealthKit()
+
+        XCTAssertEqual(model.insightsSnapshot.recentWeightEntries.first?.valueLabel, "201.5 lb")
+        XCTAssertEqual(model.settingsSnapshot.healthScaffold.syncedWeightEntryCount, 1)
+        XCTAssertEqual(healthKit.fetchWeightSinceRequests.count, 1)
+        XCTAssertNil(model.loadErrorMessage)
+    }
+
+    @MainActor
     func testConnectHealthKitUsesPreviousLastSyncAtForFollowUpWorkoutImport() async throws {
         final class DateBox: @unchecked Sendable {
             var value: Date
@@ -8347,26 +8373,34 @@ final class TestHealthKitManager: HealthKitManaging, @unchecked Sendable {
     private(set) var authorizationRequestCount: Int
     private(set) var disconnectCallCount: Int
     private(set) var savedWeights: [(value: Double, unit: AtlasWeightUnit, recordedAt: Date)]
+    private(set) var weightSamples: [AtlasHealthWeightSample]
     private(set) var workouts: [AtlasHealthWorkoutSample]
     private var workoutResponses: [[AtlasHealthWorkoutSample]]
+    private var weightResponses: [[AtlasHealthWeightSample]]
     private(set) var fetchWorkoutSinceRequests: [Date?]
+    private(set) var fetchWeightSinceRequests: [Date?]
     private(set) var connected: Bool
 
     init(
         available: Bool,
         authorizationGranted: Bool,
         initiallyConnected: Bool = false,
+        weightSamples: [AtlasHealthWeightSample] = [],
         workouts: [AtlasHealthWorkoutSample] = [],
-        workoutResponses: [[AtlasHealthWorkoutSample]] = []
+        workoutResponses: [[AtlasHealthWorkoutSample]] = [],
+        weightResponses: [[AtlasHealthWeightSample]] = []
     ) {
         self.available = available
         self.authorizationGranted = authorizationGranted
         self.authorizationRequestCount = 0
         self.disconnectCallCount = 0
         self.savedWeights = []
+        self.weightSamples = weightSamples
         self.workouts = workouts
         self.workoutResponses = workoutResponses
+        self.weightResponses = weightResponses
         self.fetchWorkoutSinceRequests = []
+        self.fetchWeightSinceRequests = []
         self.connected = initiallyConnected
     }
 
@@ -8389,6 +8423,17 @@ final class TestHealthKitManager: HealthKitManaging, @unchecked Sendable {
         connected = false
     }
 
+    func fetchWeightSamples(since: Date?) async throws -> [AtlasHealthWeightSample] {
+        fetchWeightSinceRequests.append(since)
+        if weightResponses.isEmpty == false {
+            return weightResponses.removeFirst()
+        }
+        guard let since else {
+            return weightSamples
+        }
+        return weightSamples.filter { $0.recordedAt >= since }
+    }
+
     func fetchWorkouts(since: Date?) async throws -> [AtlasHealthWorkoutSample] {
         fetchWorkoutSinceRequests.append(since)
         if workoutResponses.isEmpty == false {
@@ -8404,8 +8449,16 @@ final class TestHealthKitManager: HealthKitManaging, @unchecked Sendable {
         self.workouts = workouts
     }
 
+    func replaceWeightSamples(_ weightSamples: [AtlasHealthWeightSample]) {
+        self.weightSamples = weightSamples
+    }
+
     func replaceWorkoutResponses(_ workoutResponses: [[AtlasHealthWorkoutSample]]) {
         self.workoutResponses = workoutResponses
+    }
+
+    func replaceWeightResponses(_ weightResponses: [[AtlasHealthWeightSample]]) {
+        self.weightResponses = weightResponses
     }
 
     func saveWeightSample(value: Double, unit: AtlasWeightUnit, recordedAt: Date) async throws {

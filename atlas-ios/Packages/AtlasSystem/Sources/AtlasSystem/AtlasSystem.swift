@@ -32,6 +32,7 @@ public protocol HealthKitManaging: Sendable {
     func isConnected() async -> Bool
     func requestAuthorization() async throws -> Bool
     func disconnect() async
+    func fetchWeightSamples(since: Date?) async throws -> [AtlasHealthWeightSample]
     func fetchWorkouts(since: Date?) async throws -> [AtlasHealthWorkoutSample]
     func saveWeightSample(value: Double, unit: AtlasWeightUnit, recordedAt: Date) async throws
     func connectionDescription() -> String
@@ -365,6 +366,53 @@ public struct AtlasHealthKitManager: HealthKitManaging {
         #endif
     }
 
+    public func fetchWeightSamples(since: Date?) async throws -> [AtlasHealthWeightSample] {
+        #if canImport(HealthKit)
+        guard let store = makeStore(),
+              let quantityType = HKQuantityType.quantityType(forIdentifier: .bodyMass) else {
+            return []
+        }
+
+        let predicate = since.map {
+            HKQuery.predicateForSamples(withStart: $0, end: nil, options: .strictStartDate)
+        }
+        let sortDescriptors = [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)]
+
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[AtlasHealthWeightSample], Error>) in
+            let query = HKSampleQuery(
+                sampleType: quantityType,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: sortDescriptors
+            ) { _, samples, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                let weights = (samples as? [HKQuantitySample] ?? []).map { sample in
+                    let metricUnit = HKUnit.gramUnit(with: .kilo)
+                    let usesMetric = sample.quantity.is(compatibleWith: metricUnit)
+                    let atlasUnit: AtlasWeightUnit = usesMetric ? .kg : .lb
+                    let sampleUnit: HKUnit = atlasUnit == .kg ? metricUnit : .pound()
+
+                    return AtlasHealthWeightSample(
+                        id: sample.uuid.uuidString,
+                        recordedAt: sample.startDate,
+                        value: sample.quantity.doubleValue(for: sampleUnit),
+                        unit: atlasUnit
+                    )
+                }
+                continuation.resume(returning: weights)
+            }
+
+            store.execute(query)
+        }
+        #else
+        return []
+        #endif
+    }
+
     public func saveWeightSample(value: Double, unit: AtlasWeightUnit, recordedAt: Date) async throws {
         #if canImport(HealthKit)
         guard let store = makeStore(),
@@ -398,7 +446,7 @@ public struct AtlasHealthKitManager: HealthKitManaging {
         guard isAvailable() else {
             return "Apple Health is unavailable on this device."
         }
-        return "Apple Health can import workouts and sync weight entries when you connect it. Atlas remains fully usable without it."
+        return "Apple Health can import workouts, bring weight history into Atlas, and sync Atlas weight entries back when you connect it."
     }
 
     #if canImport(HealthKit)
