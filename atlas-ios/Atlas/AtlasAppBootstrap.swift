@@ -122,6 +122,8 @@ private extension AtlasAppBootstrap {
             model.open(.importFlow)
         case "reviewMode":
             model.open(.reviewMode)
+        case "weeklyReview":
+            model.open(.weeklyReview)
         default:
             if rawRoute.hasPrefix("protocolDetail:") {
                 model.open(.protocolDetail(String(rawRoute.dropFirst("protocolDetail:".count))))

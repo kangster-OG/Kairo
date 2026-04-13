@@ -12,6 +12,7 @@ private let atlasInsightsExplainabilityMetricWindowHours = 24.0
 private let atlasInsightsExplainabilityMinimumMatches = 2
 private let atlasInsightsExplainabilityMinimumCoverage = 0.5
 private let atlasInsightsExplainabilityMaxCards = 4
+private let atlasWeeklyReviewWindowDays = 7
 
 enum AtlasMetricsRepositoryError: LocalizedError {
     case invalidContextEntry
@@ -688,19 +689,37 @@ func buildInsightsSnapshot(
         workoutLogs: workoutLogs,
         now: referenceDate
     )
+    let weightTrend = buildWeightTrend(weightLogs: weightLogs)
+    let symptomTrend = buildSymptomTrend(symptomLogs: symptomLogs, now: referenceDate)
+    let contextTrend = buildContextTrend(contextLogs: contextLogs, now: referenceDate)
+    let nutritionSnapshot = buildNutritionSnapshot(
+        contextLogs: contextLogs,
+        contextPresets: contextPresets,
+        workoutLogs: workoutLogs,
+        weightLogs: weightLogs,
+        onboardingDraft: onboardingDraft,
+        now: referenceDate
+    )
+    let adherenceTrend = buildAdherenceTrend(context: context, logEvents: logEvents, now: referenceDate)
+    let weeklyReviewSeed = buildWeeklyReviewSeed(
+        context: context,
+        logEvents: logEvents,
+        contextLogs: contextLogs,
+        symptomLogs: symptomLogs,
+        weightLogs: weightLogs,
+        workoutLogs: workoutLogs,
+        referenceDate: referenceDate,
+        renderMode: renderMode,
+        privacyFormatter: privacyFormatter,
+        summarySettings: summarySettings,
+        plainLanguageSummary: weeklyRecapSummary
+    )
 
     return AtlasInsightsSnapshot(
-        weightTrend: buildWeightTrend(weightLogs: weightLogs),
-        symptomTrend: buildSymptomTrend(symptomLogs: symptomLogs, now: referenceDate),
-        contextTrend: buildContextTrend(contextLogs: contextLogs, now: referenceDate),
-        nutritionSnapshot: buildNutritionSnapshot(
-            contextLogs: contextLogs,
-            contextPresets: contextPresets,
-            workoutLogs: workoutLogs,
-            weightLogs: weightLogs,
-            onboardingDraft: onboardingDraft,
-            now: referenceDate
-        ),
+        weightTrend: weightTrend,
+        symptomTrend: symptomTrend,
+        contextTrend: contextTrend,
+        nutritionSnapshot: nutritionSnapshot,
         deterministicExplanations: deterministicExplanations,
         savedContextPresets: savedContextPresets,
         inventoryBurnDown: inventory.vials.map {
@@ -720,7 +739,7 @@ func buildInsightsSnapshot(
                 isLowStock: $0.isLowStock
             )
         },
-        adherenceTrend: buildAdherenceTrend(context: context, logEvents: logEvents, now: referenceDate),
+        adherenceTrend: adherenceTrend,
         amountInSystem: buildAmountEstimateItems(context: context, logEvents: logEvents, now: referenceDate),
         episodeIntelligence: episodeIntelligence,
         customMetricDefinitions: definitions,
@@ -731,6 +750,7 @@ func buildInsightsSnapshot(
         recentMetricEntries: recentMetricEntries,
         weeklyRecapSummary: weeklyRecapSummary,
         episodeRecapSummary: episodeRecapSummary,
+        weeklyReviewSeed: weeklyReviewSeed,
         hasAnyInsightData: contextLogs.isEmpty == false
             || weightLogs.isEmpty == false
             || workoutLogs.isEmpty == false
@@ -739,6 +759,219 @@ func buildInsightsSnapshot(
             || episodeIntelligence.hasAnyEpisodeData
             || context.pendingOccurrences.isEmpty == false
     )
+}
+
+private func buildWeeklyReviewSeed(
+    context: AtlasCoreLoopContext,
+    logEvents: [AtlasLogEventRecord],
+    contextLogs: [AtlasContextLogRecord],
+    symptomLogs: [AtlasSymptomLogRecord],
+    weightLogs: [AtlasWeightLogRecord],
+    workoutLogs: [AtlasWorkoutLogRecord],
+    referenceDate: Date,
+    renderMode: AtlasPrivacyRenderMode,
+    privacyFormatter: AtlasPrivacyFormatter,
+    summarySettings: AtlasSummarySettingsSnapshot,
+    plainLanguageSummary: AtlasGeneratedSummary?
+) -> AtlasWeeklyReviewSeed? {
+    let calendar = Calendar.current
+    let startOfToday = calendar.startOfDay(for: referenceDate)
+    let windowStart = calendar.date(byAdding: .day, value: -(atlasWeeklyReviewWindowDays - 1), to: startOfToday) ?? startOfToday
+
+    let weeklyLogs = logEvents.filter {
+        let loggedAt = atlasDate(from: $0.loggedAt)
+        return loggedAt >= windowStart && loggedAt <= referenceDate
+    }
+    let weeklyContext = contextLogs.filter {
+        let loggedAt = atlasDate(from: $0.loggedAt)
+        return loggedAt >= windowStart && loggedAt <= referenceDate
+    }
+    let weeklySymptoms = symptomLogs.filter {
+        let loggedAt = atlasDate(from: $0.loggedAt)
+        return loggedAt >= windowStart && loggedAt <= referenceDate
+    }
+    let weeklyWeights = weightLogs.filter {
+        let loggedAt = atlasDate(from: $0.loggedAt)
+        return loggedAt >= windowStart && loggedAt <= referenceDate
+    }
+    let weeklyWorkouts = workoutLogs.filter {
+        let startedAt = atlasDate(from: $0.startedAt)
+        return startedAt >= windowStart && startedAt <= referenceDate
+    }
+
+    let pendingOccurrences = context.pendingOccurrences.values
+        .flatMap { $0 }
+        .map { occurrence in
+            buildScheduledOccurrence(
+                occurrence: occurrence,
+                context: context,
+                now: referenceDate
+            )
+        }
+        .sorted { $0.scheduledAt < $1.scheduledAt }
+    let nextDue = pendingOccurrences.first(where: { $0.state == .due || $0.state == .upcoming })
+    let overdueCount = pendingOccurrences.filter { $0.state == .due || $0.state == .overdue }.count
+
+    let completedCount = weeklyLogs.filter { $0.eventType == .completed }.count
+    let skippedCount = weeklyLogs.filter { $0.eventType == .skipped }.count
+    let rescheduledCount = weeklyLogs.filter { $0.eventType == .rescheduled }.count
+    let activeProtocolCount = context.protocols.values.filter { $0.status == .active }.count
+    let latestWeight = weeklyWeights.first ?? weightLogs.first
+
+    guard completedCount + skippedCount + rescheduledCount + overdueCount + weeklyContext.count + weeklySymptoms.count + weeklyWeights.count + weeklyWorkouts.count + activeProtocolCount > 0 else {
+        return nil
+    }
+
+    let nextDueLabel = nextDue.map {
+        privacyFormatter.title(canonical: $0.canonicalTitle, alias: $0.aliasTitle, mode: renderMode)
+    }
+    let sourceSections = [
+        atlasSummarySection(
+            "weekly_activity",
+            "Protocol activity",
+            [
+                atlasSummaryFact("completed_logs", "Completed logs", String(completedCount)),
+                atlasSummaryFact("skipped_logs", "Skipped logs", String(skippedCount)),
+                atlasSummaryFact("rescheduled_logs", "Rescheduled logs", String(rescheduledCount)),
+                atlasSummaryFact("open_due_items", "Open due items", String(overdueCount))
+            ]
+        ),
+        atlasSummarySection(
+            "weekly_supporting_records",
+            "Supporting records",
+            [
+                atlasSummaryFact("context_entries", "Context entries", String(weeklyContext.count)),
+                atlasSummaryFact("symptom_entries", "Symptom entries", String(weeklySymptoms.count)),
+                atlasSummaryFact("weight_entries", "Weight entries", String(weeklyWeights.count)),
+                atlasSummaryFact("workout_entries", "Workout entries", String(weeklyWorkouts.count))
+            ]
+        ),
+        atlasSummarySection(
+            "weekly_state",
+            "Current state",
+            [
+                atlasSummaryFact("active_protocols", "Active protocols", String(activeProtocolCount))
+            ] + (latestWeight.map {
+                [atlasSummaryFact(
+                    "latest_weight",
+                    "Latest weight",
+                    "\(atlasWeeklyReviewWeightLabel($0)) on \(atlasWeeklyReviewSummaryDateLabel($0.loggedAt))"
+                )]
+            } ?? []) + (nextDue.map {
+                [atlasSummaryFact(
+                    "next_due",
+                    "Next due",
+                    "\(privacyFormatter.title(canonical: $0.canonicalTitle, alias: $0.aliasTitle, mode: renderMode)) due \(relativeDueLabel(for: $0.scheduledAt))"
+                )]
+            } ?? [])
+        )
+    ]
+
+    return AtlasWeeklyReviewSeed(
+        periodTitle: "Last 7 days",
+        generatedAt: referenceDate,
+        summarySettingEnabled: summarySettings.onDeviceEnabled,
+        plainLanguageSummary: plainLanguageSummary,
+        fallbackSummary: buildWeeklyReviewFallbackSummary(
+            completedCount: completedCount,
+            skippedCount: skippedCount,
+            rescheduledCount: rescheduledCount,
+            overdueCount: overdueCount,
+            activeProtocolCount: activeProtocolCount,
+            contextEntryCount: weeklyContext.count,
+            symptomEntryCount: weeklySymptoms.count,
+            workoutEntryCount: weeklyWorkouts.count,
+            latestWeightLabel: latestWeight.map {
+                "\(atlasWeeklyReviewWeightLabel($0)) on \(atlasWeeklyReviewSummaryDateLabel($0.loggedAt))"
+            },
+            nextDueTitle: nextDueLabel
+        ),
+        sourceSections: sourceSections,
+        completedCount: completedCount,
+        skippedCount: skippedCount,
+        rescheduledCount: rescheduledCount,
+        overdueCount: overdueCount,
+        activeProtocolCount: activeProtocolCount,
+        contextEntryCount: weeklyContext.count,
+        symptomEntryCount: weeklySymptoms.count,
+        weightEntryCount: weeklyWeights.count,
+        workoutEntryCount: weeklyWorkouts.count,
+        nextDueProtocolID: nextDue?.protocolID,
+        nextDueTitle: nextDueLabel
+    )
+}
+
+private func buildWeeklyReviewFallbackSummary(
+    completedCount: Int,
+    skippedCount: Int,
+    rescheduledCount: Int,
+    overdueCount: Int,
+    activeProtocolCount: Int,
+    contextEntryCount: Int,
+    symptomEntryCount: Int,
+    workoutEntryCount: Int,
+    latestWeightLabel: String?,
+    nextDueTitle: String?
+) -> String {
+    var parts = [
+        "Atlas recorded \(countPhrase(completedCount, singular: "completed log")) across \(countPhrase(activeProtocolCount, singular: "active protocol")) in the last 7 days."
+    ]
+
+    let schedulePhrases = [
+        skippedCount > 0 ? countPhrase(skippedCount, singular: "skipped log") : nil,
+        rescheduledCount > 0 ? countPhrase(rescheduledCount, singular: "rescheduled item") : nil,
+        overdueCount > 0 ? countPhrase(overdueCount, singular: "open due item") : nil
+    ].compactMap { $0 }
+    if schedulePhrases.isEmpty == false {
+        parts.append("Schedule movement also included \(naturalList(schedulePhrases)).")
+    }
+
+    let supportingPhrases = [
+        contextEntryCount > 0 ? countPhrase(contextEntryCount, singular: "context entry", plural: "context entries") : nil,
+        symptomEntryCount > 0 ? countPhrase(symptomEntryCount, singular: "symptom entry", plural: "symptom entries") : nil,
+        workoutEntryCount > 0 ? countPhrase(workoutEntryCount, singular: "workout log") : nil
+    ].compactMap { $0 }
+    if supportingPhrases.isEmpty {
+        parts.append("Supporting context was light this week, so Atlas is leaning more on schedule facts than on surrounding signals.")
+    } else {
+        parts.append("Supporting records included \(naturalList(supportingPhrases)).")
+    }
+
+    if let latestWeightLabel {
+        parts.append("The latest weight on file is \(latestWeightLabel).")
+    }
+    if let nextDueTitle {
+        parts.append("The next visible schedule anchor is \(nextDueTitle).")
+    }
+
+    return parts.joined(separator: " ")
+}
+
+private func atlasWeeklyReviewWeightLabel(_ record: AtlasWeightLogRecord) -> String {
+    let value = String(format: record.value.rounded() == record.value ? "%.0f" : "%.1f", record.value)
+    return "\(value) \(record.unit.rawValue)"
+}
+
+private func atlasWeeklyReviewSummaryDateLabel(_ timestamp: String) -> String {
+    atlasDate(from: timestamp).formatted(date: .abbreviated, time: .omitted)
+}
+
+private func countPhrase(_ count: Int, singular: String, plural: String? = nil) -> String {
+    let pluralValue = plural ?? singular + "s"
+    return "\(count) \(count == 1 ? singular : pluralValue)"
+}
+
+private func naturalList(_ items: [String]) -> String {
+    switch items.count {
+    case 0:
+        return ""
+    case 1:
+        return items[0]
+    case 2:
+        return "\(items[0]) and \(items[1])"
+    default:
+        return items.dropLast().joined(separator: ", ") + ", and " + (items.last ?? "")
+    }
 }
 
 private struct AtlasDeterministicExplanationCandidate {

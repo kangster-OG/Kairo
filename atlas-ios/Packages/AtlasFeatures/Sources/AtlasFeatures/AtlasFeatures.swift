@@ -1740,6 +1740,8 @@ public struct AtlasRootView: View {
                             AtlasImportScreen(model: model)
                         case .reviewMode:
                             AtlasReviewModeScreen(model: model)
+                        case .weeklyReview:
+                            AtlasWeeklyReviewScreen(model: model)
                         }
                     }
                 }

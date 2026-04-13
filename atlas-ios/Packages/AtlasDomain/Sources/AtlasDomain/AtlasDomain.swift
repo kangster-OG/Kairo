@@ -41,6 +41,7 @@ public enum AtlasRoute: Hashable, Sendable {
     case trustVault
     case importFlow
     case reviewMode
+    case weeklyReview
 }
 
 public enum AtlasAccountMode: String, Codable, Sendable {

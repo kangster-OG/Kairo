@@ -1157,6 +1157,7 @@ public struct AtlasInsightsSnapshot: Equatable, Sendable {
     public var recentMetricEntries: [AtlasMetricValueEntrySummary]
     public var weeklyRecapSummary: AtlasGeneratedSummary?
     public var episodeRecapSummary: AtlasGeneratedSummary?
+    public var weeklyReviewSeed: AtlasWeeklyReviewSeed?
     public var hasAnyInsightData: Bool
 
     public init(
@@ -1179,6 +1180,7 @@ public struct AtlasInsightsSnapshot: Equatable, Sendable {
         recentMetricEntries: [AtlasMetricValueEntrySummary] = [],
         weeklyRecapSummary: AtlasGeneratedSummary? = nil,
         episodeRecapSummary: AtlasGeneratedSummary? = nil,
+        weeklyReviewSeed: AtlasWeeklyReviewSeed? = nil,
         hasAnyInsightData: Bool = false
     ) {
         self.weightTrend = weightTrend
@@ -1200,6 +1202,7 @@ public struct AtlasInsightsSnapshot: Equatable, Sendable {
         self.recentMetricEntries = recentMetricEntries
         self.weeklyRecapSummary = weeklyRecapSummary
         self.episodeRecapSummary = episodeRecapSummary
+        self.weeklyReviewSeed = weeklyReviewSeed
         self.hasAnyInsightData = hasAnyInsightData
     }
 }

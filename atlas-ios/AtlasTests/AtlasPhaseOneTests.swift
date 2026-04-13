@@ -1,5 +1,5 @@
 import AtlasDomain
-import AtlasFeatures
+@testable import AtlasFeatures
 import AtlasPersistence
 import AtlasPrivacy
 import AtlasSystem
@@ -718,6 +718,16 @@ final class AtlasPhaseOneTests: XCTestCase {
     }
 
     @MainActor
+    func testWeeklyReviewRouteCanBeOpenedFromModel() async throws {
+        let controller = try makeInMemoryController()
+        let model = makeAppModel(controller: controller, referenceDate: importedFixtureReferenceDate)
+
+        model.open(.weeklyReview)
+
+        XCTAssertEqual(model.routePath.last, .weeklyReview)
+    }
+
+    @MainActor
     func testRefreshShellDataOnEmptyTemporaryStoreDoesNotSurfaceStartupError() async throws {
         let directory = try makeTemporaryDirectory()
         let controller = try AtlasPersistenceController.temporary(
@@ -1231,6 +1241,84 @@ final class AtlasPhaseOneTests: XCTestCase {
         XCTAssertEqual(summary.executionMode, .deterministicLocal)
         XCTAssertTrue(summary.summary.contains("active protocol"))
         assertSummaryGuardrails(summary.summary)
+    }
+
+    func testWeeklyReviewSeedBuildsEvenWhenPlainLanguageSummariesAreOff() async throws {
+        let controller = try makeInMemoryController()
+        let prepared = try await controller.importExportBridge.prepareImport(
+            at: writeBundleURL(makeSpecCompleteBundle(aliasModeEnabled: false))
+        )
+        _ = try await controller.importExportBridge.commitPreparedImport(prepared, mode: .replaceExisting)
+
+        let snapshot = try await controller.container.metrics.fetchInsightsSnapshot(
+            referenceDate: importedFixtureReferenceDate
+        )
+        let weeklyReview = try XCTUnwrap(snapshot.weeklyReviewSeed)
+
+        XCTAssertEqual(weeklyReview.periodTitle, "Last 7 days")
+        XCTAssertFalse(weeklyReview.summarySettingEnabled)
+        XCTAssertNil(weeklyReview.plainLanguageSummary)
+        XCTAssertTrue(weeklyReview.fallbackSummary.contains("last 7 days"))
+        XCTAssertTrue(weeklyReview.sourceSections.contains(where: { $0.id == "weekly_activity" }))
+        XCTAssertTrue(weeklyReview.sourceSections.contains(where: { $0.id == "weekly_supporting_records" }))
+        XCTAssertTrue(
+            weeklyReview.sourceSections
+                .flatMap(\.facts)
+                .contains(where: { $0.id == "next_due" && $0.value.contains("Weekly GLP") })
+        )
+    }
+
+    @MainActor
+    func testWeeklyReviewPresentationIntegratesRewardsAndReviewStatus() async throws {
+        let controller = try makeInMemoryController()
+        _ = try await controller.container.settings.updateSummarySettings(
+            AtlasSummarySettingsUpdate(onDeviceEnabled: true),
+            now: importedFixtureReferenceDate
+        )
+        _ = try await controller.container.settings.updateRewardsSettings(
+            AtlasRewardsSettingsUpdate(enabled: true),
+            now: importedFixtureReferenceDate
+        )
+        _ = try await controller.container.settings.updateRetentionSettings(
+            AtlasRetentionSettingsUpdate(progressEnabled: true),
+            now: importedFixtureReferenceDate
+        )
+
+        let prepared = try await controller.importExportBridge.prepareImport(
+            at: writeBundleURL(makeSpecCompleteBundle(aliasModeEnabled: false))
+        )
+        _ = try await controller.importExportBridge.commitPreparedImport(prepared, mode: .replaceExisting)
+
+        let model = makeAppModel(controller: controller, referenceDate: importedFixtureReferenceDate)
+        await model.refreshShellData()
+
+        let weeklyReview = try XCTUnwrap(model.weeklyReviewPresentation())
+        XCTAssertTrue(weeklyReview.summaryText.contains("active protocol"))
+        XCTAssertTrue(weeklyReview.highlights.contains(where: { $0.id == "adherence" }))
+        XCTAssertTrue(weeklyReview.highlights.contains(where: { $0.id == "rewards" }))
+        XCTAssertTrue(weeklyReview.sourceSections.contains(where: { $0.id == "weekly_rewards" }))
+        XCTAssertTrue(weeklyReview.sourceSections.contains(where: { $0.id == "weekly_review_status" }))
+        XCTAssertTrue(
+            weeklyReview.actions.contains(where: { action in
+                if case .markReviewComplete = action.destination {
+                    return true
+                }
+                return false
+            })
+        )
+
+        await model.markWeeklyReviewComplete()
+
+        let updatedReview = try XCTUnwrap(model.weeklyReviewPresentation())
+        XCTAssertTrue(updatedReview.isMarkedReviewed)
+        XCTAssertFalse(
+            updatedReview.actions.contains(where: { action in
+                if case .markReviewComplete = action.destination {
+                    return true
+                }
+                return false
+            })
+        )
     }
 
     func testImportCommitWritesExtensionProjectionSnapshot() async throws {

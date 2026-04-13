@@ -144,6 +144,8 @@ public struct AtlasInsightsScreen: View {
             .listRowInsets(EdgeInsets())
             .listRowBackground(Color.clear)
 
+            AtlasWeeklyReviewEntrySection(model: model)
+
             if state.rewardsSnapshot.settings.enabled {
                 Section("Mascot") {
                     AtlasMascotHomeCard(
