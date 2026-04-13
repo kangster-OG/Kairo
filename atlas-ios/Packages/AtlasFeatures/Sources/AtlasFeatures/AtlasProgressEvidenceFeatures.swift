@@ -29,6 +29,10 @@ public struct AtlasProgressEvidenceScreen: View {
             angle: selectedCompareAngle,
             window: compareWindow
         )
+        let exportContext = atlasProgressEvidenceExportContext(
+            model: model,
+            compareCandidate: compareCandidate
+        )
         let timelineSections = atlasProgressTimelineSections(
             snapshot: snapshot,
             weightTrend: model.insightsSnapshot.weightTrend,
@@ -54,6 +58,16 @@ public struct AtlasProgressEvidenceScreen: View {
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
 
+                AtlasProgressStorySummaryRow(
+                    snapshot: snapshot,
+                    exportContext: exportContext,
+                    compareCandidate: compareCandidate
+                )
+
+                Text(atlasProgressNextStepNote(snapshot: snapshot, compareCandidate: compareCandidate))
+                    .font(.caption)
+                    .foregroundStyle(AtlasPalette.textSecondary)
+
                 HStack(spacing: AtlasSpacing.small) {
                     Button("Add measurement") {
                         measurementDraft = AtlasProgressMeasurementDraft(loggedAt: model.currentDate())
@@ -72,10 +86,7 @@ public struct AtlasProgressEvidenceScreen: View {
                     do {
                         shareArtifact = try atlasCreateProgressEvidenceExportArtifact(
                             snapshot: snapshot,
-                            exportContext: atlasProgressEvidenceExportContext(
-                                model: model,
-                                compareCandidate: compareCandidate
-                            ),
+                            exportContext: exportContext,
                             now: model.currentDate()
                         )
                         exportErrorMessage = nil
@@ -261,6 +272,9 @@ public struct AtlasProgressEvidenceScreen: View {
         }
         .navigationTitle("Progress Evidence")
         .navigationBarTitleDisplayMode(.inline)
+        .animation(.spring(response: 0.24, dampingFraction: 0.84), value: selectedCompareAngle)
+        .animation(.spring(response: 0.24, dampingFraction: 0.84), value: compareWindow)
+        .animation(.spring(response: 0.24, dampingFraction: 0.84), value: timelineMode)
         .sheet(isPresented: $measurementSheetPresented) {
             NavigationStack {
                 Form {
@@ -364,6 +378,23 @@ private struct AtlasProgressPhotoComposerScreen: View {
                     }
                 }
 
+                Section("Capture notes") {
+                    VStack(alignment: .leading, spacing: 10) {
+                        AtlasProgressCaptureTipRow(
+                            title: "Match distance",
+                            detail: "Try to keep the phone and crop close to the previous frame."
+                        )
+                        AtlasProgressCaptureTipRow(
+                            title: "Repeat posture",
+                            detail: "A calmer pose gives the compare view a much cleaner story later."
+                        )
+                        AtlasProgressCaptureTipRow(
+                            title: "Keep it descriptive",
+                            detail: "Atlas stores the image as a private record only. It is not interpreting the photo."
+                        )
+                    }
+                }
+
                 PhotosPicker(selection: $selectedItem, matching: .images) {
                     Label("Choose photo", systemImage: "photo")
                 }
@@ -418,6 +449,45 @@ private struct AtlasProgressPhotoComposerScreen: View {
                let jpegData = atlasNormalizedJPEGData(from: data) {
                 imageData = jpegData
             }
+        }
+    }
+}
+
+private struct AtlasProgressStorySummaryRow: View {
+    let snapshot: AtlasProgressEvidenceSnapshot
+    let exportContext: AtlasProgressEvidenceExportContext
+    let compareCandidate: AtlasProgressCompareCandidate?
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: AtlasSpacing.small) {
+                AtlasStatusBadge("\(snapshot.recentPhotos.count) photo\(snapshot.recentPhotos.count == 1 ? "" : "s")", tint: AtlasPalette.primary)
+                AtlasStatusBadge("\(snapshot.recentMeasurements.count) measurement\(snapshot.recentMeasurements.count == 1 ? "" : "s")", tint: AtlasPalette.secondaryText)
+                if let compareCandidate {
+                    AtlasStatusBadge(atlasProgressElapsedLabel(for: compareCandidate), tint: AtlasPalette.primary)
+                } else {
+                    AtlasStatusBadge("Compare still building", tint: AtlasPalette.secondaryText)
+                }
+                if let weightLatestLabel = exportContext.weightLatestLabel {
+                    AtlasStatusBadge(weightLatestLabel, tint: AtlasPalette.secondaryText)
+                }
+            }
+        }
+    }
+}
+
+private struct AtlasProgressCaptureTipRow: View {
+    let title: String
+    let detail: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(AtlasPalette.textPrimary)
+            Text(detail)
+                .font(.caption)
+                .foregroundStyle(AtlasPalette.textSecondary)
         }
     }
 }
@@ -670,6 +740,11 @@ private struct AtlasProgressCompareCard: View {
                 .font(.caption)
                 .foregroundStyle(AtlasPalette.textSecondary)
 
+            HStack(spacing: AtlasSpacing.small) {
+                AtlasStatusBadge(atlasProgressElapsedLabel(for: candidate), tint: AtlasPalette.primary)
+                AtlasStatusBadge(candidate.angle.title, tint: AtlasPalette.secondaryText)
+            }
+
             GeometryReader { proxy in
                 let width = max(proxy.size.width, 1)
                 let clampedReveal = min(max(reveal, 0.08), 0.92)
@@ -718,6 +793,10 @@ private struct AtlasProgressCompareCard: View {
                 set: { reveal = CGFloat($0) }
             ), in: 0.08...0.92)
             .tint(AtlasPalette.primary)
+
+            Text("Drag the wipe slowly to compare the same frame without forcing a judgment in one glance.")
+                .font(.caption)
+                .foregroundStyle(AtlasPalette.textSecondary)
         }
     }
 }
@@ -754,6 +833,34 @@ private func atlasProgressCompareCandidate(
         baseline: baseline,
         summary: "\(angle.title) compare from \(baseline.loggedAt.formatted(date: .abbreviated, time: .omitted)) to \(current.loggedAt.formatted(date: .abbreviated, time: .omitted))."
     )
+}
+
+private func atlasProgressElapsedLabel(for candidate: AtlasProgressCompareCandidate) -> String {
+    let dayCount = max(Calendar.current.dateComponents([.day], from: candidate.baseline.loggedAt, to: candidate.current.loggedAt).day ?? 0, 0)
+    if dayCount >= 7 {
+        let weeks = max(dayCount / 7, 1)
+        return "\(weeks) week\(weeks == 1 ? "" : "s") apart"
+    }
+    return "\(max(dayCount, 1)) day\(dayCount == 1 ? "" : "s") apart"
+}
+
+private func atlasProgressNextStepNote(
+    snapshot: AtlasProgressEvidenceSnapshot,
+    compareCandidate: AtlasProgressCompareCandidate?
+) -> String {
+    if compareCandidate != nil {
+        return "The compare view is ready. Add another matched frame only when the next visual checkpoint would tell a clearer story."
+    }
+
+    if snapshot.recentPhotos.isEmpty {
+        return "Start with one baseline photo now, then repeat the same angle in a couple of weeks so Atlas can build the first compare."
+    }
+
+    if snapshot.recentPhotos.count == 1 {
+        return "One private frame is in place. The next matching angle is what unlocks Atlas's calmer before-and-after view."
+    }
+
+    return "Atlas already has the raw pieces. Keep adding the same angles so the milestone timeline stays coherent."
 }
 
 private func atlasProgressTimelineSections(

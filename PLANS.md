@@ -137,6 +137,7 @@ Depends on:
 Status:
 - started on 2026-04-13
 - completed in code on 2026-04-13
+- polish follow-up reopened on 2026-04-13 for microcopy, motion, screenshot QA, and more opinionated Today guidance
 
 Will deliver:
 - a faster consumer-simple capture surface for shot, weight, symptom, context, and progress-photo actions
@@ -161,6 +162,9 @@ Verification notes:
 - package-only `swift build --package-path atlas-ios/Packages/AtlasFeatures` still hits the pre-existing `UIKit` import mismatch when compiled outside the iOS app target on macOS
 - `xcodebuild -project atlas-ios/Atlas.xcodeproj -scheme Atlas -destination 'generic/platform=iOS Simulator' -derivedDataPath atlas-ios/.derived-data-atlas build` passes
 - simulator QA confirmed deep-link entry into `atlas://quick-capture?kind=weight` and `atlas://progress-evidence`, with clean app logs during launch
+- follow-up polish build passes via `xcodebuild -project atlas-ios/Atlas.xcodeproj -scheme Atlas -destination 'generic/platform=iOS Simulator' -derivedDataPath atlas-ios/.derived-data-atlas-polish build`
+- targeted route regression passes for `testHandleIncomingQuickCaptureURLOpensTodayQuickCaptureLane` and `testHandleIncomingProgressEvidenceURLOpensInsightsProgressEvidence`
+- screenshot QA reviewed Today, Quick Capture, and Progress Evidence after the microcopy + opinionated-surface pass
 
 ### Calm retention layer
 Depends on:

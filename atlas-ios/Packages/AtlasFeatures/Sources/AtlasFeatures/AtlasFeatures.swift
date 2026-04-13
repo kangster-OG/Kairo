@@ -2398,15 +2398,59 @@ private struct AtlasTodayQuickCaptureCard: View {
     let state: AtlasTodayViewState
 
     var body: some View {
+        let recommendation = atlasTodayQuickCaptureRecommendation(model: model, state: state)
+        let secondaryKinds = atlasTodayQuickCaptureSecondaryKinds(excluding: recommendation.kind)
+        let statusBadges = atlasTodayQuickCaptureStatusBadges(model: model)
+
         AtlasSectionCard(style: .hero) {
             VStack(alignment: .leading, spacing: AtlasSpacing.medium) {
-                Text("The fastest Atlas loop: log the shot, record weight, add a symptom, and keep moving.")
-                    .foregroundStyle(AtlasPalette.textSecondary)
+                VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
+                    Text(recommendation.eyebrow)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(recommendation.tint)
+                        .textCase(.uppercase)
 
-                AtlasTodayQuickCaptureGrid {
-                    ForEach([AtlasQuickCaptureKind.shot, .weight, .symptom, .hydration], id: \.self) { kind in
-                        AtlasTodayQuickCaptureTile(kind: kind) {
-                            model.open(.quickCapture(kind))
+                    Text(recommendation.title)
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(AtlasPalette.textPrimary)
+
+                    Text(recommendation.detail)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+
+                    HStack(spacing: AtlasSpacing.small) {
+                        AtlasStatusBadge(recommendation.statusLabel, tint: recommendation.tint)
+                        if let supportLabel = recommendation.supportLabel {
+                            AtlasStatusBadge(supportLabel, tint: AtlasPalette.secondaryText)
+                        }
+                    }
+                }
+
+                Button(recommendation.buttonTitle) {
+                    model.open(.quickCapture(recommendation.kind))
+                }
+                .buttonStyle(AtlasPrimaryButtonStyle())
+
+                if statusBadges.isEmpty == false {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: AtlasSpacing.small) {
+                            ForEach(statusBadges) { badge in
+                                AtlasStatusBadge(badge.title, tint: badge.tint)
+                            }
+                        }
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+                    Text("Fast follow-ups")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(AtlasPalette.primary)
+                        .textCase(.uppercase)
+
+                    AtlasTodayQuickCaptureGrid {
+                        ForEach(secondaryKinds, id: \.self) { kind in
+                            AtlasTodayQuickCaptureTile(kind: kind) {
+                                model.open(.quickCapture(kind))
+                            }
                         }
                     }
                 }
@@ -2414,7 +2458,7 @@ private struct AtlasTodayQuickCaptureCard: View {
                 if let nextDue = state.todaySnapshot.nextDue {
                     Divider()
                     VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
-                        Text("Current anchor")
+                        Text(recommendation.kind == .shot ? "Current anchor" : "Still visible in Today")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(AtlasPalette.primary)
                             .textCase(.uppercase)
@@ -2433,6 +2477,159 @@ private struct AtlasTodayQuickCaptureCard: View {
             }
         }
     }
+}
+
+private struct AtlasTodayQuickCaptureBadge: Identifiable {
+    let title: String
+    let tint: Color
+
+    var id: String { title }
+}
+
+private struct AtlasTodayQuickCaptureRecommendation {
+    let kind: AtlasQuickCaptureKind
+    let eyebrow: String
+    let title: String
+    let detail: String
+    let statusLabel: String
+    let supportLabel: String?
+    let tint: Color
+
+    var buttonTitle: String {
+        switch kind {
+        case .shot:
+            return "Open shot capture"
+        case .weight:
+            return "Log today's weight"
+        case .symptom:
+            return "Capture a symptom"
+        case .context:
+            return "Open context capture"
+        case .hydration:
+            return "Log hydration"
+        case .protein:
+            return "Log protein meal"
+        case .progressPhoto:
+            return "Open progress evidence"
+        }
+    }
+}
+
+@MainActor
+private func atlasTodayQuickCaptureRecommendation(
+    model: AtlasAppModel,
+    state: AtlasTodayViewState
+) -> AtlasTodayQuickCaptureRecommendation {
+    let calendar = Calendar.current
+
+    if let overdue = state.todaySnapshot.overdue.first {
+        return AtlasTodayQuickCaptureRecommendation(
+            kind: .shot,
+            eyebrow: "Recommended next",
+            title: "Clear the oldest visible dose first.",
+            detail: "Atlas stays most trustworthy when the overdue action is resolved before you log supporting signals around it.",
+            statusLabel: "Overdue now",
+            supportLabel: overdue.scheduledAt.formatted(date: .abbreviated, time: .shortened),
+            tint: .orange
+        )
+    }
+
+    if let nextDue = state.todaySnapshot.nextDue {
+        return AtlasTodayQuickCaptureRecommendation(
+            kind: .shot,
+            eyebrow: "Recommended next",
+            title: "Start with the next scheduled shot.",
+            detail: "When a dose is already visible, Atlas favors closing that loop before weight, symptoms, or context.",
+            statusLabel: "Due \(nextDue.scheduledAt.formatted(date: .omitted, time: .shortened))",
+            supportLabel: nextDue.kindLabel,
+            tint: AtlasPalette.primary
+        )
+    }
+
+    if let latestWeight = model.insightsSnapshot.recentWeightEntries.first,
+       calendar.isDateInToday(latestWeight.loggedAt) == false {
+        return AtlasTodayQuickCaptureRecommendation(
+            kind: .weight,
+            eyebrow: "Recommended next",
+            title: "Keep today's weight trend current.",
+            detail: "A fresh weight check-in gives Atlas a cleaner baseline for insights, rewards, and progress evidence.",
+            statusLabel: "Last logged \(latestWeight.loggedAt.formatted(date: .abbreviated, time: .omitted))",
+            supportLabel: latestWeight.valueLabel,
+            tint: AtlasPalette.primary
+        )
+    }
+
+    if model.insightsSnapshot.recentSymptomEntries.first.map({ calendar.isDateInToday($0.loggedAt) }) != true {
+        let latestSymptom = model.insightsSnapshot.recentSymptomEntries.first
+        return AtlasTodayQuickCaptureRecommendation(
+            kind: .symptom,
+            eyebrow: "Recommended next",
+            title: "Capture the clearest symptom signal.",
+            detail: "Pick one bounded signal while it's still recent. Atlas does better with one honest note than a rushed cluster.",
+            statusLabel: latestSymptom.map { "\($0.symptomKey.capitalized) • \($0.severity)/5" } ?? "No symptom check-in yet",
+            supportLabel: latestSymptom.map { $0.loggedAt.formatted(date: .abbreviated, time: .omitted) },
+            tint: AtlasPalette.secondaryText
+        )
+    }
+
+    if let latestPhoto = model.insightsSnapshot.progressEvidence.recentPhotos.first {
+        let daysSincePhoto = calendar.dateComponents([.day], from: latestPhoto.loggedAt, to: model.currentDate()).day ?? 0
+        if daysSincePhoto >= 14 {
+            return AtlasTodayQuickCaptureRecommendation(
+                kind: .progressPhoto,
+                eyebrow: "Recommended next",
+                title: "Match another progress frame.",
+                detail: "Visual proof gets more believable when Atlas helps you keep the same angle and rhythm rather than waiting for a dramatic moment.",
+                statusLabel: "Last \(latestPhoto.angle.title.lowercased()) frame \(daysSincePhoto)d ago",
+                supportLabel: latestPhoto.loggedAt.formatted(date: .abbreviated, time: .omitted),
+                tint: AtlasPalette.secondaryText
+            )
+        }
+    } else {
+        return AtlasTodayQuickCaptureRecommendation(
+            kind: .progressPhoto,
+            eyebrow: "Recommended next",
+            title: "Start a visual baseline now.",
+            detail: "A first private progress photo makes later compare and export surfaces feel grounded instead of retrospective.",
+            statusLabel: "No photo baseline yet",
+            supportLabel: "Private and local-first",
+            tint: AtlasPalette.secondaryText
+        )
+    }
+
+    return AtlasTodayQuickCaptureRecommendation(
+        kind: .hydration,
+        eyebrow: "Recommended next",
+        title: "Close the loop with a lightweight context check-in.",
+        detail: "If the core logs are already current, a quick hydration or meal signal gives Today just enough surrounding context.",
+        statusLabel: model.insightsSnapshot.contextTrend.latestLabel ?? "No context logged yet",
+        supportLabel: "One tap from Today",
+        tint: AtlasPalette.primary
+    )
+}
+
+private func atlasTodayQuickCaptureSecondaryKinds(excluding recommendedKind: AtlasQuickCaptureKind) -> [AtlasQuickCaptureKind] {
+    [AtlasQuickCaptureKind.shot, .weight, .symptom, .hydration]
+        .filter { $0 != recommendedKind }
+}
+
+@MainActor
+private func atlasTodayQuickCaptureStatusBadges(model: AtlasAppModel) -> [AtlasTodayQuickCaptureBadge] {
+    var badges: [AtlasTodayQuickCaptureBadge] = []
+
+    if let weight = model.insightsSnapshot.recentWeightEntries.first {
+        badges.append(.init(title: "Weight \(weight.valueLabel)", tint: AtlasPalette.primary))
+    }
+
+    if let symptom = model.insightsSnapshot.recentSymptomEntries.first {
+        badges.append(.init(title: "\(symptom.symptomKey.capitalized) \(symptom.severity)/5", tint: AtlasPalette.secondaryText))
+    }
+
+    if let photo = model.insightsSnapshot.progressEvidence.recentPhotos.first {
+        badges.append(.init(title: "\(photo.angle.title) photo \(photo.loggedAt.formatted(date: .abbreviated, time: .omitted))", tint: AtlasPalette.secondaryText))
+    }
+
+    return badges
 }
 
 private struct AtlasTodayQuickCaptureGrid<Content: View>: View {
@@ -2486,13 +2683,13 @@ private struct AtlasTodayQuickCaptureTile: View {
 
     private var subtitle: String {
         switch kind {
-        case .shot: "Mark the next due action in seconds."
-        case .weight: "Add today’s weight without leaving Today."
+        case .shot: "Clear the visible dose first."
+        case .weight: "Add today's trend anchor."
         case .symptom: "Capture one bounded signal fast."
         case .context: "Save meal and surrounding context."
-        case .hydration: "One-tap low-friction hydration check-in."
+        case .hydration: "One-tap surrounding context."
         case .protein: "Log a protein-forward meal context."
-        case .progressPhoto: "Jump into the visual progress flow."
+        case .progressPhoto: "Refresh the visual story."
         }
     }
 }
@@ -2624,7 +2821,7 @@ public struct AtlasQuickCaptureScreen: View {
         AtlasRootScrollSurface {
             AtlasTabHeader(
                 title: "Quick Capture",
-                subtitle: "Fast, one-thumb logging for the actions most people repeat every day."
+                subtitle: "Fast, one-thumb logging for the actions that matter most when you want Atlas current in seconds."
             )
 
             AtlasSectionCard(style: .utility) {
@@ -2640,6 +2837,9 @@ public struct AtlasQuickCaptureScreen: View {
                     )
                 }
             }
+
+            AtlasQuickCaptureLaneSummaryCard(model: model, kind: selectedKind)
+                .id(selectedKind)
 
             switch selectedKind {
             case .shot:
@@ -2665,6 +2865,7 @@ public struct AtlasQuickCaptureScreen: View {
         }
         .navigationTitle("Quick Capture")
         .navigationBarTitleDisplayMode(.inline)
+        .animation(.spring(response: 0.24, dampingFraction: 0.84), value: selectedKind)
     }
 }
 
@@ -2677,13 +2878,125 @@ private struct AtlasQuickCaptureFocusRail: View {
             HStack(spacing: AtlasSpacing.small) {
                 ForEach(AtlasQuickCaptureScreen.supportedKinds) { kind in
                     Button {
-                        onSelect(kind)
+                        withAnimation(.spring(response: 0.24, dampingFraction: 0.84)) {
+                            onSelect(kind)
+                        }
                     } label: {
                         Label(kind.title, systemImage: kind.systemImage)
                     }
                     .buttonStyle(AtlasTagButtonStyle(isActive: selectedKind == kind))
                 }
             }
+        }
+    }
+}
+
+private struct AtlasQuickCaptureLaneSummaryCard: View {
+    let model: AtlasAppModel
+    let kind: AtlasQuickCaptureKind
+
+    var body: some View {
+        AtlasSectionCard(style: .hero) {
+            VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+                HStack(spacing: AtlasSpacing.small) {
+                    AtlasStatusBadge(primaryBadge, tint: tint)
+                    if let secondaryBadge {
+                        AtlasStatusBadge(secondaryBadge, tint: AtlasPalette.secondaryText)
+                    }
+                }
+
+                Text(title)
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(AtlasPalette.textPrimary)
+
+                Text(detail)
+                    .foregroundStyle(AtlasPalette.textSecondary)
+            }
+        }
+    }
+
+    private var title: String {
+        switch kind {
+        case .shot:
+            return model.todaySnapshot.nextDue == nil
+                ? "Use this lane when the protocol loop needs a clean close."
+                : "Clear the visible dose before the rest of the day gets noisy."
+        case .weight:
+            return "A fresh weight check-in keeps Atlas grounded."
+        case .symptom:
+            return "Choose one signal, describe it calmly, and move on."
+        case .context:
+            return "Open the richer context surface when one tap is not enough."
+        case .hydration:
+            return "This is the fastest way to add surrounding context without friction."
+        case .protein:
+            return "Keep the nutrition loop light by logging the clearest protein moment."
+        case .progressPhoto:
+            return "Matched visual check-ins are what make before-and-after feel believable."
+        }
+    }
+
+    private var detail: String {
+        switch kind {
+        case .shot:
+            return model.todaySnapshot.nextDue == nil
+                ? "If there is nothing due right now, Atlas will keep this lane quiet and push you back toward Today when a dose appears."
+                : "When a shot is already visible, Atlas favors resolving it before weight, symptoms, or context so the day stays readable."
+        case .weight:
+            return "One honest number keeps trend lines, rewards, and progress evidence more useful than trying to backfill later."
+        case .symptom:
+            return "Atlas works best when the note stays bounded: symptom, severity, optional context, done."
+        case .context:
+            return "Use the full context flow for meal timing, GI tags, appetite, notes, and any detail that should not be squeezed into one shortcut."
+        case .hydration:
+            return "Best when you want a tiny but useful supporting signal after the core loop is already current."
+        case .protein:
+            return "A protein-forward meal check-in is usually enough to keep the daily nutrition picture coherent."
+        case .progressPhoto:
+            return "Atlas now helps you recapture the same angle so visual progress is something you can trust, not just something you hope to remember."
+        }
+    }
+
+    private var primaryBadge: String {
+        switch kind {
+        case .shot:
+            return model.todaySnapshot.nextDue == nil ? "Catch-up lane" : "Primary daily loop"
+        case .weight:
+            return "Trend anchor"
+        case .symptom:
+            return "Bounded signal"
+        case .context, .hydration, .protein:
+            return "Support context"
+        case .progressPhoto:
+            return "Visual proof"
+        }
+    }
+
+    private var secondaryBadge: String? {
+        switch kind {
+        case .shot:
+            return model.todaySnapshot.nextDue?.scheduledAt.formatted(date: .omitted, time: .shortened)
+        case .weight:
+            return model.insightsSnapshot.weightTrend.latestLabel
+        case .symptom:
+            return model.insightsSnapshot.recentSymptomEntries.first.map { "\($0.symptomKey.capitalized) • \($0.severity)/5" }
+        case .context:
+            return "More detail"
+        case .hydration:
+            return model.insightsSnapshot.contextTrend.latestLabel ?? "One tap"
+        case .protein:
+            return model.insightsSnapshot.nutritionSnapshot.dailyTargets.first(where: { $0.kind == .proteinMeals })?.progressLabel
+        case .progressPhoto:
+            return model.insightsSnapshot.progressEvidence.recentPhotos.first.map { $0.loggedAt.formatted(date: .abbreviated, time: .omitted) } ?? "No baseline yet"
+        }
+    }
+
+    private var tint: Color {
+        switch kind {
+        case .shot, .weight, .hydration, .protein:
+            return AtlasPalette.primary
+        case .symptom, .context, .progressPhoto:
+            return AtlasPalette.secondaryText
         }
     }
 }
@@ -2695,6 +3008,10 @@ private struct AtlasQuickCaptureShotCard: View {
         AtlasSectionCard(style: .hero) {
             VStack(alignment: .leading, spacing: AtlasSpacing.medium) {
                 if let nextDue = model.todaySnapshot.nextDue {
+                    Text("If there is a visible dose, Atlas wants this handled before the support signals.")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(AtlasPalette.primary)
+
                     Text(model.renderedTitle(
                         canonical: nextDue.canonicalTitle,
                         alias: nextDue.aliasTitle
@@ -2734,6 +3051,10 @@ private struct AtlasQuickCaptureShotCard: View {
                     }
                 } else {
                     Text("No due shot is waiting right now.")
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(AtlasPalette.textPrimary)
+
+                    Text("Atlas is quiet here until the next dose needs attention. Use the other lanes for weight, symptoms, or progress evidence in the meantime.")
                         .foregroundStyle(AtlasPalette.textSecondary)
 
                     Button("Open full Today") {
@@ -2760,6 +3081,10 @@ private struct AtlasQuickCaptureWeightCard: View {
                     .foregroundStyle(AtlasPalette.textPrimary)
                 Text(model.insightsSnapshot.weightTrend.latestLabel ?? "Keep the trend current with one fast check-in.")
                     .foregroundStyle(AtlasPalette.textSecondary)
+
+                if let changeLabel = model.insightsSnapshot.weightTrend.changeLabel {
+                    AtlasStatusBadge(changeLabel, tint: AtlasPalette.primary)
+                }
 
                 HStack(spacing: AtlasSpacing.small) {
                     TextField("Weight", text: $weightValue)
@@ -2810,7 +3135,7 @@ private struct AtlasQuickCaptureSymptomCard: View {
                 Text("Log symptom")
                     .font(.title3.weight(.bold))
                     .foregroundStyle(AtlasPalette.textPrimary)
-                Text("Capture one bounded signal now. Atlas keeps the note descriptive and lightweight.")
+                Text("Capture the clearest signal now. Atlas keeps the note descriptive, bounded, and lightweight.")
                     .foregroundStyle(AtlasPalette.textSecondary)
 
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -2947,7 +3272,7 @@ private struct AtlasQuickCaptureProgressCard: View {
                 Text("Progress photo")
                     .font(.title3.weight(.bold))
                     .foregroundStyle(AtlasPalette.textPrimary)
-                Text("Jump straight into guided visual progress capture, compare, and private summary export.")
+                Text("Jump into guided recapture, same-angle compare, and private visual summaries without leaving Atlas.")
                     .foregroundStyle(AtlasPalette.textSecondary)
 
                 Button("Open progress evidence") {
@@ -2983,6 +3308,7 @@ private struct AtlasTagButtonStyle: ButtonStyle {
                     .stroke(AtlasPalette.border.opacity(isActive ? 0 : 0.55), lineWidth: 1)
             }
             .opacity(configuration.isPressed ? 0.82 : 1)
+            .animation(.spring(response: 0.22, dampingFraction: 0.82), value: isActive)
     }
 }
 
