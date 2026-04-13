@@ -920,6 +920,30 @@ final class AtlasPhaseOneTests: XCTestCase {
         XCTAssertTrue(refreshed.recentContextEntries.first?.tags.contains("today-quick-capture") ?? false)
     }
 
+    @MainActor
+    func testHandleIncomingQuickCaptureURLOpensTodayQuickCaptureLane() async throws {
+        let controller = try makeInMemoryController()
+        let model = makeAppModel(controller: controller)
+        try await completeOnboardingIfNeeded(controller: controller)
+
+        await model.handleIncomingURL(URL(string: "atlas://quick-capture?kind=weight")!)
+
+        XCTAssertEqual(model.activeTab, .today)
+        XCTAssertEqual(model.routePath, [.quickCapture(.weight)])
+    }
+
+    @MainActor
+    func testHandleIncomingProgressEvidenceURLOpensInsightsProgressEvidence() async throws {
+        let controller = try makeInMemoryController()
+        let model = makeAppModel(controller: controller)
+        try await completeOnboardingIfNeeded(controller: controller)
+
+        await model.handleIncomingURL(URL(string: "atlas://progress-evidence")!)
+
+        XCTAssertEqual(model.activeTab, .insights)
+        XCTAssertEqual(model.routePath, [.progressEvidence])
+    }
+
     func testContextEntryPersistenceTimelineAndDiscreetPrivacyStayCalm() async throws {
         let controller = try makeInMemoryController()
         let now = Date(timeIntervalSince1970: 1_773_950_400)

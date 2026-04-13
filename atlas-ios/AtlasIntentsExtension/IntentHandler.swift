@@ -176,6 +176,25 @@ enum AtlasWatchContextShortcutKind: String, AppEnum {
     ]
 }
 
+enum AtlasQuickCaptureIntentKind: String, AppEnum {
+    case shot
+    case weight
+    case symptom
+    case hydration
+    case protein
+    case progressPhoto = "progress_photo"
+
+    static let typeDisplayRepresentation: TypeDisplayRepresentation = "Capture Focus"
+    static let caseDisplayRepresentations: [AtlasQuickCaptureIntentKind: DisplayRepresentation] = [
+        .shot: "Shot",
+        .weight: "Weight",
+        .symptom: "Symptom",
+        .hydration: "Hydration",
+        .protein: "Protein",
+        .progressPhoto: "Progress Photo"
+    ]
+}
+
 struct AtlasOpenTodayIntent: AppIntent {
     static let title: LocalizedStringResource = "Open Today"
     static let description = IntentDescription("Open Atlas to the Today tab.")
@@ -227,6 +246,46 @@ struct AtlasOpenTrustVaultIntent: AppIntent {
 
     func perform() async throws -> some IntentResult {
         try AtlasPendingIntentActionStore.write(route: "trust-vault")
+        return .result()
+    }
+}
+
+struct AtlasOpenQuickCaptureIntent: AppIntent {
+    static let title: LocalizedStringResource = "Open Quick Capture"
+    static let description = IntentDescription("Open Atlas directly to the fast capture hub.")
+    static let openAppWhenRun = true
+
+    @Parameter(title: "Focus")
+    var focus: AtlasQuickCaptureIntentKind
+
+    static var parameterSummary: some ParameterSummary {
+        Summary("Open quick capture for \(\.$focus)")
+    }
+
+    init() {
+        focus = .shot
+    }
+
+    init(focus: AtlasQuickCaptureIntentKind = .shot) {
+        self.focus = focus
+    }
+
+    func perform() async throws -> some IntentResult {
+        try AtlasPendingIntentActionStore.write(
+            route: "quick-capture",
+            query: [URLQueryItem(name: "kind", value: focus.rawValue)]
+        )
+        return .result()
+    }
+}
+
+struct AtlasOpenProgressEvidenceIntent: AppIntent {
+    static let title: LocalizedStringResource = "Open Progress Evidence"
+    static let description = IntentDescription("Open Atlas to visual progress capture and compare.")
+    static let openAppWhenRun = true
+
+    func perform() async throws -> some IntentResult {
+        try AtlasPendingIntentActionStore.write(route: "progress-evidence")
         return .result()
     }
 }
@@ -423,13 +482,22 @@ struct AtlasShortcutsProvider: AppShortcutsProvider {
                 systemImageName: "applewatch"
             ),
             AppShortcut(
-                intent: AtlasOpenRecoveryHandlingIntent(),
+                intent: AtlasOpenQuickCaptureIntent(),
                 phrases: [
-                    "Open recovery handling in \(.applicationName)",
-                    "Show watch recovery in \(.applicationName)"
+                    "Open quick capture in \(.applicationName)",
+                    "Show fast capture in \(.applicationName)"
                 ],
-                shortTitle: "Recovery Handling",
-                systemImageName: "arrow.turn.down.right"
+                shortTitle: "Quick Capture",
+                systemImageName: "bolt.badge.clock"
+            ),
+            AppShortcut(
+                intent: AtlasOpenProgressEvidenceIntent(),
+                phrases: [
+                    "Open progress evidence in \(.applicationName)",
+                    "Show photo compare in \(.applicationName)"
+                ],
+                shortTitle: "Progress Evidence",
+                systemImageName: "camera.metering.partial"
             ),
             AppShortcut(
                 intent: AtlasMarkNextDueTakenIntent(),

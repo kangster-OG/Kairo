@@ -54,6 +54,7 @@ For a fast repo map of what is current versus historical, start with:
 The native app currently includes:
 - onboarding and guest/account boundary
 - Today, Timeline, Library, Insights, and Settings
+- one-thumb Quick Capture for shot, weight, symptom, hydration/protein/context, and progress-photo entry
 - protocol creation/edit
 - Protocol Change Studio
 - local reminders and quick logging
@@ -66,6 +67,9 @@ The native app currently includes:
 - universal import and provider handoff
 - Review Mode
 - metrics, custom metrics, and insights
+- Apple Health connection for weight import/export plus workout ingestion into Insights
+- widgets, shortcuts, and app intents for ambient next-step access, quick capture, and progress evidence
+- progress evidence with guided recapture, same-angle compare, milestone timeline browsing, and private export summaries
 - optional rewards for consistency, workouts, self-defined goals, and descriptive weight progress
 - lightweight nutrition support with meal context, quick capture, common foods, hydration/protein/fiber targets, and weekly coaching
 - deterministic Episode Intelligence

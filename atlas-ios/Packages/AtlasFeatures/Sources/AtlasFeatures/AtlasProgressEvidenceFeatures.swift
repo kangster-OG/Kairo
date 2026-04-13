@@ -17,9 +17,23 @@ public struct AtlasProgressEvidenceScreen: View {
     @State private var measurementValueText = ""
     @State private var shareArtifact: AtlasProgressEvidenceExportArtifact?
     @State private var exportErrorMessage: String?
+    @State private var selectedCompareAngle: AtlasProgressPhotoAngle = .front
+    @State private var compareWindow: AtlasProgressCompareWindow = .month
+    @State private var compareReveal: CGFloat = 0.5
+    @State private var timelineMode: AtlasProgressTimelineMode = .month
 
     public var body: some View {
         let snapshot = model.insightsSnapshot.progressEvidence
+        let compareCandidate = atlasProgressCompareCandidate(
+            snapshot: snapshot,
+            angle: selectedCompareAngle,
+            window: compareWindow
+        )
+        let timelineSections = atlasProgressTimelineSections(
+            snapshot: snapshot,
+            weightTrend: model.insightsSnapshot.weightTrend,
+            mode: timelineMode
+        )
 
         List {
             AtlasTabHeader(
@@ -58,6 +72,10 @@ public struct AtlasProgressEvidenceScreen: View {
                     do {
                         shareArtifact = try atlasCreateProgressEvidenceExportArtifact(
                             snapshot: snapshot,
+                            exportContext: atlasProgressEvidenceExportContext(
+                                model: model,
+                                compareCandidate: compareCandidate
+                            ),
                             now: model.currentDate()
                         )
                         exportErrorMessage = nil
@@ -69,6 +87,83 @@ public struct AtlasProgressEvidenceScreen: View {
             }
             .listRowInsets(EdgeInsets())
             .listRowBackground(Color.clear)
+
+            Section("Compare") {
+                AtlasSectionCard(title: "Before / after") {
+                    VStack(alignment: .leading, spacing: AtlasSpacing.medium) {
+                        Text("Match the same angle across a meaningful time window so visual change stays grounded.")
+                            .foregroundStyle(AtlasPalette.textSecondary)
+
+                        Picker("Angle", selection: $selectedCompareAngle) {
+                            ForEach(AtlasProgressPhotoAngle.allCases) { angle in
+                                Text(angle.title).tag(angle)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+
+                        Picker("Window", selection: $compareWindow) {
+                            ForEach(AtlasProgressCompareWindow.allCases) { window in
+                                Text(window.title).tag(window)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+
+                        if let compareCandidate {
+                            AtlasProgressCompareCard(
+                                candidate: compareCandidate,
+                                reveal: $compareReveal
+                            )
+                        } else {
+                            Text("Add at least two \(selectedCompareAngle.title.lowercased()) check-ins to unlock the compare view.")
+                                .foregroundStyle(AtlasPalette.textSecondary)
+                        }
+                    }
+                }
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+            }
+
+            Section("Timeline") {
+                AtlasSectionCard(title: "Milestone timeline") {
+                    VStack(alignment: .leading, spacing: AtlasSpacing.medium) {
+                        Text("Review photos by time bucket or weight milestone so visual progress feels deliberate, not buried.")
+                            .foregroundStyle(AtlasPalette.textSecondary)
+
+                        Picker("Mode", selection: $timelineMode) {
+                            ForEach(AtlasProgressTimelineMode.allCases) { mode in
+                                Text(mode.title).tag(mode)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+
+                        if timelineSections.isEmpty {
+                            Text("Atlas will build this timeline as soon as more visual check-ins or weight milestones accumulate.")
+                                .foregroundStyle(AtlasPalette.textSecondary)
+                        } else {
+                            ForEach(timelineSections) { section in
+                                VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+                                    Text(section.title)
+                                        .font(.body.weight(.semibold))
+                                        .foregroundStyle(AtlasPalette.textPrimary)
+                                    Text(section.subtitle)
+                                        .font(.caption)
+                                        .foregroundStyle(AtlasPalette.textSecondary)
+                                    ScrollView(.horizontal, showsIndicators: false) {
+                                        HStack(spacing: AtlasSpacing.small) {
+                                            ForEach(section.photos) { photo in
+                                                AtlasProgressPhotoTile(photo: photo)
+                                                    .frame(width: 132)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+            }
 
             Section("Measurements") {
                 if snapshot.measurementTrends.isEmpty {
@@ -237,18 +332,54 @@ private struct AtlasProgressPhotoComposerScreen: View {
     @State private var draft = AtlasProgressPhotoDraft(jpegData: Data())
     @State private var selectedItem: PhotosPickerItem?
     @State private var imageData = Data()
+    @State private var guidedOverlayEnabled = true
 
     var body: some View {
+        let referencePhoto = model.insightsSnapshot.progressEvidence.recentPhotos.first(where: { $0.angle == draft.angle })
+
         NavigationStack {
             Form {
+                if let referencePhoto {
+                    Section("Match your last frame") {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Use the latest \(referencePhoto.angle.title.lowercased()) check-in as a soft guide for framing, posture, and crop.")
+                                .font(.caption)
+                                .foregroundStyle(AtlasPalette.textSecondary)
+
+                            AtlasProgressPhotoImage(path: referencePhoto.absolutePath)
+                                .frame(height: 220)
+                                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                                .overlay(alignment: .bottomLeading) {
+                                    Text("Reference")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(.white)
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 6)
+                                        .background(.black.opacity(0.42), in: Capsule())
+                                        .padding(12)
+                                }
+
+                            Toggle("Overlay reference on preview", isOn: $guidedOverlayEnabled)
+                        }
+                    }
+                }
+
                 PhotosPicker(selection: $selectedItem, matching: .images) {
                     Label("Choose photo", systemImage: "photo")
                 }
 
                 if imageData.isEmpty == false {
-                    AtlasProgressPhotoImage(data: imageData)
-                        .frame(height: 240)
-                        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                    ZStack {
+                        if guidedOverlayEnabled, let referencePhoto {
+                            AtlasProgressPhotoImage(path: referencePhoto.absolutePath)
+                                .opacity(0.24)
+                        }
+
+                        AtlasProgressPhotoImage(data: imageData)
+                            .opacity(guidedOverlayEnabled && referencePhoto != nil ? 0.88 : 1)
+                    }
+                    .frame(height: 240)
+                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                 }
 
                 Picker("Angle", selection: $draft.angle) {
@@ -368,6 +499,7 @@ public struct AtlasProgressEvidenceExportArtifact: Identifiable, Sendable {
 
 private func atlasCreateProgressEvidenceExportArtifact(
     snapshot: AtlasProgressEvidenceSnapshot,
+    exportContext: AtlasProgressEvidenceExportContext,
     now: Date
 ) throws -> AtlasProgressEvidenceExportArtifact {
     let supportDirectory = try FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
@@ -379,7 +511,7 @@ private func atlasCreateProgressEvidenceExportArtifact(
     }
 
     let fileURL = supportDirectory.appendingPathComponent("atlas-progress-evidence-\(atlasProgressEvidenceTimestamp(now)).html")
-    try atlasProgressEvidenceHTML(snapshot: snapshot, generatedAt: now).write(to: fileURL, atomically: true, encoding: .utf8)
+    try atlasProgressEvidenceHTML(snapshot: snapshot, exportContext: exportContext, generatedAt: now).write(to: fileURL, atomically: true, encoding: .utf8)
 
     return AtlasProgressEvidenceExportArtifact(
         id: fileURL.lastPathComponent,
@@ -388,7 +520,11 @@ private func atlasCreateProgressEvidenceExportArtifact(
     )
 }
 
-private func atlasProgressEvidenceHTML(snapshot: AtlasProgressEvidenceSnapshot, generatedAt: Date) -> String {
+private func atlasProgressEvidenceHTML(
+    snapshot: AtlasProgressEvidenceSnapshot,
+    exportContext: AtlasProgressEvidenceExportContext,
+    generatedAt: Date
+) -> String {
     let trendBlocks = snapshot.measurementTrends.map { trend in
         "<li><strong>\(trend.kind.title):</strong> \(trend.latestLabel ?? "No entries") \(trend.changeLabel.map { "(\($0))" } ?? "")</li>"
     }.joined()
@@ -406,22 +542,50 @@ private func atlasProgressEvidenceHTML(snapshot: AtlasProgressEvidenceSnapshot, 
         """
     }.joined()
 
+    let highlightCards = [
+        exportContext.weightLatestLabel.map { ("Latest weight", $0) },
+        exportContext.weightChangeLabel.map { ("Trend", $0) },
+        exportContext.mascotHeadline.map { ("Mascot", $0) },
+        exportContext.mascotDetail.map { ("Momentum", $0) }
+    ]
+    .compactMap { $0 }
+    .map { title, value in
+        """
+        <div class=\"pill-card\">
+          <span class=\"eyebrow\">\(title)</span>
+          <strong>\(value)</strong>
+        </div>
+        """
+    }
+    .joined()
+
+    let compareSummary = exportContext.compareSummary.map {
+        "<p><strong>Visual compare:</strong> \($0)</p>"
+    } ?? ""
+
     return """
     <html>
     <head>
       <meta charset=\"utf-8\" />
       <title>Atlas Progress Evidence</title>
       <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin: 32px; color: #14202b; background: #f7f4ef; }
-        .card { background: white; border-radius: 24px; padding: 24px; margin-bottom: 24px; box-shadow: 0 8px 24px rgba(20,32,43,0.08); }
+        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin: 32px; color: #14202b; background: linear-gradient(180deg, #f3eddf 0%, #f7f8fb 100%); }
+        .card { background: rgba(255,255,255,0.95); border-radius: 28px; padding: 28px; margin-bottom: 24px; box-shadow: 0 12px 36px rgba(20,32,43,0.10); }
+        .hero { background: linear-gradient(135deg, #17324a 0%, #29587a 52%, #f0c47a 100%); color: white; }
+        .hero p, .hero strong, .hero h1 { color: white; }
+        .pill-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-top: 18px; }
+        .pill-card { padding: 16px; border-radius: 18px; background: rgba(255,255,255,0.16); }
+        .eyebrow { display: block; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.82; margin-bottom: 6px; }
       </style>
     </head>
     <body>
-      <div class=\"card\">
+      <div class=\"card hero\">
         <h1>\(snapshot.summaryTitle)</h1>
         <p>\(snapshot.summaryText)</p>
         <p><strong>Generated:</strong> \(generatedAt.formatted(date: .abbreviated, time: .shortened))</p>
         <p><strong>Trust note:</strong> Atlas keeps this descriptive and local-first. Photos are visual records only and Atlas is not interpreting them.</p>
+        \(compareSummary)
+        <div class=\"pill-grid\">\(highlightCards)</div>
       </div>
       <div class=\"card\">
         <h2>Measurements</h2>
@@ -440,6 +604,256 @@ private func atlasProgressEvidenceTimestamp(_ date: Date) -> String {
     let formatter = DateFormatter()
     formatter.dateFormat = "yyyyMMdd-HHmmss"
     return formatter.string(from: date)
+}
+
+private struct AtlasProgressCompareCandidate {
+    let angle: AtlasProgressPhotoAngle
+    let current: AtlasProgressPhotoEntrySummary
+    let baseline: AtlasProgressPhotoEntrySummary
+    let summary: String
+}
+
+private enum AtlasProgressCompareWindow: String, CaseIterable, Identifiable {
+    case month
+    case quarter
+    case all
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .month: "4w"
+        case .quarter: "12w"
+        case .all: "All"
+        }
+    }
+}
+
+private enum AtlasProgressTimelineMode: String, CaseIterable, Identifiable {
+    case week
+    case month
+    case milestone
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .week: "Week"
+        case .month: "Month"
+        case .milestone: "Milestone"
+        }
+    }
+}
+
+private struct AtlasProgressTimelineSection: Identifiable {
+    let id: String
+    let title: String
+    let subtitle: String
+    let photos: [AtlasProgressPhotoEntrySummary]
+}
+
+private struct AtlasProgressEvidenceExportContext {
+    var weightLatestLabel: String? = nil
+    var weightChangeLabel: String? = nil
+    var mascotHeadline: String? = nil
+    var mascotDetail: String? = nil
+    var compareSummary: String? = nil
+}
+
+private struct AtlasProgressCompareCard: View {
+    let candidate: AtlasProgressCompareCandidate
+    @Binding var reveal: CGFloat
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AtlasSpacing.medium) {
+            Text(candidate.summary)
+                .font(.caption)
+                .foregroundStyle(AtlasPalette.textSecondary)
+
+            GeometryReader { proxy in
+                let width = max(proxy.size.width, 1)
+                let clampedReveal = min(max(reveal, 0.08), 0.92)
+
+                ZStack(alignment: .leading) {
+                    AtlasProgressPhotoImage(path: candidate.baseline.absolutePath)
+                        .frame(width: width, height: 260)
+                        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+
+                    AtlasProgressPhotoImage(path: candidate.current.absolutePath)
+                        .frame(width: width * clampedReveal, height: 260, alignment: .leading)
+                        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+
+                    Rectangle()
+                        .fill(.white.opacity(0.92))
+                        .frame(width: 3, height: 260)
+                        .offset(x: width * clampedReveal)
+                }
+            }
+            .frame(height: 260)
+
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Before")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                    Text(candidate.baseline.loggedAt.formatted(date: .abbreviated, time: .omitted))
+                        .font(.caption)
+                        .foregroundStyle(AtlasPalette.textPrimary)
+                }
+
+                Spacer()
+
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text("After")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                    Text(candidate.current.loggedAt.formatted(date: .abbreviated, time: .omitted))
+                        .font(.caption)
+                        .foregroundStyle(AtlasPalette.textPrimary)
+                }
+            }
+
+            Slider(value: Binding(
+                get: { Double(reveal) },
+                set: { reveal = CGFloat($0) }
+            ), in: 0.08...0.92)
+            .tint(AtlasPalette.primary)
+        }
+    }
+}
+
+private func atlasProgressCompareCandidate(
+    snapshot: AtlasProgressEvidenceSnapshot,
+    angle: AtlasProgressPhotoAngle,
+    window: AtlasProgressCompareWindow
+) -> AtlasProgressCompareCandidate? {
+    let photos = snapshot.recentPhotos
+        .filter { $0.angle == angle }
+        .sorted { $0.loggedAt > $1.loggedAt }
+    guard let current = photos.first else {
+        return nil
+    }
+
+    let baseline: AtlasProgressPhotoEntrySummary?
+    switch window {
+    case .month:
+        baseline = photos.dropFirst().first(where: { Calendar.current.dateComponents([.day], from: $0.loggedAt, to: current.loggedAt).day ?? 0 >= 28 }) ?? photos.last
+    case .quarter:
+        baseline = photos.dropFirst().first(where: { Calendar.current.dateComponents([.day], from: $0.loggedAt, to: current.loggedAt).day ?? 0 >= 84 }) ?? photos.last
+    case .all:
+        baseline = photos.last
+    }
+
+    guard let baseline, baseline.id != current.id else {
+        return nil
+    }
+
+    return AtlasProgressCompareCandidate(
+        angle: angle,
+        current: current,
+        baseline: baseline,
+        summary: "\(angle.title) compare from \(baseline.loggedAt.formatted(date: .abbreviated, time: .omitted)) to \(current.loggedAt.formatted(date: .abbreviated, time: .omitted))."
+    )
+}
+
+private func atlasProgressTimelineSections(
+    snapshot: AtlasProgressEvidenceSnapshot,
+    weightTrend: AtlasWeightTrendSummary,
+    mode: AtlasProgressTimelineMode
+) -> [AtlasProgressTimelineSection] {
+    let calendar = Calendar.current
+
+    switch mode {
+    case .week:
+        let grouped = Dictionary(grouping: snapshot.recentPhotos) { photo in
+            let components = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: photo.loggedAt)
+            return "\(components.yearForWeekOfYear ?? 0)-\(components.weekOfYear ?? 0)"
+        }
+        return grouped.keys.sorted(by: >).compactMap { key in
+            guard let photos = grouped[key]?.sorted(by: { $0.loggedAt > $1.loggedAt }) else {
+                return nil
+            }
+            let labelDate = photos.first?.loggedAt ?? .now
+            return AtlasProgressTimelineSection(
+                id: key,
+                title: "Week of \(labelDate.formatted(date: .abbreviated, time: .omitted))",
+                subtitle: "\(photos.count) visual check-in(s)",
+                photos: Array(photos.prefix(4))
+            )
+        }
+    case .month:
+        let grouped = Dictionary(grouping: snapshot.recentPhotos) { photo in
+            let components = calendar.dateComponents([.year, .month], from: photo.loggedAt)
+            return "\(components.year ?? 0)-\(components.month ?? 0)"
+        }
+        return grouped.keys.sorted(by: >).compactMap { key in
+            guard let photos = grouped[key]?.sorted(by: { $0.loggedAt > $1.loggedAt }) else {
+                return nil
+            }
+            let labelDate = photos.first?.loggedAt ?? .now
+            return AtlasProgressTimelineSection(
+                id: key,
+                title: labelDate.formatted(.dateTime.month(.wide).year()),
+                subtitle: "\(photos.count) check-in(s) stored locally",
+                photos: Array(photos.prefix(4))
+            )
+        }
+    case .milestone:
+        let milestoneSections = atlasWeightMilestoneSections(weightTrend: weightTrend, photos: snapshot.recentPhotos)
+        return milestoneSections.isEmpty
+            ? atlasProgressTimelineSections(snapshot: snapshot, weightTrend: weightTrend, mode: .month)
+            : milestoneSections
+    }
+}
+
+private func atlasWeightMilestoneSections(
+    weightTrend: AtlasWeightTrendSummary,
+    photos: [AtlasProgressPhotoEntrySummary]
+) -> [AtlasProgressTimelineSection] {
+    guard let latest = weightTrend.points.last?.value,
+          let earliest = weightTrend.points.first?.value else {
+        return []
+    }
+
+    let change = latest - earliest
+    let bucketCount = Int(abs(change) / 5)
+    guard bucketCount > 0 else {
+        return []
+    }
+
+    let sortedPhotos = photos.sorted { $0.loggedAt > $1.loggedAt }
+    return (1...bucketCount).compactMap { index in
+        let title = change < 0 ? "\(index * 5) unit drop" : "\(index * 5) unit climb"
+        let slice = Array(sortedPhotos.dropFirst((index - 1) * 2).prefix(2))
+        guard slice.isEmpty == false else {
+            return nil
+        }
+        return AtlasProgressTimelineSection(
+            id: "milestone-\(index)",
+            title: title,
+            subtitle: "Weight milestones paired with nearby progress photos.",
+            photos: slice
+        )
+    }
+}
+
+@MainActor
+private func atlasProgressEvidenceExportContext(
+    model: AtlasAppModel,
+    compareCandidate: AtlasProgressCompareCandidate?
+) -> AtlasProgressEvidenceExportContext {
+    let evolution = atlasRewardsEvolutionProgress(
+        for: model.rewardsSnapshot,
+        selection: model.settingsSnapshot.mascotSelection
+    )
+
+    return AtlasProgressEvidenceExportContext(
+        weightLatestLabel: model.insightsSnapshot.weightTrend.latestLabel,
+        weightChangeLabel: model.insightsSnapshot.weightTrend.changeLabel,
+        mascotHeadline: model.rewardsSnapshot.settings.enabled ? evolution.milestoneHeadline : nil,
+        mascotDetail: model.rewardsSnapshot.settings.enabled ? evolution.progressLabel : nil,
+        compareSummary: compareCandidate?.summary
+    )
 }
 
 private func atlasNormalizedJPEGData(from data: Data) -> Data? {

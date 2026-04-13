@@ -422,6 +422,52 @@ private struct AtlasOpenTodayWidgetIntent: AppIntent {
     }
 }
 
+private enum AtlasWidgetQuickCaptureKind: String {
+    case shot
+    case weight
+    case symptom
+    case hydration
+    case progressPhoto = "progress_photo"
+}
+
+private struct AtlasOpenQuickCaptureWidgetIntent: AppIntent {
+    static let title: LocalizedStringResource = "Open Quick Capture"
+    static let description = IntentDescription("Open Atlas to a focused quick-capture lane.")
+    static let openAppWhenRun = true
+    static let isDiscoverable = false
+
+    @Parameter(title: "Focus")
+    var focus: String
+
+    init() {
+        focus = AtlasWidgetQuickCaptureKind.shot.rawValue
+    }
+
+    init(focus: AtlasWidgetQuickCaptureKind) {
+        self.focus = focus.rawValue
+    }
+
+    func perform() async throws -> some IntentResult {
+        try AtlasPendingWidgetActionStore.write(
+            route: "quick-capture",
+            query: [URLQueryItem(name: "kind", value: focus)]
+        )
+        return .result()
+    }
+}
+
+private struct AtlasOpenProgressEvidenceWidgetIntent: AppIntent {
+    static let title: LocalizedStringResource = "Open Progress Evidence"
+    static let description = IntentDescription("Open Atlas to visual progress capture and compare.")
+    static let openAppWhenRun = true
+    static let isDiscoverable = false
+
+    func perform() async throws -> some IntentResult {
+        try AtlasPendingWidgetActionStore.write(route: "progress-evidence")
+        return .result()
+    }
+}
+
 private struct AtlasOpenInventoryWidgetIntent: AppIntent {
     static let title: LocalizedStringResource = "Open Inventory"
     static let description = IntentDescription("Open Atlas to Inventory.")
@@ -1277,6 +1323,69 @@ private struct AtlasMascotWidgetView: View {
     }
 }
 
+private struct AtlasQuickCaptureWidgetView: View {
+    @Environment(\.widgetFamily) private var family
+
+    var body: some View {
+        switch family {
+        case .accessoryRectangular:
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Quick Capture")
+                    .font(.caption.weight(.semibold))
+                Text("Shot, weight, symptom, and progress actions stay one tap away.")
+                    .font(.caption2)
+                    .lineLimit(3)
+            }
+        default:
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Quick Capture")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.72))
+
+                Text("Fast Atlas actions for the daily loop.")
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(.white)
+
+                VStack(spacing: 8) {
+                    HStack(spacing: 8) {
+                        Button(intent: AtlasOpenQuickCaptureWidgetIntent(focus: .shot)) {
+                            Label("Shot", systemImage: "syringe.fill")
+                        }
+                        .buttonStyle(.borderedProminent)
+
+                        Button(intent: AtlasOpenQuickCaptureWidgetIntent(focus: .weight)) {
+                            Label("Weight", systemImage: "scalemass.fill")
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                    .tint(.white.opacity(0.18))
+
+                    HStack(spacing: 8) {
+                        Button(intent: AtlasOpenQuickCaptureWidgetIntent(focus: .symptom)) {
+                            Label("Symptom", systemImage: "waveform.path.ecg")
+                        }
+                        .buttonStyle(.bordered)
+
+                        Button(intent: AtlasOpenProgressEvidenceWidgetIntent()) {
+                            Label("Photos", systemImage: "camera.fill")
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                    .tint(.white.opacity(0.18))
+                }
+
+                Spacer(minLength: 0)
+
+                Text("Also supports hydration and protein quick capture from Atlas shortcuts.")
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.68))
+                    .lineLimit(2)
+            }
+            .atlasWidgetCardBackground()
+        }
+    }
+}
+
 private struct AtlasNextDueWidget: Widget {
     let kind = "AtlasNextDueWidget"
 
@@ -1316,11 +1425,25 @@ private struct AtlasMascotWidget: Widget {
     }
 }
 
+private struct AtlasQuickCaptureWidget: Widget {
+    let kind = "AtlasQuickCaptureWidget"
+
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: AtlasNextDueProvider()) { _ in
+            AtlasQuickCaptureWidgetView()
+        }
+        .configurationDisplayName("Quick Capture")
+        .description("Keep Atlas daily actions within easy reach from the Home Screen or Lock Screen.")
+        .supportedFamilies([.systemSmall, .accessoryRectangular])
+    }
+}
+
 @main
 struct AtlasWidgetsBundle: WidgetBundle {
     var body: some Widget {
         AtlasNextDueWidget()
         AtlasLowStockWidget()
+        AtlasQuickCaptureWidget()
         AtlasMascotWidget()
     }
 }

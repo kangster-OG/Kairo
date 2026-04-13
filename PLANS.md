@@ -128,6 +128,40 @@ Next queued milestone:
 - Final Native Hardening + QA + Release Readiness
 
 ## Current implementation focus
+### Capture speed + ambient utility + visual progress polish
+Depends on:
+- native Today, Insights, widgets/intents, and Progress Evidence foundations already complete in code
+- local-first privacy rendering, Trust Vault behavior, and bounded export rules remaining intact
+- existing direct logging and extension projection infrastructure staying deterministic and explicit
+
+Status:
+- started on 2026-04-13
+- completed in code on 2026-04-13
+
+Will deliver:
+- a faster consumer-simple capture surface for shot, weight, symptom, context, and progress-photo actions
+- stronger home-screen and lock-screen Atlas utility through clearer quick-capture widget and shortcut paths
+- guided progress-photo recapture with angle-aware visual reference from the last matching check-in
+- richer before/after compare and milestone timeline views inside Progress Evidence
+- a more premium private progress summary artifact that combines photos, measurements, weight trend, and mascot/rewards context without turning Atlas into a social feed
+
+Constraints:
+- preserve local-first behavior and private on-device photo storage
+- keep visual progress descriptive only; no image interpretation, diagnosis, or medical claims
+- keep widgets/intents narrow, privacy-aware, and grounded in local projection freshness
+- avoid duplicating the full Insights shell inside quick-capture surfaces
+
+Verification goals:
+- `swift build` in `atlas-ios/Packages/AtlasPersistence`
+- `swift build` in `atlas-ios/Packages/AtlasFeatures`
+- `xcodebuild test CODE_SIGNING_ALLOWED=NO -parallel-testing-enabled NO -maximum-parallel-testing-workers 1 -project atlas-ios/Atlas.xcodeproj -scheme Atlas -destination 'platform=iOS Simulator,name=iPhone 17' -derivedDataPath atlas-ios/.derived-data-release`
+
+Verification notes:
+- `swift build --package-path atlas-ios/Packages/AtlasPersistence` passes in this workspace
+- package-only `swift build --package-path atlas-ios/Packages/AtlasFeatures` still hits the pre-existing `UIKit` import mismatch when compiled outside the iOS app target on macOS
+- `xcodebuild -project atlas-ios/Atlas.xcodeproj -scheme Atlas -destination 'generic/platform=iOS Simulator' -derivedDataPath atlas-ios/.derived-data-atlas build` passes
+- simulator QA confirmed deep-link entry into `atlas://quick-capture?kind=weight` and `atlas://progress-evidence`, with clean app logs during launch
+
 ### Calm retention layer
 Depends on:
 - native Today, Insights, Review Mode, inventory, and privacy foundations already complete

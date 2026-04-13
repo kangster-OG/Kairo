@@ -46,7 +46,44 @@ public enum AtlasRoute: Hashable, Sendable {
     case reviewMode
     case weeklyReview
     case progressEvidence
+    case quickCapture(AtlasQuickCaptureKind)
     case watchCompanion
+}
+
+public enum AtlasQuickCaptureKind: String, Codable, CaseIterable, Hashable, Sendable, Identifiable {
+    case shot
+    case weight
+    case symptom
+    case context
+    case hydration
+    case protein
+    case progressPhoto = "progress_photo"
+
+    public var id: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .shot: "Shot"
+        case .weight: "Weight"
+        case .symptom: "Symptom"
+        case .context: "Context"
+        case .hydration: "Hydration"
+        case .protein: "Protein"
+        case .progressPhoto: "Progress Photo"
+        }
+    }
+
+    public var systemImage: String {
+        switch self {
+        case .shot: "syringe.fill"
+        case .weight: "scalemass.fill"
+        case .symptom: "waveform.path.ecg"
+        case .context: "fork.knife.circle.fill"
+        case .hydration: "drop.fill"
+        case .protein: "bolt.heart.fill"
+        case .progressPhoto: "camera.fill"
+        }
+    }
 }
 
 public enum AtlasAccountMode: String, Codable, Sendable {
