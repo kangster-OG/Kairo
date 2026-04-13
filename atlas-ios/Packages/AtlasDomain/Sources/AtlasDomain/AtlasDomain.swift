@@ -914,6 +914,8 @@ public struct AtlasSettingsSnapshot: Sendable, Equatable {
     public var mascotMoments: [AtlasMascotMomentRecord]
     public var mascotArchivedRecaps: [AtlasMascotArchivedRecapRecord]
     public var mascotRecapNotificationSettings: AtlasMascotRecapNotificationSettings
+    public var weeklyReviewReminderSettings: AtlasWeeklyReviewReminderSettings
+    public var weeklyReviewActionPlans: [AtlasWeeklyReviewActionPlan]
     public var summarySettings: AtlasSummarySettingsSnapshot
     public var retentionSettings: AtlasRetentionSettingsSnapshot
     public var rewardsSettings: AtlasRewardsSettingsSnapshot
@@ -935,6 +937,8 @@ public struct AtlasSettingsSnapshot: Sendable, Equatable {
         mascotMoments: [AtlasMascotMomentRecord] = [],
         mascotArchivedRecaps: [AtlasMascotArchivedRecapRecord] = [],
         mascotRecapNotificationSettings: AtlasMascotRecapNotificationSettings = .init(),
+        weeklyReviewReminderSettings: AtlasWeeklyReviewReminderSettings = .init(),
+        weeklyReviewActionPlans: [AtlasWeeklyReviewActionPlan] = [],
         summarySettings: AtlasSummarySettingsSnapshot = .init(),
         retentionSettings: AtlasRetentionSettingsSnapshot = .init(),
         rewardsSettings: AtlasRewardsSettingsSnapshot = .init()
@@ -953,6 +957,8 @@ public struct AtlasSettingsSnapshot: Sendable, Equatable {
         self.mascotMoments = mascotMoments
         self.mascotArchivedRecaps = mascotArchivedRecaps
         self.mascotRecapNotificationSettings = mascotRecapNotificationSettings
+        self.weeklyReviewReminderSettings = weeklyReviewReminderSettings
+        self.weeklyReviewActionPlans = weeklyReviewActionPlans
         self.summarySettings = summarySettings
         self.retentionSettings = retentionSettings
         self.rewardsSettings = rewardsSettings

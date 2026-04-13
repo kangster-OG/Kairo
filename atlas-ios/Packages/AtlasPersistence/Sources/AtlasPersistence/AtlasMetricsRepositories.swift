@@ -543,6 +543,10 @@ func buildInsightsSnapshot(
         .order(Column("started_at").desc)
         .fetchAll(db)
         .map(\.domain)
+    let protocolChangeAudits = try AtlasProtocolChangeAuditDBRecord
+        .order(Column("created_at").desc)
+        .fetchAll(db)
+        .map(\.domain)
     let reminders = try AtlasReminderDBRecord
         .order(Column("scheduled_for").desc)
         .fetchAll(db)
@@ -708,11 +712,27 @@ func buildInsightsSnapshot(
         symptomLogs: symptomLogs,
         weightLogs: weightLogs,
         workoutLogs: workoutLogs,
+        protocolChangeAudits: protocolChangeAudits,
         referenceDate: referenceDate,
         renderMode: renderMode,
         privacyFormatter: privacyFormatter,
         summarySettings: summarySettings,
-        plainLanguageSummary: weeklyRecapSummary
+        plainLanguageSummary: weeklyRecapSummary,
+        periodTitle: atlasWeeklyReviewPeriodTitle(for: referenceDate),
+        includeCurrentStateFacts: true
+    )
+    let weeklyReviewHistory = atlasHistoricalWeeklyReviewSeeds(
+        context: context,
+        logEvents: logEvents,
+        contextLogs: contextLogs,
+        symptomLogs: symptomLogs,
+        weightLogs: weightLogs,
+        workoutLogs: workoutLogs,
+        protocolChangeAudits: protocolChangeAudits,
+        referenceDate: referenceDate,
+        renderMode: renderMode,
+        privacyFormatter: privacyFormatter,
+        summarySettings: summarySettings
     )
 
     return AtlasInsightsSnapshot(
@@ -751,6 +771,7 @@ func buildInsightsSnapshot(
         weeklyRecapSummary: weeklyRecapSummary,
         episodeRecapSummary: episodeRecapSummary,
         weeklyReviewSeed: weeklyReviewSeed,
+        weeklyReviewHistory: weeklyReviewHistory,
         hasAnyInsightData: contextLogs.isEmpty == false
             || weightLogs.isEmpty == false
             || workoutLogs.isEmpty == false
@@ -768,11 +789,14 @@ private func buildWeeklyReviewSeed(
     symptomLogs: [AtlasSymptomLogRecord],
     weightLogs: [AtlasWeightLogRecord],
     workoutLogs: [AtlasWorkoutLogRecord],
+    protocolChangeAudits: [AtlasProtocolChangeAuditRecord],
     referenceDate: Date,
     renderMode: AtlasPrivacyRenderMode,
     privacyFormatter: AtlasPrivacyFormatter,
     summarySettings: AtlasSummarySettingsSnapshot,
-    plainLanguageSummary: AtlasGeneratedSummary?
+    plainLanguageSummary: AtlasGeneratedSummary?,
+    periodTitle: String,
+    includeCurrentStateFacts: Bool
 ) -> AtlasWeeklyReviewSeed? {
     let calendar = Calendar.current
     let startOfToday = calendar.startOfDay(for: referenceDate)
@@ -798,6 +822,10 @@ private func buildWeeklyReviewSeed(
         let startedAt = atlasDate(from: $0.startedAt)
         return startedAt >= windowStart && startedAt <= referenceDate
     }
+    let weeklyProtocolChanges = protocolChangeAudits.filter {
+        let createdAt = atlasDate(from: $0.createdAt)
+        return createdAt >= windowStart && createdAt <= referenceDate
+    }
 
     let pendingOccurrences = context.pendingOccurrences.values
         .flatMap { $0 }
@@ -817,15 +845,34 @@ private func buildWeeklyReviewSeed(
     let rescheduledCount = weeklyLogs.filter { $0.eventType == .rescheduled }.count
     let activeProtocolCount = context.protocols.values.filter { $0.status == .active }.count
     let latestWeight = weeklyWeights.first ?? weightLogs.first
+    let latestProtocolChange = weeklyProtocolChanges.first
+    let protocolChangeSummary = latestProtocolChange.map { audit in
+        let title = context.protocols[audit.protocolId].map {
+            privacyFormatter.title(
+                canonical: $0.name,
+                alias: context.aliases[audit.protocolId]?.aliasLabel,
+                mode: renderMode
+            )
+        }
+        return AtlasWeeklyReviewProtocolChangeSummary(
+            changeCount: weeklyProtocolChanges.count,
+            latestProtocolID: audit.protocolId,
+            latestTitle: title,
+            latestSummary: audit.summary,
+            latestChangedAt: atlasDate(from: audit.createdAt),
+            supportingLogCount: weeklyLogs.filter { $0.protocolId == audit.protocolId }.count,
+            supportingContextCount: weeklyContext.filter { $0.protocolId == audit.protocolId }.count
+        )
+    } ?? (weeklyProtocolChanges.isEmpty ? nil : AtlasWeeklyReviewProtocolChangeSummary(changeCount: weeklyProtocolChanges.count))
 
-    guard completedCount + skippedCount + rescheduledCount + overdueCount + weeklyContext.count + weeklySymptoms.count + weeklyWeights.count + weeklyWorkouts.count + activeProtocolCount > 0 else {
+    guard completedCount + skippedCount + rescheduledCount + overdueCount + weeklyContext.count + weeklySymptoms.count + weeklyWeights.count + weeklyWorkouts.count + weeklyProtocolChanges.count + activeProtocolCount > 0 else {
         return nil
     }
 
     let nextDueLabel = nextDue.map {
         privacyFormatter.title(canonical: $0.canonicalTitle, alias: $0.aliasTitle, mode: renderMode)
     }
-    let sourceSections = [
+    var sourceSections = [
         atlasSummarySection(
             "weekly_activity",
             "Protocol activity",
@@ -846,30 +893,57 @@ private func buildWeeklyReviewSeed(
                 atlasSummaryFact("workout_entries", "Workout entries", String(weeklyWorkouts.count))
             ]
         ),
-        atlasSummarySection(
-            "weekly_state",
-            "Current state",
-            [
-                atlasSummaryFact("active_protocols", "Active protocols", String(activeProtocolCount))
-            ] + (latestWeight.map {
-                [atlasSummaryFact(
-                    "latest_weight",
-                    "Latest weight",
-                    "\(atlasWeeklyReviewWeightLabel($0)) on \(atlasWeeklyReviewSummaryDateLabel($0.loggedAt))"
-                )]
-            } ?? []) + (nextDue.map {
-                [atlasSummaryFact(
-                    "next_due",
-                    "Next due",
-                    "\(privacyFormatter.title(canonical: $0.canonicalTitle, alias: $0.aliasTitle, mode: renderMode)) due \(relativeDueLabel(for: $0.scheduledAt))"
-                )]
-            } ?? [])
-        )
     ]
+    if let protocolChangeSummary {
+        sourceSections.append(
+            atlasSummarySection(
+                "weekly_protocol_changes",
+                "Protocol changes",
+                [
+                    atlasSummaryFact("protocol_change_count", "Changes this week", String(protocolChangeSummary.changeCount))
+                ] + (protocolChangeSummary.latestTitle.map {
+                    [atlasSummaryFact("protocol_change_latest_title", "Latest protocol", $0)]
+                } ?? []) + (protocolChangeSummary.latestChangedAt.map {
+                    [atlasSummaryFact(
+                        "protocol_change_latest_date",
+                        "Latest change",
+                        $0.formatted(date: .abbreviated, time: .omitted)
+                    )]
+                } ?? []) + (protocolChangeSummary.latestSummary.map {
+                    [atlasSummaryFact("protocol_change_latest_summary", "Latest summary", $0)]
+                } ?? [])
+            )
+        )
+    }
+    if includeCurrentStateFacts {
+        sourceSections.append(
+            atlasSummarySection(
+                "weekly_state",
+                "Current state",
+                [
+                    atlasSummaryFact("active_protocols", "Active protocols", String(activeProtocolCount))
+                ] + (latestWeight.map {
+                    [atlasSummaryFact(
+                        "latest_weight",
+                        "Latest weight",
+                        "\(atlasWeeklyReviewWeightLabel($0)) on \(atlasWeeklyReviewSummaryDateLabel($0.loggedAt))"
+                    )]
+                } ?? []) + (nextDue.map {
+                    [atlasSummaryFact(
+                        "next_due",
+                        "Next due",
+                        "\(privacyFormatter.title(canonical: $0.canonicalTitle, alias: $0.aliasTitle, mode: renderMode)) due \(relativeDueLabel(for: $0.scheduledAt))"
+                    )]
+                } ?? [])
+            )
+        )
+    }
 
     return AtlasWeeklyReviewSeed(
-        periodTitle: "Last 7 days",
+        periodTitle: periodTitle,
         generatedAt: referenceDate,
+        windowStart: windowStart,
+        windowEnd: referenceDate,
         summarySettingEnabled: summarySettings.onDeviceEnabled,
         plainLanguageSummary: plainLanguageSummary,
         fallbackSummary: buildWeeklyReviewFallbackSummary(
@@ -884,7 +958,8 @@ private func buildWeeklyReviewSeed(
             latestWeightLabel: latestWeight.map {
                 "\(atlasWeeklyReviewWeightLabel($0)) on \(atlasWeeklyReviewSummaryDateLabel($0.loggedAt))"
             },
-            nextDueTitle: nextDueLabel
+            nextDueTitle: nextDueLabel,
+            protocolChangeSummary: protocolChangeSummary
         ),
         sourceSections: sourceSections,
         completedCount: completedCount,
@@ -897,7 +972,8 @@ private func buildWeeklyReviewSeed(
         weightEntryCount: weeklyWeights.count,
         workoutEntryCount: weeklyWorkouts.count,
         nextDueProtocolID: nextDue?.protocolID,
-        nextDueTitle: nextDueLabel
+        nextDueTitle: nextDueLabel,
+        protocolChangeSummary: protocolChangeSummary
     )
 }
 
@@ -911,7 +987,8 @@ private func buildWeeklyReviewFallbackSummary(
     symptomEntryCount: Int,
     workoutEntryCount: Int,
     latestWeightLabel: String?,
-    nextDueTitle: String?
+    nextDueTitle: String?,
+    protocolChangeSummary: AtlasWeeklyReviewProtocolChangeSummary?
 ) -> String {
     var parts = [
         "Atlas recorded \(countPhrase(completedCount, singular: "completed log")) across \(countPhrase(activeProtocolCount, singular: "active protocol")) in the last 7 days."
@@ -943,8 +1020,65 @@ private func buildWeeklyReviewFallbackSummary(
     if let nextDueTitle {
         parts.append("The next visible schedule anchor is \(nextDueTitle).")
     }
+    if let protocolChangeSummary {
+        var protocolChangeLine = "\(countPhrase(protocolChangeSummary.changeCount, singular: "protocol update")) landed during the review window."
+        if let latestTitle = protocolChangeSummary.latestTitle {
+            protocolChangeLine += " The latest was on \(latestTitle)"
+            if let latestChangedAt = protocolChangeSummary.latestChangedAt {
+                protocolChangeLine += " on \(latestChangedAt.formatted(date: .abbreviated, time: .omitted))"
+            }
+            protocolChangeLine += "."
+        }
+        parts.append(protocolChangeLine)
+    }
 
     return parts.joined(separator: " ")
+}
+
+private func atlasHistoricalWeeklyReviewSeeds(
+    context: AtlasCoreLoopContext,
+    logEvents: [AtlasLogEventRecord],
+    contextLogs: [AtlasContextLogRecord],
+    symptomLogs: [AtlasSymptomLogRecord],
+    weightLogs: [AtlasWeightLogRecord],
+    workoutLogs: [AtlasWorkoutLogRecord],
+    protocolChangeAudits: [AtlasProtocolChangeAuditRecord],
+    referenceDate: Date,
+    renderMode: AtlasPrivacyRenderMode,
+    privacyFormatter: AtlasPrivacyFormatter,
+    summarySettings: AtlasSummarySettingsSnapshot
+) -> [AtlasWeeklyReviewSeed] {
+    let calendar = Calendar.current
+
+    return (1...3).compactMap { offset in
+        guard let historicalDate = calendar.date(byAdding: .day, value: -(offset * atlasWeeklyReviewWindowDays), to: referenceDate) else {
+            return nil
+        }
+
+        return buildWeeklyReviewSeed(
+            context: context,
+            logEvents: logEvents,
+            contextLogs: contextLogs,
+            symptomLogs: symptomLogs,
+            weightLogs: weightLogs,
+            workoutLogs: workoutLogs,
+            protocolChangeAudits: protocolChangeAudits,
+            referenceDate: historicalDate,
+            renderMode: renderMode,
+            privacyFormatter: privacyFormatter,
+            summarySettings: summarySettings,
+            plainLanguageSummary: nil,
+            periodTitle: atlasWeeklyReviewPeriodTitle(for: historicalDate),
+            includeCurrentStateFacts: false
+        )
+    }
+}
+
+private func atlasWeeklyReviewPeriodTitle(for referenceDate: Date) -> String {
+    let calendar = Calendar.current
+    let windowStart = calendar.date(byAdding: .day, value: -(atlasWeeklyReviewWindowDays - 1), to: calendar.startOfDay(for: referenceDate))
+        ?? referenceDate
+    return "\(windowStart.formatted(date: .abbreviated, time: .omitted)) - \(referenceDate.formatted(date: .abbreviated, time: .omitted))"
 }
 
 private func atlasWeeklyReviewWeightLabel(_ record: AtlasWeightLogRecord) -> String {

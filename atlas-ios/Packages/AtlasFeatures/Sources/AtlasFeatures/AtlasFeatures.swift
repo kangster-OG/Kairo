@@ -446,6 +446,7 @@ public final class AtlasAppModel {
             await processMascotEvolutionIfNeeded(referenceDate: now)
             await processMascotMomentsIfNeeded(referenceDate: now)
             await scheduleMascotRecapNotificationsIfNeeded(referenceDate: now)
+            await scheduleWeeklyReviewReminderIfNeeded(referenceDate: now)
             hasLoadedShellData = true
             await refreshCloudStatus()
             syncShellViewStates()
@@ -1328,6 +1329,10 @@ public final class AtlasAppModel {
         case "today":
             routePath.removeAll()
             activeTab = .today
+        case "weekly-review", "weeklyreview":
+            routePath.removeAll()
+            activeTab = .insights
+            open(.weeklyReview)
         case "mascot":
             routePath.removeAll()
             activeTab = .today
@@ -1688,6 +1693,53 @@ public final class AtlasAppModel {
             _ = try? await dependencies.notifications.scheduleMascotNotification(request)
         }
     }
+
+    private func scheduleWeeklyReviewReminderIfNeeded(referenceDate: Date) async {
+        let identifier = atlasWeeklyReviewReminderIdentifier()
+
+        guard settingsSnapshot.weeklyReviewReminderSettings.enabled,
+              notificationPermissionStatus != .denied,
+              let weeklyReview = weeklyReviewPresentation(),
+              weeklyReview.isMarkedReviewed == false else {
+            try? await dependencies.notifications.cancelReminder(identifier: identifier)
+            return
+        }
+
+        let request = AtlasMascotNotificationRequest(
+            identifier: identifier,
+            title: "Weekly Review is ready",
+            body: weeklyReview.summaryText,
+            triggerAt: atlasWeeklyReviewReminderTriggerDate(after: referenceDate),
+            isSilent: false,
+            route: "weekly-review"
+        )
+
+        _ = try? await dependencies.notifications.scheduleMascotNotification(request)
+    }
+}
+
+private func atlasWeeklyReviewReminderTriggerDate(after referenceDate: Date) -> Date {
+    var calendar = Calendar.current
+    calendar.firstWeekday = 2
+
+    let reviewHour = 18
+    let targetWeekday = 1
+    var components = DateComponents()
+    components.weekday = targetWeekday
+    components.hour = reviewHour
+    components.minute = 0
+
+    let candidate = calendar.nextDate(
+        after: referenceDate,
+        matching: components,
+        matchingPolicy: .nextTime
+    )
+
+    return candidate ?? referenceDate.addingTimeInterval(86_400)
+}
+
+private func atlasWeeklyReviewReminderIdentifier() -> String {
+    "atlas.weekly-review"
 }
 
 private enum AtlasCloudRestoreError: LocalizedError {
@@ -1997,6 +2049,12 @@ public struct AtlasTodayScreen: View {
                         contextSheetPresented = true
                     }
                 )
+            }
+
+            if let weeklyReview = model.weeklyReviewPresentation(),
+               weeklyReview.actionPlans.isEmpty == false || weeklyReview.actions.isEmpty == false {
+                AtlasRootSectionHeader("Weekly focus")
+                AtlasWeeklyFocusTodaySection(model: model)
             }
 
             if atlasShouldPromptForMascotConfirmation(
@@ -2813,6 +2871,60 @@ public struct AtlasSettingsScreen: View {
                 Text("External provider summaries are not turned on here. Atlas keeps summary payloads on device in this build.")
                     .font(.caption)
                     .foregroundStyle(AtlasPalette.textSecondary)
+            }
+
+            AtlasSectionCard(title: "Weekly review") {
+                Text("Weekly Review stays local-first and source-backed. Atlas can keep a gentle weekly reminder on, and saved follow-through items will carry into Today until you clear them.")
+                    .foregroundStyle(AtlasPalette.textSecondary)
+
+                AtlasSettingsToggleRow(
+                    title: "Weekly review reminders",
+                    subtitle: "Schedule one calm local reminder when Atlas has a weekly review ready.",
+                    isOn: Binding(
+                        get: { state.settingsSnapshot.weeklyReviewReminderSettings.enabled },
+                        set: { value in
+                            state.settingsSnapshot.weeklyReviewReminderSettings.enabled = value
+                            model.settingsSnapshot.weeklyReviewReminderSettings.enabled = value
+                            Task {
+                                await model.updateWeeklyReviewReminderSettings(
+                                    AtlasWeeklyReviewReminderSettings(enabled: value)
+                                )
+                            }
+                        }
+                    )
+                )
+
+                if state.settingsSnapshot.weeklyReviewActionPlans.isEmpty == false {
+                    VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+                        Text("Saved weekly focus")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(AtlasPalette.primary)
+                            .textCase(.uppercase)
+
+                        ForEach(state.settingsSnapshot.weeklyReviewActionPlans.prefix(3)) { plan in
+                            HStack(alignment: .top, spacing: AtlasSpacing.small) {
+                                Text(plan.title)
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(AtlasPalette.textPrimary)
+                                Spacer()
+                                AtlasStatusBadge(
+                                    plan.isCompleted ? "Done" : (plan.isPinnedForNextWeek ? "Pinned" : "Active"),
+                                    tint: plan.isCompleted ? AtlasPalette.success : AtlasPalette.secondaryText
+                                )
+                            }
+                            Text(plan.detail)
+                                .font(.caption)
+                                .foregroundStyle(AtlasPalette.textSecondary)
+                        }
+                    }
+                }
+
+                Button("Open Weekly Review") {
+                    model.routePath.removeAll()
+                    model.activeTab = .insights
+                    model.open(.weeklyReview)
+                }
+                .buttonStyle(AtlasSecondaryButtonStyle())
             }
 
             AtlasSectionCard(title: "Rewards") {

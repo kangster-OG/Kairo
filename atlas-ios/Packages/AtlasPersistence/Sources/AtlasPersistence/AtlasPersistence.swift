@@ -49,6 +49,21 @@ public protocol SettingsRepository: Sendable {
         _ settings: AtlasMascotRecapNotificationSettings,
         now: Date
     ) async throws -> AtlasSettingsSnapshot
+    func updateWeeklyReviewReminderSettings(
+        _ settings: AtlasWeeklyReviewReminderSettings,
+        now: Date
+    ) async throws -> AtlasSettingsSnapshot
+    func saveWeeklyReviewActionPlan(
+        _ plan: AtlasWeeklyReviewActionPlan,
+        now: Date
+    ) async throws -> AtlasSettingsSnapshot
+    func updateWeeklyReviewActionPlan(
+        id: String,
+        isCompleted: Bool?,
+        isPinnedForNextWeek: Bool?,
+        now: Date
+    ) async throws -> AtlasSettingsSnapshot
+    func removeWeeklyReviewActionPlan(id: String, now: Date) async throws -> AtlasSettingsSnapshot
     func updateSummarySettings(_ update: AtlasSummarySettingsUpdate, now: Date) async throws -> AtlasSettingsSnapshot
     func updateRetentionSettings(_ update: AtlasRetentionSettingsUpdate, now: Date) async throws -> AtlasSettingsSnapshot
     func updateRewardsSettings(_ update: AtlasRewardsSettingsUpdate, now: Date) async throws -> AtlasSettingsSnapshot

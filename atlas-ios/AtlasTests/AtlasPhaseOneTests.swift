@@ -1255,12 +1255,13 @@ final class AtlasPhaseOneTests: XCTestCase {
         )
         let weeklyReview = try XCTUnwrap(snapshot.weeklyReviewSeed)
 
-        XCTAssertEqual(weeklyReview.periodTitle, "Last 7 days")
+        XCTAssertTrue(weeklyReview.periodTitle.contains("-"))
         XCTAssertFalse(weeklyReview.summarySettingEnabled)
         XCTAssertNil(weeklyReview.plainLanguageSummary)
         XCTAssertTrue(weeklyReview.fallbackSummary.contains("last 7 days"))
         XCTAssertTrue(weeklyReview.sourceSections.contains(where: { $0.id == "weekly_activity" }))
         XCTAssertTrue(weeklyReview.sourceSections.contains(where: { $0.id == "weekly_supporting_records" }))
+        XCTAssertFalse(snapshot.weeklyReviewHistory.isEmpty)
         XCTAssertTrue(
             weeklyReview.sourceSections
                 .flatMap(\.facts)
@@ -1319,6 +1320,122 @@ final class AtlasPhaseOneTests: XCTestCase {
                 return false
             })
         )
+    }
+
+    @MainActor
+    func testWeeklyReviewReminderAndSavedActionsPersist() async throws {
+        let notifications = TestNotificationManager()
+        let controller = try makeInMemoryController(notifications: notifications)
+        let prepared = try await controller.importExportBridge.prepareImport(
+            at: writeBundleURL(makeSpecCompleteBundle(aliasModeEnabled: false))
+        )
+        _ = try await controller.importExportBridge.commitPreparedImport(prepared, mode: .replaceExisting)
+
+        let model = makeAppModel(
+            controller: controller,
+            notifications: notifications,
+            referenceDate: importedFixtureReferenceDate
+        )
+        await model.refreshShellData()
+        await model.updateWeeklyReviewReminderSettings(.init(enabled: true))
+
+        XCTAssertTrue(model.settingsSnapshot.weeklyReviewReminderSettings.enabled)
+        let pendingNotifications = await notifications.pendingMascotNotifications()
+        XCTAssertTrue(pendingNotifications.contains(where: { $0.identifier == "atlas.weekly-review" }))
+
+        let weeklyReview = try XCTUnwrap(model.weeklyReviewPresentation())
+        let action = try XCTUnwrap(
+            weeklyReview.actions.first(where: { action in
+                if case .markReviewComplete = action.destination {
+                    return false
+                }
+                return true
+            })
+        )
+
+        await model.saveWeeklyReviewActionPlan(action, seed: weeklyReview.seed)
+
+        let saved = try XCTUnwrap(model.settingsSnapshot.weeklyReviewActionPlans.first)
+        XCTAssertEqual(saved.title, action.title)
+        XCTAssertEqual(saved.detail, action.detail)
+
+        await model.updateWeeklyReviewActionPlan(
+            id: saved.id,
+            isCompleted: true,
+            isPinnedForNextWeek: false
+        )
+
+        let updated = try XCTUnwrap(model.settingsSnapshot.weeklyReviewActionPlans.first)
+        XCTAssertTrue(updated.isCompleted)
+        XCTAssertFalse(updated.isPinnedForNextWeek)
+
+        await model.removeWeeklyReviewActionPlan(id: saved.id)
+
+        XCTAssertTrue(model.settingsSnapshot.weeklyReviewActionPlans.isEmpty)
+    }
+
+    func testWeeklyReviewSeedIncludesProtocolChangeOutcomeFacts() async throws {
+        let controller = try makeInMemoryController()
+        let now = Date(timeIntervalSince1970: 1_774_086_400)
+        let protocolDetail = try await controller.container.protocols.createProtocol(
+            AtlasProtocolDraft(
+                name: "Review protocol",
+                kind: .custom,
+                cadenceType: .weekly,
+                weekday: 1,
+                defaultTimeOfDay: "08:00",
+                doseAmount: 1,
+                doseUnit: "mg"
+            ),
+            now: now
+        )
+
+        _ = try await controller.container.changeStudio.commitChange(
+            protocolID: protocolDetail.id,
+            draft: AtlasProtocolChangeDraft(
+                changeType: .futureDose,
+                effectiveDate: now,
+                doseAmount: 2,
+                doseUnit: "mg",
+                timeOfDay: "09:00"
+            ),
+            referenceDate: now
+        )
+
+        try await controller.container.coreLoop.ensureProjectedOccurrences(referenceDate: now)
+        let todaySnapshot = try await controller.container.today.fetchTodaySnapshot(referenceDate: now)
+        let occurrence = try XCTUnwrap(todaySnapshot.nextDue)
+
+        try await controller.container.coreLoop.logOccurrence(
+            AtlasOccurrenceLogRequest(
+                occurrenceID: occurrence.id,
+                protocolID: protocolDetail.id,
+                action: .taken,
+                note: nil
+            ),
+            now: now.addingTimeInterval(600)
+        )
+
+        _ = try await controller.container.metrics.saveContextEntry(
+            AtlasContextEntryDraft(
+                protocolID: protocolDetail.id,
+                loggedAt: now.addingTimeInterval(900),
+                note: "Context around the change"
+            ),
+            now: now.addingTimeInterval(900)
+        )
+
+        let snapshot = try await controller.container.metrics.fetchInsightsSnapshot(
+            referenceDate: now.addingTimeInterval(1_200)
+        )
+        let weeklyReview = try XCTUnwrap(snapshot.weeklyReviewSeed)
+        let protocolChangeSummary = try XCTUnwrap(weeklyReview.protocolChangeSummary)
+
+        XCTAssertEqual(protocolChangeSummary.changeCount, 1)
+        XCTAssertEqual(protocolChangeSummary.latestProtocolID, protocolDetail.id)
+        XCTAssertEqual(protocolChangeSummary.supportingLogCount, 1)
+        XCTAssertEqual(protocolChangeSummary.supportingContextCount, 1)
+        XCTAssertTrue(weeklyReview.sourceSections.contains(where: { $0.id == "weekly_protocol_changes" }))
     }
 
     func testImportCommitWritesExtensionProjectionSnapshot() async throws {

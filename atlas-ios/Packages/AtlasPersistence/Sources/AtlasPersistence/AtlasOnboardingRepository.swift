@@ -228,6 +228,8 @@ func buildSettingsSnapshot(
     let mascotMoments = try atlasReadMascotMoments(db: db)
     let mascotArchivedRecaps = try atlasReadMascotArchivedRecaps(db: db)
     let mascotRecapNotificationSettings = try atlasReadMascotRecapNotificationSettings(db: db)
+    let weeklyReviewReminderSettings = try atlasReadWeeklyReviewReminderSettings(db: db)
+    let weeklyReviewActionPlans = try atlasReadWeeklyReviewActionPlans(db: db)
     let accountMode = AtlasAccountMode(rawValue: accountModeRaw ?? AtlasAccountMode.guest.rawValue) ?? .guest
     let accountStartMode = accountStartModeRaw.flatMap(AtlasOnboardingAccountMode.init(rawValue:))
     let onboardingCompleted = onboardingCompletedRaw == "1"
@@ -267,6 +269,8 @@ func buildSettingsSnapshot(
         mascotMoments: mascotMoments,
         mascotArchivedRecaps: mascotArchivedRecaps,
         mascotRecapNotificationSettings: mascotRecapNotificationSettings,
+        weeklyReviewReminderSettings: weeklyReviewReminderSettings,
+        weeklyReviewActionPlans: weeklyReviewActionPlans,
         summarySettings: summarySettings,
         retentionSettings: retentionSettings,
         rewardsSettings: rewardsSettings
@@ -499,6 +503,34 @@ func atlasReadMascotRecapNotificationSettings(
         dailyEnabled: dailyEnabled,
         weeklyEnabled: weeklyEnabled
     )
+}
+
+func atlasReadWeeklyReviewReminderSettings(
+    db: Database
+) throws -> AtlasWeeklyReviewReminderSettings {
+    AtlasWeeklyReviewReminderSettings(
+        enabled: try String.fetchOne(
+            db,
+            sql: "SELECT value FROM atlas_app_settings WHERE key = 'weekly_review_reminder_enabled'"
+        ) == "1"
+    )
+}
+
+func atlasReadWeeklyReviewActionPlans(db: Database) throws -> [AtlasWeeklyReviewActionPlan] {
+    guard let json = try String.fetchOne(
+        db,
+        sql: "SELECT value FROM atlas_app_settings WHERE key = 'weekly_review_action_plans_json'"
+    ), json.isEmpty == false else {
+        return []
+    }
+    return try JSONDecoder().decode([AtlasWeeklyReviewActionPlan].self, from: Data(json.utf8))
+}
+
+func atlasEncodeWeeklyReviewActionPlans(_ plans: [AtlasWeeklyReviewActionPlan]) throws -> String {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys]
+    let data = try encoder.encode(plans)
+    return String(decoding: data, as: UTF8.self)
 }
 
 func atlasInferredMascotSelection(from gender: String?) -> AtlasMascotSelection? {

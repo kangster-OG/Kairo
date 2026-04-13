@@ -334,6 +334,103 @@ public struct GRDBSettingsRepository: SettingsRepository, Sendable {
         }
     }
 
+    public func updateWeeklyReviewReminderSettings(
+        _ settings: AtlasWeeklyReviewReminderSettings,
+        now: Date
+    ) async throws -> AtlasSettingsSnapshot {
+        try await stack.canonical.write { db in
+            try writeAppSetting(
+                db: db,
+                key: "weekly_review_reminder_enabled",
+                value: settings.enabled ? "1" : "0",
+                now: now
+            )
+
+            return try buildSettingsSnapshot(
+                db: db,
+                healthKit: healthKit,
+                featureFlags: featureFlags
+            )
+        }
+    }
+
+    public func saveWeeklyReviewActionPlan(
+        _ plan: AtlasWeeklyReviewActionPlan,
+        now: Date
+    ) async throws -> AtlasSettingsSnapshot {
+        try await stack.canonical.write { db in
+            var plans = try atlasReadWeeklyReviewActionPlans(db: db)
+            plans.removeAll { $0.id == plan.id }
+            plans.insert(plan, at: 0)
+            if plans.count > 16 {
+                plans = Array(plans.prefix(16))
+            }
+
+            try writeAppSetting(
+                db: db,
+                key: "weekly_review_action_plans_json",
+                value: try atlasEncodeWeeklyReviewActionPlans(plans),
+                now: now
+            )
+
+            return try buildSettingsSnapshot(
+                db: db,
+                healthKit: healthKit,
+                featureFlags: featureFlags
+            )
+        }
+    }
+
+    public func updateWeeklyReviewActionPlan(
+        id: String,
+        isCompleted: Bool?,
+        isPinnedForNextWeek: Bool?,
+        now: Date
+    ) async throws -> AtlasSettingsSnapshot {
+        try await stack.canonical.write { db in
+            var plans = try atlasReadWeeklyReviewActionPlans(db: db)
+            if let index = plans.firstIndex(where: { $0.id == id }) {
+                if let isCompleted {
+                    plans[index].isCompleted = isCompleted
+                }
+                if let isPinnedForNextWeek {
+                    plans[index].isPinnedForNextWeek = isPinnedForNextWeek
+                }
+            }
+
+            try writeAppSetting(
+                db: db,
+                key: "weekly_review_action_plans_json",
+                value: try atlasEncodeWeeklyReviewActionPlans(plans),
+                now: now
+            )
+
+            return try buildSettingsSnapshot(
+                db: db,
+                healthKit: healthKit,
+                featureFlags: featureFlags
+            )
+        }
+    }
+
+    public func removeWeeklyReviewActionPlan(id: String, now: Date) async throws -> AtlasSettingsSnapshot {
+        try await stack.canonical.write { db in
+            let plans = try atlasReadWeeklyReviewActionPlans(db: db).filter { $0.id != id }
+            try writeAppSetting(
+                db: db,
+                key: "weekly_review_action_plans_json",
+                value: try atlasEncodeWeeklyReviewActionPlans(plans),
+                now: now
+            )
+
+            return try buildSettingsSnapshot(
+                db: db,
+                healthKit: healthKit,
+                featureFlags: featureFlags
+            )
+        }
+    }
+
     public func updateSummarySettings(_ update: AtlasSummarySettingsUpdate, now: Date) async throws -> AtlasSettingsSnapshot {
         try await stack.canonical.write { db in
             let current = try readSummarySettings(db: db, featureFlags: featureFlags)
