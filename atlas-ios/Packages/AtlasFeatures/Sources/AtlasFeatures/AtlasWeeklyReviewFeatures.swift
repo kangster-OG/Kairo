@@ -50,71 +50,32 @@ struct AtlasWeeklyReviewPresentation: Equatable {
 
 extension AtlasAppModel {
     func weeklyReviewPresentation() -> AtlasWeeklyReviewPresentation? {
-        guard let seed = insightsSnapshot.weeklyReviewSeed else {
-            return nil
-        }
-
-        let reviewCompleted = retentionSnapshot.milestones.first(where: { $0.kind == .weeklyReviewCompleted })?.isEarned == true
-        let windowStart = Calendar.current.date(byAdding: .day, value: -6, to: Calendar.current.startOfDay(for: seed.generatedAt)) ?? seed.generatedAt
-        let summaryText = seed.plainLanguageSummary?.summary ?? seed.fallbackSummary
-        let disclaimer = seed.plainLanguageSummary?.disclaimer
-            ?? "Source-backed weekly view only. Atlas is showing local facts, descriptive highlights, and suggested next steps without making causal claims."
-        let trustLabel = seed.plainLanguageSummary?.executionMode.label ?? "Source-backed week view"
-        let sourceSections = seed.sourceSections
-            + atlasWeeklyReviewRewardsSections(
-                rewardsSnapshot: rewardsSnapshot,
-                settingsSnapshot: settingsSnapshot
-            )
-            + atlasWeeklyReviewMascotSections(
-                rewardsSnapshot: rewardsSnapshot,
-                settingsSnapshot: settingsSnapshot,
-                windowStart: windowStart
-            )
-            + atlasWeeklyReviewReviewSections(
-                retentionSnapshot: retentionSnapshot,
-                isMarkedReviewed: reviewCompleted
-            )
-
-        return AtlasWeeklyReviewPresentation(
-            periodTitle: seed.periodTitle,
-            generatedAt: seed.generatedAt,
-            summaryText: summaryText,
-            trustLabel: trustLabel,
-            disclaimer: disclaimer,
-            highlights: atlasWeeklyReviewHighlights(
-                seed: seed,
-                rewardsSnapshot: rewardsSnapshot,
-                settingsSnapshot: settingsSnapshot,
-                windowStart: windowStart
-            ),
-            shifts: atlasWeeklyReviewShifts(
-                insightsSnapshot: insightsSnapshot,
-                seed: seed
-            ),
-            actions: atlasWeeklyReviewActions(
-                seed: seed,
-                rewardsSnapshot: rewardsSnapshot,
-                retentionSnapshot: retentionSnapshot,
-                settingsSnapshot: settingsSnapshot,
-                reviewCompleted: reviewCompleted
-            ),
-            sourceSections: sourceSections,
-            isMarkedReviewed: reviewCompleted,
-            summarySettingEnabled: seed.summarySettingEnabled
+        atlasWeeklyReviewPresentation(
+            insightsSnapshot: insightsSnapshot,
+            retentionSnapshot: retentionSnapshot,
+            rewardsSnapshot: rewardsSnapshot,
+            settingsSnapshot: settingsSnapshot
         )
     }
 }
 
 public struct AtlasWeeklyReviewScreen: View {
-    let model: AtlasAppModel
+    @Bindable private var model: AtlasAppModel
 
     public init(model: AtlasAppModel) {
         self.model = model
     }
 
     public var body: some View {
+        let snapshot = atlasWeeklyReviewPresentation(
+            insightsSnapshot: model.insightsSnapshot,
+            retentionSnapshot: model.retentionSnapshot,
+            rewardsSnapshot: model.rewardsSnapshot,
+            settingsSnapshot: model.settingsSnapshot
+        )
+
         AtlasScreen {
-            if let snapshot = model.weeklyReviewPresentation() {
+            if let snapshot {
                 AtlasSectionCard(style: .hero) {
                     VStack(alignment: .leading, spacing: AtlasSpacing.medium) {
                         HStack(alignment: .top, spacing: AtlasSpacing.medium) {
@@ -246,6 +207,12 @@ public struct AtlasWeeklyReviewScreen: View {
         }
         .navigationTitle("Weekly Review")
         .navigationBarTitleDisplayMode(.inline)
+        .task(id: snapshot == nil) {
+            guard snapshot == nil else {
+                return
+            }
+            await model.loadShellDataIfNeeded()
+        }
     }
 
     private func perform(_ action: AtlasWeeklyReviewActionItem) {
@@ -274,10 +241,17 @@ public struct AtlasWeeklyReviewScreen: View {
 }
 
 struct AtlasWeeklyReviewEntrySection: View {
-    let model: AtlasAppModel
+    @Bindable var model: AtlasAppModel
 
     var body: some View {
-        if let snapshot = model.weeklyReviewPresentation() {
+        let snapshot = atlasWeeklyReviewPresentation(
+            insightsSnapshot: model.insightsSnapshot,
+            retentionSnapshot: model.retentionSnapshot,
+            rewardsSnapshot: model.rewardsSnapshot,
+            settingsSnapshot: model.settingsSnapshot
+        )
+
+        if let snapshot {
             Section("Weekly review") {
                 AtlasSectionCard(style: .elevated) {
                     HStack(alignment: .top, spacing: AtlasSpacing.medium) {
@@ -321,6 +295,66 @@ struct AtlasWeeklyReviewEntrySection: View {
             }
         }
     }
+}
+
+private func atlasWeeklyReviewPresentation(
+    insightsSnapshot: AtlasInsightsSnapshot,
+    retentionSnapshot: AtlasRetentionSnapshot,
+    rewardsSnapshot: AtlasRewardsSnapshot,
+    settingsSnapshot: AtlasSettingsSnapshot
+) -> AtlasWeeklyReviewPresentation? {
+    guard let seed = insightsSnapshot.weeklyReviewSeed else {
+        return nil
+    }
+
+    let reviewCompleted = retentionSnapshot.milestones.first(where: { $0.kind == .weeklyReviewCompleted })?.isEarned == true
+    let windowStart = Calendar.current.date(byAdding: .day, value: -6, to: Calendar.current.startOfDay(for: seed.generatedAt)) ?? seed.generatedAt
+    let summaryText = seed.plainLanguageSummary?.summary ?? seed.fallbackSummary
+    let disclaimer = seed.plainLanguageSummary?.disclaimer
+        ?? "Source-backed weekly view only. Atlas is showing local facts, descriptive highlights, and suggested next steps without making causal claims."
+    let trustLabel = seed.plainLanguageSummary?.executionMode.label ?? "Source-backed week view"
+    let sourceSections = seed.sourceSections
+        + atlasWeeklyReviewRewardsSections(
+            rewardsSnapshot: rewardsSnapshot,
+            settingsSnapshot: settingsSnapshot
+        )
+        + atlasWeeklyReviewMascotSections(
+            rewardsSnapshot: rewardsSnapshot,
+            settingsSnapshot: settingsSnapshot,
+            windowStart: windowStart
+        )
+        + atlasWeeklyReviewReviewSections(
+            retentionSnapshot: retentionSnapshot,
+            isMarkedReviewed: reviewCompleted
+        )
+
+    return AtlasWeeklyReviewPresentation(
+        periodTitle: seed.periodTitle,
+        generatedAt: seed.generatedAt,
+        summaryText: summaryText,
+        trustLabel: trustLabel,
+        disclaimer: disclaimer,
+        highlights: atlasWeeklyReviewHighlights(
+            seed: seed,
+            rewardsSnapshot: rewardsSnapshot,
+            settingsSnapshot: settingsSnapshot,
+            windowStart: windowStart
+        ),
+        shifts: atlasWeeklyReviewShifts(
+            insightsSnapshot: insightsSnapshot,
+            seed: seed
+        ),
+        actions: atlasWeeklyReviewActions(
+            seed: seed,
+            rewardsSnapshot: rewardsSnapshot,
+            retentionSnapshot: retentionSnapshot,
+            settingsSnapshot: settingsSnapshot,
+            reviewCompleted: reviewCompleted
+        ),
+        sourceSections: sourceSections,
+        isMarkedReviewed: reviewCompleted,
+        summarySettingEnabled: seed.summarySettingEnabled
+    )
 }
 
 private struct AtlasWeeklyReviewTrustPanel: View {

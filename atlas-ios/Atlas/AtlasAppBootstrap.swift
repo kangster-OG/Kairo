@@ -123,7 +123,13 @@ private extension AtlasAppBootstrap {
         case "reviewMode":
             model.open(.reviewMode)
         case "weeklyReview":
-            model.open(.weeklyReview)
+            Task { @MainActor in
+                await model.loadBootstrapIfNeeded()
+                guard model.routePath.last != .weeklyReview else {
+                    return
+                }
+                model.open(.weeklyReview)
+            }
         default:
             if rawRoute.hasPrefix("protocolDetail:") {
                 model.open(.protocolDetail(String(rawRoute.dropFirst("protocolDetail:".count))))
