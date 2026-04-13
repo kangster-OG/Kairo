@@ -13,6 +13,8 @@ private let atlasInsightsExplainabilityMinimumMatches = 2
 private let atlasInsightsExplainabilityMinimumCoverage = 0.5
 private let atlasInsightsExplainabilityMaxCards = 4
 private let atlasWeeklyReviewWindowDays = 7
+private let atlasWeeklyReviewArchiveWeeks = 8
+private let atlasWeeklyReviewProtocolFollowUpDays = 14
 
 enum AtlasMetricsRepositoryError: LocalizedError {
     case invalidContextEntry
@@ -864,6 +866,15 @@ private func buildWeeklyReviewSeed(
             supportingContextCount: weeklyContext.filter { $0.protocolId == audit.protocolId }.count
         )
     } ?? (weeklyProtocolChanges.isEmpty ? nil : AtlasWeeklyReviewProtocolChangeSummary(changeCount: weeklyProtocolChanges.count))
+    let protocolFollowUpSummary = buildWeeklyReviewProtocolFollowUpSummary(
+        protocolChangeAudits: protocolChangeAudits,
+        logEvents: logEvents,
+        contextLogs: contextLogs,
+        context: context,
+        referenceDate: referenceDate,
+        renderMode: renderMode,
+        privacyFormatter: privacyFormatter
+    )
 
     guard completedCount + skippedCount + rescheduledCount + overdueCount + weeklyContext.count + weeklySymptoms.count + weeklyWeights.count + weeklyWorkouts.count + weeklyProtocolChanges.count + activeProtocolCount > 0 else {
         return nil
@@ -938,6 +949,21 @@ private func buildWeeklyReviewSeed(
             )
         )
     }
+    if let protocolFollowUpSummary {
+        sourceSections.append(
+            atlasSummarySection(
+                "weekly_protocol_follow_up",
+                "Protocol follow-up",
+                [
+                    atlasSummaryFact("follow_up_protocol", "Latest changed protocol", protocolFollowUpSummary.title ?? "Atlas protocol"),
+                    atlasSummaryFact("follow_up_change_type", "Change type", protocolFollowUpSummary.changeTypeTitle),
+                    atlasSummaryFact("follow_up_window", "Follow-up window", "\(protocolFollowUpSummary.windowDays) day(s)"),
+                    atlasSummaryFact("follow_up_completed", "Completed logs after change", String(protocolFollowUpSummary.completedCount)),
+                    atlasSummaryFact("follow_up_context", "Context entries after change", String(protocolFollowUpSummary.contextEntryCount))
+                ]
+            )
+        )
+    }
 
     return AtlasWeeklyReviewSeed(
         periodTitle: periodTitle,
@@ -973,7 +999,8 @@ private func buildWeeklyReviewSeed(
         workoutEntryCount: weeklyWorkouts.count,
         nextDueProtocolID: nextDue?.protocolID,
         nextDueTitle: nextDueLabel,
-        protocolChangeSummary: protocolChangeSummary
+        protocolChangeSummary: protocolChangeSummary,
+        protocolFollowUpSummary: protocolFollowUpSummary
     )
 }
 
@@ -1050,7 +1077,7 @@ private func atlasHistoricalWeeklyReviewSeeds(
 ) -> [AtlasWeeklyReviewSeed] {
     let calendar = Calendar.current
 
-    return (1...3).compactMap { offset in
+    return (1...atlasWeeklyReviewArchiveWeeks).compactMap { offset in
         guard let historicalDate = calendar.date(byAdding: .day, value: -(offset * atlasWeeklyReviewWindowDays), to: referenceDate) else {
             return nil
         }
@@ -1072,6 +1099,56 @@ private func atlasHistoricalWeeklyReviewSeeds(
             includeCurrentStateFacts: false
         )
     }
+}
+
+private func buildWeeklyReviewProtocolFollowUpSummary(
+    protocolChangeAudits: [AtlasProtocolChangeAuditRecord],
+    logEvents: [AtlasLogEventRecord],
+    contextLogs: [AtlasContextLogRecord],
+    context: AtlasCoreLoopContext,
+    referenceDate: Date,
+    renderMode: AtlasPrivacyRenderMode,
+    privacyFormatter: AtlasPrivacyFormatter
+) -> AtlasWeeklyReviewProtocolFollowUpSummary? {
+    let calendar = Calendar.current
+    let followUpFloor = calendar.date(byAdding: .day, value: -(atlasWeeklyReviewProtocolFollowUpDays - 1), to: calendar.startOfDay(for: referenceDate))
+        ?? referenceDate
+    guard let latestAudit = protocolChangeAudits.first(where: {
+        let changedAt = atlasDate(from: $0.createdAt)
+        return changedAt >= followUpFloor && changedAt <= referenceDate
+    }) else {
+        return nil
+    }
+
+    let changedAt = atlasDate(from: latestAudit.createdAt)
+    let protocolID = latestAudit.protocolId
+    let logsSinceChange = logEvents.filter {
+        $0.protocolId == protocolID && atlasDate(from: $0.loggedAt) >= changedAt && atlasDate(from: $0.loggedAt) <= referenceDate
+    }
+    let contextSinceChange = contextLogs.filter {
+        $0.protocolId == protocolID && atlasDate(from: $0.loggedAt) >= changedAt && atlasDate(from: $0.loggedAt) <= referenceDate
+    }
+    let windowDays = max(1, calendar.dateComponents([.day], from: calendar.startOfDay(for: changedAt), to: calendar.startOfDay(for: referenceDate)).day.map { $0 + 1 } ?? 1)
+    let title = context.protocols[protocolID].map {
+        privacyFormatter.title(
+            canonical: $0.name,
+            alias: context.aliases[protocolID]?.aliasLabel,
+            mode: renderMode
+        )
+    }
+
+    return AtlasWeeklyReviewProtocolFollowUpSummary(
+        protocolID: protocolID,
+        title: title,
+        changeTypeTitle: latestAudit.changeType.explanationTitle,
+        summary: latestAudit.summary,
+        changedAt: changedAt,
+        windowDays: min(windowDays, atlasWeeklyReviewProtocolFollowUpDays),
+        completedCount: logsSinceChange.filter { $0.eventType == .completed }.count,
+        skippedCount: logsSinceChange.filter { $0.eventType == .skipped }.count,
+        rescheduledCount: logsSinceChange.filter { $0.eventType == .rescheduled }.count,
+        contextEntryCount: contextSinceChange.count
+    )
 }
 
 private func atlasWeeklyReviewPeriodTitle(for referenceDate: Date) -> String {

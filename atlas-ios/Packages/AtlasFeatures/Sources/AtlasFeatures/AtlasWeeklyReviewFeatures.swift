@@ -34,12 +34,43 @@ struct AtlasWeeklyReviewActionItem: Identifiable, Equatable {
     let destination: AtlasWeeklyReviewActionDestination
 }
 
+struct AtlasWeeklyReviewActionOutcomeItem: Identifiable, Equatable {
+    let id: String
+    let title: String
+    let detail: String
+    let statusLabel: String
+    let statusDetail: String
+    let symbolName: String
+}
+
+struct AtlasWeeklyReviewActionOutcomeSummary: Equatable {
+    let previousPeriodTitle: String
+    let summary: String
+    let items: [AtlasWeeklyReviewActionOutcomeItem]
+}
+
 struct AtlasWeeklyReviewHistoryItem: Identifiable, Equatable {
     let id: String
     let periodTitle: String
     let summary: String
     let comparisonLabel: String
     let seed: AtlasWeeklyReviewSeed
+}
+
+struct AtlasWeeklyReviewComparisonMetric: Identifiable, Equatable {
+    let id: String
+    let label: String
+    let currentValue: String
+    let historicalValue: String
+    let deltaLabel: String
+}
+
+struct AtlasWeeklyReviewComparisonSnapshot: Identifiable, Equatable {
+    let id: String
+    let historicalPeriodTitle: String
+    let headline: String
+    let summary: String
+    let metrics: [AtlasWeeklyReviewComparisonMetric]
 }
 
 struct AtlasWeeklyReviewPresentation: Equatable {
@@ -53,6 +84,9 @@ struct AtlasWeeklyReviewPresentation: Equatable {
     let shifts: [AtlasWeeklyReviewShiftItem]
     let actions: [AtlasWeeklyReviewActionItem]
     let history: [AtlasWeeklyReviewHistoryItem]
+    let comparison: AtlasWeeklyReviewComparisonSnapshot?
+    let actionOutcomes: AtlasWeeklyReviewActionOutcomeSummary?
+    let protocolFollowUp: AtlasWeeklyReviewProtocolFollowUpSummary?
     let actionPlans: [AtlasWeeklyReviewActionPlan]
     let sourceSections: [AtlasSummarySourceSection]
     let isMarkedReviewed: Bool
@@ -180,23 +214,24 @@ extension AtlasAppModel {
         }
     }
 
-    func exportWeeklyReviewPack(for seed: AtlasWeeklyReviewSeed) async -> URL? {
-        let result = await createReview(
-            AtlasReviewRequest(
-                scopeKind: .customDateRange,
-                protocolIDs: libraryProtocols.map(\.id),
-                dateRange: AtlasDateRange(start: seed.windowStart, end: seed.windowEnd),
-                aliasModeEnabled: settingsSnapshot.trustVaultStatus.renderMode == .alias,
-                deliveryKind: .staticPack
-            )
-        )
-        return result?.packURL
+    func exportWeeklyReviewPack(_ snapshot: AtlasWeeklyReviewPresentation) async -> URL? {
+        guard await unlockTrustVaultIfNeeded(reason: "Export Weekly Review") else {
+            return nil
+        }
+
+        do {
+            return try atlasWriteWeeklyReviewExport(snapshot: snapshot)
+        } catch {
+            setLoadErrorMessage(error.localizedDescription)
+            return nil
+        }
     }
 }
 
 public struct AtlasWeeklyReviewScreen: View {
     @Bindable private var model: AtlasAppModel
     @State private var detailSheet: AtlasWeeklyReviewDetailSheet?
+    @State private var archivePresented = false
     @State private var shareURL: URL?
     @State private var isExporting = false
 
@@ -205,12 +240,7 @@ public struct AtlasWeeklyReviewScreen: View {
     }
 
     public var body: some View {
-        let snapshot = atlasWeeklyReviewPresentation(
-            insightsSnapshot: model.insightsSnapshot,
-            retentionSnapshot: model.retentionSnapshot,
-            rewardsSnapshot: model.rewardsSnapshot,
-            settingsSnapshot: model.settingsSnapshot
-        )
+        let snapshot = model.weeklyReviewPresentation()
 
         AtlasScreen {
             if let snapshot {
@@ -307,11 +337,43 @@ public struct AtlasWeeklyReviewScreen: View {
                     }
                 }
 
+                if let actionOutcomes = snapshot.actionOutcomes {
+                    AtlasSectionCard(style: .elevated, title: "Action follow-through") {
+                        Text(actionOutcomes.summary)
+                            .font(.caption)
+                            .foregroundStyle(AtlasPalette.textSecondary)
+
+                        ForEach(Array(actionOutcomes.items.enumerated()), id: \.element.id) { index, item in
+                            if index > 0 {
+                                Divider()
+                            }
+                            AtlasWeeklyReviewActionOutcomeRow(item: item)
+                        }
+                    }
+                }
+
+                if let protocolFollowUp = snapshot.protocolFollowUp {
+                    AtlasSectionCard(style: .elevated, title: "Since the latest plan change") {
+                        AtlasWeeklyReviewProtocolFollowUpView(
+                            summary: protocolFollowUp,
+                            openAction: {
+                                model.openWeeklyReviewRoute(.protocolChange(protocolFollowUp.protocolID))
+                            }
+                        )
+                    }
+                }
+
                 if snapshot.history.isEmpty == false {
-                    AtlasSectionCard(style: .utility, title: "History") {
+                    AtlasSectionCard(style: .utility, title: "Archive & compare") {
                         Text("Prior weeks stay available here so the current review has memory, not just a moment-in-time snapshot.")
                             .font(.caption)
                             .foregroundStyle(AtlasPalette.textSecondary)
+
+                        if let comparison = snapshot.comparison {
+                            AtlasWeeklyReviewComparisonCard(snapshot: comparison) {
+                                archivePresented = true
+                            }
+                        }
 
                         ForEach(Array(snapshot.history.enumerated()), id: \.element.id) { index, item in
                             if index > 0 {
@@ -321,6 +383,11 @@ public struct AtlasWeeklyReviewScreen: View {
                                 detailSheet = .history(item)
                             }
                         }
+
+                        Button("Open full archive") {
+                            archivePresented = true
+                        }
+                        .buttonStyle(AtlasSecondaryButtonStyle())
                     }
                 }
 
@@ -440,11 +507,11 @@ public struct AtlasWeeklyReviewScreen: View {
         .toolbar {
             if let snapshot {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        Task {
-                            await exportWeeklyReview(snapshot.seed)
-                        }
-                    } label: {
+                        Button {
+                            Task {
+                                await exportWeeklyReview(snapshot)
+                            }
+                        } label: {
                         if isExporting {
                             ProgressView()
                                 .progressViewStyle(.circular)
@@ -459,6 +526,11 @@ public struct AtlasWeeklyReviewScreen: View {
         }
         .sheet(item: $detailSheet) { item in
             AtlasWeeklyReviewDetailSheetView(item: item)
+        }
+        .sheet(isPresented: $archivePresented) {
+            if let snapshot {
+                AtlasWeeklyReviewArchiveScreen(snapshot: snapshot)
+            }
         }
         .sheet(
             isPresented: Binding(
@@ -506,10 +578,10 @@ public struct AtlasWeeklyReviewScreen: View {
         }
     }
 
-    private func exportWeeklyReview(_ seed: AtlasWeeklyReviewSeed) async {
+    private func exportWeeklyReview(_ snapshot: AtlasWeeklyReviewPresentation) async {
         isExporting = true
         defer { isExporting = false }
-        shareURL = await model.exportWeeklyReviewPack(for: seed)
+        shareURL = await model.exportWeeklyReviewPack(snapshot)
     }
 }
 
@@ -517,12 +589,7 @@ struct AtlasWeeklyReviewEntrySection: View {
     @Bindable var model: AtlasAppModel
 
     var body: some View {
-        let snapshot = atlasWeeklyReviewPresentation(
-            insightsSnapshot: model.insightsSnapshot,
-            retentionSnapshot: model.retentionSnapshot,
-            rewardsSnapshot: model.rewardsSnapshot,
-            settingsSnapshot: model.settingsSnapshot
-        )
+        let snapshot = model.weeklyReviewPresentation()
 
         if let snapshot {
             Section("Weekly review") {
@@ -682,6 +749,10 @@ private func atlasWeeklyReviewPresentation(
         seed: seed,
         plans: settingsSnapshot.weeklyReviewActionPlans
     )
+    let history = atlasWeeklyReviewHistoryItems(
+        currentSeed: seed,
+        historicalSeeds: insightsSnapshot.weeklyReviewHistory
+    )
 
     return AtlasWeeklyReviewPresentation(
         seed: seed,
@@ -707,10 +778,15 @@ private func atlasWeeklyReviewPresentation(
             settingsSnapshot: settingsSnapshot,
             reviewCompleted: reviewCompleted
         ),
-        history: atlasWeeklyReviewHistoryItems(
+        history: history,
+        comparison: history.first.map {
+            atlasWeeklyReviewComparisonSnapshot(currentSeed: seed, historical: $0.seed)
+        },
+        actionOutcomes: atlasWeeklyReviewActionOutcomeSummary(
             currentSeed: seed,
-            historicalSeeds: insightsSnapshot.weeklyReviewHistory
+            plans: settingsSnapshot.weeklyReviewActionPlans
         ),
+        protocolFollowUp: seed.protocolFollowUpSummary,
         actionPlans: actionPlans,
         sourceSections: sourceSections,
         isMarkedReviewed: reviewCompleted,
@@ -877,6 +953,118 @@ private struct AtlasWeeklyReviewHistoryRow: View {
     }
 }
 
+private struct AtlasWeeklyReviewComparisonCard: View {
+    let snapshot: AtlasWeeklyReviewComparisonSnapshot
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+                HStack(alignment: .top, spacing: AtlasSpacing.small) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Compared with \(snapshot.historicalPeriodTitle)")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(AtlasPalette.primary)
+                            .textCase(.uppercase)
+                        Text(snapshot.headline)
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(AtlasPalette.textPrimary)
+                    }
+                    Spacer()
+                    Image(systemName: "arrow.left.arrow.right.circle.fill")
+                        .foregroundStyle(AtlasPalette.primary)
+                }
+
+                Text(snapshot.summary)
+                    .font(.caption)
+                    .foregroundStyle(AtlasPalette.textSecondary)
+
+                VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
+                    ForEach(snapshot.metrics.prefix(3)) { metric in
+                        Text("\(metric.label): \(metric.deltaLabel)")
+                            .font(.caption)
+                            .foregroundStyle(AtlasPalette.textSecondary)
+                    }
+                }
+            }
+            .padding(AtlasSpacing.small)
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(Color.white.opacity(0.62))
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct AtlasWeeklyReviewActionOutcomeRow: View {
+    let item: AtlasWeeklyReviewActionOutcomeItem
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+            HStack(alignment: .top, spacing: AtlasSpacing.small) {
+                Image(systemName: item.symbolName)
+                    .foregroundStyle(AtlasPalette.primary)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(item.title)
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(AtlasPalette.textPrimary)
+                    Text(item.detail)
+                        .font(.caption)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                }
+                Spacer()
+                AtlasStatusBadge(item.statusLabel, tint: atlasWeeklyReviewOutcomeTint(item.statusLabel))
+            }
+
+            Text(item.statusDetail)
+                .font(.caption)
+                .foregroundStyle(AtlasPalette.textSecondary)
+                .padding(.leading, 28)
+        }
+        .padding(.vertical, AtlasSpacing.xSmall)
+    }
+}
+
+private struct AtlasWeeklyReviewProtocolFollowUpView: View {
+    let summary: AtlasWeeklyReviewProtocolFollowUpSummary
+    let openAction: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+            HStack(alignment: .top, spacing: AtlasSpacing.small) {
+                Image(systemName: "slider.horizontal.3")
+                    .foregroundStyle(AtlasPalette.primary)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(summary.title ?? "Atlas protocol")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(AtlasPalette.textPrimary)
+                    Text(summary.summary ?? "\(summary.changeTypeTitle) is still within Atlas's follow-up window.")
+                        .font(.caption)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
+                Text("Changed \(summary.changedAt.formatted(date: .abbreviated, time: .omitted)) • \(summary.windowDays)-day follow-up")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AtlasPalette.primary)
+                Text("Completed logs: \(summary.completedCount) • Skipped: \(summary.skippedCount) • Rescheduled: \(summary.rescheduledCount) • Context: \(summary.contextEntryCount)")
+                    .font(.caption)
+                    .foregroundStyle(AtlasPalette.textSecondary)
+                Text(summary.hasVisibleSupportingData
+                    ? "Atlas has visible follow-through around the change and is keeping the read descriptive."
+                    : "Atlas has the change audit, but very little follow-through around it yet.")
+                    .font(.caption)
+                    .foregroundStyle(AtlasPalette.textSecondary)
+            }
+
+            Button("Open change follow-up", action: openAction)
+                .buttonStyle(AtlasSecondaryButtonStyle())
+        }
+    }
+}
+
 private struct AtlasWeeklyReviewSavedActionRow: View {
     let item: AtlasWeeklyReviewActionPlan
     let openAction: () -> Void
@@ -995,6 +1183,113 @@ private struct AtlasWeeklyReviewDetailSheetView: View {
                 }
             }
             .navigationTitle("Weekly detail")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct AtlasWeeklyReviewArchiveScreen: View {
+    let snapshot: AtlasWeeklyReviewPresentation
+    @Environment(\.dismiss) private var dismiss
+    @State private var selectedHistoryID: String
+
+    init(snapshot: AtlasWeeklyReviewPresentation) {
+        self.snapshot = snapshot
+        _selectedHistoryID = State(initialValue: snapshot.history.first?.id ?? "")
+    }
+
+    private var selectedHistory: AtlasWeeklyReviewHistoryItem? {
+        snapshot.history.first(where: { $0.id == selectedHistoryID }) ?? snapshot.history.first
+    }
+
+    var body: some View {
+        NavigationStack {
+            AtlasScreen {
+                if let selectedHistory {
+                    let comparison = atlasWeeklyReviewComparisonSnapshot(
+                        currentSeed: snapshot.seed,
+                        historical: selectedHistory.seed
+                    )
+
+                    AtlasSectionCard(style: .hero) {
+                        VStack(alignment: .leading, spacing: AtlasSpacing.medium) {
+                            Text("Archive & Compare")
+                                .font(.system(size: 30, weight: .bold, design: .rounded))
+                                .foregroundStyle(AtlasPalette.textPrimary)
+                            Text("Comparing \(snapshot.periodTitle) with \(selectedHistory.periodTitle)")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(AtlasPalette.primary)
+                                .textCase(.uppercase)
+                            Text(comparison.headline)
+                                .font(.title3.weight(.semibold))
+                                .foregroundStyle(AtlasPalette.textPrimary)
+                            Text(comparison.summary)
+                                .foregroundStyle(AtlasPalette.textSecondary)
+                        }
+                    }
+
+                    AtlasSectionCard(style: .elevated, title: "Comparison") {
+                        ForEach(Array(comparison.metrics.enumerated()), id: \.element.id) { index, metric in
+                            if index > 0 {
+                                Divider()
+                            }
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack {
+                                    Text(metric.label)
+                                        .font(.body.weight(.semibold))
+                                        .foregroundStyle(AtlasPalette.textPrimary)
+                                    Spacer()
+                                    Text(metric.deltaLabel)
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(AtlasPalette.primary)
+                                }
+                                Text("This week: \(metric.currentValue) • Archive week: \(metric.historicalValue)")
+                                    .font(.caption)
+                                    .foregroundStyle(AtlasPalette.textSecondary)
+                            }
+                            .padding(.vertical, AtlasSpacing.xSmall)
+                        }
+                    }
+
+                    AtlasSectionCard(style: .utility, title: "Archive weeks") {
+                        ForEach(snapshot.history) { item in
+                            Button {
+                                selectedHistoryID = item.id
+                            } label: {
+                                HStack(alignment: .top, spacing: AtlasSpacing.small) {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(item.periodTitle)
+                                            .font(.body.weight(.semibold))
+                                            .foregroundStyle(AtlasPalette.textPrimary)
+                                        Text(item.comparisonLabel)
+                                            .font(.caption)
+                                            .foregroundStyle(AtlasPalette.textSecondary)
+                                    }
+                                    Spacer()
+                                    AtlasStatusBadge(
+                                        selectedHistoryID == item.id ? "Selected" : "Archive",
+                                        tint: selectedHistoryID == item.id ? AtlasPalette.primary : AtlasPalette.secondaryText
+                                    )
+                                }
+                                .padding(.vertical, AtlasSpacing.xSmall)
+                            }
+                            .buttonStyle(.plain)
+
+                            if item.id != snapshot.history.last?.id {
+                                Divider()
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Archive")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -1563,6 +1858,125 @@ private func atlasWeeklyReviewHistoryItems(
     }
 }
 
+private func atlasWeeklyReviewActionOutcomeSummary(
+    currentSeed: AtlasWeeklyReviewSeed,
+    plans: [AtlasWeeklyReviewActionPlan]
+) -> AtlasWeeklyReviewActionOutcomeSummary? {
+    let currentWindowStart = ISO8601DateFormatter.atlas.string(from: currentSeed.windowStart)
+    guard let previousWindowStart = plans
+        .map(\.reviewPeriodStart)
+        .filter({ $0 < currentWindowStart })
+        .max() else {
+        return nil
+    }
+
+    let previousPlans = plans
+        .filter { $0.reviewPeriodStart == previousWindowStart }
+        .sorted { $0.createdAt > $1.createdAt }
+    guard previousPlans.isEmpty == false else {
+        return nil
+    }
+
+    let completedCount = previousPlans.filter(\.isCompleted).count
+    let carriedCount = previousPlans.filter { $0.isCompleted == false && $0.isPinnedForNextWeek }.count
+    let openCount = previousPlans.filter { $0.isCompleted == false && $0.isPinnedForNextWeek == false }.count
+    let periodTitle = atlasWeeklyReviewPeriodTitle(
+        start: previousPlans.first?.reviewPeriodStart,
+        end: previousPlans.first?.reviewPeriodEnd
+    )
+    let summary = [
+        completedCount > 0 ? "\(completedCount) completed" : nil,
+        carriedCount > 0 ? "\(carriedCount) carried forward" : nil,
+        openCount > 0 ? "\(openCount) left open" : nil
+    ]
+    .compactMap { $0 }
+    .joined(separator: " • ")
+
+    return AtlasWeeklyReviewActionOutcomeSummary(
+        previousPeriodTitle: periodTitle,
+        summary: summary.isEmpty
+            ? "Atlas kept your prior weekly focus visible, but there were no marked outcomes yet."
+            : "From \(periodTitle): \(summary).",
+        items: previousPlans.prefix(4).map { plan in
+            let statusLabel: String
+            let statusDetail: String
+            if plan.isCompleted {
+                statusLabel = "Completed"
+                statusDetail = "This saved focus was marked done after the review."
+            } else if plan.isPinnedForNextWeek {
+                statusLabel = "Carried"
+                statusDetail = "Atlas kept this focus visible into the new week."
+            } else {
+                statusLabel = "Open"
+                statusDetail = "This focus was left open and is no longer pinned into the current week."
+            }
+
+            return AtlasWeeklyReviewActionOutcomeItem(
+                id: plan.id,
+                title: plan.title,
+                detail: plan.detail,
+                statusLabel: statusLabel,
+                statusDetail: statusDetail,
+                symbolName: plan.symbolName
+            )
+        }
+    )
+}
+
+private func atlasWeeklyReviewComparisonSnapshot(
+    currentSeed: AtlasWeeklyReviewSeed,
+    historical: AtlasWeeklyReviewSeed
+) -> AtlasWeeklyReviewComparisonSnapshot {
+    let currentScheduleMovement = currentSeed.skippedCount + currentSeed.rescheduledCount + currentSeed.overdueCount
+    let historicalScheduleMovement = historical.skippedCount + historical.rescheduledCount + historical.overdueCount
+    let currentProtocolChanges = currentSeed.protocolChangeSummary?.changeCount ?? 0
+    let historicalProtocolChanges = historical.protocolChangeSummary?.changeCount ?? 0
+
+    return AtlasWeeklyReviewComparisonSnapshot(
+        id: ISO8601DateFormatter.atlas.string(from: historical.windowEnd),
+        historicalPeriodTitle: historical.periodTitle,
+        headline: atlasWeeklyReviewComparisonLabel(current: currentSeed, historical: historical),
+        summary: historical.plainLanguageSummary?.summary ?? historical.fallbackSummary,
+        metrics: [
+            AtlasWeeklyReviewComparisonMetric(
+                id: "completed",
+                label: "Completed logs",
+                currentValue: String(currentSeed.completedCount),
+                historicalValue: String(historical.completedCount),
+                deltaLabel: atlasWeeklyReviewDeltaLabel(current: currentSeed.completedCount, historical: historical.completedCount)
+            ),
+            AtlasWeeklyReviewComparisonMetric(
+                id: "schedule_movement",
+                label: "Schedule movement",
+                currentValue: String(currentScheduleMovement),
+                historicalValue: String(historicalScheduleMovement),
+                deltaLabel: atlasWeeklyReviewDeltaLabel(current: currentScheduleMovement, historical: historicalScheduleMovement)
+            ),
+            AtlasWeeklyReviewComparisonMetric(
+                id: "context",
+                label: "Context entries",
+                currentValue: String(currentSeed.contextEntryCount),
+                historicalValue: String(historical.contextEntryCount),
+                deltaLabel: atlasWeeklyReviewDeltaLabel(current: currentSeed.contextEntryCount, historical: historical.contextEntryCount)
+            ),
+            AtlasWeeklyReviewComparisonMetric(
+                id: "symptoms",
+                label: "Symptom entries",
+                currentValue: String(currentSeed.symptomEntryCount),
+                historicalValue: String(historical.symptomEntryCount),
+                deltaLabel: atlasWeeklyReviewDeltaLabel(current: currentSeed.symptomEntryCount, historical: historical.symptomEntryCount)
+            ),
+            AtlasWeeklyReviewComparisonMetric(
+                id: "protocol_changes",
+                label: "Protocol changes",
+                currentValue: String(currentProtocolChanges),
+                historicalValue: String(historicalProtocolChanges),
+                deltaLabel: atlasWeeklyReviewDeltaLabel(current: currentProtocolChanges, historical: historicalProtocolChanges)
+            )
+        ]
+    )
+}
+
 private func atlasWeeklyReviewComparisonLabel(
     current: AtlasWeeklyReviewSeed,
     historical: AtlasWeeklyReviewSeed
@@ -1593,6 +2007,21 @@ private func atlasWeeklyReviewComparisonLabel(
     return fragments.joined(separator: " • ")
 }
 
+private func atlasWeeklyReviewDeltaLabel(current: Int, historical: Int) -> String {
+    let delta = current - historical
+    if delta == 0 {
+        return "No visible change"
+    }
+    return delta > 0 ? "+\(delta)" : "\(delta)"
+}
+
+private func atlasWeeklyReviewPeriodTitle(start: String?, end: String?) -> String {
+    guard let start, let end else {
+        return "Prior review"
+    }
+    return "\(atlasWeeklyReviewDate(from: start).formatted(date: .abbreviated, time: .omitted)) - \(atlasWeeklyReviewDate(from: end).formatted(date: .abbreviated, time: .omitted))"
+}
+
 private func atlasWeeklyReviewActionPlanID(
     for action: AtlasWeeklyReviewActionItem,
     seed: AtlasWeeklyReviewSeed
@@ -1617,6 +2046,158 @@ private func atlasWeeklyReviewRoute(
     case .markReviewComplete:
         return nil
     }
+}
+
+private func atlasWeeklyReviewOutcomeTint(_ statusLabel: String) -> Color {
+    switch statusLabel {
+    case "Completed":
+        return AtlasPalette.success
+    case "Carried":
+        return AtlasPalette.primary
+    default:
+        return AtlasPalette.secondaryText
+    }
+}
+
+private struct AtlasWeeklyReviewExportPayload: Codable {
+    struct Section: Codable {
+        var title: String
+        var items: [String]
+    }
+
+    var title: String
+    var generatedAt: String
+    var summary: String
+    var trustLabel: String
+    var disclaimer: String
+    var sections: [Section]
+}
+
+func atlasWeeklyReviewExportHTML(snapshot: AtlasWeeklyReviewPresentation) -> String {
+    let dateLabel = snapshot.generatedAt.formatted(date: .abbreviated, time: .shortened)
+    let highlights = snapshot.highlights.map { "<li><strong>\($0.title)</strong><span>\($0.detail)</span></li>" }.joined()
+    let shifts = snapshot.shifts.map { "<li><strong>\($0.title)</strong><span>\($0.summary)</span></li>" }.joined()
+    let actions = snapshot.actions.map { "<li><strong>\($0.title)</strong><span>\($0.detail)</span></li>" }.joined()
+    let outcomes = snapshot.actionOutcomes?.items.map {
+        "<li><strong>\($0.title)</strong><span>\($0.statusLabel) · \($0.statusDetail)</span></li>"
+    }.joined() ?? ""
+    let comparison = snapshot.comparison.map {
+        """
+        <section>
+          <h2>Archive &amp; compare</h2>
+          <p class="eyebrow">Compared with \($0.historicalPeriodTitle)</p>
+          <p>\($0.headline)</p>
+          <ul>\($0.metrics.map { "<li><strong>\($0.label)</strong><span>This week \($0.currentValue) · Archive week \($0.historicalValue) (\($0.deltaLabel))</span></li>" }.joined())</ul>
+        </section>
+        """
+    } ?? ""
+    let protocolFollowUp = snapshot.protocolFollowUp.map {
+        """
+        <section>
+          <h2>Protocol follow-up</h2>
+          <p class="eyebrow">\($0.title ?? "Atlas protocol")</p>
+          <p>\($0.summary ?? "\($0.changeTypeTitle) is still inside Atlas's follow-up window.")</p>
+          <ul>
+            <li><strong>Changed</strong><span>\($0.changedAt.formatted(date: .abbreviated, time: .omitted))</span></li>
+            <li><strong>Follow-up window</strong><span>\($0.windowDays) day(s)</span></li>
+            <li><strong>Completed logs</strong><span>\($0.completedCount)</span></li>
+            <li><strong>Context entries</strong><span>\($0.contextEntryCount)</span></li>
+          </ul>
+        </section>
+        """
+    } ?? ""
+    let sourceFacts = snapshot.sourceSections.map { section in
+        """
+        <section>
+          <h2>\(section.title)</h2>
+          <ul>\(section.facts.map { "<li><strong>\($0.label)</strong><span>\($0.value)</span></li>" }.joined())</ul>
+        </section>
+        """
+    }.joined()
+
+    return """
+    <!doctype html>
+    <html lang="en">
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <title>Atlas Weekly Review</title>
+      <style>
+        :root { color-scheme: light; --bg:#f4efe7; --surface:rgba(255,255,255,0.84); --text:#1f2423; --muted:#69716e; --accent:#6a7f78; --line:rgba(31,36,35,0.08); }
+        * { box-sizing:border-box; }
+        body { margin:0; font-family:-apple-system,BlinkMacSystemFont,\"SF Pro Text\",\"Helvetica Neue\",sans-serif; background:linear-gradient(180deg,#f8f4ec 0%,#efe7db 100%); color:var(--text); }
+        main { max-width:860px; margin:0 auto; padding:40px 20px 72px; }
+        section, header { background:var(--surface); border:1px solid var(--line); border-radius:24px; padding:24px; backdrop-filter:blur(18px); box-shadow:0 18px 40px rgba(44,51,49,0.08); margin-bottom:16px; }
+        h1,h2,p,ul { margin:0; }
+        h1 { font-size:34px; line-height:1.05; margin-bottom:10px; }
+        h2 { font-size:15px; text-transform:uppercase; letter-spacing:0.08em; color:var(--accent); margin-bottom:14px; }
+        .eyebrow { font-size:12px; font-weight:600; letter-spacing:0.08em; text-transform:uppercase; color:var(--accent); margin-bottom:8px; }
+        .meta { color:var(--muted); font-size:13px; margin-bottom:14px; }
+        .summary { font-size:22px; line-height:1.35; margin-bottom:18px; }
+        .trust { padding:16px; border-radius:18px; background:rgba(255,255,255,0.72); border:1px solid rgba(31,36,35,0.06); }
+        .trust strong { display:block; margin-bottom:6px; font-size:12px; letter-spacing:0.08em; text-transform:uppercase; color:var(--accent); }
+        ul { list-style:none; padding:0; display:grid; gap:12px; }
+        li { display:grid; grid-template-columns:minmax(0,1.2fr) minmax(0,1.8fr); gap:16px; padding-top:12px; border-top:1px solid var(--line); }
+        li:first-child { border-top:0; padding-top:0; }
+        li strong { font-size:14px; }
+        li span { color:var(--muted); font-size:14px; line-height:1.45; }
+      </style>
+    </head>
+    <body>
+      <main>
+        <header>
+          <p class="eyebrow">Atlas Weekly Review</p>
+          <h1>\(snapshot.periodTitle)</h1>
+          <p class="meta">Generated \(dateLabel)</p>
+          <p class="summary">\(snapshot.summaryText)</p>
+          <div class="trust">
+            <strong>\(snapshot.trustLabel)</strong>
+            <p>\(snapshot.disclaimer)</p>
+          </div>
+        </header>
+        <section><h2>Weekly highlights</h2><ul>\(highlights)</ul></section>
+        <section><h2>What shifted</h2><ul>\(shifts)</ul></section>
+        \(snapshot.actionOutcomes == nil ? "" : "<section><h2>Action follow-through</h2><p class=\"eyebrow\">\(snapshot.actionOutcomes?.previousPeriodTitle ?? "Prior review")</p><ul>\(outcomes)</ul></section>")
+        \(protocolFollowUp)
+        \(comparison)
+        <section><h2>Next actions</h2><ul>\(actions)</ul></section>
+        \(sourceFacts)
+      </main>
+    </body>
+    </html>
+    """
+}
+
+func atlasWriteWeeklyReviewExport(snapshot: AtlasWeeklyReviewPresentation) throws -> URL {
+    let timestamp = ISO8601DateFormatter.atlas.string(from: snapshot.generatedAt)
+        .replacingOccurrences(of: ":", with: "-")
+    let baseURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("atlas-weekly-review-\(timestamp)", isDirectory: true)
+    try FileManager.default.createDirectory(at: baseURL, withIntermediateDirectories: true)
+
+    let htmlURL = baseURL.appendingPathComponent("weekly-review.html")
+    let jsonURL = baseURL.appendingPathComponent("weekly-review.json")
+    try atlasWeeklyReviewExportHTML(snapshot: snapshot).write(to: htmlURL, atomically: true, encoding: .utf8)
+
+    let payload = AtlasWeeklyReviewExportPayload(
+        title: snapshot.periodTitle,
+        generatedAt: ISO8601DateFormatter.atlas.string(from: snapshot.generatedAt),
+        summary: snapshot.summaryText,
+        trustLabel: snapshot.trustLabel,
+        disclaimer: snapshot.disclaimer,
+        sections: [
+            .init(title: "Weekly highlights", items: snapshot.highlights.map { "\($0.title): \($0.detail)" }),
+            .init(title: "What shifted", items: snapshot.shifts.map { "\($0.title): \($0.summary)" }),
+            .init(title: "Next actions", items: snapshot.actions.map { "\($0.title): \($0.detail)" }),
+            .init(title: "Source facts", items: snapshot.sourceSections.flatMap { section in
+                section.facts.map { "\(section.title) — \($0.label): \($0.value)" }
+            })
+        ]
+    )
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+    try encoder.encode(payload).write(to: jsonURL, options: [.atomic])
+    return htmlURL
 }
 
 private extension Array {

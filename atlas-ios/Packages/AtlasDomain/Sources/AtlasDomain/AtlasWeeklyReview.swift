@@ -81,6 +81,45 @@ public struct AtlasWeeklyReviewProtocolChangeSummary: Equatable, Sendable {
     }
 }
 
+public struct AtlasWeeklyReviewProtocolFollowUpSummary: Equatable, Sendable {
+    public var protocolID: String
+    public var title: String?
+    public var changeTypeTitle: String
+    public var summary: String?
+    public var changedAt: Date
+    public var windowDays: Int
+    public var completedCount: Int
+    public var skippedCount: Int
+    public var rescheduledCount: Int
+    public var contextEntryCount: Int
+    public var hasVisibleSupportingData: Bool
+
+    public init(
+        protocolID: String,
+        title: String? = nil,
+        changeTypeTitle: String,
+        summary: String? = nil,
+        changedAt: Date,
+        windowDays: Int,
+        completedCount: Int,
+        skippedCount: Int,
+        rescheduledCount: Int,
+        contextEntryCount: Int
+    ) {
+        self.protocolID = protocolID
+        self.title = title
+        self.changeTypeTitle = changeTypeTitle
+        self.summary = summary
+        self.changedAt = changedAt
+        self.windowDays = windowDays
+        self.completedCount = completedCount
+        self.skippedCount = skippedCount
+        self.rescheduledCount = rescheduledCount
+        self.contextEntryCount = contextEntryCount
+        self.hasVisibleSupportingData = completedCount + skippedCount + rescheduledCount + contextEntryCount > 0
+    }
+}
+
 public struct AtlasWeeklyReviewSeed: Equatable, Sendable {
     public var periodTitle: String
     public var generatedAt: Date
@@ -102,6 +141,7 @@ public struct AtlasWeeklyReviewSeed: Equatable, Sendable {
     public var nextDueProtocolID: String?
     public var nextDueTitle: String?
     public var protocolChangeSummary: AtlasWeeklyReviewProtocolChangeSummary?
+    public var protocolFollowUpSummary: AtlasWeeklyReviewProtocolFollowUpSummary?
 
     public init(
         periodTitle: String,
@@ -123,7 +163,8 @@ public struct AtlasWeeklyReviewSeed: Equatable, Sendable {
         workoutEntryCount: Int,
         nextDueProtocolID: String? = nil,
         nextDueTitle: String? = nil,
-        protocolChangeSummary: AtlasWeeklyReviewProtocolChangeSummary? = nil
+        protocolChangeSummary: AtlasWeeklyReviewProtocolChangeSummary? = nil,
+        protocolFollowUpSummary: AtlasWeeklyReviewProtocolFollowUpSummary? = nil
     ) {
         self.periodTitle = periodTitle
         self.generatedAt = generatedAt
@@ -145,5 +186,6 @@ public struct AtlasWeeklyReviewSeed: Equatable, Sendable {
         self.nextDueProtocolID = nextDueProtocolID
         self.nextDueTitle = nextDueTitle
         self.protocolChangeSummary = protocolChangeSummary
+        self.protocolFollowUpSummary = protocolFollowUpSummary
     }
 }

@@ -1374,6 +1374,110 @@ final class AtlasPhaseOneTests: XCTestCase {
         XCTAssertTrue(model.settingsSnapshot.weeklyReviewActionPlans.isEmpty)
     }
 
+    @MainActor
+    func testWeeklyReviewArchiveComparisonAndActionOutcomes() async throws {
+        let controller = try makeInMemoryController()
+        let prepared = try await controller.importExportBridge.prepareImport(
+            at: writeBundleURL(makeSpecCompleteBundle(aliasModeEnabled: false))
+        )
+        _ = try await controller.importExportBridge.commitPreparedImport(prepared, mode: .replaceExisting)
+
+        let model = makeAppModel(controller: controller, referenceDate: importedFixtureReferenceDate)
+        await model.refreshShellData()
+
+        let currentReview = try XCTUnwrap(model.weeklyReviewPresentation())
+        let previousStart = Calendar.current.date(byAdding: .day, value: -7, to: currentReview.seed.windowStart)
+        let previousEnd = currentReview.seed.windowStart.addingTimeInterval(-60)
+        let reviewPeriodStart = ISO8601DateFormatter.atlas.string(from: try XCTUnwrap(previousStart))
+        let reviewPeriodEnd = ISO8601DateFormatter.atlas.string(from: previousEnd)
+
+        _ = try await controller.container.settings.saveWeeklyReviewActionPlan(
+            AtlasWeeklyReviewActionPlan(
+                id: "prior-carry",
+                title: "Keep one focus alive",
+                detail: "Still visible in the next review.",
+                symbolName: "arrow.triangle.branch",
+                route: .today,
+                reviewPeriodStart: reviewPeriodStart,
+                reviewPeriodEnd: reviewPeriodEnd,
+                createdAt: ISO8601DateFormatter.atlas.string(from: importedFixtureReferenceDate),
+                isPinnedForNextWeek: true,
+                isCompleted: false
+            ),
+            now: importedFixtureReferenceDate
+        )
+        _ = try await controller.container.settings.saveWeeklyReviewActionPlan(
+            AtlasWeeklyReviewActionPlan(
+                id: "prior-done",
+                title: "Close one weekly target",
+                detail: "Marked complete before the next review.",
+                symbolName: "checkmark.circle.fill",
+                route: .insights,
+                reviewPeriodStart: reviewPeriodStart,
+                reviewPeriodEnd: reviewPeriodEnd,
+                createdAt: ISO8601DateFormatter.atlas.string(from: importedFixtureReferenceDate.addingTimeInterval(120)),
+                isPinnedForNextWeek: false,
+                isCompleted: true
+            ),
+            now: importedFixtureReferenceDate
+        )
+
+        await model.refreshShellData()
+
+        let updatedReview = try XCTUnwrap(model.weeklyReviewPresentation())
+        XCTAssertNotNil(updatedReview.comparison)
+        let outcomes = try XCTUnwrap(updatedReview.actionOutcomes)
+        XCTAssertEqual(outcomes.previousPeriodTitle, "\(try XCTUnwrap(previousStart).formatted(date: .abbreviated, time: .omitted)) - \(previousEnd.formatted(date: .abbreviated, time: .omitted))")
+        XCTAssertEqual(outcomes.items.count, 2)
+        XCTAssertTrue(outcomes.items.contains(where: { $0.statusLabel == "Carried" }))
+        XCTAssertTrue(outcomes.items.contains(where: { $0.statusLabel == "Completed" }))
+    }
+
+    @MainActor
+    func testWeeklyReviewExportWritesDedicatedArtifact() async throws {
+        let controller = try makeInMemoryController()
+        let prepared = try await controller.importExportBridge.prepareImport(
+            at: writeBundleURL(makeSpecCompleteBundle(aliasModeEnabled: false))
+        )
+        _ = try await controller.importExportBridge.commitPreparedImport(prepared, mode: .replaceExisting)
+
+        let model = makeAppModel(controller: controller, referenceDate: importedFixtureReferenceDate)
+        await model.refreshShellData()
+
+        let currentReview = try XCTUnwrap(model.weeklyReviewPresentation())
+        let previousStart = Calendar.current.date(byAdding: .day, value: -7, to: currentReview.seed.windowStart)
+        let previousEnd = currentReview.seed.windowStart.addingTimeInterval(-60)
+        _ = try await controller.container.settings.saveWeeklyReviewActionPlan(
+            AtlasWeeklyReviewActionPlan(
+                id: "export-prior",
+                title: "Carry a focus into export",
+                detail: "Used to validate the dedicated weekly review artifact.",
+                symbolName: "square.and.arrow.up",
+                route: .settings,
+                reviewPeriodStart: ISO8601DateFormatter.atlas.string(from: try XCTUnwrap(previousStart)),
+                reviewPeriodEnd: ISO8601DateFormatter.atlas.string(from: previousEnd),
+                createdAt: ISO8601DateFormatter.atlas.string(from: importedFixtureReferenceDate),
+                isPinnedForNextWeek: true,
+                isCompleted: false
+            ),
+            now: importedFixtureReferenceDate
+        )
+
+        await model.refreshShellData()
+        let review = try XCTUnwrap(model.weeklyReviewPresentation())
+
+        let exportURL = try atlasWriteWeeklyReviewExport(snapshot: review)
+        let html = try String(contentsOf: exportURL, encoding: .utf8)
+        let jsonURL = exportURL.deletingLastPathComponent().appendingPathComponent("weekly-review.json")
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: exportURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: jsonURL.path))
+        XCTAssertTrue(html.contains("Atlas Weekly Review"))
+        XCTAssertTrue(html.contains("Archive &amp; compare"))
+        XCTAssertTrue(html.contains("Action follow-through"))
+        XCTAssertTrue(html.contains("Next actions"))
+    }
+
     func testWeeklyReviewSeedIncludesProtocolChangeOutcomeFacts() async throws {
         let controller = try makeInMemoryController()
         let now = Date(timeIntervalSince1970: 1_774_086_400)
@@ -1430,12 +1534,18 @@ final class AtlasPhaseOneTests: XCTestCase {
         )
         let weeklyReview = try XCTUnwrap(snapshot.weeklyReviewSeed)
         let protocolChangeSummary = try XCTUnwrap(weeklyReview.protocolChangeSummary)
+        let followUpSummary = try XCTUnwrap(weeklyReview.protocolFollowUpSummary)
 
         XCTAssertEqual(protocolChangeSummary.changeCount, 1)
         XCTAssertEqual(protocolChangeSummary.latestProtocolID, protocolDetail.id)
         XCTAssertEqual(protocolChangeSummary.supportingLogCount, 1)
         XCTAssertEqual(protocolChangeSummary.supportingContextCount, 1)
+        XCTAssertEqual(followUpSummary.protocolID, protocolDetail.id)
+        XCTAssertEqual(followUpSummary.completedCount, 1)
+        XCTAssertEqual(followUpSummary.contextEntryCount, 1)
+        XCTAssertTrue(followUpSummary.hasVisibleSupportingData)
         XCTAssertTrue(weeklyReview.sourceSections.contains(where: { $0.id == "weekly_protocol_changes" }))
+        XCTAssertTrue(weeklyReview.sourceSections.contains(where: { $0.id == "weekly_protocol_follow_up" }))
     }
 
     func testImportCommitWritesExtensionProjectionSnapshot() async throws {

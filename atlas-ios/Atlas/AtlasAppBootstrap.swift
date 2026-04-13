@@ -125,6 +125,7 @@ private extension AtlasAppBootstrap {
         case "weeklyReview":
             Task { @MainActor in
                 await model.loadBootstrapIfNeeded()
+                await model.loadShellDataIfNeeded()
                 guard model.routePath.last != .weeklyReview else {
                     return
                 }
