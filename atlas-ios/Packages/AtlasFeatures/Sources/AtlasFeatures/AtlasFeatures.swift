@@ -1940,6 +1940,18 @@ public struct AtlasTodayScreen: View {
     @State private var contextSheetPresented = false
 
     public var body: some View {
+        let weeklyReview = model.weeklyReviewPresentation()
+        let guidance = atlasTodayGuidancePresentation(
+            todaySnapshot: state.todaySnapshot,
+            weeklyReviewSeed: weeklyReview?.seed,
+            actionPlans: weeklyReview?.actionPlans ?? []
+        )
+        let recovery = atlasTodayRecoveryPresentation(
+            todaySnapshot: state.todaySnapshot,
+            weeklyReviewSeed: weeklyReview?.seed,
+            actionPlans: weeklyReview?.actionPlans ?? []
+        )
+
         AtlasRootScrollSurface {
             AtlasTabHeader(
                 title: "Today",
@@ -2040,18 +2052,54 @@ public struct AtlasTodayScreen: View {
                 }
             }
 
+            if let guidance {
+                AtlasRootSectionHeader("Today lens")
+                AtlasTodayGuidanceCard(
+                    guidance: guidance,
+                    primaryAction: {
+                        performTodayGuidanceAction(guidance.primaryAction)
+                    },
+                    secondaryAction: { action in
+                        performTodayGuidanceAction(action)
+                    }
+                )
+            }
+
+            if let recovery {
+                AtlasRootSectionHeader("Recovery")
+                AtlasTodayRecoveryCard(
+                    recovery: recovery,
+                    primaryAction: {
+                        performTodayGuidanceAction(recovery.primaryAction)
+                    },
+                    secondaryAction: recovery.secondaryAction.map { action in
+                        {
+                            performTodayGuidanceAction(action)
+                        }
+                    }
+                )
+            }
+
             if state.todaySnapshot.hasProtocols {
                 AtlasRootSectionHeader("Quick context")
                 AtlasTodayContextQuickCard(
                     model: model,
+                    defaultProtocolID: atlasTodayContextProtocolID(snapshot: state.todaySnapshot),
+                    onTriggerShortcut: { shortcut in
+                        performTodayContextShortcut(shortcut)
+                    },
                     onOpenDetailedCapture: {
-                        contextEditor = AtlasContextEditorState(referenceDate: model.currentDate())
+                        contextEditor = atlasTodayContextEditorState(
+                            shortcut: nil,
+                            referenceDate: model.currentDate(),
+                            protocolID: atlasTodayContextProtocolID(snapshot: state.todaySnapshot)
+                        )
                         contextSheetPresented = true
                     }
                 )
             }
 
-            if let weeklyReview = model.weeklyReviewPresentation(),
+            if let weeklyReview,
                weeklyReview.actionPlans.isEmpty == false || weeklyReview.actions.isEmpty == false {
                 AtlasRootSectionHeader("Weekly focus")
                 AtlasWeeklyFocusTodaySection(model: model)
@@ -2185,10 +2233,55 @@ public struct AtlasTodayScreen: View {
             AtlasExplanationSheet(item: item)
         }
     }
+
+    private func performTodayGuidanceAction(_ action: AtlasTodayGuidanceAction) {
+        switch action.destination {
+        case .protocolDetail(let id):
+            model.open(.protocolDetail(id))
+        case .protocolChange(let id):
+            model.open(.protocolChange(id))
+        case .weeklyReview:
+            model.open(.weeklyReview)
+        case .library:
+            model.activeTab = .library
+        case .contextShortcut(let shortcut):
+            performTodayContextShortcut(shortcut)
+        case .detailedContext(let shortcut):
+            contextEditor = atlasTodayContextEditorState(
+                shortcut: shortcut,
+                referenceDate: model.currentDate(),
+                protocolID: atlasTodayContextProtocolID(snapshot: state.todaySnapshot)
+            )
+            contextSheetPresented = true
+        }
+    }
+
+    private func performTodayContextShortcut(_ shortcut: AtlasTodayContextShortcut) {
+        switch shortcut.delivery {
+        case .saveNow:
+            Task {
+                await model.saveContextEntry(
+                    shortcut.makeDraft(
+                        loggedAt: model.currentDate(),
+                        protocolID: atlasTodayContextProtocolID(snapshot: state.todaySnapshot)
+                    )
+                )
+            }
+        case .openEditor:
+            contextEditor = atlasTodayContextEditorState(
+                shortcut: shortcut,
+                referenceDate: model.currentDate(),
+                protocolID: atlasTodayContextProtocolID(snapshot: state.todaySnapshot)
+            )
+            contextSheetPresented = true
+        }
+    }
 }
 
 private struct AtlasTodayContextQuickCard: View {
     let model: AtlasAppModel
+    let defaultProtocolID: String?
+    let onTriggerShortcut: (AtlasTodayContextShortcut) -> Void
     let onOpenDetailedCapture: () -> Void
 
     var body: some View {
@@ -2205,6 +2298,16 @@ private struct AtlasTodayContextQuickCard: View {
                         : "Favorites and repeat meals now live here too for faster nutrition logging."
                 )
                     .foregroundStyle(AtlasPalette.textSecondary)
+
+                AtlasTodayContextShortcutRail(shortcuts: AtlasTodayContextShortcut.allCases) { shortcut in
+                    onTriggerShortcut(shortcut)
+                }
+
+                if defaultProtocolID != nil {
+                    Text("New Today captures will attach to the current visible plan until you choose a different context path.")
+                        .font(.caption)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                }
 
                 if nutritionTargets.isEmpty == false {
                     VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
@@ -2229,12 +2332,18 @@ private struct AtlasTodayContextQuickCard: View {
                 }
 
                 AtlasContextQuickPresetRail(presets: presets) { preset in
-                    Task { await model.saveContextEntry(preset.makeDraft(loggedAt: model.currentDate())) }
+                    var draft = preset.makeDraft(loggedAt: model.currentDate())
+                    draft.protocolID = defaultProtocolID
+                    Task { await model.saveContextEntry(draft) }
                 }
 
                 if recentMeals.isEmpty == false {
                     AtlasRecentMealQuickRail(items: recentMeals) { item in
-                        Task { await model.saveContextEntry(item.draft(loggedAt: model.currentDate())) }
+                        var draft = item.draft(loggedAt: model.currentDate())
+                        if draft.protocolID == nil {
+                            draft.protocolID = defaultProtocolID
+                        }
+                        Task { await model.saveContextEntry(draft) }
                     }
                 }
 
@@ -2242,7 +2351,9 @@ private struct AtlasTodayContextQuickCard: View {
                     title: "Common foods",
                     items: featuredFoods
                 ) { item in
-                    Task { await model.saveContextEntry(item.makeDraft(loggedAt: model.currentDate())) }
+                    var draft = item.makeDraft(loggedAt: model.currentDate())
+                    draft.protocolID = defaultProtocolID
+                    Task { await model.saveContextEntry(draft) }
                 }
 
                 Button("Log with notes or more detail") {
@@ -2262,6 +2373,521 @@ private struct AtlasTodayContextQuickCard: View {
             }
         }
     }
+}
+
+enum AtlasTodayGuidanceDestination: Equatable {
+    case protocolDetail(String)
+    case protocolChange(String)
+    case weeklyReview
+    case library
+    case contextShortcut(AtlasTodayContextShortcut)
+    case detailedContext(AtlasTodayContextShortcut?)
+}
+
+struct AtlasTodayGuidanceAction: Identifiable, Equatable {
+    let id: String
+    let title: String
+    let detail: String
+    let symbolName: String
+    let destination: AtlasTodayGuidanceDestination
+}
+
+struct AtlasTodayGuidancePresentation: Equatable {
+    let headline: String
+    let summary: String
+    let recentChangeLine: String?
+    let waitLine: String?
+    let facts: [AtlasExplainerFact]
+    let primaryAction: AtlasTodayGuidanceAction
+    let secondaryActions: [AtlasTodayGuidanceAction]
+}
+
+struct AtlasTodayRecoveryPresentation: Equatable {
+    let title: String
+    let summary: String
+    let facts: [AtlasExplainerFact]
+    let primaryAction: AtlasTodayGuidanceAction
+    let secondaryAction: AtlasTodayGuidanceAction?
+}
+
+enum AtlasTodayContextShortcutDelivery: Equatable {
+    case saveNow
+    case openEditor
+}
+
+enum AtlasTodayContextShortcut: String, CaseIterable, Identifiable, Equatable {
+    case hydration
+    case lowAppetite
+    case proteinMeal
+    case giCheckIn
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .hydration:
+            return "Hydrated"
+        case .lowAppetite:
+            return "Low appetite"
+        case .proteinMeal:
+            return "Protein meal"
+        case .giCheckIn:
+            return "GI check-in"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .hydration:
+            return "One-tap hydration check-in"
+        case .lowAppetite:
+            return "Quick appetite signal"
+        case .proteinMeal:
+            return "Open a meal draft"
+        case .giCheckIn:
+            return "Capture symptoms with context"
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .hydration:
+            return "drop.fill"
+        case .lowAppetite:
+            return "fork.knife.circle.fill"
+        case .proteinMeal:
+            return "takeoutbag.and.cup.and.straw.fill"
+        case .giCheckIn:
+            return "waveform.path.ecg"
+        }
+    }
+
+    var delivery: AtlasTodayContextShortcutDelivery {
+        switch self {
+        case .hydration, .lowAppetite:
+            return .saveNow
+        case .proteinMeal, .giCheckIn:
+            return .openEditor
+        }
+    }
+
+    func makeDraft(loggedAt: Date, protocolID: String?) -> AtlasContextEntryDraft {
+        switch self {
+        case .hydration:
+            return AtlasContextEntryDraft(
+                protocolID: protocolID,
+                loggedAt: loggedAt,
+                hydration: .high,
+                giTags: [.calm],
+                tags: ["hydration", "today-quick-capture"],
+                presetKey: AtlasContextBuiltinPreset.steadyHydration.id
+            )
+        case .lowAppetite:
+            return AtlasContextEntryDraft(
+                protocolID: protocolID,
+                loggedAt: loggedAt,
+                appetite: .low,
+                tags: ["appetite", "today-quick-capture"]
+            )
+        case .proteinMeal:
+            return AtlasContextQuickPreset(.proteinMeal).makeDraft(loggedAt: loggedAt)
+        case .giCheckIn:
+            return AtlasContextEntryDraft(
+                protocolID: protocolID,
+                loggedAt: loggedAt,
+                appetite: .low,
+                giTags: [.nausea],
+                tags: ["gi", "today-quick-capture"],
+                presetKey: AtlasContextBuiltinPreset.giOff.id
+            )
+        }
+    }
+}
+
+private struct AtlasTodayGuidanceCard: View {
+    let guidance: AtlasTodayGuidancePresentation
+    let primaryAction: () -> Void
+    let secondaryAction: (AtlasTodayGuidanceAction) -> Void
+
+    var body: some View {
+        AtlasSectionCard(style: .utility, title: "Operational guidance") {
+            Text(guidance.headline)
+                .font(.headline)
+                .foregroundStyle(AtlasPalette.textPrimary)
+
+            Text(guidance.summary)
+                .foregroundStyle(AtlasPalette.textSecondary)
+
+            if let recentChangeLine = guidance.recentChangeLine {
+                Text(recentChangeLine)
+                    .font(.caption)
+                    .foregroundStyle(AtlasPalette.textSecondary)
+            }
+
+            if let waitLine = guidance.waitLine {
+                Text(waitLine)
+                    .font(.caption)
+                    .foregroundStyle(AtlasPalette.textSecondary)
+            }
+
+            if guidance.facts.isEmpty == false {
+                VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
+                    ForEach(guidance.facts) { fact in
+                        HStack(spacing: AtlasSpacing.small) {
+                            Text(fact.label)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(AtlasPalette.primary)
+                            Spacer()
+                            Text(fact.value)
+                                .font(.caption)
+                                .foregroundStyle(AtlasPalette.textSecondary)
+                        }
+                    }
+                }
+            }
+
+            Button(guidance.primaryAction.title) {
+                primaryAction()
+            }
+            .buttonStyle(AtlasPrimaryButtonStyle())
+
+            Text(guidance.primaryAction.detail)
+                .font(.caption)
+                .foregroundStyle(AtlasPalette.textSecondary)
+
+            if guidance.secondaryActions.isEmpty == false {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: AtlasSpacing.small) {
+                        ForEach(guidance.secondaryActions) { action in
+                            Button(action.title) {
+                                secondaryAction(action)
+                            }
+                            .buttonStyle(AtlasChipButtonStyle(tint: AtlasPalette.secondaryText))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct AtlasTodayRecoveryCard: View {
+    let recovery: AtlasTodayRecoveryPresentation
+    let primaryAction: () -> Void
+    let secondaryAction: (() -> Void)?
+
+    var body: some View {
+        AtlasSectionCard(style: .elevated, title: recovery.title) {
+            Text(recovery.summary)
+                .foregroundStyle(AtlasPalette.textSecondary)
+
+            VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
+                ForEach(recovery.facts) { fact in
+                    HStack(spacing: AtlasSpacing.small) {
+                        Text(fact.label)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(AtlasPalette.primary)
+                        Spacer()
+                        Text(fact.value)
+                            .font(.caption)
+                            .foregroundStyle(AtlasPalette.textSecondary)
+                    }
+                }
+            }
+
+            Button(recovery.primaryAction.title) {
+                primaryAction()
+            }
+            .buttonStyle(AtlasPrimaryButtonStyle())
+
+            Text(recovery.primaryAction.detail)
+                .font(.caption)
+                .foregroundStyle(AtlasPalette.textSecondary)
+
+            if let secondaryAction, let action = recovery.secondaryAction {
+                Button(action.title) {
+                    secondaryAction()
+                }
+                .buttonStyle(AtlasSecondaryButtonStyle())
+
+                Text(action.detail)
+                    .font(.caption)
+                    .foregroundStyle(AtlasPalette.textSecondary)
+            }
+        }
+    }
+}
+
+private struct AtlasTodayContextShortcutRail: View {
+    let shortcuts: [AtlasTodayContextShortcut]
+    let action: (AtlasTodayContextShortcut) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
+            Text("Faster check-ins")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(AtlasPalette.primary)
+                .textCase(.uppercase)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: AtlasSpacing.small) {
+                    ForEach(shortcuts) { shortcut in
+                        Button {
+                            action(shortcut)
+                        } label: {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Label(shortcut.title, systemImage: shortcut.symbolName)
+                                    .font(.caption.weight(.semibold))
+                                Text(shortcut.subtitle)
+                                    .font(.caption2)
+                                    .multilineTextAlignment(.leading)
+                            }
+                            .foregroundStyle(AtlasPalette.textPrimary)
+                            .padding(.horizontal, AtlasSpacing.small)
+                            .padding(.vertical, AtlasSpacing.small)
+                            .frame(width: 156, alignment: .leading)
+                            .background(
+                                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                    .fill(AtlasPalette.secondaryFill)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+}
+
+func atlasTodayGuidancePresentation(
+    todaySnapshot: AtlasTodaySnapshot,
+    weeklyReviewSeed: AtlasWeeklyReviewSeed?,
+    actionPlans: [AtlasWeeklyReviewActionPlan]
+) -> AtlasTodayGuidancePresentation? {
+    guard todaySnapshot.hasProtocols else {
+        return nil
+    }
+
+    let overdueCount = todaySnapshot.overdue.count
+    let upcomingCount = todaySnapshot.upcoming.count
+    let nextDue = todaySnapshot.nextDue
+    let focusTitle = actionPlans.first?.title
+    let nextTitle = atlasTodayActionTitle(for: nextDue)
+    let recentChangeLine: String?
+    if let change = weeklyReviewSeed?.protocolChangeSummary {
+        var fragments = ["Latest plan change"]
+        if let title = change.latestTitle {
+            fragments.append("for \(title)")
+        }
+        if let changedAt = change.latestChangedAt {
+            fragments.append("landed \(changedAt.formatted(date: .abbreviated, time: .omitted))")
+        }
+        recentChangeLine = fragments.joined(separator: " ") + "."
+    } else {
+        recentChangeLine = nil
+    }
+
+    let facts = [
+        overdueCount > 0 ? AtlasExplainerFact(label: "Overdue", value: String(overdueCount)) : nil,
+        nextDue.map {
+            AtlasExplainerFact(
+                label: "Next due",
+                value: "\($0.scheduledAt.formatted(date: .omitted, time: .shortened)) • \(atlasTodayActionTitle(for: $0))"
+            )
+        },
+        upcomingCount > 0 ? AtlasExplainerFact(label: "Later today", value: String(upcomingCount)) : nil,
+        focusTitle.map { AtlasExplainerFact(label: "Weekly focus", value: $0) }
+    ].compactMap { $0 }
+
+    if overdueCount > 0 {
+        let primary = AtlasTodayGuidanceAction(
+            id: "recovery-open",
+            title: "Open the first overdue plan",
+            detail: "Start with the oldest visible item before you optimize anything else.",
+            symbolName: "arrow.turn.down.right",
+            destination: .protocolDetail(todaySnapshot.overdue.first?.protocolID ?? nextDue?.protocolID ?? "")
+        )
+        let secondary = [
+            nextDue.map {
+                AtlasTodayGuidanceAction(
+                    id: "recovery-change",
+                    title: "Review recovery handling",
+                    detail: "Open Change Studio if the future plan itself needs adjustment.",
+                    symbolName: "slider.horizontal.3",
+                    destination: .protocolChange($0.protocolID)
+                )
+            },
+            AtlasTodayGuidanceAction(
+                id: "recovery-context",
+                title: "Capture quick context",
+                detail: "Add one local note or symptom signal before the week moves on.",
+                symbolName: "waveform.path.ecg",
+                destination: .detailedContext(.giCheckIn)
+            )
+        ]
+        .compactMap { $0 }
+
+        return AtlasTodayGuidancePresentation(
+            headline: "Recovery comes before optimization.",
+            summary: "Atlas treats drift as operational, not punitive. Clear one visible item first, then decide whether the future plan needs changing.",
+            recentChangeLine: recentChangeLine,
+            waitLine: upcomingCount > 0 ? "\(upcomingCount) later item\(upcomingCount == 1 ? "" : "s") can wait until recovery is clearer." : nil,
+            facts: facts,
+            primaryAction: primary,
+            secondaryActions: secondary
+        )
+    }
+
+    if let nextDue {
+        return AtlasTodayGuidancePresentation(
+            headline: "One clear next step is ready.",
+            summary: "\(nextTitle) is the next visible anchor. Atlas is keeping the rest of the day behind it so you can stay narrow.",
+            recentChangeLine: recentChangeLine,
+            waitLine: upcomingCount > 0
+                ? "\(upcomingCount) later item\(upcomingCount == 1 ? "" : "s") can wait until \(nextTitle) is handled."
+                : focusTitle.map { "The weekly focus is still \($0.lowercased())." },
+            facts: facts,
+            primaryAction: AtlasTodayGuidanceAction(
+                id: "open-next",
+                title: "Open the next plan",
+                detail: "Stay with the plan that is due now before you branch into later work.",
+                symbolName: "arrow.right.circle.fill",
+                destination: .protocolDetail(nextDue.protocolID)
+            ),
+            secondaryActions: [
+                AtlasTodayGuidanceAction(
+                    id: "open-weekly-review",
+                    title: "Open weekly review",
+                    detail: "Step back if you need the week-level view before you act.",
+                    symbolName: "calendar",
+                    destination: .weeklyReview
+                ),
+                AtlasTodayGuidanceAction(
+                    id: "quick-hydration",
+                    title: "Log hydration",
+                    detail: "Keep a simple surrounding signal in the day without leaving Today.",
+                    symbolName: "drop.fill",
+                    destination: .contextShortcut(.hydration)
+                )
+            ]
+        )
+    }
+
+    return AtlasTodayGuidancePresentation(
+        headline: "Today is relatively clear.",
+        summary: focusTitle.map {
+            "There is nothing due right now, so the cleanest next step is to stay with your saved weekly focus: \($0)."
+        } ?? "There is nothing due right now, so Atlas is leaving the day open unless you want to review the broader week or add more context.",
+        recentChangeLine: recentChangeLine,
+        waitLine: upcomingCount > 0 ? "\(upcomingCount) future item\(upcomingCount == 1 ? "" : "s") are staged later." : nil,
+        facts: facts,
+        primaryAction: AtlasTodayGuidanceAction(
+            id: focusTitle == nil ? "open-library" : "open-weekly-review",
+            title: focusTitle == nil ? "Open Library" : "Open weekly review",
+            detail: focusTitle == nil
+                ? "Review current plans or create another protocol without crowding Today."
+                : "Use the weekly view if you want the larger context before you act.",
+            symbolName: focusTitle == nil ? "books.vertical.fill" : "calendar",
+            destination: focusTitle == nil ? .library : .weeklyReview
+        ),
+        secondaryActions: [
+            AtlasTodayGuidanceAction(
+                id: "open-context-capture",
+                title: "Open context capture",
+                detail: "A small amount of context now keeps future reviews more trustworthy.",
+                symbolName: "square.and.pencil",
+                destination: .detailedContext(nil)
+            )
+        ]
+    )
+}
+
+func atlasTodayRecoveryPresentation(
+    todaySnapshot: AtlasTodaySnapshot,
+    weeklyReviewSeed: AtlasWeeklyReviewSeed?,
+    actionPlans: [AtlasWeeklyReviewActionPlan]
+) -> AtlasTodayRecoveryPresentation? {
+    let overdueCount = todaySnapshot.overdue.count
+    let skippedCount = weeklyReviewSeed?.skippedCount ?? 0
+    let rescheduledCount = weeklyReviewSeed?.rescheduledCount ?? 0
+    let followUp = weeklyReviewSeed?.protocolFollowUpSummary
+
+    guard overdueCount > 0 || skippedCount > 0 || rescheduledCount > 0 || followUp != nil else {
+        return nil
+    }
+
+    let primaryProtocolID = followUp?.protocolID
+        ?? todaySnapshot.nextDue?.protocolID
+        ?? todaySnapshot.overdue.first?.protocolID
+        ?? ""
+    let facts = [
+        overdueCount > 0 ? AtlasExplainerFact(label: "Overdue now", value: String(overdueCount)) : nil,
+        skippedCount > 0 ? AtlasExplainerFact(label: "Skipped this week", value: String(skippedCount)) : nil,
+        rescheduledCount > 0 ? AtlasExplainerFact(label: "Rescheduled this week", value: String(rescheduledCount)) : nil,
+        actionPlans.first.map { AtlasExplainerFact(label: "Carried focus", value: $0.title) },
+        followUp.map {
+            AtlasExplainerFact(
+                label: "Latest changed plan",
+                value: $0.title ?? "Atlas protocol"
+            )
+        }
+    ].compactMap { $0 }
+
+    return AtlasTodayRecoveryPresentation(
+        title: "Recovery handling",
+        summary: followUp.map {
+            "\($0.title ?? "The latest changed plan") is still inside a \($0.windowDays)-day follow-up window. Atlas can help you reset the next steps without rewriting what already happened."
+        } ?? "Atlas keeps misses and reschedules descriptive. Use recovery handling to decide whether the future plan should hold, shift, or simply stay visible.",
+        facts: facts,
+        primaryAction: AtlasTodayGuidanceAction(
+            id: "recovery-plan",
+            title: "Review recovery plan",
+            detail: "Open Change Studio if the future plan or missed-dose handling needs a calmer reset.",
+            symbolName: "slider.horizontal.3",
+            destination: .protocolChange(primaryProtocolID)
+        ),
+        secondaryAction: AtlasTodayGuidanceAction(
+            id: "recovery-note",
+            title: "Add a recovery check-in",
+            detail: "Capture GI, appetite, or hydration context while the drift is still recent.",
+            symbolName: "waveform.path.ecg",
+            destination: .detailedContext(.giCheckIn)
+        )
+    )
+}
+
+func atlasTodayActionTitle(for occurrence: AtlasScheduledOccurrence?) -> String {
+    occurrence?.aliasTitle ?? occurrence?.canonicalTitle ?? "your next plan"
+}
+
+func atlasTodayContextProtocolID(snapshot: AtlasTodaySnapshot) -> String? {
+    snapshot.nextDue?.protocolID ?? snapshot.overdue.first?.protocolID ?? snapshot.upcoming.first?.protocolID
+}
+
+func atlasTodayContextEditorState(
+    shortcut: AtlasTodayContextShortcut?,
+    referenceDate: Date,
+    protocolID: String?
+) -> AtlasContextEditorState {
+    var state = AtlasContextEditorState(referenceDate: referenceDate)
+    state.protocolID = protocolID
+
+    guard let shortcut else {
+        return state
+    }
+
+    switch shortcut {
+    case .hydration:
+        state.applyQuickPreset(AtlasContextQuickPreset(.steadyHydration))
+    case .lowAppetite:
+        state.appetite = .low
+    case .proteinMeal:
+        state.applyQuickPreset(AtlasContextQuickPreset(.proteinMeal))
+    case .giCheckIn:
+        state.applyQuickPreset(AtlasContextQuickPreset(.giOff))
+    }
+
+    return state
 }
 
 public struct AtlasTimelineScreen: View {

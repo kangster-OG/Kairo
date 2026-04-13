@@ -83,6 +83,8 @@ public struct AtlasProtocolChangeStudioScreen: View {
                     ProgressView("Loading Protocol Change Studio")
                 }
             } else if let context {
+                let planning = atlasProtocolPlanningSummary(context: context, draft: draft)
+
                 Section {
                     VStack(alignment: .leading, spacing: AtlasSpacing.small) {
                         Text(model.renderedTitle(canonical: context.canonicalTitle, alias: context.aliasTitle))
@@ -129,6 +131,52 @@ public struct AtlasProtocolChangeStudioScreen: View {
                         ForEach(context.activeCompanions) { companion in
                             AtlasCompanionProtocolRow(model: model, companion: companion)
                         }
+                    }
+                }
+
+                Section("Planning lens") {
+                    VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+                        Text(planning.headline)
+                            .font(.headline)
+                            .foregroundStyle(AtlasPalette.textPrimary)
+                        Text(planning.summary)
+                            .foregroundStyle(AtlasPalette.textSecondary)
+                    }
+                    .padding(.vertical, AtlasSpacing.xSmall)
+
+                    if planning.recommendedMoves.isEmpty == false {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: AtlasSpacing.small) {
+                                ForEach(planning.recommendedMoves) { move in
+                                    Button {
+                                        draft.changeType = move.changeType
+                                        preview = nil
+                                        committedResult = nil
+                                    } label: {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(move.title)
+                                                .font(.caption.weight(.semibold))
+                                                .foregroundStyle(AtlasPalette.textPrimary)
+                                            Text(move.detail)
+                                                .font(.caption2)
+                                                .foregroundStyle(AtlasPalette.textSecondary)
+                                        }
+                                        .padding(.horizontal, AtlasSpacing.small)
+                                        .padding(.vertical, AtlasSpacing.small)
+                                        .frame(width: 168, alignment: .leading)
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                                .fill(move.changeType == draft.changeType ? AtlasPalette.primary.opacity(0.14) : AtlasPalette.secondaryFill)
+                                        )
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
+                    }
+
+                    ForEach(planning.checklist) { item in
+                        AtlasPlanningChecklistCard(item: item)
                     }
                 }
 
@@ -186,6 +234,12 @@ public struct AtlasProtocolChangeStudioScreen: View {
                 }
 
                 if let preview {
+                    if let commitCheck = atlasProtocolCommitCheck(preview: preview) {
+                        Section("Commit check") {
+                            AtlasProtocolCommitCheckCard(check: commitCheck)
+                        }
+                    }
+
                     Section("What changed") {
                         VStack(alignment: .leading, spacing: AtlasSpacing.small) {
                             Text(preview.summary)
@@ -507,6 +561,37 @@ private struct AtlasCompanionProtocolRow: View {
     }
 }
 
+private struct AtlasPlanningChecklistCard: View {
+    let item: AtlasProtocolPlanningChecklistItem
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
+            HStack {
+                Text(item.severity.title)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(item.severityColor)
+                Spacer()
+                Text(item.title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AtlasPalette.textPrimary)
+            }
+
+            Text(item.detail)
+                .font(.caption)
+                .foregroundStyle(AtlasPalette.textSecondary)
+        }
+        .padding(AtlasSpacing.medium)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(item.severityColor.opacity(0.08))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(item.severityColor.opacity(0.22), lineWidth: 1)
+        )
+    }
+}
+
 private struct AtlasChangeStudioTagChip: View {
     let label: String
 
@@ -520,6 +605,41 @@ private struct AtlasChangeStudioTagChip: View {
                 Capsule(style: .continuous)
                     .fill(AtlasPalette.secondaryFill)
             )
+    }
+}
+
+private struct AtlasProtocolCommitCheckCard: View {
+    let check: AtlasProtocolCommitCheck
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+            Text(check.headline)
+                .font(.headline)
+                .foregroundStyle(AtlasPalette.textPrimary)
+
+            ForEach(check.facts) { fact in
+                HStack(spacing: AtlasSpacing.small) {
+                    Text(fact.label)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(AtlasPalette.primary)
+                    Spacer()
+                    Text(fact.value)
+                        .font(.caption)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                }
+            }
+
+            if check.notes.isEmpty == false {
+                Divider()
+
+                ForEach(check.notes, id: \.self) { note in
+                    Text(note)
+                        .font(.caption)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                }
+            }
+        }
+        .padding(.vertical, AtlasSpacing.xSmall)
     }
 }
 
@@ -621,6 +741,246 @@ private func atlasParseLocalDateTime(dateValue: String, timeOfDay: String) -> Da
     components.minute = timeParts[1]
     components.second = 0
     return Calendar.current.date(from: components)
+}
+
+struct AtlasProtocolPlanningMove: Identifiable, Equatable {
+    let id: String
+    let title: String
+    let detail: String
+    let changeType: AtlasProtocolChangeType
+}
+
+struct AtlasProtocolPlanningChecklistItem: Identifiable, Equatable {
+    let id: String
+    let title: String
+    let detail: String
+    let severity: AtlasInteractionSeverity
+
+    var severityColor: Color {
+        switch severity {
+        case .advisory:
+            return AtlasPalette.primary
+        case .caution:
+            return .orange
+        case .elevated:
+            return .red
+        }
+    }
+}
+
+struct AtlasProtocolPlanningSummary: Equatable {
+    let headline: String
+    let summary: String
+    let recommendedMoves: [AtlasProtocolPlanningMove]
+    let checklist: [AtlasProtocolPlanningChecklistItem]
+}
+
+struct AtlasProtocolCommitCheck: Equatable {
+    let headline: String
+    let facts: [AtlasExplainerFact]
+    let notes: [String]
+}
+
+func atlasProtocolPlanningSummary(
+    context: AtlasProtocolChangeStudioContext,
+    draft: AtlasProtocolChangeDraft
+) -> AtlasProtocolPlanningSummary {
+    var checklist: [AtlasProtocolPlanningChecklistItem] = [
+        AtlasProtocolPlanningChecklistItem(
+            id: "effective-date",
+            title: "Effective date",
+            detail: "Future-only edits begin on \(draft.effectiveDate.formatted(date: .abbreviated, time: .omitted)) and leave past logs untouched.",
+            severity: .advisory
+        )
+    ]
+
+    if draft.changeType == .futureDose || draft.changeType == .titration {
+        let hasAmount = draft.changeType == .titration ? draft.titrationDoseAmount != nil : draft.doseAmount != nil
+        let unit = draft.changeType == .titration ? draft.titrationDoseUnit : draft.doseUnit
+        checklist.append(
+            AtlasProtocolPlanningChecklistItem(
+                id: "dose-explicit",
+                title: "Dose and unit",
+                detail: hasAmount && unit.isEmpty == false
+                    ? "The draft has an explicit amount and unit, so the preview can compare future rows cleanly."
+                    : "Set both amount and unit before you preview so Atlas can keep the future plan legible.",
+                severity: hasAmount && unit.isEmpty == false ? .advisory : .caution
+            )
+        )
+    }
+
+    if draft.changeType == .timezone {
+        checklist.append(
+            AtlasProtocolPlanningChecklistItem(
+                id: "timezone",
+                title: "Timezone strategy",
+                detail: draft.timezone.isEmpty
+                    ? "Choose a timezone identifier so travel handling does not fall back to the current device state."
+                    : "Atlas will apply \(draft.timezoneStrategy.explanationTitle.lowercased()) in \(draft.timezone).",
+                severity: draft.timezone.isEmpty ? .caution : .advisory
+            )
+        )
+    }
+
+    if draft.changeType == .vialSwitch {
+        checklist.append(
+            AtlasProtocolPlanningChecklistItem(
+                id: "vial",
+                title: "Future vial selection",
+                detail: draft.linkedVialID == nil
+                    ? "Choose the future vial before you preview so inventory and reminder changes stay aligned."
+                    : "The preview will rewire future inventory coverage onto the selected vial only.",
+                severity: draft.linkedVialID == nil ? .caution : .advisory
+            )
+        )
+    }
+
+    if context.activeCompanions.isEmpty == false {
+        checklist.append(
+            AtlasProtocolPlanningChecklistItem(
+                id: "companions",
+                title: "Active companions",
+                detail: "\(context.activeCompanions.count) other active plan\(context.activeCompanions.count == 1 ? " sits" : "s sit") alongside this one, so preview warnings matter more than usual.",
+                severity: .caution
+            )
+        )
+    }
+
+    if context.siteWarnings.isEmpty == false {
+        checklist.append(
+            AtlasProtocolPlanningChecklistItem(
+                id: "site-rotation",
+                title: "Site rotation",
+                detail: context.siteWarnings.first ?? "Atlas has a site rotation reminder for this protocol.",
+                severity: .caution
+            )
+        )
+    }
+
+    if draft.notes?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
+        checklist.append(
+            AtlasProtocolPlanningChecklistItem(
+                id: "notes",
+                title: "Change note",
+                detail: "An optional note helps the timeline explain why this edit happened later without changing the medical meaning of the plan.",
+                severity: .advisory
+            )
+        )
+    }
+
+    let headline: String
+    let summary: String
+    switch draft.changeType {
+    case .futureDose:
+        headline = "Dose edits work best when the future amount is explicit."
+        summary = "Atlas will preserve history, regenerate future occurrences from the effective date, and show you the operational impact before anything commits."
+    case .missedDosePolicy:
+        headline = "Recovery handling is a planning choice, not an afterthought."
+        summary = "Use this to make future misses readable. Atlas keeps the policy descriptive so the next due plan stays trustworthy after a drift week."
+    case .pause, .resume:
+        headline = "Lifecycle changes should stay easy to explain later."
+        summary = "A pause or resume will be much easier to trust if the effective date is clean and the preview window shows the future rows you expect."
+    case .timezone:
+        headline = "Travel changes are easier to trust when the clock rule is explicit."
+        summary = "Atlas can either keep the home schedule or the local clock, but the preview should make that tradeoff visible before you save."
+    default:
+        headline = "Preview the future shape before you commit it."
+        summary = "Change Studio is local and future-only, so the goal is making the next schedule shape obvious before it touches reminders or inventory."
+    }
+
+    return AtlasProtocolPlanningSummary(
+        headline: headline,
+        summary: summary,
+        recommendedMoves: atlasProtocolPlanningMoves(context: context),
+        checklist: checklist
+    )
+}
+
+func atlasProtocolPlanningMoves(
+    context: AtlasProtocolChangeStudioContext
+) -> [AtlasProtocolPlanningMove] {
+    var moves: [AtlasProtocolPlanningMove] = [
+        AtlasProtocolPlanningMove(
+            id: AtlasProtocolChangeType.futureDose.rawValue,
+            title: "Dose update",
+            detail: "Adjust the future amount without touching prior logs.",
+            changeType: .futureDose
+        ),
+        AtlasProtocolPlanningMove(
+            id: AtlasProtocolChangeType.futureTime.rawValue,
+            title: "Time shift",
+            detail: "Move the future time of day while keeping the cadence shape.",
+            changeType: .futureTime
+        ),
+        AtlasProtocolPlanningMove(
+            id: AtlasProtocolChangeType.missedDosePolicy.rawValue,
+            title: "Recovery rule",
+            detail: "Clarify how future missed doses should behave when the week slips.",
+            changeType: .missedDosePolicy
+        )
+    ]
+
+    let cadenceMove: AtlasProtocolPlanningMove
+    if context.cadenceLabel.localizedCaseInsensitiveContains("weekly") {
+        cadenceMove = AtlasProtocolPlanningMove(
+            id: AtlasProtocolChangeType.dayOfWeek.rawValue,
+            title: "Weekday move",
+            detail: "Shift the weekly anchor to a different day instead of changing the whole cadence.",
+            changeType: .dayOfWeek
+        )
+    } else {
+        cadenceMove = AtlasProtocolPlanningMove(
+            id: AtlasProtocolChangeType.everyNDays.rawValue,
+            title: "Interval change",
+            detail: "Move the plan to a fixed every-N-days rhythm.",
+            changeType: .everyNDays
+        )
+    }
+    moves.append(cadenceMove)
+
+    if context.availableVials.contains(where: { $0.isArchived == false }) {
+        moves.append(
+            AtlasProtocolPlanningMove(
+                id: AtlasProtocolChangeType.vialSwitch.rawValue,
+                title: "Vial handoff",
+                detail: "Route future inventory usage onto the right vial before the next run begins.",
+                changeType: .vialSwitch
+            )
+        )
+    }
+
+    return Array(moves.prefix(4))
+}
+
+func atlasProtocolCommitCheck(preview: AtlasProtocolChangePreview) -> AtlasProtocolCommitCheck? {
+    let occurrenceCount = preview.occurrenceChanges.count
+    let warningCount = preview.interactionWarnings.count + preview.siteWarnings.count
+    let facts = [
+        AtlasExplainerFact(label: "Preview window", value: preview.previewWindow.title),
+        AtlasExplainerFact(label: "Future rows touched", value: occurrenceCount == 0 ? "None visible" : String(occurrenceCount)),
+        AtlasExplainerFact(label: "Reminder result", value: preview.draftReminderLabel ?? "No upcoming reminder"),
+        AtlasExplainerFact(label: "Inventory outlook", value: preview.inventoryForecastAfter ?? "No depletion forecast yet")
+    ]
+
+    let notes = ([preview.adherenceNote].compactMap { $0 })
+        + preview.interactionWarnings.map(\.detail)
+        + preview.siteWarnings
+
+    if occurrenceCount == 0 && warningCount == 0 && preview.adherenceNote == nil {
+        return AtlasProtocolCommitCheck(
+            headline: "The preview is operationally quiet.",
+            facts: facts,
+            notes: ["Atlas did not find obvious schedule conflicts inside the selected preview window."]
+        )
+    }
+
+    return AtlasProtocolCommitCheck(
+        headline: warningCount > 0
+            ? "This change is plausible, but it deserves one more operational pass."
+            : "The preview is readable enough to commit if the future rows look right.",
+        facts: facts,
+        notes: notes
+    )
 }
 
 private extension View {

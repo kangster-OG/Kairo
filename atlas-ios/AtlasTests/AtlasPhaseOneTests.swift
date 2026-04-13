@@ -1862,6 +1862,274 @@ final class AtlasPhaseOneTests: XCTestCase {
         XCTAssertFalse(explanation.facts.first(where: { $0.label == "Reminder" })?.value.isEmpty ?? true)
     }
 
+    func testTodayGuidancePrioritizesRecoveryWhenOverdueExists() {
+        let now = Date(timeIntervalSince1970: 1_776_124_800)
+        let overdue = AtlasScheduledOccurrence(
+            id: "overdue-1",
+            protocolID: "protocol-1",
+            canonicalTitle: "Weekly GLP",
+            aliasTitle: "Evening plan",
+            kindLabel: "GLP",
+            cadenceLabel: "Weekly",
+            doseLabel: "1 mg",
+            scheduledAt: now.addingTimeInterval(-86_400),
+            state: .overdue
+        )
+        let nextDue = AtlasScheduledOccurrence(
+            id: "next-1",
+            protocolID: "protocol-1",
+            canonicalTitle: "Weekly GLP",
+            aliasTitle: "Evening plan",
+            kindLabel: "GLP",
+            cadenceLabel: "Weekly",
+            doseLabel: "1 mg",
+            scheduledAt: now.addingTimeInterval(3_600),
+            state: .due
+        )
+        let weeklySeed = AtlasWeeklyReviewSeed(
+            periodTitle: "Apr 7, 2026 - Apr 13, 2026",
+            generatedAt: now,
+            windowStart: now.addingTimeInterval(-6 * 86_400),
+            windowEnd: now,
+            summarySettingEnabled: true,
+            fallbackSummary: "Atlas recorded a recovery-heavy week.",
+            sourceSections: [],
+            completedCount: 1,
+            skippedCount: 2,
+            rescheduledCount: 1,
+            overdueCount: 1,
+            activeProtocolCount: 1,
+            contextEntryCount: 1,
+            symptomEntryCount: 0,
+            weightEntryCount: 0,
+            workoutEntryCount: 0,
+            nextDueProtocolID: "protocol-1",
+            nextDueTitle: "Evening plan",
+            protocolChangeSummary: AtlasWeeklyReviewProtocolChangeSummary(
+                changeCount: 1,
+                latestProtocolID: "protocol-1",
+                latestTitle: "Evening plan",
+                latestSummary: "Shifted the weekly anchor",
+                latestChangedAt: now.addingTimeInterval(-43_200),
+                supportingLogCount: 1,
+                supportingContextCount: 1
+            )
+        )
+        let actionPlan = AtlasWeeklyReviewActionPlan(
+            id: "focus-1",
+            title: "Capture one appetite note",
+            detail: "Keep one local context signal attached to the current plan.",
+            symbolName: "waveform.path.ecg",
+            route: .insights,
+            reviewPeriodStart: ISO8601DateFormatter.atlas.string(from: now.addingTimeInterval(-6 * 86_400)),
+            reviewPeriodEnd: ISO8601DateFormatter.atlas.string(from: now),
+            createdAt: ISO8601DateFormatter.atlas.string(from: now)
+        )
+
+        let guidance = atlasTodayGuidancePresentation(
+            todaySnapshot: AtlasTodaySnapshot(
+                hasProtocols: true,
+                nextDue: nextDue,
+                overdue: [overdue],
+                upcoming: []
+            ),
+            weeklyReviewSeed: weeklySeed,
+            actionPlans: [actionPlan]
+        )
+
+        XCTAssertEqual(guidance?.headline, "Recovery comes before optimization.")
+        XCTAssertEqual(guidance?.primaryAction.destination, .protocolDetail("protocol-1"))
+        XCTAssertTrue(guidance?.secondaryActions.contains(where: { $0.destination == .detailedContext(.giCheckIn) }) == true)
+        XCTAssertTrue(guidance?.facts.contains(where: { $0.label == "Weekly focus" && $0.value == "Capture one appetite note" }) == true)
+    }
+
+    func testTodayRecoveryPresentationUsesFollowUpWindowAndRecoveryRoute() {
+        let now = Date(timeIntervalSince1970: 1_776_124_800)
+        let nextDue = AtlasScheduledOccurrence(
+            id: "next-2",
+            protocolID: "protocol-2",
+            canonicalTitle: "Repair peptide",
+            aliasTitle: nil,
+            kindLabel: "Recovery",
+            cadenceLabel: "Daily",
+            doseLabel: "250 mcg",
+            scheduledAt: now.addingTimeInterval(7_200),
+            state: .upcoming
+        )
+        let weeklySeed = AtlasWeeklyReviewSeed(
+            periodTitle: "Apr 7, 2026 - Apr 13, 2026",
+            generatedAt: now,
+            windowStart: now.addingTimeInterval(-6 * 86_400),
+            windowEnd: now,
+            summarySettingEnabled: true,
+            fallbackSummary: "Atlas recorded a descriptive follow-up window.",
+            sourceSections: [],
+            completedCount: 2,
+            skippedCount: 1,
+            rescheduledCount: 1,
+            overdueCount: 0,
+            activeProtocolCount: 1,
+            contextEntryCount: 2,
+            symptomEntryCount: 0,
+            weightEntryCount: 0,
+            workoutEntryCount: 0,
+            nextDueProtocolID: "protocol-2",
+            nextDueTitle: "Repair peptide",
+            protocolFollowUpSummary: AtlasWeeklyReviewProtocolFollowUpSummary(
+                protocolID: "protocol-2",
+                title: "Repair peptide",
+                changeTypeTitle: "Missed-dose recovery",
+                summary: "This plan is still inside its follow-up window.",
+                changedAt: now.addingTimeInterval(-86_400),
+                windowDays: 14,
+                completedCount: 2,
+                skippedCount: 1,
+                rescheduledCount: 1,
+                contextEntryCount: 2
+            )
+        )
+
+        let recovery = atlasTodayRecoveryPresentation(
+            todaySnapshot: AtlasTodaySnapshot(
+                hasProtocols: true,
+                nextDue: nextDue,
+                overdue: [],
+                upcoming: []
+            ),
+            weeklyReviewSeed: weeklySeed,
+            actionPlans: []
+        )
+
+        XCTAssertEqual(recovery?.primaryAction.destination, .protocolChange("protocol-2"))
+        XCTAssertEqual(recovery?.secondaryAction?.destination, .detailedContext(.giCheckIn))
+        XCTAssertTrue(recovery?.facts.contains(where: { $0.label == "Skipped this week" && $0.value == "1" }) == true)
+    }
+
+    func testTodayContextShortcutsAttachProtocolAndPrefillEditors() {
+        let now = Date(timeIntervalSince1970: 1_776_124_800)
+
+        let hydrationDraft = AtlasTodayContextShortcut.hydration.makeDraft(
+            loggedAt: now,
+            protocolID: "protocol-3"
+        )
+        XCTAssertEqual(hydrationDraft.protocolID, "protocol-3")
+        XCTAssertEqual(hydrationDraft.hydration, .high)
+        XCTAssertEqual(hydrationDraft.giTags, [.calm])
+
+        let proteinEditor = atlasTodayContextEditorState(
+            shortcut: .proteinMeal,
+            referenceDate: now,
+            protocolID: "protocol-3"
+        )
+        XCTAssertEqual(proteinEditor.protocolID, "protocol-3")
+        XCTAssertEqual(proteinEditor.mealComposition, .proteinHeavy)
+        XCTAssertEqual(proteinEditor.fedState, .fed)
+
+        let giEditor = atlasTodayContextEditorState(
+            shortcut: .giCheckIn,
+            referenceDate: now,
+            protocolID: nil
+        )
+        XCTAssertEqual(giEditor.appetite, .low)
+        XCTAssertEqual(giEditor.giTags, [.nausea])
+    }
+
+    func testProtocolPlanningSummaryAndCommitCheckSurfaceOperationalGuardrails() {
+        let now = Date(timeIntervalSince1970: 1_776_124_800)
+        let context = AtlasProtocolChangeStudioContext(
+            protocolID: "protocol-4",
+            canonicalTitle: "Weekly GLP",
+            aliasTitle: "Travel plan",
+            protocolKind: .glp,
+            kindLabel: "GLP",
+            cadenceLabel: "Weekly at 8:00 AM",
+            doseLabel: "1 mg",
+            effectiveTimeOfDay: "08:00",
+            currentMissedDosePolicy: .skipAndContinue,
+            currentTimezone: "America/New_York",
+            currentTimezoneStrategy: .keepLocalClock,
+            currentLinkedVialID: nil,
+            availableVials: [
+                AtlasProtocolChangeVialOption(
+                    id: "vial-1",
+                    label: "Current vial",
+                    remainingLabel: "2.0 mg remaining",
+                    isArchived: false
+                )
+            ],
+            compoundKnowledge: nil,
+            activeCompanions: [
+                AtlasProtocolCompanionSummary(
+                    id: "companion-1",
+                    canonicalTitle: "Support peptide",
+                    aliasTitle: nil,
+                    kindLabel: "Recovery",
+                    cadenceLabel: "Daily",
+                    doseLabel: "250 mcg"
+                )
+            ],
+            siteWarnings: ["Rotate away from the last recent site before the next dose."]
+        )
+        let draft = AtlasProtocolChangeDraft(
+            changeType: .futureDose,
+            effectiveDate: now,
+            doseAmount: nil,
+            doseUnit: "",
+            timeOfDay: "08:00"
+        )
+
+        let planning = atlasProtocolPlanningSummary(context: context, draft: draft)
+        XCTAssertTrue(planning.recommendedMoves.contains(where: { $0.changeType == .missedDosePolicy }))
+        XCTAssertTrue(planning.recommendedMoves.contains(where: { $0.changeType == .dayOfWeek }))
+        XCTAssertTrue(planning.checklist.contains(where: { $0.id == "dose-explicit" && $0.severity == .caution }))
+        XCTAssertTrue(planning.checklist.contains(where: { $0.id == "companions" }))
+
+        let preview = AtlasProtocolChangePreview(
+            protocolID: "protocol-4",
+            changeType: .futureDose,
+            effectiveDate: now,
+            previewWindow: .fourteen,
+            summary: "Future rows move to the new amount.",
+            adherenceNote: "Expect the next two weeks to be the clearest operational read.",
+            nextDueBefore: AtlasProtocolChangeOccurrenceSnapshot(
+                occurrenceID: "before",
+                whenLabel: "Apr 13 at 8:00 AM",
+                doseLabel: "1 mg"
+            ),
+            nextDueAfter: AtlasProtocolChangeOccurrenceSnapshot(
+                occurrenceID: "after",
+                whenLabel: "Apr 13 at 8:00 AM",
+                doseLabel: "1.5 mg"
+            ),
+            currentReminderLabel: "Apr 13 at 7:30 AM",
+            draftReminderLabel: "Apr 13 at 7:30 AM",
+            inventoryForecastBefore: "16 days remaining",
+            inventoryForecastAfter: "11 days remaining",
+            occurrenceChanges: [
+                AtlasProtocolChangeOccurrenceDiff(
+                    id: "diff-1",
+                    kind: .rewired,
+                    beforeLabel: "1 mg",
+                    afterLabel: "1.5 mg"
+                )
+            ],
+            interactionWarnings: [
+                AtlasInteractionWarning(
+                    id: "warning-1",
+                    severity: .caution,
+                    title: "Overlap check",
+                    detail: "A companion plan is still active, so compare the combined burden before saving."
+                )
+            ],
+            siteWarnings: ["Rotate away from the last recent site before the next dose."]
+        )
+
+        let commitCheck = atlasProtocolCommitCheck(preview: preview)
+        XCTAssertTrue(commitCheck?.headline.contains("deserves one more operational pass") == true)
+        XCTAssertTrue(commitCheck?.facts.contains(where: { $0.label == "Future rows touched" && $0.value == "1" }) == true)
+        XCTAssertTrue(commitCheck?.notes.contains(where: { $0.contains("combined burden") }) == true)
+    }
+
     func testReminderPermissionRequestTransitionsToAuthorized() async throws {
         let notifications = TestNotificationManager(
             currentStatus: .notDetermined,
