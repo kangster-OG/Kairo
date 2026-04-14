@@ -1139,6 +1139,36 @@ struct AtlasReminderDBRecord: Codable, FetchableRecord, PersistableRecord {
     }
 }
 
+struct AtlasExternalCalendarEventDBRecord: Codable, FetchableRecord, PersistableRecord {
+    static let databaseTableName = "external_calendar_events"
+
+    var id: String
+    var occurrenceId: String
+    var protocolId: String
+    var calendarId: String
+    var eventIdentifier: String
+    var title: String
+    var notes: String
+    var startsAt: String
+    var endsAt: String
+    var createdAt: String
+    var updatedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case occurrenceId = "occurrence_id"
+        case protocolId = "protocol_id"
+        case calendarId = "calendar_id"
+        case eventIdentifier = "event_identifier"
+        case title
+        case notes
+        case startsAt = "starts_at"
+        case endsAt = "ends_at"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+}
+
 struct AtlasPrivacyProfileDBRecord: Codable, FetchableRecord, PersistableRecord {
     static let databaseTableName = "privacy_profile"
     var id: String

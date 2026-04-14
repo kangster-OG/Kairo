@@ -207,6 +207,18 @@ public protocol ReminderCoordinating: Sendable {
     func syncReminders(referenceDate: Date) async throws
 }
 
+public protocol CalendarSyncCoordinating: Sendable {
+    func authorizationStatus() async -> AtlasCalendarAuthorizationStatus
+    func requestAuthorization() async throws -> AtlasCalendarAuthorizationStatus
+    func fetchSettings() async throws -> AtlasExternalCalendarSettingsSnapshot
+    func listWritableCalendars() async throws -> [AtlasExternalCalendarDescriptor]
+    func updateSettings(
+        _ update: AtlasExternalCalendarSettingsUpdate,
+        referenceDate: Date
+    ) async throws -> AtlasExternalCalendarSettingsSnapshot
+    func sync(referenceDate: Date) async throws
+}
+
 public struct AtlasPersistenceContainer: Sendable {
     public var onboarding: any OnboardingRepository
     public var protocols: any ProtocolRepository
@@ -264,6 +276,7 @@ public struct AtlasPersistenceController: Sendable {
     public var importExportBridge: any ImportExportBridging
     public var sharedProjectionWriter: any SharedProjectionWriting
     public var reminderCoordinator: any ReminderCoordinating
+    public var calendarSyncCoordinator: any CalendarSyncCoordinating
     public var locations: AtlasDatabaseLocations?
 
     public init(
@@ -271,12 +284,14 @@ public struct AtlasPersistenceController: Sendable {
         importExportBridge: any ImportExportBridging,
         sharedProjectionWriter: any SharedProjectionWriting,
         reminderCoordinator: any ReminderCoordinating,
+        calendarSyncCoordinator: any CalendarSyncCoordinating,
         locations: AtlasDatabaseLocations?
     ) {
         self.container = container
         self.importExportBridge = importExportBridge
         self.sharedProjectionWriter = sharedProjectionWriter
         self.reminderCoordinator = reminderCoordinator
+        self.calendarSyncCoordinator = calendarSyncCoordinator
         self.locations = locations
     }
 
@@ -284,7 +299,8 @@ public struct AtlasPersistenceController: Sendable {
         appGroupIdentifier: String,
         featureFlags: AtlasFeatureFlagState,
         privacyFormatter: AtlasPrivacyFormatter,
-        notifications: any NotificationManaging = AtlasNotificationManager()
+        notifications: any NotificationManaging = AtlasNotificationManager(),
+        externalCalendars: any ExternalCalendarManaging = AtlasEventKitCalendarManager()
     ) throws -> AtlasPersistenceController {
         let locations = try AtlasDatabaseLocations.live(appGroupIdentifier: appGroupIdentifier)
         let stack = try AtlasDatabaseStack(locations: locations)
@@ -355,12 +371,18 @@ public struct AtlasPersistenceController: Sendable {
             notifications: notifications,
             privacyFormatter: privacyFormatter
         )
+        let calendarSyncCoordinator = GRDBCalendarSyncCoordinator(
+            stack: stack,
+            externalCalendars: externalCalendars,
+            privacyFormatter: privacyFormatter
+        )
 
         return AtlasPersistenceController(
             container: container,
             importExportBridge: bridge,
             sharedProjectionWriter: writer,
             reminderCoordinator: reminderCoordinator,
+            calendarSyncCoordinator: calendarSyncCoordinator,
             locations: locations
         )
     }
@@ -368,7 +390,8 @@ public struct AtlasPersistenceController: Sendable {
     public static func inMemory(
         featureFlags: AtlasFeatureFlagState,
         privacyFormatter: AtlasPrivacyFormatter,
-        notifications: any NotificationManaging = AtlasNotificationManager()
+        notifications: any NotificationManaging = AtlasNotificationManager(),
+        externalCalendars: any ExternalCalendarManaging = AtlasEventKitCalendarManager()
     ) throws -> AtlasPersistenceController {
         let stack = try AtlasDatabaseStack.inMemory()
         let healthKit = AtlasHealthKitManager()
@@ -438,12 +461,18 @@ public struct AtlasPersistenceController: Sendable {
             notifications: notifications,
             privacyFormatter: privacyFormatter
         )
+        let calendarSyncCoordinator = GRDBCalendarSyncCoordinator(
+            stack: stack,
+            externalCalendars: externalCalendars,
+            privacyFormatter: privacyFormatter
+        )
 
         return AtlasPersistenceController(
             container: container,
             importExportBridge: bridge,
             sharedProjectionWriter: writer,
             reminderCoordinator: reminderCoordinator,
+            calendarSyncCoordinator: calendarSyncCoordinator,
             locations: nil
         )
     }
@@ -452,7 +481,8 @@ public struct AtlasPersistenceController: Sendable {
         baseURL: URL,
         featureFlags: AtlasFeatureFlagState,
         privacyFormatter: AtlasPrivacyFormatter,
-        notifications: any NotificationManaging = AtlasNotificationManager()
+        notifications: any NotificationManaging = AtlasNotificationManager(),
+        externalCalendars: any ExternalCalendarManaging = AtlasEventKitCalendarManager()
     ) throws -> AtlasPersistenceController {
         let locations = AtlasDatabaseLocations.temporary(baseURL: baseURL)
         try FileManager.default.createDirectory(
@@ -528,12 +558,18 @@ public struct AtlasPersistenceController: Sendable {
             notifications: notifications,
             privacyFormatter: privacyFormatter
         )
+        let calendarSyncCoordinator = GRDBCalendarSyncCoordinator(
+            stack: stack,
+            externalCalendars: externalCalendars,
+            privacyFormatter: privacyFormatter
+        )
 
         return AtlasPersistenceController(
             container: container,
             importExportBridge: bridge,
             sharedProjectionWriter: writer,
             reminderCoordinator: reminderCoordinator,
+            calendarSyncCoordinator: calendarSyncCoordinator,
             locations: locations
         )
     }

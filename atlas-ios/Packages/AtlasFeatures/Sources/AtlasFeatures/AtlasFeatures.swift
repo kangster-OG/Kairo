@@ -50,6 +50,7 @@ public struct AtlasAppDependencies: Sendable {
     public var sharedProjectionWriter: any SharedProjectionWriting
     public var persistence: AtlasPersistenceContainer
     public var reminders: any ReminderCoordinating
+    public var calendarSync: any CalendarSyncCoordinating
     public var privacyFormatter: AtlasPrivacyFormatter
     public var dateProvider: @Sendable () -> Date
 
@@ -64,6 +65,7 @@ public struct AtlasAppDependencies: Sendable {
         sharedProjectionWriter: any SharedProjectionWriting,
         persistence: AtlasPersistenceContainer,
         reminders: any ReminderCoordinating,
+        calendarSync: any CalendarSyncCoordinating,
         privacyFormatter: AtlasPrivacyFormatter,
         dateProvider: @escaping @Sendable () -> Date = Date.init
     ) {
@@ -77,6 +79,7 @@ public struct AtlasAppDependencies: Sendable {
         self.sharedProjectionWriter = sharedProjectionWriter
         self.persistence = persistence
         self.reminders = reminders
+        self.calendarSync = calendarSync
         self.privacyFormatter = privacyFormatter
         self.dateProvider = dateProvider
     }
@@ -112,17 +115,20 @@ public final class AtlasTimelineViewState {
     public var loadErrorMessage: String?
     public var entries: [AtlasTimelineEntry]
     public var filter: AtlasTimelineFilter
+    public var searchText: String
     public var renderMode: AtlasPrivacyRenderMode
 
     public init(
         loadErrorMessage: String? = nil,
         entries: [AtlasTimelineEntry],
         filter: AtlasTimelineFilter,
+        searchText: String = "",
         renderMode: AtlasPrivacyRenderMode
     ) {
         self.loadErrorMessage = loadErrorMessage
         self.entries = entries
         self.filter = filter
+        self.searchText = searchText
         self.renderMode = renderMode
     }
 }
@@ -179,6 +185,8 @@ public final class AtlasSettingsViewState {
     public var todaySnapshot: AtlasTodaySnapshot
     public var reminderSettings: AtlasReminderSettingsSnapshot
     public var notificationPermissionStatus: AtlasNotificationAuthorizationStatus
+    public var calendarPermissionStatus: AtlasCalendarAuthorizationStatus
+    public var availableExternalCalendars: [AtlasExternalCalendarDescriptor]
     public var retentionSnapshot: AtlasRetentionSnapshot
     public var rewardsSnapshot: AtlasRewardsSnapshot
 
@@ -187,6 +195,8 @@ public final class AtlasSettingsViewState {
         todaySnapshot: AtlasTodaySnapshot,
         reminderSettings: AtlasReminderSettingsSnapshot,
         notificationPermissionStatus: AtlasNotificationAuthorizationStatus,
+        calendarPermissionStatus: AtlasCalendarAuthorizationStatus,
+        availableExternalCalendars: [AtlasExternalCalendarDescriptor],
         retentionSnapshot: AtlasRetentionSnapshot,
         rewardsSnapshot: AtlasRewardsSnapshot
     ) {
@@ -194,6 +204,8 @@ public final class AtlasSettingsViewState {
         self.todaySnapshot = todaySnapshot
         self.reminderSettings = reminderSettings
         self.notificationPermissionStatus = notificationPermissionStatus
+        self.calendarPermissionStatus = calendarPermissionStatus
+        self.availableExternalCalendars = availableExternalCalendars
         self.retentionSnapshot = retentionSnapshot
         self.rewardsSnapshot = rewardsSnapshot
     }
@@ -247,8 +259,11 @@ public final class AtlasAppModel {
     public var libraryProtocols: [ProtocolSummary]
     public var timelineEntries: [AtlasTimelineEntry]
     public var timelineFilter: AtlasTimelineFilter
+    public var timelineSearchText: String
     public var reminderSettings: AtlasReminderSettingsSnapshot
     public var notificationPermissionStatus: AtlasNotificationAuthorizationStatus
+    public var calendarPermissionStatus: AtlasCalendarAuthorizationStatus
+    public var availableExternalCalendars: [AtlasExternalCalendarDescriptor]
     public var inventorySnapshot: AtlasInventorySnapshot
     public var calculatorProfiles: [AtlasCalculatorProfileRecord]
     public var insightsSnapshot: AtlasInsightsSnapshot
@@ -274,6 +289,7 @@ public final class AtlasAppModel {
     var consumableDetails: [String: AtlasConsumableDetailSnapshot]
     var protocolSiteOptions: [String: AtlasProtocolSiteOptions]
     private var autoCloudSyncTask: Task<Void, Never>?
+    private var timelineSearchRefreshTask: Task<Void, Never>?
 
     public init(
         activeTab: AtlasTab = .today,
@@ -293,8 +309,11 @@ public final class AtlasAppModel {
         let libraryProtocols: [ProtocolSummary] = []
         let timelineEntries: [AtlasTimelineEntry] = []
         let timelineFilter = AtlasTimelineFilter.all
+        let timelineSearchText = ""
         let reminderSettings = AtlasReminderSettingsSnapshot()
         let notificationPermissionStatus = AtlasNotificationAuthorizationStatus.notDetermined
+        let calendarPermissionStatus = AtlasCalendarAuthorizationStatus.notDetermined
+        let availableExternalCalendars: [AtlasExternalCalendarDescriptor] = []
         let inventorySnapshot = AtlasInventorySnapshot()
         let calculatorProfiles: [AtlasCalculatorProfileRecord] = []
         let insightsSnapshot = AtlasInsightsSnapshot()
@@ -323,6 +342,7 @@ public final class AtlasAppModel {
         self.timelineViewState = AtlasTimelineViewState(
             entries: timelineEntries,
             filter: timelineFilter,
+            searchText: timelineSearchText,
             renderMode: renderMode
         )
         self.libraryViewState = AtlasLibraryViewState(
@@ -342,6 +362,8 @@ public final class AtlasAppModel {
             todaySnapshot: todaySnapshot,
             reminderSettings: reminderSettings,
             notificationPermissionStatus: notificationPermissionStatus,
+            calendarPermissionStatus: calendarPermissionStatus,
+            availableExternalCalendars: availableExternalCalendars,
             retentionSnapshot: retentionSnapshot,
             rewardsSnapshot: rewardsSnapshot
         )
@@ -351,8 +373,11 @@ public final class AtlasAppModel {
         self.libraryProtocols = libraryProtocols
         self.timelineEntries = timelineEntries
         self.timelineFilter = timelineFilter
+        self.timelineSearchText = timelineSearchText
         self.reminderSettings = reminderSettings
         self.notificationPermissionStatus = notificationPermissionStatus
+        self.calendarPermissionStatus = calendarPermissionStatus
+        self.availableExternalCalendars = availableExternalCalendars
         self.inventorySnapshot = inventorySnapshot
         self.calculatorProfiles = calculatorProfiles
         self.insightsSnapshot = insightsSnapshot
@@ -380,6 +405,7 @@ public final class AtlasAppModel {
         self.consumableDetails = [:]
         self.protocolSiteOptions = [:]
         self.autoCloudSyncTask = nil
+        self.timelineSearchRefreshTask = nil
         syncShellViewStates()
     }
 
@@ -445,6 +471,7 @@ public final class AtlasAppModel {
         do {
             let now = dependencies.dateProvider()
             await syncRemindersIfPossible(referenceDate: now)
+            await syncExternalCalendarIfPossible(referenceDate: now)
             do {
                 try await dependencies.sharedProjectionWriter.refreshProjection(referenceDate: now)
                 widgetProjectionVersion &+= 1
@@ -456,7 +483,11 @@ public final class AtlasAppModel {
             async let today = dependencies.persistence.today.fetchTodaySnapshot(referenceDate: now)
             async let protocols = dependencies.persistence.protocols.listProtocolSummaries()
             async let timeline = dependencies.persistence.timeline.fetchTimeline(
-                AtlasTimelineQuery(filter: timelineFilter, limit: 80)
+                AtlasTimelineQuery(
+                    filter: timelineFilter,
+                    searchText: timelineSearchText,
+                    limit: 80
+                )
             )
             async let reminders = dependencies.reminders.fetchReminderSettings()
             async let permission = dependencies.reminders.authorizationStatus()
@@ -481,6 +512,16 @@ public final class AtlasAppModel {
             rewardsSnapshot = try await rewards
             trustVaultSnapshot = try await trustVault
             reviewOwnerSnapshot = decorateReviewOwnerSnapshot(try await reviewOwner)
+            calendarPermissionStatus = await dependencies.calendarSync.authorizationStatus()
+            if calendarPermissionStatus.canListCalendars {
+                do {
+                    availableExternalCalendars = try await dependencies.calendarSync.listWritableCalendars()
+                } catch {
+                    availableExternalCalendars = []
+                }
+            } else {
+                availableExternalCalendars = []
+            }
             await processMascotEvolutionIfNeeded(referenceDate: now)
             await processMascotMomentsIfNeeded(referenceDate: now)
             await scheduleMascotRecapNotificationsIfNeeded(referenceDate: now)
@@ -556,11 +597,28 @@ public final class AtlasAppModel {
     public func refreshTimeline() async {
         do {
             timelineEntries = try await dependencies.persistence.timeline.fetchTimeline(
-                AtlasTimelineQuery(filter: timelineFilter, limit: 80)
+                AtlasTimelineQuery(
+                    filter: timelineFilter,
+                    searchText: timelineSearchText,
+                    limit: 80
+                )
             )
             syncTimelineViewState()
         } catch {
             setLoadErrorMessage(error.localizedDescription)
+        }
+    }
+
+    public func updateTimelineSearchText(_ searchText: String) {
+        timelineSearchText = searchText
+        timelineViewState.searchText = searchText
+        timelineSearchRefreshTask?.cancel()
+        timelineSearchRefreshTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 250_000_000)
+            guard Task.isCancelled == false, let self else {
+                return
+            }
+            await self.refreshTimeline()
         }
     }
 
@@ -636,11 +694,71 @@ public final class AtlasAppModel {
         }
     }
 
+    public func requestCalendarPermission() async {
+        do {
+            calendarPermissionStatus = try await dependencies.calendarSync.requestAuthorization()
+            await refreshShellData()
+        } catch {
+            setLoadErrorMessage(error.localizedDescription)
+        }
+    }
+
     public func updateReminderSettings(_ update: AtlasReminderPreferenceUpdate) async {
         do {
             reminderSettings = try await dependencies.reminders.updateReminderSettings(update, referenceDate: currentDate())
             await refreshShellData()
             queueAutomaticCloudSync(reason: "reminder settings")
+        } catch {
+            setLoadErrorMessage(error.localizedDescription)
+        }
+    }
+
+    public func updateExternalCalendarEnabled(_ enabled: Bool) async {
+        do {
+            settingsSnapshot.externalCalendarSettings = try await dependencies.calendarSync.updateSettings(
+                AtlasExternalCalendarSettingsUpdate(syncEnabled: enabled, clearError: true),
+                referenceDate: currentDate()
+            )
+            await refreshShellData()
+        } catch {
+            setLoadErrorMessage(error.localizedDescription)
+        }
+    }
+
+    public func updateExternalCalendarSelection(_ descriptor: AtlasExternalCalendarDescriptor) async {
+        do {
+            settingsSnapshot.externalCalendarSettings = try await dependencies.calendarSync.updateSettings(
+                AtlasExternalCalendarSettingsUpdate(
+                    calendarSelection: .select(descriptor),
+                    clearError: true
+                ),
+                referenceDate: currentDate()
+            )
+            await refreshShellData()
+        } catch {
+            setLoadErrorMessage(error.localizedDescription)
+        }
+    }
+
+    public func clearExternalCalendarSelection() async {
+        do {
+            settingsSnapshot.externalCalendarSettings = try await dependencies.calendarSync.updateSettings(
+                AtlasExternalCalendarSettingsUpdate(
+                    calendarSelection: .clear,
+                    clearError: true
+                ),
+                referenceDate: currentDate()
+            )
+            await refreshShellData()
+        } catch {
+            setLoadErrorMessage(error.localizedDescription)
+        }
+    }
+
+    public func syncExternalCalendarNow() async {
+        do {
+            try await dependencies.calendarSync.sync(referenceDate: currentDate())
+            await refreshShellData()
         } catch {
             setLoadErrorMessage(error.localizedDescription)
         }
@@ -1801,6 +1919,14 @@ public final class AtlasAppModel {
         }
     }
 
+    private func syncExternalCalendarIfPossible(referenceDate: Date) async {
+        do {
+            try await dependencies.calendarSync.sync(referenceDate: referenceDate)
+        } catch {
+            // Calendar mirroring should stay best-effort so Atlas remains fully usable offline.
+        }
+    }
+
     func setLoadErrorMessage(_ message: String?) {
         loadErrorMessage = message
         if let message {
@@ -1840,6 +1966,7 @@ public final class AtlasAppModel {
         timelineViewState.loadErrorMessage = loadErrorMessage
         timelineViewState.entries = timelineEntries
         timelineViewState.filter = timelineFilter
+        timelineViewState.searchText = timelineSearchText
         timelineViewState.renderMode = settingsSnapshot.trustVaultStatus.renderMode
     }
 
@@ -1863,6 +1990,8 @@ public final class AtlasAppModel {
         settingsViewState.todaySnapshot = todaySnapshot
         settingsViewState.reminderSettings = reminderSettings
         settingsViewState.notificationPermissionStatus = notificationPermissionStatus
+        settingsViewState.calendarPermissionStatus = calendarPermissionStatus
+        settingsViewState.availableExternalCalendars = availableExternalCalendars
         settingsViewState.retentionSnapshot = retentionSnapshot
         settingsViewState.rewardsSnapshot = rewardsSnapshot
     }
@@ -4261,19 +4390,62 @@ public struct AtlasTimelineScreen: View {
                     }
                 }
                 .pickerStyle(.segmented)
+
+                HStack(spacing: AtlasSpacing.small) {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                    TextField("Search immutable history", text: Binding(
+                        get: { state.searchText },
+                        set: { value in
+                            state.searchText = value
+                            model.updateTimelineSearchText(value)
+                        }
+                    ))
+                    .foregroundStyle(AtlasPalette.textPrimary)
+                    if state.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+                        Button {
+                            state.searchText = ""
+                            model.updateTimelineSearchText("")
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(AtlasPalette.textSecondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .atlasStandaloneInputSurface()
+
+                Text("Search runs across immutable summaries, protocol names, aliases, and change details without turning Timeline into a journal.")
+                    .font(.caption)
+                    .foregroundStyle(AtlasPalette.textSecondary)
             }
 
             if state.entries.isEmpty {
-                AtlasEmptyStateCard(
-                    title: "No history yet",
-                    message: "Quick logs, imports, and protocol edits will appear here with immutable timestamps.",
-                    systemImage: "clock.badge.questionmark",
-                    note: "Immutable from the first event"
-                ) {
-                    Button("Create protocol") {
-                        model.open(.protocolCreate)
+                if state.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+                    AtlasEmptyStateCard(
+                        title: "No matches",
+                        message: "Try a broader keyword or clear the search to return to the full immutable history.",
+                        systemImage: "magnifyingglass.circle",
+                        note: "Search only covers history"
+                    ) {
+                        Button("Clear search") {
+                            state.searchText = ""
+                            model.updateTimelineSearchText("")
+                        }
+                        .buttonStyle(AtlasSecondaryButtonStyle())
                     }
-                    .buttonStyle(AtlasPrimaryButtonStyle())
+                } else {
+                    AtlasEmptyStateCard(
+                        title: "No history yet",
+                        message: "Quick logs, imports, and protocol edits will appear here with immutable timestamps.",
+                        systemImage: "clock.badge.questionmark",
+                        note: "Immutable from the first event"
+                    ) {
+                        Button("Create protocol") {
+                            model.open(.protocolCreate)
+                        }
+                        .buttonStyle(AtlasPrimaryButtonStyle())
+                    }
                 }
             } else {
                 ForEach(groupedTimelineEntries, id: \.dateLabel) { section in
@@ -5522,6 +5694,120 @@ public struct AtlasSettingsScreen: View {
                         .font(.caption)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
+            }
+
+            AtlasSectionCard(title: "External calendar") {
+                Text("Mirror upcoming Atlas occurrences into a writable calendar you choose. Atlas works with Apple calendars and Google calendars already configured in Calendar.")
+                    .foregroundStyle(AtlasPalette.textSecondary)
+
+                Text("Permission: \(calendarPermissionLabel(state.calendarPermissionStatus))")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AtlasPalette.textSecondary)
+
+                if state.calendarPermissionStatus == .notDetermined || state.calendarPermissionStatus == .writeOnly {
+                    Button("Allow full calendar access") {
+                        Task { await model.requestCalendarPermission() }
+                    }
+                    .buttonStyle(AtlasPrimaryButtonStyle())
+                } else if state.calendarPermissionStatus == .denied {
+                    Text("Calendar access is disabled for Atlas on this device.")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                } else if state.calendarPermissionStatus == .restricted {
+                    Text("Calendar access is restricted on this device.")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                } else if state.calendarPermissionStatus == .unavailable {
+                    Text("Calendar sync is unavailable on this device.")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+
+                AtlasSettingsToggleRow(
+                    title: "Mirror upcoming schedule",
+                    subtitle: "Write upcoming Atlas occurrences into the calendar selected below.",
+                    isOn: Binding(
+                        get: { state.settingsSnapshot.externalCalendarSettings.syncEnabled },
+                        set: { value in
+                            state.settingsSnapshot.externalCalendarSettings.syncEnabled = value
+                            model.settingsSnapshot.externalCalendarSettings.syncEnabled = value
+                            Task { await model.updateExternalCalendarEnabled(value) }
+                        }
+                    )
+                )
+
+                if state.calendarPermissionStatus.canListCalendars {
+                    if state.availableExternalCalendars.isEmpty {
+                        Text("No writable calendars are available yet. Add or enable a calendar account in Calendar first.")
+                            .font(.caption)
+                            .foregroundStyle(AtlasPalette.textSecondary)
+                    } else {
+                        Picker(
+                            "Destination calendar",
+                            selection: Binding(
+                                get: { state.settingsSnapshot.externalCalendarSettings.selectedCalendarID ?? "" },
+                                set: { value in
+                                    guard let descriptor = state.availableExternalCalendars.first(where: { $0.id == value }) else {
+                                        return
+                                    }
+                                    state.settingsSnapshot.externalCalendarSettings.selectedCalendarID = descriptor.id
+                                    state.settingsSnapshot.externalCalendarSettings.selectedCalendarTitle = descriptor.title
+                                    model.settingsSnapshot.externalCalendarSettings.selectedCalendarID = descriptor.id
+                                    model.settingsSnapshot.externalCalendarSettings.selectedCalendarTitle = descriptor.title
+                                    Task { await model.updateExternalCalendarSelection(descriptor) }
+                                }
+                            )
+                        ) {
+                            Text("Choose a calendar").tag("")
+                            ForEach(state.availableExternalCalendars) { calendar in
+                                Text("\(calendar.title) • \(calendar.sourceTitle)").tag(calendar.id)
+                            }
+                        }
+                    }
+                }
+
+                AtlasSettingsStatusRow(
+                    title: "Selected calendar",
+                    value: state.settingsSnapshot.externalCalendarSettings.selectedCalendarTitle ?? "Not selected"
+                )
+                AtlasSettingsStatusRow(
+                    title: "Synced events",
+                    value: "\(state.settingsSnapshot.externalCalendarSettings.syncedEventCount)"
+                )
+                AtlasSettingsStatusRow(
+                    title: "Last sync",
+                    value: atlasCalendarSyncStatusLabel(state.settingsSnapshot.externalCalendarSettings.lastSyncAt)
+                )
+
+                if let lastError = state.settingsSnapshot.externalCalendarSettings.lastError,
+                   lastError.isEmpty == false {
+                    Text(lastError)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+
+                HStack(spacing: AtlasSpacing.small) {
+                    Button("Sync now") {
+                        Task { await model.syncExternalCalendarNow() }
+                    }
+                    .buttonStyle(AtlasSecondaryButtonStyle())
+                    .disabled(
+                        state.settingsSnapshot.externalCalendarSettings.syncEnabled == false
+                            || state.calendarPermissionStatus.canManageEvents == false
+                            || state.settingsSnapshot.externalCalendarSettings.selectedCalendarID == nil
+                    )
+
+                    if state.settingsSnapshot.externalCalendarSettings.selectedCalendarID != nil {
+                        Button("Clear selection") {
+                            Task { await model.clearExternalCalendarSelection() }
+                        }
+                        .buttonStyle(AtlasTertiaryButtonStyle())
+                    }
+                }
+
+                Text("Synced event titles follow your current Trust Vault render mode, so discreet and alias views stay consistent outside Atlas too.")
+                    .font(.caption)
+                    .foregroundStyle(AtlasPalette.textSecondary)
             }
 
             AtlasSectionCard(title: "Connected services") {
@@ -7278,6 +7564,31 @@ private func permissionLabel(_ status: AtlasNotificationAuthorizationStatus) -> 
     case .ephemeral:
         return "Ephemeral"
     }
+}
+
+private func calendarPermissionLabel(_ status: AtlasCalendarAuthorizationStatus) -> String {
+    switch status {
+    case .notDetermined:
+        return "Not requested"
+    case .denied:
+        return "Denied"
+    case .restricted:
+        return "Restricted"
+    case .writeOnly:
+        return "Write only"
+    case .fullAccess:
+        return "Full access"
+    case .unavailable:
+        return "Unavailable"
+    }
+}
+
+private func atlasCalendarSyncStatusLabel(_ timestamp: String?) -> String {
+    guard let timestamp,
+          let date = ISO8601DateFormatter.atlas.date(from: timestamp) else {
+        return "Not synced yet"
+    }
+    return date.formatted(date: .abbreviated, time: .shortened)
 }
 
 private extension View {

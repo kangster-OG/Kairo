@@ -39,6 +39,8 @@
 	<string>Atlas can read your Apple Health weight history so your logs stay consistent across Atlas and Health.</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>Atlas can write weight entries to Apple Health when you choose to keep Atlas and Health in sync.</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Atlas can sync your scheduled protocols to a calendar you choose so upcoming routines stay visible outside the app.</string>
 	<key>ATLAS_SUPABASE_URL</key>
 	<string>https://nppqywaxawvvdhiedpxc.supabase.co</string>
 	<key>ATLAS_SUPABASE_ANON_KEY</key>

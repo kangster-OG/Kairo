@@ -734,6 +734,28 @@ final class AtlasDatabaseStack: @unchecked Sendable {
             }
         }
 
+        migrator.registerMigration("v20_add_external_calendar_sync") { db in
+            try db.create(table: "external_calendar_events", ifNotExists: true) { table in
+                table.column("id", .text).primaryKey()
+                table.column("occurrence_id", .text).notNull().unique()
+                table.column("protocol_id", .text).notNull().references("protocols", onDelete: .cascade)
+                table.column("calendar_id", .text).notNull()
+                table.column("event_identifier", .text).notNull()
+                table.column("title", .text).notNull()
+                table.column("notes", .text).notNull()
+                table.column("starts_at", .text).notNull()
+                table.column("ends_at", .text).notNull()
+                table.column("created_at", .text).notNull()
+                table.column("updated_at", .text).notNull()
+            }
+            try db.create(
+                index: "idx_external_calendar_events_protocol_start",
+                on: "external_calendar_events",
+                columns: ["protocol_id", "starts_at"],
+                ifNotExists: true
+            )
+        }
+
         return migrator
     }
 

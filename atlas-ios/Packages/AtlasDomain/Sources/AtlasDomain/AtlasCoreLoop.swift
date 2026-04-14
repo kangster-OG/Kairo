@@ -223,11 +223,18 @@ public enum AtlasTimelineEntryType: String, Equatable, Sendable {
 public struct AtlasTimelineQuery: Equatable, Sendable {
     public var filter: AtlasTimelineFilter
     public var protocolID: String?
+    public var searchText: String?
     public var limit: Int
 
-    public init(filter: AtlasTimelineFilter = .all, protocolID: String? = nil, limit: Int = 100) {
+    public init(
+        filter: AtlasTimelineFilter = .all,
+        protocolID: String? = nil,
+        searchText: String? = nil,
+        limit: Int = 100
+    ) {
         self.filter = filter
         self.protocolID = protocolID
+        self.searchText = searchText
         self.limit = limit
     }
 }

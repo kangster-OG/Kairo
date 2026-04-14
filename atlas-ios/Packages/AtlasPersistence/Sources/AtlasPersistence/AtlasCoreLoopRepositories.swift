@@ -561,6 +561,14 @@ extension GRDBTimelineRepository {
                             || entry.type == .customMetricLogged
                     }
                 }
+                .filter { entry in
+                    guard let searchText = query.searchText?
+                        .trimmingCharacters(in: .whitespacesAndNewlines),
+                          searchText.isEmpty == false else {
+                        return true
+                    }
+                    return atlasTimelineEntry(entry, matches: searchText)
+                }
                 .sorted { $0.recordedAt > $1.recordedAt }
                 .prefix(query.limit)
                 .map { $0 }
@@ -1573,6 +1581,38 @@ private func displayState(for occurrence: AtlasOccurrenceProjectionRecord, now: 
             return .due
         }
         return .upcoming
+    }
+}
+
+private func atlasTimelineEntry(
+    _ entry: AtlasTimelineEntry,
+    matches rawSearchText: String
+) -> Bool {
+    let foldingOptions: String.CompareOptions = [.caseInsensitive, .diacriticInsensitive]
+    let locale = Locale.current
+    let searchText = rawSearchText.folding(options: foldingOptions, locale: locale)
+
+    var haystacks = [
+        entry.canonicalTitle,
+        entry.summary,
+        entry.type.rawValue
+    ]
+    if let aliasTitle = entry.aliasTitle {
+        haystacks.append(aliasTitle)
+    }
+    if let occurrenceExplanation = entry.occurrenceExplanation {
+        haystacks.append(occurrenceExplanation.summary)
+        haystacks.append(contentsOf: occurrenceExplanation.facts.flatMap { [$0.label, $0.value] })
+        haystacks.append(contentsOf: occurrenceExplanation.notes)
+    }
+    if let changeExplanation = entry.changeExplanation {
+        haystacks.append(changeExplanation.summary)
+        haystacks.append(contentsOf: changeExplanation.facts.flatMap { [$0.label, $0.value] })
+        haystacks.append(contentsOf: changeExplanation.notes)
+    }
+
+    return haystacks.contains { haystack in
+        haystack.folding(options: foldingOptions, locale: locale).contains(searchText)
     }
 }
 

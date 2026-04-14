@@ -966,6 +966,7 @@ public struct AtlasSettingsSnapshot: Sendable, Equatable {
     public var onboardingCompleted: Bool
     public var syncStatus: AtlasSyncScaffoldStatus
     public var healthScaffold: AtlasHealthScaffoldSnapshot
+    public var externalCalendarSettings: AtlasExternalCalendarSettingsSnapshot
     public var labsEnabled: Bool
     public var surfacePreferences: AtlasSurfacePreferences
     public var trustVaultStatus: TrustVaultStatus
@@ -989,6 +990,7 @@ public struct AtlasSettingsSnapshot: Sendable, Equatable {
         onboardingCompleted: Bool = false,
         syncStatus: AtlasSyncScaffoldStatus = .localOnly,
         healthScaffold: AtlasHealthScaffoldSnapshot = .init(),
+        externalCalendarSettings: AtlasExternalCalendarSettingsSnapshot = .init(),
         labsEnabled: Bool = false,
         surfacePreferences: AtlasSurfacePreferences = .init(),
         trustVaultStatus: TrustVaultStatus = .init(),
@@ -1013,6 +1015,7 @@ public struct AtlasSettingsSnapshot: Sendable, Equatable {
         self.onboardingCompleted = onboardingCompleted
         self.syncStatus = syncStatus
         self.healthScaffold = healthScaffold
+        self.externalCalendarSettings = externalCalendarSettings
         self.labsEnabled = labsEnabled
         self.surfacePreferences = surfacePreferences
         self.trustVaultStatus = trustVaultStatus

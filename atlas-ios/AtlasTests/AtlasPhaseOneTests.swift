@@ -2507,6 +2507,144 @@ final class AtlasPhaseOneTests: XCTestCase {
         XCTAssertTrue(canceledIdentifiers.contains(scheduledIdentifier))
     }
 
+    @MainActor
+    func testTimelineSearchRefreshFiltersImmutableHistory() async throws {
+        let controller = try makeInMemoryController()
+        let model = makeAppModel(controller: controller, referenceDate: importedFixtureReferenceDate)
+        let now = importedFixtureReferenceDate
+
+        _ = try await controller.container.protocols.createProtocol(
+            AtlasProtocolDraft(
+                name: "Timeline Search Protocol",
+                kind: .glp,
+                cadenceType: .daily,
+                intervalDays: 1,
+                weekday: nil,
+                defaultTimeOfDay: "09:00",
+                doseAmount: 1,
+                doseUnit: "mg"
+            ),
+            now: now
+        )
+
+        await model.refreshShellData()
+        XCTAssertTrue(model.timelineEntries.contains(where: { $0.canonicalTitle == "Timeline Search Protocol" }))
+
+        model.updateTimelineSearchText("search protocol")
+        try await Task.sleep(nanoseconds: 350_000_000)
+
+        XCTAssertFalse(model.timelineEntries.isEmpty)
+        XCTAssertTrue(model.timelineEntries.allSatisfy { $0.canonicalTitle == "Timeline Search Protocol" })
+
+        model.updateTimelineSearchText("missing keyword")
+        try await Task.sleep(nanoseconds: 350_000_000)
+
+        XCTAssertTrue(model.timelineEntries.isEmpty)
+    }
+
+    func testCalendarSyncWritesUpcomingOccurrencesAndPersistsSelection() async throws {
+        let calendars = [
+            AtlasExternalCalendarDescriptor(
+                id: "calendar.primary",
+                title: "Protocols",
+                sourceTitle: "Google"
+            )
+        ]
+        let externalCalendars = TestExternalCalendarManager(
+            currentStatus: .fullAccess,
+            calendars: calendars
+        )
+        let controller = try makeInMemoryController(externalCalendars: externalCalendars)
+        let now = Date(timeIntervalSince1970: 1_773_950_400)
+
+        _ = try await controller.container.protocols.createProtocol(
+            AtlasProtocolDraft(
+                name: "Calendar Protocol",
+                kind: .peptide,
+                cadenceType: .daily,
+                intervalDays: 1,
+                weekday: nil,
+                defaultTimeOfDay: "18:00",
+                doseAmount: 2,
+                doseUnit: "mg"
+            ),
+            now: now
+        )
+
+        let settings = try await controller.calendarSyncCoordinator.updateSettings(
+            AtlasExternalCalendarSettingsUpdate(
+                syncEnabled: true,
+                calendarSelection: .select(calendars[0]),
+                clearError: true
+            ),
+            referenceDate: now
+        )
+        let savedEvents = await externalCalendars.savedEvents()
+
+        XCTAssertTrue(settings.syncEnabled)
+        XCTAssertEqual(settings.selectedCalendarTitle, "Protocols")
+        XCTAssertEqual(settings.syncedEventCount, savedEvents.count)
+        XCTAssertEqual(savedEvents.count, 30)
+        XCTAssertEqual(savedEvents.first?.title, "Calendar Protocol")
+        XCTAssertTrue(savedEvents.first?.notes.contains("Scheduled from Atlas.") ?? false)
+    }
+
+    func testCalendarSyncRespectsPrivacyModeAndRemovesEventsWhenDisabled() async throws {
+        let calendars = [
+            AtlasExternalCalendarDescriptor(
+                id: "calendar.primary",
+                title: "Protocols",
+                sourceTitle: "Apple"
+            )
+        ]
+        let externalCalendars = TestExternalCalendarManager(
+            currentStatus: .fullAccess,
+            calendars: calendars
+        )
+        let controller = try makeInMemoryController(externalCalendars: externalCalendars)
+        let now = Date(timeIntervalSince1970: 1_773_950_400)
+
+        _ = try await controller.container.protocols.createProtocol(
+            AtlasProtocolDraft(
+                name: "Sensitive Calendar Protocol",
+                kind: .glp,
+                cadenceType: .daily,
+                intervalDays: 1,
+                weekday: nil,
+                defaultTimeOfDay: "18:00",
+                doseAmount: 1,
+                doseUnit: "mg"
+            ),
+            now: now
+        )
+
+        _ = try await controller.calendarSyncCoordinator.updateSettings(
+            AtlasExternalCalendarSettingsUpdate(
+                syncEnabled: true,
+                calendarSelection: .select(calendars[0]),
+                clearError: true
+            ),
+            referenceDate: now
+        )
+        _ = try await controller.container.settings.updateTrustVaultRenderMode(.discreet, now: now.addingTimeInterval(60))
+        try await controller.calendarSyncCoordinator.sync(referenceDate: now.addingTimeInterval(60))
+
+        let savedEvents = await externalCalendars.savedEvents()
+        XCTAssertEqual(savedEvents.last?.title, "Atlas routine")
+
+        _ = try await controller.calendarSyncCoordinator.updateSettings(
+            AtlasExternalCalendarSettingsUpdate(syncEnabled: false, clearError: true),
+            referenceDate: now.addingTimeInterval(120)
+        )
+
+        let refreshedSettings = try await controller.container.settings.currentSettingsSnapshot()
+        let deletedIdentifiers = await externalCalendars.deletedIdentifiers()
+
+        XCTAssertFalse(refreshedSettings.externalCalendarSettings.syncEnabled)
+        XCTAssertEqual(refreshedSettings.externalCalendarSettings.syncedEventCount, 0)
+        XCTAssertFalse(deletedIdentifiers.isEmpty)
+    }
+
     func testSilentNotificationPresentationPolicyOmitsSound() {
         XCTAssertEqual(AtlasNotificationPresentationPolicy.options(isSilent: true), [.banner, .list])
         XCTAssertEqual(AtlasNotificationPresentationPolicy.options(isSilent: false), [.banner, .list, .sound])
@@ -5928,6 +6066,7 @@ final class AtlasPhaseOneTests: XCTestCase {
                 sharedProjectionWriter: controller.sharedProjectionWriter,
                 persistence: controller.container,
                 reminders: controller.reminderCoordinator,
+                calendarSync: controller.calendarSyncCoordinator,
                 privacyFormatter: AtlasPrivacyFormatter(),
                 dateProvider: { now.value }
             )
@@ -5999,6 +6138,7 @@ final class AtlasPhaseOneTests: XCTestCase {
                 sharedProjectionWriter: controller.sharedProjectionWriter,
                 persistence: controller.container,
                 reminders: controller.reminderCoordinator,
+                calendarSync: controller.calendarSyncCoordinator,
                 privacyFormatter: AtlasPrivacyFormatter(),
                 dateProvider: { now.value }
             )
@@ -7185,12 +7325,14 @@ final class AtlasPhaseOneTests: XCTestCase {
 
     private func makeInMemoryController(
         featureFlags: AtlasFeatureFlagState = AtlasFeatureFlagState(),
-        notifications: any NotificationManaging = TestNotificationManager()
+        notifications: any NotificationManaging = TestNotificationManager(),
+        externalCalendars: any ExternalCalendarManaging = TestExternalCalendarManager()
     ) throws -> AtlasPersistenceController {
         try AtlasPersistenceController.inMemory(
             featureFlags: featureFlags,
             privacyFormatter: AtlasPrivacyFormatter(),
-            notifications: notifications
+            notifications: notifications,
+            externalCalendars: externalCalendars
         )
     }
 
@@ -7217,6 +7359,7 @@ final class AtlasPhaseOneTests: XCTestCase {
                 sharedProjectionWriter: controller.sharedProjectionWriter,
                 persistence: controller.container,
                 reminders: reminders ?? controller.reminderCoordinator,
+                calendarSync: controller.calendarSyncCoordinator,
                 privacyFormatter: AtlasPrivacyFormatter(),
                 dateProvider: { referenceDate ?? Date() }
             )
@@ -8710,6 +8853,80 @@ final class TestHealthKitManager: HealthKitManaging, @unchecked Sendable {
 
     func connectionDescription() -> String {
         available ? "Apple Health can sync with Atlas." : "Apple Health is unavailable on this device."
+    }
+}
+
+actor TestExternalCalendarManager: ExternalCalendarManaging {
+    nonisolated let available: Bool
+    private var currentStatus: AtlasCalendarAuthorizationStatus
+    private let requestedStatus: AtlasCalendarAuthorizationStatus
+    private let calendars: [AtlasExternalCalendarDescriptor]
+    private var savedDraftStorage: [AtlasExternalCalendarEventDraft]
+    private var deletedIdentifierStorage: [String]
+    private var eventDraftsByIdentifier: [String: AtlasExternalCalendarEventDraft]
+    private var nextIdentifier: Int
+
+    init(
+        available: Bool = true,
+        currentStatus: AtlasCalendarAuthorizationStatus = .fullAccess,
+        requestedStatus: AtlasCalendarAuthorizationStatus? = nil,
+        calendars: [AtlasExternalCalendarDescriptor] = []
+    ) {
+        self.available = available
+        self.currentStatus = currentStatus
+        self.requestedStatus = requestedStatus ?? currentStatus
+        self.calendars = calendars
+        self.savedDraftStorage = []
+        self.deletedIdentifierStorage = []
+        self.eventDraftsByIdentifier = [:]
+        self.nextIdentifier = 1
+    }
+
+    nonisolated func isAvailable() -> Bool {
+        available
+    }
+
+    func authorizationStatus() async -> AtlasCalendarAuthorizationStatus {
+        currentStatus
+    }
+
+    func requestFullAccess() async throws -> AtlasCalendarAuthorizationStatus {
+        currentStatus = requestedStatus
+        return currentStatus
+    }
+
+    func writableCalendars() async throws -> [AtlasExternalCalendarDescriptor] {
+        calendars
+    }
+
+    func saveEvent(
+        _ draft: AtlasExternalCalendarEventDraft,
+        existingIdentifier: String?
+    ) async throws -> AtlasExternalCalendarSavedEvent {
+        let eventIdentifier: String
+        if let existingIdentifier {
+            eventIdentifier = existingIdentifier
+        } else {
+            eventIdentifier = "calendar-event-\(nextIdentifier)"
+            nextIdentifier += 1
+        }
+
+        savedDraftStorage.append(draft)
+        eventDraftsByIdentifier[eventIdentifier] = draft
+        return AtlasExternalCalendarSavedEvent(eventIdentifier: eventIdentifier)
+    }
+
+    func deleteEvent(identifier: String) async throws {
+        deletedIdentifierStorage.append(identifier)
+        eventDraftsByIdentifier.removeValue(forKey: identifier)
+    }
+
+    func savedEvents() -> [AtlasExternalCalendarEventDraft] {
+        savedDraftStorage
+    }
+
+    func deletedIdentifiers() -> [String] {
+        deletedIdentifierStorage
     }
 }
 

@@ -270,6 +270,7 @@ func buildSettingsSnapshot(
     let rewardsSettings = try readRewardsSettings(db: db)
     let labsEnabled = try readLabsEnabled(db: db)
     let surfacePreferences = try readSurfacePreferences(db: db)
+    let externalCalendarSettings = try readExternalCalendarSettings(db: db)
 
     return AtlasSettingsSnapshot(
         accountMode: accountMode,
@@ -289,6 +290,7 @@ func buildSettingsSnapshot(
             lastWorkoutEntryAt: lastWorkoutEntryAt,
             signalSummaries: signalSummaries
         ),
+        externalCalendarSettings: externalCalendarSettings,
         labsEnabled: labsEnabled,
         surfacePreferences: surfacePreferences,
         trustVaultStatus: TrustVaultStatus(

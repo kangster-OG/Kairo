@@ -81,6 +81,7 @@ enum AtlasAppBootstrap {
             sharedProjectionWriter: persistenceController.sharedProjectionWriter,
             persistence: persistenceController.container,
             reminders: persistenceController.reminderCoordinator,
+            calendarSync: persistenceController.calendarSyncCoordinator,
             privacyFormatter: privacyFormatter
         )
 
