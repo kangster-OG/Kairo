@@ -347,7 +347,7 @@ private struct AtlasMascotProvider: AppIntentTimelineProvider {
     func placeholder(in context: Context) -> AtlasMascotWidgetEntry {
         AtlasMascotWidgetEntry(
             date: .now,
-            snapshot: nil,
+            snapshot: atlasWidgetPreviewProjectionSnapshot(),
             configuration: AtlasMascotWidgetConfigurationIntent()
         )
     }
@@ -408,6 +408,69 @@ private struct AtlasMascotProvider: AppIntentTimelineProvider {
         }
         return focuses
     }
+}
+
+private func atlasWidgetPreviewProjectionSnapshot() -> AtlasWidgetProjectionSnapshot {
+    let now = Date()
+    let iso = ISO8601DateFormatter()
+    iso.formatOptions = [.withInternetDateTime]
+    return AtlasWidgetProjectionSnapshot(
+        generatedAt: iso.string(from: now),
+        renderMode: .full,
+        nextDue: AtlasWidgetNextDueSnapshot(
+            occurrenceID: "preview-occurrence",
+            protocolID: "preview-protocol",
+            displayTitle: "Open Atlas Today",
+            dueLabel: "in 15 min",
+            scheduledAt: iso.string(from: now.addingTimeInterval(15 * 60)),
+            state: .due,
+            statusSummary: "A calm preview of the Atlas command loop.",
+            overdueCount: 0
+        ),
+        quickActions: [],
+        lowStock: AtlasWidgetLowStockSnapshot(
+            lowStockCount: 0,
+            procurementReviewCount: 0,
+            summary: "No low-stock items projected.",
+            items: [],
+            updatedAt: iso.string(from: now)
+        ),
+        mascot: AtlasWidgetMascotSnapshot(
+            selection: .aetherion,
+            nickname: nil,
+            displayName: "Cindlet",
+            stage: .stage1,
+            pose: .milestone,
+            currentFormName: "Cindlet",
+            nextFormName: "Voltflare",
+            nextThresholdPoints: 500,
+            totalPoints: 182,
+            milestoneHeadline: "Cindlet evolves into Voltflare at 500 points.",
+            progressLabel: "318 points to Voltflare.",
+            statusLine: "Cindlet is growing with every step toward weekly workout goal.",
+            reactionTitle: "Momentum building",
+            reactionSymbolName: "sparkles",
+            lastEvolution: AtlasWidgetMascotEvolutionRecord(
+                selection: .aetherion,
+                stage: .stage1,
+                earnedAt: iso.string(from: now.addingTimeInterval(-3 * 24 * 60 * 60))
+            ),
+            latestMomentTitle: "Weekly workout streak",
+            latestMomentDetail: "Three more workouts this week keeps the line alive and moving.",
+            latestMomentSymbolName: "figure.run.circle.fill",
+            latestMomentRecordedAt: iso.string(from: now.addingTimeInterval(-90 * 60))
+        ),
+        featureFlags: AtlasWidgetFeatureFlagProjection(
+            flags: AtlasWidgetFeatureFlags(
+                nativeWidgets: true,
+                nativeIntents: true,
+                trustVaultShell: true,
+                importShell: true,
+                reviewMode: true,
+                liveReviewSessions: true
+            )
+        )
+    )
 }
 
 private struct AtlasOpenTodayWidgetIntent: AppIntent {
@@ -1079,7 +1142,7 @@ private struct AtlasMascotWidgetView: View {
                 Circle()
                     .fill(
                         RadialGradient(
-                            colors: [widgetHighlightTint(for: mascot).opacity(0.28), Color.white.opacity(0.06)],
+                            colors: [widgetHighlightTint(for: mascot).opacity(0.34), widgetAccentTint(for: mascot).opacity(0.18), Color.white.opacity(0.04)],
                             center: .center,
                             startRadius: 6,
                             endRadius: 46
@@ -1087,24 +1150,45 @@ private struct AtlasMascotWidgetView: View {
                     )
                 Circle()
                     .stroke(Color.white.opacity(0.12), lineWidth: 1)
-                AtlasWidgetMascotSprite(snapshot: mascot, size: 44)
+                Circle()
+                    .trim(from: 0, to: progressArcValue(for: mascot, focus: focus))
+                    .stroke(widgetHighlightTint(for: mascot), style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .padding(4)
+                VStack(spacing: 2) {
+                    AtlasWidgetMascotSprite(snapshot: mascot, size: 38)
+                    Text(shortStageLabel(for: mascot))
+                        .font(.system(size: 8, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.78))
+                }
             }
         case .accessoryRectangular:
             HStack(spacing: 10) {
-                AtlasWidgetMascotSprite(snapshot: mascot, size: 46)
+                ZStack {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [widgetAccentTint(for: mascot).opacity(0.28), Color.white.opacity(0.08)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                    AtlasWidgetMascotSprite(snapshot: mascot, size: 44)
+                }
+                .frame(width: 58, height: 58)
 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 6) {
                         Text(mascot.displayName)
                             .font(.caption.weight(.semibold))
                             .lineLimit(1)
-                        AtlasStatusBadge(text: widgetStageBadge(for: mascot))
+                        AtlasStatusBadge(text: widgetFocusBadge(for: focus))
                     }
                     Text(rectangularDetail(for: mascot, focus: focus))
-                        .font(.caption2)
+                        .font(.caption2.weight(.semibold))
                         .lineLimit(2)
                     Text(rectangularSubdetail(for: mascot, focus: focus))
-                        .font(.caption2.weight(.semibold))
+                        .font(.caption2)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
@@ -1112,66 +1196,83 @@ private struct AtlasMascotWidgetView: View {
                 Spacer(minLength: 0)
             }
         default:
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .top, spacing: 10) {
+            VStack(alignment: .leading, spacing: family == .systemSmall ? 10 : 12) {
+                HStack(alignment: .top, spacing: 8) {
                     VStack(alignment: .leading, spacing: 6) {
                         HStack(spacing: 6) {
-                            Text("Mascot")
+                            Text(widgetLineLabel(for: mascot))
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(.white.opacity(0.72))
+                            AtlasStatusBadge(text: widgetFocusBadge(for: focus))
                             AtlasStatusBadge(text: widgetStageBadge(for: mascot))
                         }
                         Text(mascot.displayName)
-                            .font(family == .systemSmall ? .headline.weight(.semibold) : .title3.weight(.semibold))
+                            .font(family == .systemSmall ? .headline.weight(.bold) : .title3.weight(.bold))
                             .foregroundStyle(.white)
                             .lineLimit(2)
-                        if mascot.displayName != mascot.currentFormName {
-                            Text(mascot.currentFormName)
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.white.opacity(0.76))
-                        }
-                        Text(focusBody(for: mascot, focus: focus))
-                            .font(.caption)
-                            .foregroundStyle(.white.opacity(0.78))
-                            .lineLimit(family == .systemSmall ? 3 : 2)
+                        Text(focusHeadline(for: mascot, focus: focus))
+                            .font(family == .systemSmall ? .caption.weight(.semibold) : .subheadline.weight(.semibold))
+                            .foregroundStyle(widgetHighlightTint(for: mascot))
+                            .lineLimit(2)
                     }
 
                     Spacer(minLength: 8)
 
-                    VStack(alignment: .center, spacing: 6) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: family == .systemSmall ? 20 : 24, style: .continuous)
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        widgetAccentTint(for: mascot).opacity(0.28),
+                                        widgetHighlightTint(for: mascot).opacity(0.12),
+                                        Color.white.opacity(0.04)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: family == .systemSmall ? 20 : 24, style: .continuous)
+                                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                            )
                         AtlasWidgetMascotSprite(
                             snapshot: mascot,
-                            size: family == .systemSmall ? 62 : 84
+                            size: family == .systemSmall ? 74 : 92
                         )
-                        Text(mascot.currentFormName)
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(.white.opacity(0.82))
-                            .lineLimit(1)
                     }
+                    .frame(width: family == .systemSmall ? 110 : 126, height: family == .systemSmall ? 110 : 126)
                 }
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(focusHeadline(for: mascot, focus: focus))
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.white)
-                        .lineLimit(2)
-                    Text(secondaryMetric(for: mascot, focus: focus))
-                        .font(.caption2)
-                        .foregroundStyle(.white.opacity(0.72))
+                Text(focusBody(for: mascot, focus: focus))
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.8))
+                    .lineLimit(family == .systemSmall ? 3 : 2)
+
+                HStack(spacing: 8) {
+                    AtlasWidgetMetricPill(
+                        title: "Points",
+                        value: "\(mascot.totalPoints)",
+                        tint: widgetHighlightTint(for: mascot)
+                    )
+                    AtlasWidgetMetricPill(
+                        title: "Focus",
+                        value: widgetFocusBadge(for: focus),
+                        tint: widgetAccentTint(for: mascot)
+                    )
+                    if let nextFormName = mascot.nextFormName {
+                        AtlasWidgetMetricPill(
+                            title: "Next",
+                            value: nextFormName,
+                            tint: Color.white.opacity(0.9)
+                        )
+                    }
                 }
 
                 if let footer = focusFooter(for: mascot, focus: focus) {
                     Label(footer.text, systemImage: footer.symbol)
                         .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.white.opacity(0.86))
+                        .foregroundStyle(.white.opacity(0.88))
                         .lineLimit(2)
-                }
-
-                if let nextFormName = mascot.nextFormName {
-                    Label("Next unlock: \(nextFormName)", systemImage: "sparkles")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(widgetHighlightTint(for: mascot))
-                        .lineLimit(1)
                 }
 
                 Spacer(minLength: 0)
@@ -1206,13 +1307,22 @@ private struct AtlasMascotWidgetView: View {
         case .accessoryCircular:
             ZStack {
                 Circle()
-                    .fill(Color.white.opacity(0.12))
-                Image(systemName: "sparkles")
+                    .fill(
+                        RadialGradient(
+                            colors: [Color.white.opacity(0.18), Color.white.opacity(0.06)],
+                            center: .center,
+                            startRadius: 4,
+                            endRadius: 46
+                        )
+                    )
+                Circle()
+                    .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                Image(systemName: isStale ? "arrow.clockwise.circle.fill" : "sparkles")
                     .font(.system(size: 20, weight: .semibold))
             }
         case .accessoryRectangular:
             VStack(alignment: .leading, spacing: 2) {
-                Text("Mascot")
+                Text("Atlas Mascot")
                     .font(.caption.weight(.semibold))
                 Text(
                     isStale
@@ -1225,11 +1335,25 @@ private struct AtlasMascotWidgetView: View {
         default:
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 6) {
-                    Text("Mascot")
+                    Text("Atlas Mascot")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.white.opacity(0.72))
                     AtlasStatusBadge(text: isStale ? "Needs refresh" : "Standby")
                 }
+                ZStack(alignment: .topTrailing) {
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [Color.white.opacity(0.08), Color.white.opacity(0.03)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                    Image(systemName: isStale ? "arrow.clockwise.circle.fill" : "sparkles")
+                        .font(.system(size: family == .systemSmall ? 32 : 38, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.88))
+                }
+                .frame(height: family == .systemSmall ? 76 : 92)
                 Text(
                     isStale
                         ? "Open Atlas to refresh your mascot progression and sprite state."
@@ -1404,11 +1528,100 @@ private struct AtlasMascotWidgetView: View {
         }
     }
 
+    private func widgetAccentTint(for mascot: AtlasWidgetMascotSnapshot) -> Color {
+        switch mascot.selection {
+        case .aetherion:
+            return Color(red: 0.18, green: 0.42, blue: 0.94)
+        case .aurielle:
+            return Color(red: 0.43, green: 0.74, blue: 0.98)
+        }
+    }
+
+    private func widgetLineLabel(for mascot: AtlasWidgetMascotSnapshot) -> String {
+        switch mascot.selection {
+        case .aetherion:
+            return "Aetherion line"
+        case .aurielle:
+            return "Aurielle line"
+        }
+    }
+
+    private func widgetFocusBadge(for focus: AtlasMascotWidgetFocus) -> String {
+        switch focus {
+        case .automatic:
+            return "Auto"
+        case .progress:
+            return "Progress"
+        case .status:
+            return "Status"
+        case .moments:
+            return "Moment"
+        case .history:
+            return "History"
+        }
+    }
+
+    private func shortStageLabel(for mascot: AtlasWidgetMascotSnapshot) -> String {
+        switch mascot.stage {
+        case .stage1:
+            return "I"
+        case .stage2:
+            return "II"
+        case .stage3:
+            return "III"
+        }
+    }
+
+    private func progressArcValue(for mascot: AtlasWidgetMascotSnapshot, focus: AtlasMascotWidgetFocus) -> CGFloat {
+        if case .progress = focus,
+           let threshold = mascot.nextThresholdPoints,
+           threshold > mascot.totalPoints {
+            let span = max(threshold, 1)
+            return CGFloat(min(max(Double(mascot.totalPoints) / Double(span), 0.15), 0.92))
+        }
+        return 0.78
+    }
+
     private func formatMomentTimestamp(_ timestamp: String) -> String {
         guard let date = AtlasWidgetTime.date(from: timestamp) else {
             return timestamp
         }
         return "Updated \(date.formatted(date: .abbreviated, time: .shortened))"
+    }
+}
+
+private struct AtlasWidgetMetricPill: View {
+    var title: String
+    var value: String
+    var tint: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title.uppercased())
+                .font(.system(size: 9, weight: .bold, design: .rounded))
+                .foregroundStyle(.white.opacity(0.58))
+            Text(value)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.94))
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [tint.opacity(0.18), Color.white.opacity(0.06)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+        )
     }
 }
 
