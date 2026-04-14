@@ -33,23 +33,20 @@ public struct AtlasInsightsScreen: View {
     }
 
     public var body: some View {
-        List {
+        AtlasScreen {
             AtlasTabHeader(
                 title: "Insights",
                 subtitle: "Signals, patterns, and restrained recaps grounded in Atlas data.",
                 fullBleed: false
             )
-            .listRowInsets(EdgeInsets())
-            .listRowBackground(Color.clear)
 
             if let error = state.loadErrorMessage {
                 AtlasInsightsInlineMessage(text: error)
-                    .listRowInsets(EdgeInsets())
-                    .listRowBackground(Color.clear)
             }
 
             AtlasSectionCard(title: "Signals") {
-                Text("Track lightweight context, weight, symptoms, and custom signals without leaving the native shell.")
+                Text("Log context, weight, symptoms, and custom signals without leaving Atlas.")
+                    .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
 
                 AtlasQuickActionGrid(columns: 2) {
@@ -113,16 +110,15 @@ public struct AtlasInsightsScreen: View {
 
                     VStack(alignment: .leading, spacing: AtlasSpacing.small) {
                         Text("Quick reuse")
-                            .font(.caption.weight(.semibold))
+                            .atlasTextRole(.deckEyebrow)
                             .foregroundStyle(AtlasPalette.primary)
-                            .textCase(.uppercase)
 
                         Text(
                             state.insightsSnapshot.savedContextPresets.isEmpty
-                                ? "Curated starting points for meal and surrounding context."
-                                : "Saved presets also surface here for one-tap context capture."
+                                ? "Built-in starting points for meal and surrounding context."
+                                : "Saved presets also appear here for one-tap context capture."
                         )
-                        .font(.caption)
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
 
                         AtlasContextQuickPresetRail(presets: quickPresets) { preset in
@@ -149,12 +145,11 @@ public struct AtlasInsightsScreen: View {
 
                     VStack(alignment: .leading, spacing: AtlasSpacing.small) {
                         Text("Faster edits")
-                            .font(.caption.weight(.semibold))
+                            .atlasTextRole(.deckEyebrow)
                             .foregroundStyle(AtlasPalette.primary)
-                            .textCase(.uppercase)
 
-                        Text("Reopen or reuse the last local entries without rebuilding the whole draft.")
-                            .font(.caption)
+                        Text("Reopen the last local entries without rebuilding the full draft.")
+                            .atlasTextRole(.supporting)
                             .foregroundStyle(AtlasPalette.textSecondary)
 
                         AtlasQuickActionGrid(columns: 2) {
@@ -221,26 +216,24 @@ public struct AtlasInsightsScreen: View {
                     }
                 }
             }
-            .listRowInsets(EdgeInsets())
-            .listRowBackground(Color.clear)
 
             ForEach(model.settingsSnapshot.surfacePreferences.visibleInsightsCards) { card in
                 insightsLandingCard(card)
             }
 
             if state.rewardsSnapshot.settings.enabled {
-                Section("Mascot") {
-                    AtlasMascotHomeCard(
-                        selection: model.settingsSnapshot.mascotSelection,
-                        nickname: model.settingsSnapshot.mascotNickname,
-                        rewardsSnapshot: state.rewardsSnapshot,
-                        history: model.settingsSnapshot.mascotEvolutionHistory,
-                        moments: model.settingsSnapshot.mascotMoments,
-                        onOpenDetail: {
-                            model.open(.mascot)
-                        }
-                    )
-                }
+                AtlasInsightsSectionHeader(title: "Mascot")
+                AtlasMascotHomeCard(
+                    selection: model.settingsSnapshot.mascotSelection,
+                    nickname: model.settingsSnapshot.mascotNickname,
+                    rewardsSnapshot: state.rewardsSnapshot,
+                    history: model.settingsSnapshot.mascotEvolutionHistory,
+                    moments: model.settingsSnapshot.mascotMoments,
+                    compact: true,
+                    onOpenDetail: {
+                        model.open(.mascot)
+                    }
+                )
             }
 
             AtlasRetentionInsightSection(
@@ -263,8 +256,6 @@ public struct AtlasInsightsScreen: View {
                     title: "No insight data yet",
                     message: "Context, weight, symptom, custom metric, and episode views will start building restrained patterns here."
                 ) { EmptyView() }
-                .listRowInsets(EdgeInsets())
-                .listRowBackground(Color.clear)
             } else {
                 AtlasSummaryInsightSection(
                     featureFlags: model.dependencies.featureFlags.flags,
@@ -331,7 +322,6 @@ public struct AtlasInsightsScreen: View {
                 AtlasEpisodeIntelligenceSection(model: model, snapshot: state.insightsSnapshot, renderMode: state.renderMode)
             }
         }
-        .atlasRootListSurface()
         .sheet(isPresented: $contextSheetPresented) {
             AtlasContextEntrySheet(model: model, state: contextEditor)
         }
@@ -359,7 +349,7 @@ public struct AtlasInsightsScreen: View {
 
                 if let comparisonNote = state.insightsSnapshot.progressEvidence.comparisonNote {
                     Text(comparisonNote)
-                        .font(.caption.weight(.semibold))
+                        .atlasTextRole(.deckEyebrow)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
 
@@ -419,6 +409,7 @@ private struct AtlasStackDashboardSection: View {
         Section("Stack dashboard") {
             AtlasSectionCard(style: .elevated) {
                 Text(snapshot.summary)
+                    .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
 
                 if snapshot.burdenFacts.isEmpty == false {
@@ -439,24 +430,24 @@ private struct AtlasStackDashboardSection: View {
                 ForEach(snapshot.activeProtocols) { item in
                     VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
                         Text(item.title)
-                            .font(.body.weight(.semibold))
+                            .atlasTextRole(.cardBody)
                             .foregroundStyle(AtlasPalette.textPrimary)
                         Text("\(item.kindLabel) • \(item.cadenceLabel)")
-                            .font(.caption)
+                            .atlasTextRole(.supporting)
                             .foregroundStyle(AtlasPalette.textSecondary)
                         if let doseLabel = item.doseLabel {
                             Text("Dose \(doseLabel)")
-                                .font(.caption)
+                                .atlasTextRole(.supporting)
                                 .foregroundStyle(AtlasPalette.textSecondary)
                         }
                         if let nextDueLabel = item.nextDueLabel {
                             Text("Next due: \(nextDueLabel)")
-                                .font(.caption)
+                                .atlasTextRole(.supporting)
                                 .foregroundStyle(AtlasPalette.textSecondary)
                         }
                         if let lowStockLabel = item.lowStockLabel {
                             Text("Inventory watch: \(lowStockLabel)")
-                                .font(.caption.weight(.semibold))
+                                .atlasTextRole(.deckEyebrow)
                                 .foregroundStyle(.orange)
                         }
                     }
@@ -473,6 +464,7 @@ private struct AtlasBiometricsOverlaySection: View {
         Section("Biometrics overlays") {
             AtlasSectionCard(style: .utility) {
                 Text(snapshot.summary)
+                    .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
 
                 ForEach(snapshot.groups) { group in
@@ -480,28 +472,28 @@ private struct AtlasBiometricsOverlaySection: View {
 
                     VStack(alignment: .leading, spacing: AtlasSpacing.small) {
                         Text(group.title)
-                            .font(.body.weight(.semibold))
+                            .atlasTextRole(.cardBody)
                             .foregroundStyle(AtlasPalette.textPrimary)
                         Text(group.subtitle)
-                            .font(.caption)
+                            .atlasTextRole(.supporting)
                             .foregroundStyle(AtlasPalette.textSecondary)
 
                         ForEach(group.series) { series in
                             VStack(alignment: .leading, spacing: AtlasSpacing.small) {
                                 Text(series.title)
-                                    .font(.caption.weight(.semibold))
+                                    .atlasTextRole(.deckEyebrow)
                                     .foregroundStyle(AtlasPalette.primary)
-                                    .textCase(.uppercase)
                                 Text(series.latestValueLabel)
+                                    .atlasTextRole(.cardBody)
                                     .foregroundStyle(AtlasPalette.textPrimary)
                                 if let trendLabel = series.trendLabel {
                                     Text(trendLabel)
-                                        .font(.caption)
+                                        .atlasTextRole(.supporting)
                                         .foregroundStyle(AtlasPalette.textSecondary)
                                 }
                                 if let referenceRangeLabel = series.referenceRangeLabel {
                                     Text("Reference: \(referenceRangeLabel)")
-                                        .font(.caption)
+                                        .atlasTextRole(.supporting)
                                         .foregroundStyle(AtlasPalette.textSecondary)
                                 }
                                 if series.points.isEmpty == false {
@@ -545,7 +537,7 @@ private struct AtlasDeterministicExplainabilitySection: View {
             Section("Why this appears") {
                 AtlasSectionCard {
                     Text("Atlas is describing nearby timing patterns from local records only. These cards are descriptive, bounded, and do not claim cause or recommend changes.")
-                        .font(.caption)
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
 
                     ForEach(Array(snapshot.deterministicExplanations.enumerated()), id: \.element.id) { index, card in
@@ -555,10 +547,11 @@ private struct AtlasDeterministicExplainabilitySection: View {
 
                         VStack(alignment: .leading, spacing: AtlasSpacing.small) {
                             Text(card.title)
-                                .font(.body.weight(.semibold))
+                                .atlasTextRole(.cardBody)
                                 .foregroundStyle(AtlasPalette.textPrimary)
 
                             Text(card.summary)
+                                .atlasTextRole(.supporting)
                                 .foregroundStyle(AtlasPalette.textSecondary)
 
                             AtlasDeterministicInsightFactList(facts: card.facts)
@@ -579,10 +572,10 @@ private struct AtlasDeterministicInsightFactList: View {
             ForEach(facts) { fact in
                 VStack(alignment: .leading, spacing: 2) {
                     Text(fact.label)
-                        .font(.caption.weight(.semibold))
+                        .atlasTextRole(.deckEyebrow)
                         .foregroundStyle(AtlasPalette.primary)
                     Text(fact.value)
-                        .font(.caption)
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
             }
@@ -604,12 +597,12 @@ private struct AtlasContextInsightSection: View {
                         .foregroundStyle(AtlasPalette.textSecondary)
                 } else {
                     Text("\(snapshot.contextTrend.recentEntryCount) context entr\(snapshot.contextTrend.recentEntryCount == 1 ? "y" : "ies") in the last two weeks")
-                        .font(.body.weight(.semibold))
+                        .atlasTextRole(.cardBody)
                         .foregroundStyle(AtlasPalette.textPrimary)
 
                     if let latestLabel = snapshot.contextTrend.latestLabel {
                         Text(latestLabel)
-                            .font(.caption)
+                            .atlasTextRole(.supporting)
                             .foregroundStyle(AtlasPalette.textSecondary)
                     }
 
@@ -623,13 +616,13 @@ private struct AtlasContextInsightSection: View {
 
                     if quickFacts.isEmpty == false {
                         Text(quickFacts.joined(separator: " • "))
-                            .font(.caption)
+                            .atlasTextRole(.supporting)
                             .foregroundStyle(AtlasPalette.textSecondary)
                     }
 
                     if snapshot.savedContextPresets.isEmpty == false {
                         Text("\(snapshot.savedContextPresets.count) saved preset\(snapshot.savedContextPresets.count == 1 ? "" : "s") ready for Today and quick capture")
-                            .font(.caption)
+                            .atlasTextRole(.supporting)
                             .foregroundStyle(AtlasPalette.textSecondary)
                     }
 
@@ -645,18 +638,18 @@ private struct AtlasContextInsightSection: View {
 
                                         if let presetTitle = model.contextPresetTitle(for: entry.presetKey) {
                                             Text("Preset: \(presetTitle)")
-                                                .font(.caption2)
+                                                .atlasTextRole(.metricLabel)
                                                 .foregroundStyle(AtlasPalette.textTertiary)
                                         }
                                     }
                                     Spacer(minLength: 12)
                                     Text(entry.loggedAt.formatted(date: .abbreviated, time: .shortened))
-                                        .font(.caption)
+                                        .atlasTextRole(.supporting)
                                         .foregroundStyle(AtlasPalette.textSecondary)
                                 }
                                 if let detail = model.renderedContextDetail(entry, renderMode: renderMode) {
                                     Text(detail)
-                                        .font(.caption)
+                                        .atlasTextRole(.supporting)
                                         .foregroundStyle(AtlasPalette.textSecondary)
                                 }
                             }
@@ -680,7 +673,7 @@ private struct AtlasWorkoutInsightSection: View {
                         .foregroundStyle(AtlasPalette.textSecondary)
                 } else {
                     Text("Recent workouts imported from Apple Health stay local to this Atlas timeline.")
-                        .font(.caption)
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
 
                     ForEach(snapshot.recentWorkoutEntries) { entry in
@@ -690,17 +683,17 @@ private struct AtlasWorkoutInsightSection: View {
                                     .foregroundStyle(AtlasPalette.textPrimary)
                                 Spacer()
                                 Text(entry.durationLabel)
-                                    .font(.caption.weight(.semibold))
+                                    .atlasTextRole(.deckEyebrow)
                                     .foregroundStyle(AtlasPalette.textSecondary)
                             }
 
                             Text(entry.startedAt.formatted(date: .abbreviated, time: .shortened))
-                                .font(.caption)
+                                .atlasTextRole(.supporting)
                                 .foregroundStyle(AtlasPalette.textSecondary)
 
                             if let detailLabel = entry.detailLabel {
                                 Text(detailLabel)
-                                    .font(.caption)
+                                    .atlasTextRole(.supporting)
                                     .foregroundStyle(AtlasPalette.textSecondary)
                             }
                         }
@@ -740,12 +733,12 @@ private struct AtlasWeightInsightSection: View {
 
                     if let latest = snapshot.weightTrend.latestLabel {
                         Text(latest)
-                            .font(.caption)
+                            .atlasTextRole(.supporting)
                             .foregroundStyle(AtlasPalette.textSecondary)
                     }
                     if let change = snapshot.weightTrend.changeLabel {
                         Text(change)
-                            .font(.caption.weight(.semibold))
+                            .atlasTextRole(.deckEyebrow)
                             .foregroundStyle(AtlasPalette.textSecondary)
                     }
 
@@ -758,7 +751,7 @@ private struct AtlasWeightInsightSection: View {
                                     Text(entry.valueLabel)
                                         .foregroundStyle(AtlasPalette.textPrimary)
                                     Text(entry.loggedAt.formatted(date: .abbreviated, time: .shortened))
-                                        .font(.caption)
+                                        .atlasTextRole(.supporting)
                                         .foregroundStyle(AtlasPalette.textSecondary)
                                 }
                                 Spacer()
@@ -803,10 +796,10 @@ private struct AtlasSymptomInsightSection: View {
                     ForEach(snapshot.symptomTrend) { item in
                         VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
                             Text(item.symptomKey.capitalized)
-                                .font(.body.weight(.semibold))
+                                .atlasTextRole(.cardBody)
                                 .foregroundStyle(AtlasPalette.textPrimary)
                             Text("\(item.averageSeverityLabel)/5 average • \(item.entryCount) entries • \(item.latestLabel)")
-                                .font(.caption)
+                                .atlasTextRole(.supporting)
                                 .foregroundStyle(AtlasPalette.textSecondary)
                         }
                     }
@@ -821,7 +814,7 @@ private struct AtlasSymptomInsightSection: View {
                                     Text("\(entry.symptomKey.capitalized) • \(entry.severity)/5")
                                         .foregroundStyle(AtlasPalette.textPrimary)
                                     Text(entry.loggedAt.formatted(date: .abbreviated, time: .shortened))
-                                        .font(.caption)
+                                        .atlasTextRole(.supporting)
                                         .foregroundStyle(AtlasPalette.textSecondary)
                                 }
                             }
@@ -854,19 +847,19 @@ private struct AtlasCustomMetricInsightSection: View {
                             HStack {
                                 VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
                                     Text(model.renderedMetricLabel(canonical: metric.label, renderMode: renderMode))
-                                        .font(.body.weight(.semibold))
+                                        .atlasTextRole(.cardBody)
                                         .foregroundStyle(AtlasPalette.textPrimary)
                                     if let protocolTitle = metric.canonicalProtocolTitle {
                                         Text(model.renderedTitle(canonical: protocolTitle, alias: metric.aliasProtocolTitle, renderMode: renderMode))
-                                            .font(.caption)
+                                            .atlasTextRole(.supporting)
                                             .foregroundStyle(AtlasPalette.textSecondary)
                                     }
                                     Text(metricTypeLabel(metric))
-                                        .font(.caption)
+                                        .atlasTextRole(.supporting)
                                         .foregroundStyle(AtlasPalette.textSecondary)
                                     if let latestEntryLabel = metric.latestEntryLabel {
                                         Text("Latest: \(latestEntryLabel)")
-                                            .font(.caption)
+                                            .atlasTextRole(.supporting)
                                             .foregroundStyle(AtlasPalette.textSecondary)
                                     }
                                 }
@@ -904,7 +897,7 @@ private struct AtlasCustomMetricInsightSection: View {
                     if snapshot.recentMetricEntries.isEmpty == false {
                         Divider()
                         Text("Recent custom metric entries")
-                            .font(.headline)
+                            .atlasTextRole(.cardBody)
                             .foregroundStyle(AtlasPalette.textPrimary)
 
                         ForEach(snapshot.recentMetricEntries) { entry in
@@ -916,11 +909,11 @@ private struct AtlasCustomMetricInsightSection: View {
                                         .foregroundStyle(AtlasPalette.textPrimary)
                                     if let protocolTitle = entry.canonicalProtocolTitle {
                                         Text(model.renderedTitle(canonical: protocolTitle, alias: entry.aliasProtocolTitle, renderMode: renderMode))
-                                            .font(.caption)
+                                            .atlasTextRole(.supporting)
                                             .foregroundStyle(AtlasPalette.textSecondary)
                                     }
                                     Text(entry.loggedAt.formatted(date: .abbreviated, time: .shortened))
-                                        .font(.caption)
+                                        .atlasTextRole(.supporting)
                                         .foregroundStyle(AtlasPalette.textSecondary)
                                 }
                             }
@@ -971,7 +964,7 @@ private struct AtlasInventoryBurnDownSection: View {
                         VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
                             HStack {
                                 Text(item.label)
-                                    .font(.body.weight(.semibold))
+                                    .atlasTextRole(.cardBody)
                                     .foregroundStyle(AtlasPalette.textPrimary)
                                 Spacer()
                                 if item.isLowStock {
@@ -979,11 +972,11 @@ private struct AtlasInventoryBurnDownSection: View {
                                 }
                             }
                             Text(item.quantityLabel)
-                                .font(.caption)
+                                .atlasTextRole(.supporting)
                                 .foregroundStyle(AtlasPalette.textSecondary)
                             if let projected = item.projectedDepletionLabel {
                                 Text(projected)
-                                    .font(.caption)
+                                    .atlasTextRole(.supporting)
                                     .foregroundStyle(AtlasPalette.textSecondary)
                             }
                         }
@@ -1028,28 +1021,26 @@ private struct AtlasAdherenceInsightSection: View {
 
                         if let label = snapshot.adherenceTrend.completionRateLabel {
                             Text(label)
-                                .font(.caption.weight(.semibold))
+                                .atlasTextRole(.deckEyebrow)
                                 .foregroundStyle(AtlasPalette.textSecondary)
                         }
 
                         if snapshot.adherenceTrend.dailySummaries.isEmpty == false {
                             VStack(alignment: .leading, spacing: AtlasSpacing.small) {
                                 Text("Month view")
-                                    .font(.caption.weight(.semibold))
+                                    .atlasTextRole(.deckEyebrow)
                                     .foregroundStyle(AtlasPalette.primary)
-                                    .textCase(.uppercase)
 
                                 AtlasAdherenceMonthGrid(days: snapshot.adherenceTrend.dailySummaries)
 
                                 Text("Last 14 days")
-                                    .font(.caption.weight(.semibold))
+                                    .atlasTextRole(.deckEyebrow)
                                     .foregroundStyle(AtlasPalette.primary)
-                                    .textCase(.uppercase)
 
                                 AtlasAdherenceDayStrip(days: Array(snapshot.adherenceTrend.dailySummaries.suffix(14)))
 
                                 Text("Green means taken, orange means skipped, red means overdue, blue means moved, and muted means no due item for that day.")
-                                    .font(.caption)
+                                    .atlasTextRole(.supporting)
                                     .foregroundStyle(AtlasPalette.textSecondary)
                             }
                         }
@@ -1100,10 +1091,10 @@ private struct AtlasAdherenceCalendarDay: View {
     var body: some View {
         VStack(spacing: 4) {
             Text(day.shortTitle)
-                .font(.caption2)
+                .atlasTextRole(.metricLabel)
                 .foregroundStyle(AtlasPalette.textSecondary)
             Text(dayOfMonthLabel)
-                .font(.caption.weight(.semibold))
+                .atlasTextRole(.deckEyebrow)
                 .foregroundStyle(day.scheduledCount == 0 ? AtlasPalette.textSecondary : AtlasPalette.textPrimary)
                 .frame(maxWidth: .infinity)
                 .frame(height: 34)
@@ -1167,10 +1158,10 @@ private struct AtlasAdherenceDayBadge: View {
     var body: some View {
         VStack(spacing: 6) {
             Text(day.shortTitle)
-                .font(.caption2.weight(.semibold))
+                .atlasTextRole(.metricLabel)
                 .foregroundStyle(AtlasPalette.textSecondary)
             Text(day.scheduledCount == 0 ? " " : "\(max(1, day.scheduledCount))")
-                .font(.caption.weight(.bold))
+                .atlasTextRole(.deckEyebrow)
                 .foregroundStyle(textColor)
                 .frame(width: 28, height: 28)
                 .background(fillColor, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
@@ -1239,7 +1230,7 @@ private struct AtlasAmountEstimateSection: View {
         Section("Medication levels") {
             AtlasSectionCard {
                 Text(snapshot.amountInSystemDisclaimer)
-                    .font(.caption)
+                    .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
             }
             .listRowInsets(EdgeInsets())
@@ -1279,7 +1270,7 @@ private struct AtlasEpisodeIntelligenceSection: View {
         Section("Episode patterns") {
             AtlasSectionCard {
                 Text(snapshot.episodeIntelligence.disclaimer)
-                    .font(.caption)
+                    .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
 
                 if snapshot.episodeIntelligence.hasAnyEpisodeData == false {
@@ -1288,16 +1279,16 @@ private struct AtlasEpisodeIntelligenceSection: View {
                 } else {
                     if snapshot.episodeIntelligence.compareWindows.isEmpty == false {
                         Text("Compare windows")
-                            .font(.headline)
+                            .atlasTextRole(.cardBody)
                             .foregroundStyle(AtlasPalette.textPrimary)
 
                         ForEach(snapshot.episodeIntelligence.compareWindows) { row in
                             VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
                                 Text(row.windowKind.title)
-                                    .font(.body.weight(.semibold))
+                                    .atlasTextRole(.cardBody)
                                     .foregroundStyle(AtlasPalette.textPrimary)
                                 Text(row.summaryLabel)
-                                    .font(.caption)
+                                    .atlasTextRole(.supporting)
                                     .foregroundStyle(AtlasPalette.textSecondary)
                             }
                         }
@@ -1306,28 +1297,29 @@ private struct AtlasEpisodeIntelligenceSection: View {
                     if snapshot.episodeIntelligence.patternCards.isEmpty == false {
                         Divider()
                         Text("For you")
-                            .font(.headline)
+                            .atlasTextRole(.cardBody)
                             .foregroundStyle(AtlasPalette.textPrimary)
 
                         ForEach(snapshot.episodeIntelligence.patternCards) { card in
                             VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
                                 if let canonicalTitle = card.canonicalProtocolTitle {
                                     Text(model.renderedTitle(canonical: canonicalTitle, alias: card.aliasProtocolTitle, renderMode: renderMode))
-                                        .font(.caption.weight(.semibold))
+                                        .atlasTextRole(.deckEyebrow)
                                         .foregroundStyle(AtlasPalette.primary)
                                 }
                                 Text(card.title)
-                                    .font(.body.weight(.semibold))
+                                    .atlasTextRole(.cardBody)
                                     .foregroundStyle(AtlasPalette.textPrimary)
                                 Text(card.detail)
+                                    .atlasTextRole(.supporting)
                                     .foregroundStyle(AtlasPalette.textSecondary)
                                 HStack {
                                     Text(card.confidence.label)
-                                        .font(.caption.weight(.semibold))
+                                        .atlasTextRole(.deckEyebrow)
                                         .foregroundStyle(AtlasPalette.textSecondary)
                                     if let windowKind = card.windowKind {
                                         Text(windowKind.title)
-                                            .font(.caption)
+                                            .atlasTextRole(.supporting)
                                             .foregroundStyle(AtlasPalette.textSecondary)
                                     }
                                 }
@@ -1339,30 +1331,30 @@ private struct AtlasEpisodeIntelligenceSection: View {
                     if snapshot.episodeIntelligence.recentEpisodes.isEmpty == false {
                         Divider()
                         Text("Recent dose episodes")
-                            .font(.headline)
+                            .atlasTextRole(.cardBody)
                             .foregroundStyle(AtlasPalette.textPrimary)
 
                         ForEach(snapshot.episodeIntelligence.recentEpisodes) { episode in
                             VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
                                 Text(model.renderedTitle(canonical: episode.canonicalProtocolTitle, alias: episode.aliasProtocolTitle, renderMode: renderMode))
-                                    .font(.body.weight(.semibold))
+                                    .atlasTextRole(.cardBody)
                                     .foregroundStyle(AtlasPalette.textPrimary)
                                 Text(episode.doseAt.formatted(date: .abbreviated, time: .shortened))
-                                    .font(.caption)
+                                    .atlasTextRole(.supporting)
                                     .foregroundStyle(AtlasPalette.textSecondary)
                                 Text(episode.reminderTimingLabel)
-                                    .font(.caption)
+                                    .atlasTextRole(.supporting)
                                     .foregroundStyle(AtlasPalette.textSecondary)
                                 Text(episode.adherenceLabel)
-                                    .font(.caption)
+                                    .atlasTextRole(.supporting)
                                     .foregroundStyle(AtlasPalette.textSecondary)
                                 if let siteLabel = episode.siteLabel {
                                     Text("Site: \(siteLabel)")
-                                        .font(.caption)
+                                        .atlasTextRole(.supporting)
                                         .foregroundStyle(AtlasPalette.textSecondary)
                                 }
                                 Text("\(episode.contextEntryCount) context entr\(episode.contextEntryCount == 1 ? "y" : "ies") • \(episode.symptomEntryCount) symptom entr\(episode.symptomEntryCount == 1 ? "y" : "ies") • \(episode.weightEntryCount) weight entr\(episode.weightEntryCount == 1 ? "y" : "ies") • \(episode.metricEntryCount) metric entr\(episode.metricEntryCount == 1 ? "y" : "ies")")
-                                    .font(.caption.weight(.semibold))
+                                    .atlasTextRole(.deckEyebrow)
                                     .foregroundStyle(AtlasPalette.textSecondary)
                             }
                         }
@@ -1389,9 +1381,10 @@ struct AtlasContextEntrySheet: View {
                 AtlasSectionCard(style: .hero) {
                     VStack(alignment: .leading, spacing: AtlasSpacing.small) {
                         Text("Capture the context Atlas can actually use.")
-                            .font(.headline)
+                            .atlasTextRole(.cardBody)
                             .foregroundStyle(AtlasPalette.textPrimary)
                         Text("Start with a preset, a recent meal, or a few quick taps. Notes stay optional.")
+                            .atlasTextRole(.supporting)
                             .foregroundStyle(AtlasPalette.textSecondary)
 
                         AtlasContextQuickPresetRail(
@@ -1460,7 +1453,7 @@ struct AtlasContextEntrySheet: View {
                     }
 
                     Text("Use keyboard dictation for voice-style capture. Atlas keeps this parsing local and deterministic.")
-                        .font(.caption)
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
 
@@ -1508,7 +1501,7 @@ struct AtlasContextEntrySheet: View {
                         .atlasStandaloneInputSurface()
 
                     Text("Leave the name blank and Atlas will suggest one from the selected context.")
-                        .font(.caption)
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
 
                     Button("Save preset") {
@@ -1528,9 +1521,8 @@ struct AtlasContextEntrySheet: View {
 
                         VStack(alignment: .leading, spacing: AtlasSpacing.small) {
                             Text("Manage saved presets")
-                                .font(.caption.weight(.semibold))
+                                .atlasTextRole(.deckEyebrow)
                                 .foregroundStyle(AtlasPalette.primary)
-                                .textCase(.uppercase)
 
                             ForEach(model.insightsSnapshot.savedContextPresets) { preset in
                                 AtlasSavedContextPresetRow(
@@ -1576,9 +1568,8 @@ struct AtlasContextEntrySheet: View {
 
                     VStack(alignment: .leading, spacing: AtlasSpacing.small) {
                         Text("GI context")
-                            .font(.caption.weight(.semibold))
+                            .atlasTextRole(.deckEyebrow)
                             .foregroundStyle(AtlasPalette.primary)
-                            .textCase(.uppercase)
 
                         AtlasChipFlowLayout(spacing: AtlasSpacing.small) {
                             ForEach(AtlasContextGITag.allCases, id: \.self) { tag in
@@ -1632,8 +1623,24 @@ private struct AtlasWeightEntrySheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("Entry") {
+            AtlasScreen {
+                AtlasCommandDeck(
+                    eyebrow: state.id == nil ? "Log weight" : "Edit weight",
+                    title: "Capture a clean trend anchor.",
+                    detail: "Atlas keeps weight logging lightweight so trend review stays easy to trust.",
+                    metrics: [
+                        AtlasMetricItem(id: "unit", title: "Unit", value: state.unit.rawValue, tint: AtlasPalette.primary),
+                        AtlasMetricItem(id: "entry", title: "Entry", value: state.id == nil ? "New" : "Saved", tint: state.id == nil ? AtlasPalette.secondaryText : AtlasPalette.success)
+                    ],
+                    tint: AtlasPalette.primary,
+                    style: .hero
+                ) { } footer: {
+                    Text("Choose the unit first so the numeric control and future trend summaries stay consistent.")
+                        .atlasTextRole(.supporting)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                }
+
+                AtlasSectionCard(style: .task, title: "Entry") {
                     DatePicker("Logged at", selection: $state.loggedAt)
                     Picker("Unit", selection: $state.unit) {
                         Text("lb").tag(AtlasWeightUnit.lb)
@@ -1648,24 +1655,45 @@ private struct AtlasWeightEntrySheet: View {
                             get: { Double(state.value) ?? (state.unit == .kg ? 80 : 180) },
                             set: { state.value = AtlasNumericEntryControl.formattedValue($0) }
                         ),
-                        range: state.unit == .kg ? 30...250 : 70...550,
-                        step: state.unit == .kg ? 0.5 : 1
-                    )
+                            range: state.unit == .kg ? 30...250 : 70...550,
+                            step: state.unit == .kg ? 0.5 : 1
+                        )
                 }
 
-                Section("Notes") {
+                AtlasSectionCard(style: .utility, title: "Notes") {
                     TextField("Optional note", text: $state.notes, axis: .vertical)
+                        .atlasStandaloneInputSurface()
+                }
+
+                AtlasSectionCard(style: .utility, title: "Commit") {
+                    Button("Save") {
+                        AtlasFeedback.selection()
+                        Task {
+                            await model.saveWeightEntry(state.domainDraft)
+                            dismiss()
+                        }
+                    }
+                    .buttonStyle(AtlasPrimaryButtonStyle())
+
+                    Button("Cancel") {
+                        AtlasFeedback.selection()
+                        dismiss()
+                    }
+                    .buttonStyle(AtlasSecondaryButtonStyle())
                 }
             }
-            .atlasFormSurface()
             .navigationTitle(state.id == nil ? "Log weight" : "Edit weight")
             .atlasKeyboardDoneToolbar()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button("Cancel") {
+                        AtlasFeedback.selection()
+                        dismiss()
+                    }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
+                        AtlasFeedback.selection()
                         Task {
                             await model.saveWeightEntry(state.domainDraft)
                             dismiss()
@@ -1689,21 +1717,64 @@ private struct AtlasSymptomEntrySheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                DatePicker("Logged at", selection: $state.loggedAt)
-                TextField("Symptom", text: $state.symptomKey)
-                Stepper("Severity: \(state.severity)/5", value: $state.severity, in: 1...5)
-                TextField("Notes", text: $state.notes, axis: .vertical)
+            AtlasScreen {
+                AtlasCommandDeck(
+                    eyebrow: state.id == nil ? "Log symptom" : "Edit symptom",
+                    title: state.symptomKey.isEmpty ? "Capture one bounded symptom signal." : state.symptomKey.capitalized,
+                    detail: "Severity stays intentionally simple so Atlas can trend it without turning the workflow into homework.",
+                    metrics: [
+                        AtlasMetricItem(id: "severity", title: "Severity", value: "\(state.severity)/5", tint: AtlasPalette.warning),
+                        AtlasMetricItem(id: "entry", title: "Entry", value: state.id == nil ? "New" : "Saved", tint: state.id == nil ? AtlasPalette.secondaryText : AtlasPalette.success)
+                    ],
+                    tint: AtlasPalette.warning,
+                    style: .hero
+                ) { } footer: {
+                    Text("Use a short symptom label and a restrained severity score so comparisons stay quick and understandable later.")
+                        .atlasTextRole(.supporting)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                }
+
+                AtlasSectionCard(style: .task, title: "Signal") {
+                    DatePicker("Logged at", selection: $state.loggedAt)
+                    TextField("Symptom", text: $state.symptomKey)
+                        .atlasStandaloneInputSurface()
+                    Stepper("Severity: \(state.severity)/5", value: $state.severity, in: 1...5)
+                }
+
+                AtlasSectionCard(style: .utility, title: "Notes") {
+                    TextField("Notes", text: $state.notes, axis: .vertical)
+                        .atlasStandaloneInputSurface()
+                }
+
+                AtlasSectionCard(style: .utility, title: "Commit") {
+                    Button("Save") {
+                        AtlasFeedback.selection()
+                        Task {
+                            await model.saveSymptomEntry(state.domainDraft)
+                            dismiss()
+                        }
+                    }
+                    .buttonStyle(AtlasPrimaryButtonStyle())
+
+                    Button("Cancel") {
+                        AtlasFeedback.selection()
+                        dismiss()
+                    }
+                    .buttonStyle(AtlasSecondaryButtonStyle())
+                }
             }
-            .atlasFormSurface()
             .navigationTitle(state.id == nil ? "Log symptom" : "Edit symptom")
             .atlasKeyboardDoneToolbar()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button("Cancel") {
+                        AtlasFeedback.selection()
+                        dismiss()
+                    }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
+                        AtlasFeedback.selection()
                         Task {
                             await model.saveSymptomEntry(state.domainDraft)
                             dismiss()
@@ -1727,43 +1798,88 @@ private struct AtlasMetricDefinitionSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                TextField("Label", text: $state.label)
-                Picker("Type", selection: $state.valueType) {
-                    Text("Numeric").tag(AtlasCustomMetricValueType.number)
-                    Text("Scale").tag(AtlasCustomMetricValueType.scale)
-                    Text("Boolean").tag(AtlasCustomMetricValueType.boolean)
-                    Text("Text").tag(AtlasCustomMetricValueType.text)
+            AtlasScreen {
+                AtlasCommandDeck(
+                    eyebrow: state.id == nil ? "New metric" : "Edit metric",
+                    title: state.label.isEmpty ? "Define a metric Atlas can reuse." : state.label,
+                    detail: "Keep custom metrics constrained so they stay legible across insight charts, filters, and quick logging.",
+                    metrics: [
+                        AtlasMetricItem(id: "type", title: "Type", value: state.valueType.displayTitle, tint: AtlasPalette.primary),
+                        AtlasMetricItem(id: "protocol", title: "Protocol", value: state.protocolID == nil ? "Shared" : "Linked", tint: state.protocolID == nil ? AtlasPalette.secondaryText : AtlasPalette.success)
+                    ],
+                    tint: AtlasPalette.primary,
+                    style: .hero
+                ) { } footer: {
+                    Text("Numeric and scale metrics work best when the value language stays consistent over time.")
+                        .atlasTextRole(.supporting)
+                        .foregroundStyle(AtlasPalette.textSecondary)
                 }
 
-                Picker("Protocol", selection: $state.protocolID) {
-                    Text("None").tag(String?.none)
-                    ForEach(model.libraryProtocols) { protocolSummary in
-                        Text(model.renderedTitle(canonical: protocolSummary.canonicalTitle, alias: protocolSummary.aliasTitle))
-                            .tag(String?.some(protocolSummary.id))
+                AtlasSectionCard(style: .task, title: "Definition") {
+                    TextField("Label", text: $state.label)
+                        .atlasStandaloneInputSurface()
+                    Picker("Type", selection: $state.valueType) {
+                        Text("Numeric").tag(AtlasCustomMetricValueType.number)
+                        Text("Scale").tag(AtlasCustomMetricValueType.scale)
+                        Text("Boolean").tag(AtlasCustomMetricValueType.boolean)
+                        Text("Text").tag(AtlasCustomMetricValueType.text)
+                    }
+                    .pickerStyle(.segmented)
+
+                    Picker("Protocol", selection: $state.protocolID) {
+                        Text("None").tag(String?.none)
+                        ForEach(model.libraryProtocols) { protocolSummary in
+                            Text(model.renderedTitle(canonical: protocolSummary.canonicalTitle, alias: protocolSummary.aliasTitle))
+                                .tag(String?.some(protocolSummary.id))
+                        }
                     }
                 }
 
-                if state.valueType == .number {
-                    TextField("Unit", text: $state.unit)
+                AtlasSectionCard(style: .utility, title: "Value rules") {
+                    if state.valueType == .number {
+                        TextField("Unit", text: $state.unit)
+                            .atlasStandaloneInputSurface()
+                    }
+
+                    if state.valueType == .scale {
+                        TextField("Scale minimum", text: $state.scaleMin)
+                            .atlasDecimalKeyboard()
+                            .atlasStandaloneInputSurface()
+                        TextField("Scale maximum", text: $state.scaleMax)
+                            .atlasDecimalKeyboard()
+                            .atlasStandaloneInputSurface()
+                    }
                 }
 
-                if state.valueType == .scale {
-                    TextField("Scale minimum", text: $state.scaleMin)
-                        .atlasDecimalKeyboard()
-                    TextField("Scale maximum", text: $state.scaleMax)
-                        .atlasDecimalKeyboard()
+                AtlasSectionCard(style: .utility, title: "Commit") {
+                    Button("Save") {
+                        AtlasFeedback.selection()
+                        Task {
+                            await model.saveMetricDefinition(state.domainDraft)
+                            dismiss()
+                        }
+                    }
+                    .buttonStyle(AtlasPrimaryButtonStyle())
+
+                    Button("Cancel") {
+                        AtlasFeedback.selection()
+                        dismiss()
+                    }
+                    .buttonStyle(AtlasSecondaryButtonStyle())
                 }
             }
-            .atlasFormSurface()
             .navigationTitle(state.id == nil ? "New metric" : "Edit metric")
             .atlasKeyboardDoneToolbar()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button("Cancel") {
+                        AtlasFeedback.selection()
+                        dismiss()
+                    }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
+                        AtlasFeedback.selection()
                         Task {
                             await model.saveMetricDefinition(state.domainDraft)
                             dismiss()
@@ -1790,58 +1906,98 @@ private struct AtlasMetricValueSheet: View {
         let selectedMetric = availableMetrics.first(where: { $0.id == state.metricID })
 
         NavigationStack {
-            Form {
-                Picker("Metric", selection: $state.metricID) {
-                    ForEach(availableMetrics) { metric in
-                        Text(model.renderedMetricLabel(canonical: metric.label)).tag(metric.id)
+            AtlasScreen {
+                AtlasCommandDeck(
+                    eyebrow: state.id == nil ? "Log metric" : "Edit metric entry",
+                    title: selectedMetric.map { model.renderedMetricLabel(canonical: $0.label) } ?? "Choose a metric",
+                    detail: "Atlas keeps custom metrics bounded so the log flow can stay fast without losing useful structure.",
+                    metrics: [
+                        AtlasMetricItem(id: "metric", title: "Metric", value: selectedMetric == nil ? "Unselected" : "Ready", tint: selectedMetric == nil ? AtlasPalette.warning : AtlasPalette.success),
+                        AtlasMetricItem(id: "type", title: "Type", value: selectedMetric?.valueType.displayTitle ?? "Unknown", tint: AtlasPalette.primary)
+                    ],
+                    tint: AtlasPalette.primary,
+                    style: .hero
+                ) { } footer: {
+                    Text("Pick the metric first, then Atlas will present the right control for number, scale, boolean, or text values.")
+                        .atlasTextRole(.supporting)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                }
+
+                AtlasSectionCard(style: .task, title: "Entry") {
+                    Picker("Metric", selection: $state.metricID) {
+                        ForEach(availableMetrics) { metric in
+                            Text(model.renderedMetricLabel(canonical: metric.label)).tag(metric.id)
+                        }
+                    }
+
+                    DatePicker("Logged at", selection: $state.loggedAt)
+
+                    if let selectedMetric {
+                        if selectedMetric.valueType == .number {
+                            AtlasNumericEntryControl(
+                                title: "Value",
+                                unitLabel: selectedMetric.unit,
+                                value: Binding(
+                                    get: { Double(state.numberValue) ?? 0 },
+                                    set: { state.numberValue = AtlasNumericEntryControl.formattedValue($0) }
+                                ),
+                                range: 0...500,
+                                step: 0.5
+                            )
+                        } else if selectedMetric.valueType == .scale {
+                            let min = Double(selectedMetric.scaleMin ?? 0)
+                            let max = Double(selectedMetric.scaleMax ?? 5)
+                            AtlasScaleValueControl(
+                                value: Binding(
+                                    get: { Double(state.numberValue) ?? min },
+                                    set: { newValue in
+                                        state.numberValue = AtlasScaleValueControl.formattedValue(newValue)
+                                    }
+                                ),
+                                range: min...max
+                            )
+                        } else if selectedMetric.valueType == .text {
+                            TextField("Text value", text: $state.textValue, axis: .vertical)
+                                .atlasStandaloneInputSurface()
+                        } else {
+                            Toggle("Value is true", isOn: Binding(
+                                get: { state.booleanValue ?? false },
+                                set: { state.booleanValue = $0 }
+                            ))
+                        }
                     }
                 }
 
-                DatePicker("Logged at", selection: $state.loggedAt)
-
-                if let selectedMetric {
-                    if selectedMetric.valueType == .number {
-                        AtlasNumericEntryControl(
-                            title: "Value",
-                            unitLabel: selectedMetric.unit,
-                            value: Binding(
-                                get: { Double(state.numberValue) ?? 0 },
-                                set: { state.numberValue = AtlasNumericEntryControl.formattedValue($0) }
-                            ),
-                            range: 0...500,
-                            step: 0.5
-                        )
-                    } else if selectedMetric.valueType == .scale {
-                        let min = Double(selectedMetric.scaleMin ?? 0)
-                        let max = Double(selectedMetric.scaleMax ?? 5)
-                        AtlasScaleValueControl(
-                            value: Binding(
-                                get: { Double(state.numberValue) ?? min },
-                                set: { newValue in
-                                    state.numberValue = AtlasScaleValueControl.formattedValue(newValue)
-                                }
-                            ),
-                            range: min...max
-                        )
-                    } else if selectedMetric.valueType == .text {
-                        TextField("Text value", text: $state.textValue, axis: .vertical)
-                    } else {
-                        Toggle("Value is true", isOn: Binding(
-                            get: { state.booleanValue ?? false },
-                            set: { state.booleanValue = $0 }
-                        ))
+                AtlasSectionCard(style: .utility, title: "Commit") {
+                    Button("Save") {
+                        AtlasFeedback.selection()
+                        Task {
+                            await model.saveMetricValueEntry(state.domainDraft)
+                            dismiss()
+                        }
                     }
+                    .buttonStyle(AtlasPrimaryButtonStyle())
+                    .disabled(state.metricID.isEmpty)
+
+                    Button("Cancel") {
+                        AtlasFeedback.selection()
+                        dismiss()
+                    }
+                    .buttonStyle(AtlasSecondaryButtonStyle())
                 }
             }
-            .atlasFormSurface()
             .navigationTitle(state.id == nil ? "Log metric" : "Edit metric entry")
             .atlasKeyboardDoneToolbar()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button("Cancel") {
+                        AtlasFeedback.selection()
+                        dismiss()
+                    }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
+                        AtlasFeedback.selection()
                         Task {
                             await model.saveMetricValueEntry(state.domainDraft)
                             dismiss()
@@ -2167,7 +2323,7 @@ private struct AtlasNutritionInsightSection: View {
 
                     if let latestMealLabel = snapshot.latestMealLabel {
                         Text(latestMealLabel)
-                            .font(.caption)
+                            .atlasTextRole(.supporting)
                             .foregroundStyle(AtlasPalette.textSecondary)
                     }
 
@@ -2178,16 +2334,15 @@ private struct AtlasNutritionInsightSection: View {
 
                     if quickFacts.isEmpty == false {
                         Text(quickFacts.joined(separator: " • "))
-                            .font(.caption)
+                            .atlasTextRole(.supporting)
                             .foregroundStyle(AtlasPalette.textSecondary)
                     }
 
                     if snapshot.weeklySignals.isEmpty == false {
                         VStack(alignment: .leading, spacing: AtlasSpacing.small) {
                             Text("Weekly rhythm")
-                                .font(.caption.weight(.semibold))
+                                .atlasTextRole(.deckEyebrow)
                                 .foregroundStyle(AtlasPalette.primary)
-                                .textCase(.uppercase)
 
                             ForEach(snapshot.weeklySignals) { signal in
                                 AtlasNutritionWeeklySignalRow(signal: signal)
@@ -2204,9 +2359,8 @@ private struct AtlasNutritionInsightSection: View {
                     if snapshot.coachingCards.isEmpty == false {
                         VStack(alignment: .leading, spacing: AtlasSpacing.small) {
                             Text("Coaching")
-                                .font(.caption.weight(.semibold))
+                                .atlasTextRole(.deckEyebrow)
                                 .foregroundStyle(AtlasPalette.primary)
-                                .textCase(.uppercase)
 
                             ForEach(snapshot.coachingCards) { card in
                                 AtlasNutritionCoachingCardView(card: card)
@@ -2215,7 +2369,7 @@ private struct AtlasNutritionInsightSection: View {
                     }
 
                     Text(snapshot.note)
-                        .font(.caption)
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
             }
@@ -2233,7 +2387,7 @@ private struct AtlasNutritionWeeklySignalRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: AtlasSpacing.xSmall) {
                     Text(signal.title)
-                        .font(.body.weight(.semibold))
+                        .atlasTextRole(.cardBody)
                         .foregroundStyle(AtlasPalette.textPrimary)
                     AtlasStatusBadge(
                         signal.valueLabel,
@@ -2241,7 +2395,7 @@ private struct AtlasNutritionWeeklySignalRow: View {
                     )
                 }
                 Text(signal.helperText)
-                    .font(.caption)
+                    .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
             }
             Spacer(minLength: 0)
@@ -2259,9 +2413,10 @@ private struct AtlasNutritionTargetRow: View {
                     .foregroundStyle(target.isMet ? AtlasPalette.success : AtlasPalette.primary)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(target.title)
-                        .font(.body.weight(.semibold))
+                        .atlasTextRole(.cardBody)
                         .foregroundStyle(AtlasPalette.textPrimary)
                     Text(target.progressLabel)
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
                 Spacer()
@@ -2275,7 +2430,7 @@ private struct AtlasNutritionTargetRow: View {
                 .tint(target.isMet ? AtlasPalette.success : AtlasPalette.primary)
 
             Text(target.helperText)
-                .font(.caption)
+                .atlasTextRole(.supporting)
                 .foregroundStyle(AtlasPalette.textSecondary)
         }
     }
@@ -2291,12 +2446,13 @@ private struct AtlasNutritionCoachingCardView: View {
                     .foregroundStyle(AtlasPalette.primary)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(card.title)
-                        .font(.body.weight(.semibold))
+                        .atlasTextRole(.cardBody)
                         .foregroundStyle(AtlasPalette.textPrimary)
                     Text(card.summary)
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
                     Text(card.helperText)
-                        .font(.caption)
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
             }
@@ -2318,15 +2474,16 @@ struct AtlasNutritionSuggestionButton: View {
                     .foregroundStyle(AtlasPalette.primary)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(suggestion.title)
-                        .font(.body.weight(.semibold))
+                        .atlasTextRole(.cardBody)
                         .foregroundStyle(AtlasPalette.textPrimary)
                     Text(suggestion.subtitle)
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
                     Text(suggestion.helperText)
-                        .font(.caption)
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
                     Text(buttonTitle)
-                        .font(.caption.weight(.semibold))
+                        .atlasTextRole(.deckEyebrow)
                         .foregroundStyle(AtlasPalette.primary)
                 }
                 Spacer()
@@ -2521,9 +2678,8 @@ struct AtlasContextQuickPresetRail: View {
         VStack(alignment: .leading, spacing: AtlasSpacing.small) {
             if let title {
                 Text(title)
-                    .font(.caption.weight(.semibold))
+                    .atlasTextRole(.deckEyebrow)
                     .foregroundStyle(AtlasPalette.primary)
-                    .textCase(.uppercase)
             }
 
             ScrollView(.horizontal, showsIndicators: false) {
@@ -2537,7 +2693,7 @@ struct AtlasContextQuickPresetRail: View {
                                     .lineLimit(1)
                                 if let subtitle = preset.subtitle {
                                     Text(subtitle)
-                                        .font(.caption2)
+                                        .atlasTextRole(.metricLabel)
                                         .foregroundStyle(AtlasPalette.textSecondary)
                                         .lineLimit(2)
                                 }
@@ -2562,9 +2718,8 @@ struct AtlasRecentMealQuickRail: View {
     var body: some View {
         VStack(alignment: .leading, spacing: AtlasSpacing.small) {
             Text("Recent meals")
-                .font(.caption.weight(.semibold))
+                .atlasTextRole(.deckEyebrow)
                 .foregroundStyle(AtlasPalette.primary)
-                .textCase(.uppercase)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: AtlasSpacing.small) {
@@ -2577,7 +2732,7 @@ struct AtlasRecentMealQuickRail: View {
                                     .lineLimit(1)
                                 if let subtitle = item.subtitle {
                                     Text(subtitle)
-                                        .font(.caption2)
+                                        .atlasTextRole(.metricLabel)
                                         .foregroundStyle(AtlasPalette.textSecondary)
                                         .lineLimit(2)
                                 }
@@ -2600,9 +2755,8 @@ struct AtlasNutritionLookupRail: View {
         if items.isEmpty == false {
             VStack(alignment: .leading, spacing: AtlasSpacing.small) {
                 Text(title)
-                    .font(.caption.weight(.semibold))
+                    .atlasTextRole(.deckEyebrow)
                     .foregroundStyle(AtlasPalette.primary)
-                    .textCase(.uppercase)
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: AtlasSpacing.small) {
@@ -2614,7 +2768,7 @@ struct AtlasNutritionLookupRail: View {
                                     Text(item.title)
                                         .lineLimit(1)
                                     Text(item.subtitle)
-                                        .font(.caption2)
+                                        .atlasTextRole(.metricLabel)
                                         .foregroundStyle(AtlasPalette.textSecondary)
                                         .lineLimit(2)
                                 }
@@ -2639,7 +2793,7 @@ private struct AtlasSavedContextPresetRow: View {
             VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
                 HStack(spacing: AtlasSpacing.xSmall) {
                     Text(preset.title)
-                        .font(.body.weight(.semibold))
+                        .atlasTextRole(.cardBody)
                         .foregroundStyle(AtlasPalette.textPrimary)
                     if isSelected {
                         AtlasStatusBadge("Selected", tint: AtlasPalette.secondaryText)
@@ -2656,13 +2810,13 @@ private struct AtlasSavedContextPresetRow: View {
                     giTags: preset.giTags
                 ) {
                     Text(subtitle)
-                        .font(.caption)
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
 
                 if let lastUsedAt = preset.lastUsedAt {
                     Text("Used \(lastUsedAt.formatted(date: .abbreviated, time: .omitted))")
-                        .font(.caption2)
+                        .atlasTextRole(.metricLabel)
                         .foregroundStyle(AtlasPalette.textTertiary)
                 }
             }
@@ -2674,7 +2828,9 @@ private struct AtlasSavedContextPresetRow: View {
 
             Button(role: .destructive, action: onDelete) {
                 Image(systemName: "trash")
-                    .font(.caption.weight(.semibold))
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 13, height: 13)
             }
             .buttonStyle(.plain)
             .foregroundStyle(AtlasPalette.textSecondary)
@@ -2785,9 +2941,8 @@ private struct AtlasContextSelectionSection<Option: Hashable & CaseIterable>: Vi
     var body: some View {
         VStack(alignment: .leading, spacing: AtlasSpacing.small) {
             Text(title)
-                .font(.caption.weight(.semibold))
+                .atlasTextRole(.deckEyebrow)
                 .foregroundStyle(AtlasPalette.primary)
-                .textCase(.uppercase)
 
             AtlasChipFlowLayout(spacing: AtlasSpacing.small) {
                 Button(noneTitle) {
@@ -3067,6 +3222,21 @@ private extension String {
     }
 }
 
+private extension AtlasCustomMetricValueType {
+    var displayTitle: String {
+        switch self {
+        case .number:
+            return "Numeric"
+        case .scale:
+            return "Scale"
+        case .boolean:
+            return "Boolean"
+        case .text:
+            return "Text"
+        }
+    }
+}
+
 private extension View {
     @ViewBuilder
     func atlasDecimalKeyboard() -> some View {
@@ -3139,12 +3309,14 @@ private struct AtlasQuickActionTile: View {
                         )
                         .frame(width: 44, height: 44)
                     Image(systemName: symbol)
-                        .font(.title3.weight(.semibold))
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 18, height: 18)
                 }
                 Text(title)
-                    .font(.body.weight(.semibold))
+                    .atlasTextRole(.cardBody)
                 Text(subtitle)
-                    .font(.caption)
+                    .atlasTextRole(.supporting)
                     .fixedSize(horizontal: false, vertical: true)
                     .foregroundStyle(prominence == .primary ? .white.opacity(0.9) : AtlasPalette.textSecondary)
             }
@@ -3199,11 +3371,11 @@ private struct AtlasScaleValueControl: View {
         VStack(alignment: .leading, spacing: AtlasSpacing.small) {
             HStack {
                 Text("Scale value")
-                    .font(.body.weight(.semibold))
+                    .atlasTextRole(.cardBody)
                     .foregroundStyle(AtlasPalette.textPrimary)
                 Spacer()
                 Text("\(AtlasScaleValueControl.formattedValue(value)) / \(AtlasScaleValueControl.formattedValue(range.upperBound))")
-                    .font(.caption.weight(.semibold))
+                    .atlasTextRole(.deckEyebrow)
                     .foregroundStyle(AtlasPalette.primary)
             }
 
@@ -3249,11 +3421,11 @@ private struct AtlasNumericEntryControl: View {
         VStack(alignment: .leading, spacing: AtlasSpacing.small) {
             HStack(alignment: .firstTextBaseline) {
                 Text(title)
-                    .font(.body.weight(.semibold))
+                    .atlasTextRole(.cardBody)
                     .foregroundStyle(AtlasPalette.textPrimary)
                 Spacer()
                 Text(displayValue)
-                    .font(.caption.weight(.semibold))
+                    .atlasTextRole(.deckEyebrow)
                     .foregroundStyle(AtlasPalette.primary)
             }
 
@@ -3307,7 +3479,7 @@ private struct AtlasInsightsInlineMessage: View {
 
     var body: some View {
         Text(text)
-            .font(.caption.weight(.semibold))
+            .atlasTextRole(.deckEyebrow)
             .foregroundStyle(.red)
             .padding()
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -3315,6 +3487,18 @@ private struct AtlasInsightsInlineMessage: View {
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .fill(Color.red.opacity(0.08))
             )
+    }
+}
+
+private struct AtlasInsightsSectionHeader: View {
+    let title: String
+
+    var body: some View {
+        Text(title)
+            .atlasTextRole(.deckEyebrow)
+            .foregroundStyle(AtlasPalette.primary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, AtlasSpacing.small)
     }
 }
 
@@ -3333,9 +3517,10 @@ private struct AtlasInsightsEmptyStateCard<Actions: View>: View {
         AtlasSectionCard {
             VStack(alignment: .leading, spacing: AtlasSpacing.medium) {
                 Text(title)
-                    .font(.title3.weight(.semibold))
+                    .atlasTextRole(.cardTitle)
                     .foregroundStyle(AtlasPalette.textPrimary)
                 Text(message)
+                    .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
                 actions
             }

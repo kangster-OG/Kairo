@@ -404,16 +404,41 @@ public func atlasMascotTimelineNotificationRequests(
 
 struct AtlasMascotRecapPreviewCard: View {
     let descriptor: AtlasMascotRecapDescriptor
+    @State private var previewImage: UIImage?
 
     var body: some View {
-        AtlasMascotRecapCanvas(descriptor: descriptor)
-            .frame(maxWidth: .infinity)
-            .frame(height: 248)
-            .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
-                    .stroke(.white.opacity(0.16), lineWidth: 1)
+        GeometryReader { proxy in
+            ZStack {
+                if let previewImage {
+                    Image(uiImage: previewImage)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                        .clipped()
+                } else {
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .fill(Color.white.opacity(0.04))
+                        .overlay {
+                            ProgressView()
+                                .progressViewStyle(.circular)
+                                .tint(.white.opacity(0.72))
+                        }
+                        .padding(12)
+                }
             }
+            .frame(width: proxy.size.width, height: proxy.size.height, alignment: .top)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 320)
+        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .stroke(.white.opacity(0.16), lineWidth: 1)
+        }
+        .contentShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .task(id: descriptor.id) {
+            previewImage = atlasMascotRecapPreviewImage(for: descriptor)
+        }
     }
 }
 
@@ -538,6 +563,16 @@ private func atlasMascotReadableTimestamp(_ timestamp: String) -> String {
         return timestamp
     }
     return date.formatted(date: .abbreviated, time: .shortened)
+}
+
+@MainActor
+private func atlasMascotRecapPreviewImage(for descriptor: AtlasMascotRecapDescriptor) -> UIImage? {
+    let renderer = ImageRenderer(
+        content: AtlasMascotRecapCanvas(descriptor: descriptor)
+            .frame(width: 1_200, height: 1_500)
+    )
+    renderer.scale = UIScreen.main.scale
+    return renderer.uiImage
 }
 
 private func atlasMascotMediaPointLabel(_ points: Int) -> String {

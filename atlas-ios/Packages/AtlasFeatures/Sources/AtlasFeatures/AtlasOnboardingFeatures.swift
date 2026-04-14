@@ -210,7 +210,9 @@ private struct AtlasOnboardingHeader: View {
                     HStack {
                         Button(action: onBack) {
                             Image(systemName: "chevron.left")
-                                .font(.body.weight(.semibold))
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 13, height: 13)
                                 .foregroundStyle(.white)
                                 .frame(width: 36, height: 36)
                                 .background(
@@ -222,7 +224,7 @@ private struct AtlasOnboardingHeader: View {
                         .accessibilityHint("Returns to the previous onboarding step.")
                         Spacer()
                         Text("Atlas")
-                            .font(.headline.weight(.semibold))
+                            .atlasTextRole(.cardBody)
                             .foregroundStyle(.white)
                         Spacer()
                         Color.clear.frame(width: 36, height: 36)
@@ -262,7 +264,7 @@ private struct AtlasOnboardingFooter: View {
         VStack(spacing: AtlasSpacing.small) {
             if let secondaryTitle, let onSecondary {
                 Button(secondaryTitle, action: onSecondary)
-                    .font(.body.weight(.semibold))
+                    .atlasTextRole(.cardBody)
                     .foregroundStyle(AtlasPalette.primary)
             }
 
@@ -330,9 +332,10 @@ private struct AtlasOnboardingSplash: View {
             AtlasSectionCard {
                 VStack(alignment: .leading, spacing: AtlasSpacing.small) {
                     Text("Built for private, serious daily use")
-                        .font(.headline.weight(.semibold))
+                        .atlasTextRole(.cardBody)
                         .foregroundStyle(AtlasPalette.textPrimary)
                     Text("Schedules, reminders, inventory, and privacy controls stay on device first, with guest access intact.")
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
             }
@@ -363,9 +366,10 @@ private struct AtlasOnboardingIntro: View {
         VStack(alignment: .leading, spacing: AtlasSpacing.large) {
             AtlasSectionCard(style: .hero) {
                 Text("All your tracking in one place")
-                    .font(.title2.weight(.bold))
+                    .atlasTextRole(.cardTitle)
                     .foregroundStyle(AtlasPalette.textPrimary)
                 Text("Atlas keeps your schedule, logging, reminders, inventory, and privacy settings together without making a cloud account mandatory.")
+                    .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
                 AtlasStatusBadge("Guest-first supported")
             }
@@ -538,7 +542,7 @@ private struct AtlasOnboardingProfileStep: View {
                 }
 
                 Text("Atlas will preview both mascot lines and let you pick and name one on the next step.")
-                    .font(.caption)
+                    .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
 
                 AtlasOnboardingStepperRow(
@@ -676,15 +680,14 @@ private struct AtlasOnboardingMascotStep: View {
                 }
 
                 Text("Leave it empty if you want Atlas to use the current form name instead.")
-                    .font(.caption)
+                    .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
             }
 
             VStack(alignment: .leading, spacing: AtlasSpacing.small) {
                 Text("Evolution lines")
-                    .font(.caption.weight(.semibold))
+                    .atlasTextRole(.deckEyebrow)
                     .foregroundStyle(AtlasPalette.primary)
-                    .textCase(.uppercase)
 
                 VStack(spacing: AtlasSpacing.medium) {
                     ForEach(AtlasMascotSelection.allCases, id: \.self) { selection in
@@ -724,7 +727,7 @@ private struct AtlasOnboardingMascotChoiceCard: View {
                     VStack(alignment: .leading, spacing: AtlasSpacing.small) {
                         HStack(spacing: AtlasSpacing.small) {
                             Text(selection.title)
-                                .font(.body.weight(.semibold))
+                                .atlasTextRole(.cardBody)
                                 .foregroundStyle(AtlasPalette.textPrimary)
 
                             AtlasStatusBadge(
@@ -734,11 +737,11 @@ private struct AtlasOnboardingMascotChoiceCard: View {
                         }
 
                         Text(selection.subtitle)
-                            .font(.caption)
+                            .atlasTextRole(.supporting)
                             .foregroundStyle(AtlasPalette.textSecondary)
 
                         Text(nicknamePreview)
-                            .font(.caption.weight(.semibold))
+                            .atlasTextRole(.deckEyebrow)
                             .foregroundStyle(AtlasPalette.primary)
                     }
 
@@ -793,19 +796,18 @@ private struct AtlasOnboardingMascotStagePreview: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            AtlasMascotSprite(
+            AtlasMascotIllustration(
                 line: atlasMascotLine(for: selection),
                 stage: stage,
-                pose: .idle,
-                size: 52
+                size: 58
             )
 
             Text(selection.title(for: stage))
-                .font(.caption.weight(.semibold))
+                .atlasTextRole(.deckEyebrow)
                 .foregroundStyle(AtlasPalette.textPrimary)
 
             Text(stageLabel)
-                .font(.caption2)
+                .atlasTextRole(.metricLabel)
                 .foregroundStyle(AtlasPalette.textSecondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1111,20 +1113,20 @@ private struct AtlasOnboardingStepperRow: View {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
                     Text(title)
-                        .font(.body.weight(.semibold))
+                        .atlasTextRole(.cardBody)
                         .foregroundStyle(AtlasPalette.textPrimary)
                     Text(subtitle)
-                        .font(.caption)
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
                 Spacer()
                 if isEnabled {
                     Button("Clear", action: onDisable)
-                        .font(.caption.weight(.semibold))
+                        .atlasTextRole(.deckEyebrow)
                         .foregroundStyle(AtlasPalette.primary)
                 } else {
                     Button("Add", action: onEnable)
-                        .font(.caption.weight(.semibold))
+                        .atlasTextRole(.deckEyebrow)
                         .foregroundStyle(AtlasPalette.primary)
                 }
             }
@@ -1132,7 +1134,7 @@ private struct AtlasOnboardingStepperRow: View {
             if isEnabled {
                 Stepper(value: value, in: range) {
                     Text("\(value.wrappedValue)")
-                        .font(.title3.weight(.semibold))
+                        .atlasTextRole(.cardTitle)
                         .foregroundStyle(AtlasPalette.textPrimary)
                 }
             }
@@ -1155,17 +1157,17 @@ private struct AtlasOnboardingDecimalStepperRow: View {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
                     Text(title)
-                        .font(.body.weight(.semibold))
+                        .atlasTextRole(.cardBody)
                         .foregroundStyle(AtlasPalette.textPrimary)
                     Text(subtitle)
-                        .font(.caption)
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
                 Spacer()
                 Button(value.wrappedValue == nil ? "Add" : "Clear") {
                     value.wrappedValue = value.wrappedValue == nil ? defaultValue : nil
                 }
-                .font(.caption.weight(.semibold))
+                .atlasTextRole(.deckEyebrow)
                 .foregroundStyle(AtlasPalette.primary)
             }
 
@@ -1175,7 +1177,9 @@ private struct AtlasOnboardingDecimalStepperRow: View {
                         value.wrappedValue = max(range.lowerBound, currentValue - step)
                     } label: {
                         Image(systemName: "minus")
-                            .font(.body.weight(.semibold))
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 12, height: 12)
                             .frame(width: 44, height: 44)
                     }
                     .buttonStyle(.plain)
@@ -1186,10 +1190,10 @@ private struct AtlasOnboardingDecimalStepperRow: View {
 
                     VStack(spacing: 4) {
                         Text(formatted(currentValue))
-                            .font(.title3.weight(.bold))
+                            .atlasTextRole(.cardTitle)
                             .foregroundStyle(AtlasPalette.textPrimary)
                         Text(unitLabel)
-                            .font(.caption.weight(.semibold))
+                            .atlasTextRole(.deckEyebrow)
                             .foregroundStyle(AtlasPalette.textTertiary)
                     }
                     .frame(maxWidth: .infinity)
@@ -1207,7 +1211,9 @@ private struct AtlasOnboardingDecimalStepperRow: View {
                         value.wrappedValue = min(range.upperBound, currentValue + step)
                     } label: {
                         Image(systemName: "plus")
-                            .font(.body.weight(.semibold))
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 12, height: 12)
                             .frame(width: 44, height: 44)
                     }
                     .buttonStyle(.plain)
@@ -1268,10 +1274,10 @@ private struct AtlasOnboardingTitle: View {
     var body: some View {
         VStack(alignment: .leading, spacing: AtlasSpacing.small) {
             Text(title)
-                .font(.title2.weight(.bold))
+                .atlasTextRole(.screenTitle)
                 .foregroundStyle(AtlasPalette.textPrimary)
             Text(subtitle)
-                .font(.body.weight(.medium))
+                .atlasTextRole(.screenSubtitle)
                 .foregroundStyle(AtlasPalette.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -1289,10 +1295,10 @@ private struct AtlasOptionCard: View {
             HStack(alignment: .top, spacing: AtlasSpacing.medium) {
                 VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
                     Text(title)
-                        .font(.body.weight(.semibold))
+                        .atlasTextRole(.cardBody)
                         .foregroundStyle(isSelected ? AtlasPalette.textPrimary : AtlasPalette.textPrimary)
                     Text(subtitle)
-                        .font(.caption)
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
                 Spacer()
@@ -1301,7 +1307,9 @@ private struct AtlasOptionCard: View {
                         .fill(isSelected ? AtlasPalette.primary : AtlasPalette.surfaceMuted)
                         .frame(width: 28, height: 28)
                     Image(systemName: isSelected ? "checkmark" : "circle.fill")
-                        .font(.system(size: 11, weight: .bold))
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 11, height: 11)
                         .foregroundStyle(isSelected ? .white : AtlasPalette.border)
                 }
             }
@@ -1350,7 +1358,7 @@ private struct AtlasToggleRow: View {
         Button(action: action) {
             HStack(spacing: AtlasSpacing.medium) {
                 Text(title)
-                    .font(.body.weight(.semibold))
+                    .atlasTextRole(.cardBody)
                     .foregroundStyle(AtlasPalette.textPrimary)
                 Spacer()
                 ZStack {
@@ -1404,16 +1412,18 @@ private struct AtlasOnboardingValueRow: View {
                     .fill(AtlasPalette.secondaryFill)
                     .frame(width: 42, height: 42)
                 Image(systemName: symbol)
-                    .font(.system(size: 16, weight: .semibold))
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 16, height: 16)
                     .foregroundStyle(AtlasPalette.primary)
             }
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
-                    .font(.body.weight(.semibold))
+                    .atlasTextRole(.cardBody)
                     .foregroundStyle(AtlasPalette.textPrimary)
                 Text(subtitle)
-                    .font(.caption)
+                    .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
