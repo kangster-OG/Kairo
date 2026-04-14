@@ -1782,6 +1782,7 @@ public struct AtlasSiteRecord: Codable, Equatable, Sendable, Identifiable {
     public var id: String
     public var name: String
     public var bodyArea: String?
+    public var mapRegionKey: AtlasBodyMapRegionKey?
     public var notes: String?
     public var createdAt: String
     public var updatedAt: String
@@ -2031,6 +2032,83 @@ public struct AtlasHealthWorkoutSample: Codable, Equatable, Sendable, Identifiab
     }
 }
 
+public enum AtlasHealthMetricKind: String, Codable, CaseIterable, Equatable, Sendable, Identifiable {
+    case steps
+    case sleepHours
+    case restingHeartRate
+    case heartRateVariability
+    case bloodPressureSystolic
+    case bloodPressureDiastolic
+    case bodyFatPercentage
+
+    public var id: String { rawValue }
+
+    public var metricKey: String {
+        switch self {
+        case .steps: "health_steps"
+        case .sleepHours: "health_sleep"
+        case .restingHeartRate: "health_resting_heart_rate"
+        case .heartRateVariability: "health_hrv"
+        case .bloodPressureSystolic: "health_blood_pressure_systolic"
+        case .bloodPressureDiastolic: "health_blood_pressure_diastolic"
+        case .bodyFatPercentage: "health_body_fat"
+        }
+    }
+
+    public var label: String {
+        switch self {
+        case .steps: "Steps"
+        case .sleepHours: "Sleep"
+        case .restingHeartRate: "Resting heart rate"
+        case .heartRateVariability: "HRV"
+        case .bloodPressureSystolic: "Blood pressure systolic"
+        case .bloodPressureDiastolic: "Blood pressure diastolic"
+        case .bodyFatPercentage: "Body fat"
+        }
+    }
+
+    public var unit: String {
+        switch self {
+        case .steps: "steps"
+        case .sleepHours: "hr"
+        case .restingHeartRate: "bpm"
+        case .heartRateVariability: "ms"
+        case .bloodPressureSystolic, .bloodPressureDiastolic: "mmHg"
+        case .bodyFatPercentage: "%"
+        }
+    }
+
+    public var aggregateSignalKind: AtlasHealthSignalKind {
+        switch self {
+        case .steps: .steps
+        case .sleepHours: .sleep
+        case .restingHeartRate: .restingHeartRate
+        case .heartRateVariability: .heartRateVariability
+        case .bloodPressureSystolic, .bloodPressureDiastolic: .bloodPressure
+        case .bodyFatPercentage: .bodyFat
+        }
+    }
+}
+
+public struct AtlasHealthMetricSample: Codable, Equatable, Sendable, Identifiable {
+    public var id: String
+    public var kind: AtlasHealthMetricKind
+    public var recordedAt: Date
+    public var value: Double
+
+    public init(
+        id: String,
+        kind: AtlasHealthMetricKind,
+        recordedAt: Date,
+        value: Double
+    ) {
+        self.id = id
+        self.kind = kind
+        self.recordedAt = recordedAt
+        self.value = value
+    }
+}
+
 public enum AtlasHealthNutritionMetricKind: String, Codable, CaseIterable, Equatable, Sendable, Identifiable {
     case water
     case calories
@@ -2231,8 +2309,26 @@ public extension AtlasSensitiveActionAuditRecord {
 }
 
 public extension AtlasSiteRecord {
-    static func make(id: String, name: String, bodyArea: String?, notes: String?, createdAt: String, updatedAt: String, archivedAt: String?) -> Self {
-        .init(id: id, name: name, bodyArea: bodyArea, notes: notes, createdAt: createdAt, updatedAt: updatedAt, archivedAt: archivedAt)
+    static func make(
+        id: String,
+        name: String,
+        bodyArea: String?,
+        mapRegionKey: AtlasBodyMapRegionKey? = nil,
+        notes: String?,
+        createdAt: String,
+        updatedAt: String,
+        archivedAt: String?
+    ) -> Self {
+        .init(
+            id: id,
+            name: name,
+            bodyArea: bodyArea,
+            mapRegionKey: mapRegionKey,
+            notes: notes,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            archivedAt: archivedAt
+        )
     }
 }
 

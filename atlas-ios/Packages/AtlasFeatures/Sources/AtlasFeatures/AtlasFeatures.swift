@@ -273,6 +273,7 @@ public final class AtlasAppModel {
     var vialDetails: [String: AtlasVialDetailSnapshot]
     var consumableDetails: [String: AtlasConsumableDetailSnapshot]
     var protocolSiteOptions: [String: AtlasProtocolSiteOptions]
+    private var autoCloudSyncTask: Task<Void, Never>?
 
     public init(
         activeTab: AtlasTab = .today,
@@ -378,6 +379,7 @@ public final class AtlasAppModel {
         self.vialDetails = [:]
         self.consumableDetails = [:]
         self.protocolSiteOptions = [:]
+        self.autoCloudSyncTask = nil
         syncShellViewStates()
     }
 
@@ -587,6 +589,7 @@ public final class AtlasAppModel {
             await syncRemindersIfPossible(referenceDate: now)
             protocolDetails[detail.id] = detail
             await refreshShellData()
+            queueAutomaticCloudSync(reason: "protocol creation")
             return detail
         } catch {
             setLoadErrorMessage(error.localizedDescription)
@@ -601,6 +604,7 @@ public final class AtlasAppModel {
             await syncRemindersIfPossible(referenceDate: now)
             protocolDetails[id] = detail
             await refreshShellData()
+            queueAutomaticCloudSync(reason: "protocol update")
             return detail
         } catch {
             setLoadErrorMessage(error.localizedDescription)
@@ -614,6 +618,7 @@ public final class AtlasAppModel {
             try await dependencies.persistence.coreLoop.logOccurrence(request, now: now)
             await syncRemindersIfPossible(referenceDate: now)
             await refreshShellData()
+            queueAutomaticCloudSync(reason: "timeline logging")
             if let detail = try await dependencies.persistence.protocols.fetchProtocolDetail(id: request.protocolID) {
                 protocolDetails[request.protocolID] = detail
             }
@@ -635,6 +640,7 @@ public final class AtlasAppModel {
         do {
             reminderSettings = try await dependencies.reminders.updateReminderSettings(update, referenceDate: currentDate())
             await refreshShellData()
+            queueAutomaticCloudSync(reason: "reminder settings")
         } catch {
             setLoadErrorMessage(error.localizedDescription)
         }
@@ -644,6 +650,7 @@ public final class AtlasAppModel {
         do {
             settingsSnapshot = try await dependencies.persistence.settings.updateTrustVaultRenderMode(renderMode, now: currentDate())
             await refreshShellData()
+            queueAutomaticCloudSync(reason: "privacy mode change")
         } catch {
             setLoadErrorMessage(error.localizedDescription)
         }
@@ -653,6 +660,7 @@ public final class AtlasAppModel {
         do {
             settingsSnapshot = try await dependencies.persistence.settings.updateSummarySettings(update, now: currentDate())
             await refreshShellData()
+            queueAutomaticCloudSync(reason: "summary settings")
         } catch {
             setLoadErrorMessage(error.localizedDescription)
         }
@@ -662,6 +670,7 @@ public final class AtlasAppModel {
         do {
             settingsSnapshot = try await dependencies.persistence.settings.updateRetentionSettings(update, now: currentDate())
             await refreshShellData()
+            queueAutomaticCloudSync(reason: "retention settings")
         } catch {
             setLoadErrorMessage(error.localizedDescription)
         }
@@ -671,6 +680,7 @@ public final class AtlasAppModel {
         do {
             settingsSnapshot = try await dependencies.persistence.settings.updateMascotSelection(mascotSelection, now: currentDate())
             await refreshShellData()
+            queueAutomaticCloudSync(reason: "mascot selection")
         } catch {
             setLoadErrorMessage(error.localizedDescription)
         }
@@ -680,6 +690,7 @@ public final class AtlasAppModel {
         do {
             settingsSnapshot = try await dependencies.persistence.settings.updateMascotNickname(nickname, now: currentDate())
             await refreshShellData()
+            queueAutomaticCloudSync(reason: "mascot nickname")
         } catch {
             setLoadErrorMessage(error.localizedDescription)
         }
@@ -808,9 +819,11 @@ public final class AtlasAppModel {
         let weights = try await dependencies.healthKit.fetchWeightSamples(since: since)
         let workouts = try await dependencies.healthKit.fetchWorkouts(since: since)
         let nutrition = try await dependencies.healthKit.fetchNutritionSamples(since: since)
+        let metrics = try await dependencies.healthKit.fetchMetricSamples(since: since)
         _ = try await dependencies.persistence.metrics.importWeightSamples(weights, now: syncDate)
         _ = try await dependencies.persistence.metrics.importWorkoutSamples(workouts, now: syncDate)
         _ = try await dependencies.persistence.metrics.importNutritionSamples(nutrition, now: syncDate)
+        _ = try await dependencies.persistence.metrics.importHealthMetricSamples(metrics, now: syncDate)
         settingsSnapshot = try await dependencies.persistence.settings.updateHealthConnection(
             provider: .appleHealth,
             enabled: true,
@@ -920,17 +933,7 @@ public final class AtlasAppModel {
     public func syncToCloud() async {
         await performCloudAction { [self] in
             let now = self.currentDate()
-            let deviceID: String? = nil
-            let export = try await self.dependencies.importExport.createRawExport(
-                AtlasRawExportRequest(format: .json, renderMode: .full),
-                now: now
-            )
-            let data = try Data(contentsOf: export.fileURL)
-            _ = try await self.dependencies.cloudSync.uploadExportBundle(
-                data,
-                generatedAt: now,
-                deviceID: deviceID
-            )
+            _ = try await self.runCloudSync(generatedAt: now)
             self.settingsSnapshot = try await self.dependencies.persistence.settings.updateAccountMode(.account, now: now)
             await self.refreshCloudStatus()
         }
@@ -1008,6 +1011,7 @@ public final class AtlasAppModel {
             let detail = try await dependencies.persistence.inventory.saveVial(draft, now: currentDate())
             invalidateInventoryCaches()
             await refreshShellData()
+            queueAutomaticCloudSync(reason: "vial update")
             vialDetails[detail.summary.id] = detail
             return detail
         } catch {
@@ -1021,6 +1025,7 @@ public final class AtlasAppModel {
             let detail = try await dependencies.persistence.inventory.saveConsumable(draft, now: currentDate())
             invalidateInventoryCaches()
             await refreshShellData()
+            queueAutomaticCloudSync(reason: "supply update")
             consumableDetails[detail.summary.id] = detail
             return detail
         } catch {
@@ -1034,6 +1039,7 @@ public final class AtlasAppModel {
             try await dependencies.persistence.inventory.archiveVial(id: id, now: currentDate())
             invalidateInventoryCaches()
             await refreshShellData()
+            queueAutomaticCloudSync(reason: "vial archive")
             presentUndoBanner(
                 AtlasUndoBannerState(
                     title: "Vial archived",
@@ -1051,6 +1057,7 @@ public final class AtlasAppModel {
             try await dependencies.persistence.inventory.setVialArchived(id: id, isArchived: isArchived, now: currentDate())
             invalidateInventoryCaches()
             await refreshShellData()
+            queueAutomaticCloudSync(reason: isArchived ? "vial archive" : "vial restore")
         } catch {
             setLoadErrorMessage(error.localizedDescription)
         }
@@ -1061,6 +1068,7 @@ public final class AtlasAppModel {
             try await dependencies.persistence.inventory.setConsumableArchived(id: id, isArchived: isArchived, now: currentDate())
             invalidateInventoryCaches()
             await refreshShellData()
+            queueAutomaticCloudSync(reason: isArchived ? "supply archive" : "supply restore")
             presentUndoBanner(
                 AtlasUndoBannerState(
                     title: isArchived ? "Supply archived" : "Supply restored",
@@ -1080,6 +1088,7 @@ public final class AtlasAppModel {
             _ = try await dependencies.persistence.inventory.updateProtocolInventorySettings(update, now: currentDate())
             invalidateInventoryCaches()
             await refreshShellData()
+            queueAutomaticCloudSync(reason: "protocol inventory settings")
         } catch {
             setLoadErrorMessage(error.localizedDescription)
         }
@@ -1090,6 +1099,7 @@ public final class AtlasAppModel {
             let result = try await dependencies.persistence.inventory.applyManualCorrection(correction, now: currentDate())
             invalidateInventoryCaches()
             await refreshShellData()
+            queueAutomaticCloudSync(reason: "inventory correction")
             vialDetails[result.vial.summary.id] = result.vial
             return result
         } catch {
@@ -1103,6 +1113,7 @@ public final class AtlasAppModel {
             let result = try await dependencies.persistence.inventory.applyConsumableAdjustment(adjustment, now: currentDate())
             invalidateInventoryCaches()
             await refreshShellData()
+            queueAutomaticCloudSync(reason: "supply adjustment")
             consumableDetails[result.consumable.summary.id] = result.consumable
             return result
         } catch {
@@ -1116,6 +1127,7 @@ public final class AtlasAppModel {
             let result = try await dependencies.persistence.inventory.recordConsumableProcurement(procurement, now: currentDate())
             invalidateInventoryCaches()
             await refreshShellData()
+            queueAutomaticCloudSync(reason: "procurement history")
             consumableDetails[result.consumable.summary.id] = result.consumable
             return result
         } catch {
@@ -1144,6 +1156,7 @@ public final class AtlasAppModel {
             _ = try await dependencies.persistence.inventory.saveSite(draft, now: currentDate())
             invalidateInventoryCaches()
             await refreshShellData()
+            queueAutomaticCloudSync(reason: "site update")
         } catch {
             setLoadErrorMessage(error.localizedDescription)
         }
@@ -1153,6 +1166,7 @@ public final class AtlasAppModel {
         do {
             _ = try await dependencies.persistence.calculator.saveProfile(draft, now: currentDate())
             await refreshShellData()
+            queueAutomaticCloudSync(reason: "calculator profile")
         } catch {
             setLoadErrorMessage(error.localizedDescription)
         }
@@ -1163,6 +1177,7 @@ public final class AtlasAppModel {
             try await dependencies.persistence.calculator.deleteProfile(id: id)
             invalidateInventoryCaches()
             await refreshShellData()
+            queueAutomaticCloudSync(reason: "calculator profile removal")
         } catch {
             setLoadErrorMessage(error.localizedDescription)
         }
@@ -1172,6 +1187,7 @@ public final class AtlasAppModel {
         do {
             let record = try await dependencies.persistence.metrics.saveContextEntry(draft, now: currentDate())
             await refreshShellData()
+            queueAutomaticCloudSync(reason: "context entry")
             if draft.id == nil {
                 presentUndoBanner(
                     AtlasUndoBannerState(
@@ -1190,6 +1206,7 @@ public final class AtlasAppModel {
         do {
             let preset = try await dependencies.persistence.metrics.saveContextPreset(draft, now: currentDate())
             await refreshShellData()
+            queueAutomaticCloudSync(reason: "context preset")
             return preset
         } catch {
             setLoadErrorMessage(error.localizedDescription)
@@ -1201,6 +1218,7 @@ public final class AtlasAppModel {
         do {
             try await dependencies.persistence.metrics.deleteContextPreset(id: id)
             await refreshShellData()
+            queueAutomaticCloudSync(reason: "context preset removal")
         } catch {
             setLoadErrorMessage(error.localizedDescription)
         }
@@ -1236,6 +1254,7 @@ public final class AtlasAppModel {
                 }
             }
             await refreshShellData()
+            queueAutomaticCloudSync(reason: "weight entry")
             if draft.id == nil {
                 presentUndoBanner(
                     AtlasUndoBannerState(
@@ -1254,6 +1273,7 @@ public final class AtlasAppModel {
         do {
             let record = try await dependencies.persistence.metrics.saveSymptomEntry(draft, now: currentDate())
             await refreshShellData()
+            queueAutomaticCloudSync(reason: "symptom entry")
             if draft.id == nil {
                 presentUndoBanner(
                     AtlasUndoBannerState(
@@ -1272,6 +1292,7 @@ public final class AtlasAppModel {
         do {
             _ = try await dependencies.persistence.metrics.saveProgressMeasurement(draft, now: currentDate())
             await refreshShellData()
+            queueAutomaticCloudSync(reason: "progress measurement")
         } catch {
             setLoadErrorMessage(error.localizedDescription)
         }
@@ -1281,6 +1302,7 @@ public final class AtlasAppModel {
         do {
             _ = try await dependencies.persistence.metrics.saveProgressPhoto(draft, now: currentDate())
             await refreshShellData()
+            queueAutomaticCloudSync(reason: "progress photo")
         } catch {
             setLoadErrorMessage(error.localizedDescription)
         }
@@ -1290,6 +1312,7 @@ public final class AtlasAppModel {
         do {
             _ = try await dependencies.persistence.metrics.saveMetricDefinition(draft, now: currentDate())
             await refreshShellData()
+            queueAutomaticCloudSync(reason: "metric definition")
         } catch {
             setLoadErrorMessage(error.localizedDescription)
         }
@@ -1299,6 +1322,7 @@ public final class AtlasAppModel {
         do {
             try await dependencies.persistence.metrics.archiveMetricDefinition(id: id, now: currentDate())
             await refreshShellData()
+            queueAutomaticCloudSync(reason: "metric archive")
         } catch {
             setLoadErrorMessage(error.localizedDescription)
         }
@@ -1308,6 +1332,7 @@ public final class AtlasAppModel {
         do {
             try await dependencies.persistence.metrics.deleteMetricDefinition(id: id)
             await refreshShellData()
+            queueAutomaticCloudSync(reason: "metric removal")
         } catch {
             setLoadErrorMessage(error.localizedDescription)
         }
@@ -1317,6 +1342,7 @@ public final class AtlasAppModel {
         do {
             let record = try await dependencies.persistence.metrics.saveMetricValueEntry(draft, now: currentDate())
             await refreshShellData()
+            queueAutomaticCloudSync(reason: "metric value")
             if draft.id == nil {
                 presentUndoBanner(
                     AtlasUndoBannerState(
@@ -1697,6 +1723,57 @@ public final class AtlasAppModel {
 
     var canCreateLiveReviewSession: Bool {
         dependencies.cloudSync.isConfigured() && cloudSession != nil
+    }
+
+    private func runCloudSync(generatedAt: Date) async throws -> AtlasCloudSessionSnapshot {
+        let export = try await dependencies.importExport.createRawExport(
+            AtlasRawExportRequest(format: .json, renderMode: .full),
+            now: generatedAt
+        )
+        let data = try Data(contentsOf: export.fileURL)
+        let session = try await dependencies.cloudSync.uploadExportBundle(
+            data,
+            generatedAt: generatedAt,
+            deviceID: dependencies.cloudSync.deviceIdentifier()
+        )
+        cloudSession = session
+        return session
+    }
+
+    private func queueAutomaticCloudSync(reason: String) {
+        guard dependencies.cloudSync.isConfigured(),
+              cloudSession != nil else {
+            return
+        }
+
+        autoCloudSyncTask?.cancel()
+        autoCloudSyncTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            guard Task.isCancelled == false else {
+                return
+            }
+            await self?.performAutomaticCloudSync(reason: reason)
+        }
+    }
+
+    private func performAutomaticCloudSync(reason: String) async {
+        guard cloudSession != nil,
+              isPerformingCloudAction == false else {
+            return
+        }
+
+        let now = currentDate()
+        if let lastSyncAt = cloudSession?.lastSyncAt,
+           now.timeIntervalSince(lastSyncAt) < 15 {
+            return
+        }
+
+        do {
+            _ = try await runCloudSync(generatedAt: now)
+            await refreshCloudStatus()
+        } catch {
+            setLoadErrorMessage("Automatic Atlas Cloud backup failed after \(reason.lowercased()): \(error.localizedDescription)")
+        }
     }
 
     private func performCloudAction(
@@ -4754,10 +4831,21 @@ public struct AtlasSettingsScreen: View {
                     Text("Connected account: \(session.email)")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(AtlasPalette.primary)
+                    if let deviceID = session.deviceID {
+                        Text("This device ID: \(deviceID)")
+                            .font(.caption2)
+                            .foregroundStyle(AtlasPalette.textSecondary)
+                    }
                     if let lastSyncAt = session.lastSyncAt {
                         Text("Cloud backup updated \(lastSyncAt.formatted(date: .abbreviated, time: .shortened))")
                             .font(.caption)
                             .foregroundStyle(AtlasPalette.textSecondary)
+                    }
+                    if session.newerBackupAvailable,
+                       let latestRemoteBackupAt = session.latestRemoteBackupAt {
+                        Text("A newer backup from another Atlas device is available from \(latestRemoteBackupAt.formatted(date: .abbreviated, time: .shortened)).")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.orange)
                     }
                     Button("Sync to Atlas Cloud") {
                         Task { await model.syncToCloud() }
@@ -5438,12 +5526,14 @@ public struct AtlasSettingsScreen: View {
 
             AtlasSectionCard(title: "Connected services") {
                 let health = model.settingsSnapshot.healthScaffold
+                let configuredSignals = health.signalSummaries.map(\.kind.title)
+                let importedSignals = health.signalSummaries.filter { $0.importedEntryCount > 0 }
                 Text(health.isAvailable ? "Apple Health is available as an optional connection." : "Apple Health is unavailable on this device.")
                     .foregroundStyle(AtlasPalette.textSecondary)
                 VStack(alignment: .leading, spacing: AtlasSpacing.small) {
                     AtlasSettingsStatusRow(
                         title: "Import types",
-                        value: "\(health.syncsWeight ? "Weight" : "")\(health.syncsWeight && health.syncsWorkouts ? " + " : "")\(health.syncsWorkouts ? "Workouts" : "")"
+                        value: configuredSignals.joined(separator: ", ")
                     )
                     AtlasSettingsStatusRow(
                         title: "Health state",
@@ -5461,8 +5551,16 @@ public struct AtlasSettingsScreen: View {
                             value: "\(health.syncedWorkoutEntryCount)"
                         )
                     }
+                    ForEach(importedSignals.filter { $0.kind != .weight && $0.kind != .workouts }) { signal in
+                        AtlasSettingsStatusRow(
+                            title: signal.kind.title,
+                            value: signal.lastEntryAt.flatMap { ISO8601DateFormatter().date(from: $0) }
+                                .map { "\(signal.importedEntryCount) • latest \($0.formatted(date: .abbreviated, time: .shortened))" }
+                                ?? "\(signal.importedEntryCount)"
+                        )
+                    }
                 }
-                Text("Health imports configured: \(health.syncsWeight ? "Weight" : "")\(health.syncsWeight && health.syncsWorkouts ? " + " : "")\(health.syncsWorkouts ? "Workouts" : "")")
+                Text("Health imports configured: \(configuredSignals.joined(separator: ", "))")
                     .font(.caption)
                     .foregroundStyle(AtlasPalette.textSecondary)
                 if let connection = health.connections.first {
@@ -5548,6 +5646,9 @@ public struct AtlasSettingsScreen: View {
     }
 
     private var syncSummary: String {
+        if model.cloudSession?.newerBackupAvailable == true {
+            return "Newer remote backup available"
+        }
         if model.cloudSession != nil {
             return "Connected"
         }
@@ -6800,6 +6901,16 @@ private struct AtlasLogSheet: View {
                    siteOptions.siteTrackingEnabled,
                    siteOptions.sites.isEmpty == false {
                     Section("Site") {
+                        if siteOptions.sites.contains(where: { $0.mapRegionKey != nil }) {
+                            AtlasQuickLogSiteMap(
+                                sites: siteOptions.sites,
+                                selectedSiteID: Binding(
+                                    get: { selectedSiteID },
+                                    set: { selectedSiteID = $0 }
+                                )
+                            )
+                        }
+
                         Picker("Injection site", selection: Binding(
                             get: { selectedSiteID },
                             set: { selectedSiteID = $0 }
@@ -6897,6 +7008,151 @@ private struct AtlasLogSheet: View {
             )
         )
         dismiss()
+    }
+}
+
+private struct AtlasQuickLogSiteMap: View {
+    let sites: [AtlasSiteSummary]
+    @Binding var selectedSiteID: String?
+    @State private var surface: AtlasBodyMapSurface = .front
+
+    private var visibleSites: [AtlasSiteSummary] {
+        sites.filter { $0.mapRegionKey?.surface == surface }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+            Picker("Body surface", selection: $surface) {
+                ForEach(AtlasBodyMapSurface.allCases) { item in
+                    Text(item.title).tag(item)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            GeometryReader { proxy in
+                let width = proxy.size.width
+                let height = proxy.size.height
+
+                ZStack {
+                    AtlasQuickLogBodyMapSilhouette(surface: surface)
+                        .fill(AtlasPalette.surfaceSecondary)
+                        .overlay {
+                            AtlasQuickLogBodyMapSilhouette(surface: surface)
+                                .stroke(AtlasPalette.border, lineWidth: 1)
+                        }
+
+                    ForEach(visibleSites) { site in
+                        if let region = site.mapRegionKey {
+                            Button {
+                                selectedSiteID = site.id
+                            } label: {
+                                VStack(spacing: 2) {
+                                    Circle()
+                                        .fill(selectedSiteID == site.id ? AtlasPalette.primary : AtlasPalette.success)
+                                        .frame(
+                                            width: max(width * region.markerDiameter, 28),
+                                            height: max(width * region.markerDiameter, 28)
+                                        )
+                                        .overlay {
+                                            Circle().stroke(Color.white.opacity(0.85), lineWidth: selectedSiteID == site.id ? 2 : 1)
+                                        }
+                                    Text(region.shortLabel)
+                                        .font(.caption2.weight(.semibold))
+                                        .foregroundStyle(AtlasPalette.textPrimary)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            .position(x: width * region.normalizedX, y: height * region.normalizedY)
+                        }
+                    }
+                }
+            }
+            .frame(height: 260)
+
+            Text("Tap a saved hotspot to select the site visually.")
+                .font(.caption)
+                .foregroundStyle(AtlasPalette.textSecondary)
+        }
+        .onAppear {
+            if let selectedSite = sites.first(where: { $0.id == selectedSiteID }),
+               let region = selectedSite.mapRegionKey {
+                surface = region.surface
+            }
+        }
+    }
+}
+
+private struct AtlasQuickLogBodyMapSilhouette: Shape {
+    let surface: AtlasBodyMapSurface
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+
+        let head = CGRect(
+            x: rect.midX - rect.width * 0.09,
+            y: rect.minY + rect.height * 0.03,
+            width: rect.width * 0.18,
+            height: rect.width * 0.18
+        )
+        path.addEllipse(in: head)
+
+        let torso = CGRect(
+            x: rect.midX - rect.width * 0.16,
+            y: rect.minY + rect.height * 0.21,
+            width: rect.width * 0.32,
+            height: rect.height * 0.34
+        )
+        path.addRoundedRect(in: torso, cornerSize: CGSize(width: rect.width * 0.07, height: rect.width * 0.07))
+
+        let leftArm = CGRect(
+            x: rect.midX - rect.width * 0.33,
+            y: rect.minY + rect.height * 0.23,
+            width: rect.width * 0.12,
+            height: rect.height * 0.30
+        )
+        let rightArm = CGRect(
+            x: rect.midX + rect.width * 0.21,
+            y: rect.minY + rect.height * 0.23,
+            width: rect.width * 0.12,
+            height: rect.height * 0.30
+        )
+        path.addRoundedRect(in: leftArm, cornerSize: CGSize(width: rect.width * 0.06, height: rect.width * 0.06))
+        path.addRoundedRect(in: rightArm, cornerSize: CGSize(width: rect.width * 0.06, height: rect.width * 0.06))
+
+        let hips = CGRect(
+            x: rect.midX - rect.width * 0.18,
+            y: rect.minY + rect.height * 0.50,
+            width: rect.width * 0.36,
+            height: rect.height * 0.11
+        )
+        path.addRoundedRect(in: hips, cornerSize: CGSize(width: rect.width * 0.08, height: rect.width * 0.08))
+
+        let leftLeg = CGRect(
+            x: rect.midX - rect.width * 0.16,
+            y: rect.minY + rect.height * 0.58,
+            width: rect.width * 0.12,
+            height: rect.height * 0.29
+        )
+        let rightLeg = CGRect(
+            x: rect.midX + rect.width * 0.04,
+            y: rect.minY + rect.height * 0.58,
+            width: rect.width * 0.12,
+            height: rect.height * 0.29
+        )
+        path.addRoundedRect(in: leftLeg, cornerSize: CGSize(width: rect.width * 0.06, height: rect.width * 0.06))
+        path.addRoundedRect(in: rightLeg, cornerSize: CGSize(width: rect.width * 0.06, height: rect.width * 0.06))
+
+        if surface == .back {
+            let spine = CGRect(
+                x: rect.midX - rect.width * 0.015,
+                y: rect.minY + rect.height * 0.25,
+                width: rect.width * 0.03,
+                height: rect.height * 0.28
+            )
+            path.addRoundedRect(in: spine, cornerSize: CGSize(width: rect.width * 0.015, height: rect.width * 0.015))
+        }
+
+        return path
     }
 }
 

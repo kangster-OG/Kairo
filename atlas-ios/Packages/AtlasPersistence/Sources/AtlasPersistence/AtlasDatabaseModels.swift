@@ -770,6 +770,7 @@ struct AtlasSiteDBRecord: Codable, FetchableRecord, PersistableRecord {
     var id: String
     var name: String
     var bodyArea: String?
+    var mapRegionKey: AtlasBodyMapRegionKey?
     var notes: String?
     var createdAt: String
     var updatedAt: String
@@ -779,6 +780,7 @@ struct AtlasSiteDBRecord: Codable, FetchableRecord, PersistableRecord {
         case id
         case name
         case bodyArea = "body_area"
+        case mapRegionKey = "map_region_key"
         case notes
         case createdAt = "created_at"
         case updatedAt = "updated_at"
@@ -789,6 +791,7 @@ struct AtlasSiteDBRecord: Codable, FetchableRecord, PersistableRecord {
         id = record.id
         name = record.name
         bodyArea = record.bodyArea
+        mapRegionKey = record.mapRegionKey
         notes = record.notes
         createdAt = record.createdAt
         updatedAt = record.updatedAt
@@ -800,6 +803,7 @@ struct AtlasSiteDBRecord: Codable, FetchableRecord, PersistableRecord {
             id: id,
             name: name,
             bodyArea: bodyArea,
+            mapRegionKey: mapRegionKey,
             notes: notes,
             createdAt: createdAt,
             updatedAt: updatedAt,

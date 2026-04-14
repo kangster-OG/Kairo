@@ -264,34 +264,92 @@ public enum AtlasSyncScaffoldStatus: String, Codable, Sendable {
     case syncDeferred
 }
 
+public enum AtlasHealthSignalKind: String, Codable, CaseIterable, Equatable, Sendable, Identifiable {
+    case weight
+    case workouts
+    case water
+    case calories
+    case protein
+    case steps
+    case sleep
+    case restingHeartRate
+    case heartRateVariability
+    case bloodPressure
+    case bodyFat
+
+    public var id: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .weight: "Weight"
+        case .workouts: "Workouts"
+        case .water: "Water"
+        case .calories: "Calories"
+        case .protein: "Protein"
+        case .steps: "Steps"
+        case .sleep: "Sleep"
+        case .restingHeartRate: "Resting HR"
+        case .heartRateVariability: "HRV"
+        case .bloodPressure: "Blood pressure"
+        case .bodyFat: "Body fat"
+        }
+    }
+}
+
+public struct AtlasHealthSignalSummary: Codable, Equatable, Sendable, Identifiable {
+    public var id: AtlasHealthSignalKind { kind }
+    public var kind: AtlasHealthSignalKind
+    public var importedEntryCount: Int
+    public var lastEntryAt: String?
+
+    public init(
+        kind: AtlasHealthSignalKind,
+        importedEntryCount: Int,
+        lastEntryAt: String?
+    ) {
+        self.kind = kind
+        self.importedEntryCount = importedEntryCount
+        self.lastEntryAt = lastEntryAt
+    }
+}
+
 public struct AtlasHealthScaffoldSnapshot: Codable, Equatable, Sendable {
     public var isAvailable: Bool
     public var connections: [AtlasHealthConnectionRecord]
     public var syncsWeight: Bool
     public var syncsWorkouts: Bool
+    public var syncsNutrition: Bool
+    public var syncsPassiveSignals: Bool
     public var syncedWeightEntryCount: Int
     public var lastWeightEntryAt: String?
     public var syncedWorkoutEntryCount: Int
     public var lastWorkoutEntryAt: String?
+    public var signalSummaries: [AtlasHealthSignalSummary]
 
     public init(
         isAvailable: Bool = true,
         connections: [AtlasHealthConnectionRecord] = [],
         syncsWeight: Bool = true,
         syncsWorkouts: Bool = true,
+        syncsNutrition: Bool = true,
+        syncsPassiveSignals: Bool = true,
         syncedWeightEntryCount: Int = 0,
         lastWeightEntryAt: String? = nil,
         syncedWorkoutEntryCount: Int = 0,
-        lastWorkoutEntryAt: String? = nil
+        lastWorkoutEntryAt: String? = nil,
+        signalSummaries: [AtlasHealthSignalSummary] = []
     ) {
         self.isAvailable = isAvailable
         self.connections = connections
         self.syncsWeight = syncsWeight
         self.syncsWorkouts = syncsWorkouts
+        self.syncsNutrition = syncsNutrition
+        self.syncsPassiveSignals = syncsPassiveSignals
         self.syncedWeightEntryCount = syncedWeightEntryCount
         self.lastWeightEntryAt = lastWeightEntryAt
         self.syncedWorkoutEntryCount = syncedWorkoutEntryCount
         self.lastWorkoutEntryAt = lastWorkoutEntryAt
+        self.signalSummaries = signalSummaries
     }
 }
 

@@ -128,6 +128,34 @@ Next queued milestone:
 - Final Native Hardening + QA + Release Readiness
 
 ## Current implementation focus
+### Production sync + visual site map + broader passive signals
+Depends on:
+- existing account/auth/cloud scaffolding, Trust Vault boundaries, and local-first SQLite foundations already present in native Atlas
+- current inventory/site tracking, metrics overlays, and HealthKit integration paths remaining deterministic and privacy-bounded
+- native Today, Insights, Settings, import/export, and review surfaces staying additive to guest-first use instead of becoming cloud-required
+
+Status:
+- started on 2026-04-13
+
+Will deliver:
+- production-ready account sync flows on top of the current Supabase-backed session and export-bundle scaffolding, including clearer status, upload/download paths, and safer guest-upgrade handling
+- a first-class visual body-map site picker layered onto the existing site tracking model so injection-site rotation is faster and more legible
+- broader passive HealthKit ingestion for approved recovery/cardio/body-composition surfaces including steps, sleep, resting heart rate, HRV, blood pressure, and body-fat context where the platform exposes it
+- native Insights and Settings surfaces that clearly distinguish passive health imports from manual/custom metrics
+
+Constraints:
+- preserve local-first and guest-first behavior even when cloud sync is enabled
+- keep cloud scope bounded and additive; Atlas must remain usable without an account
+- no medical advice, dosing recommendations, or causal health claims
+- keep imported passive signals source-attributed and privacy-aware
+- do not weaken Trust Vault, alias/discreet rendering, or review/export safety
+
+Verification goals:
+- `swift build` in `atlas-ios/Packages/AtlasPersistence`
+- `swift build` in `atlas-ios/Packages/AtlasFeatures`
+- `xcodebuild test CODE_SIGNING_ALLOWED=NO -parallel-testing-enabled NO -maximum-parallel-testing-workers 1 -project atlas-ios/Atlas.xcodeproj -scheme Atlas -destination 'platform=iOS Simulator,name=iPhone 17' -derivedDataPath atlas-ios/.derived-data-release`
+- targeted simulator QA for account sync, visual site-map entry, Health connect/disconnect, passive-signal import, and insights/settings rendering
+
 ### Capture speed + ambient utility + visual progress polish
 Depends on:
 - native Today, Insights, widgets/intents, and Progress Evidence foundations already complete in code

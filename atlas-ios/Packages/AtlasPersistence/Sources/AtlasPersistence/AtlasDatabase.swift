@@ -252,6 +252,7 @@ final class AtlasDatabaseStack: @unchecked Sendable {
                 table.column("id", .text).primaryKey()
                 table.column("name", .text).notNull()
                 table.column("body_area", .text)
+                table.column("map_region_key", .text)
                 table.column("notes", .text)
                 table.column("created_at", .text).notNull()
                 table.column("updated_at", .text).notNull()
@@ -720,6 +721,15 @@ final class AtlasDatabaseStack: @unchecked Sendable {
                     if vialColumns.contains("label_scan_text") == false {
                         table.add(column: "label_scan_text", .text)
                     }
+                }
+            }
+        }
+
+        migrator.registerMigration("v19_add_site_map_regions") { db in
+            let siteColumns = Set(try String.fetchAll(db, sql: "SELECT name FROM pragma_table_info('sites')"))
+            if siteColumns.contains("map_region_key") == false {
+                try db.alter(table: "sites") { table in
+                    table.add(column: "map_region_key", .text)
                 }
             }
         }

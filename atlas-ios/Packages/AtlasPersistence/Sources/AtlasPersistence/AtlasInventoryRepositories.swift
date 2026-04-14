@@ -423,6 +423,7 @@ public struct GRDBInventoryRepository: InventoryRepository, Sendable {
                         id: site.id,
                         name: site.name,
                         bodyArea: site.bodyArea,
+                        mapRegionKey: site.mapRegionKey,
                         notes: site.notes,
                         archivedAt: site.archivedAt.map(atlasDate(from:))
                     )
@@ -464,6 +465,7 @@ public struct GRDBInventoryRepository: InventoryRepository, Sendable {
                         id: $0.id,
                         name: $0.name,
                         bodyArea: $0.bodyArea,
+                        mapRegionKey: $0.mapRegionKey,
                         notes: $0.notes,
                         archivedAt: $0.archivedAt.map(atlasDate(from:))
                     )
@@ -492,6 +494,7 @@ public struct GRDBInventoryRepository: InventoryRepository, Sendable {
                 id: existing?.id ?? normalized.id ?? UUID().uuidString,
                 name: normalized.name,
                 bodyArea: normalized.bodyArea,
+                mapRegionKey: normalized.mapRegionKey,
                 notes: normalized.notes,
                 createdAt: existing?.createdAt ?? timestamp,
                 updatedAt: timestamp,
@@ -502,6 +505,7 @@ public struct GRDBInventoryRepository: InventoryRepository, Sendable {
                 id: record.id,
                 name: record.name,
                 bodyArea: record.bodyArea,
+                mapRegionKey: record.mapRegionKey,
                 notes: record.notes,
                 archivedAt: record.archivedAt.map(atlasDate(from:))
             )
@@ -665,6 +669,7 @@ func buildInventorySnapshot(db: Database, referenceDate: Date) throws -> AtlasIn
                 id: $0.id,
                 name: $0.name,
                 bodyArea: $0.bodyArea,
+                mapRegionKey: $0.mapRegionKey,
                 notes: $0.notes,
                 archivedAt: $0.archivedAt.map(atlasDate(from:))
             )
@@ -1334,6 +1339,7 @@ private func normalize(siteDraft: AtlasSiteDraft) throws -> AtlasSiteDraft {
         id: siteDraft.id,
         name: name,
         bodyArea: siteDraft.bodyArea?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty,
+        mapRegionKey: siteDraft.mapRegionKey,
         notes: siteDraft.notes?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty,
         archivedAt: siteDraft.archivedAt
     )

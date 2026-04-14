@@ -697,6 +697,7 @@ private extension GRDBImportExportBridge {
                         id: id,
                         name: primary,
                         bodyArea: value.nilIfBlank,
+                        mapRegionKey: nil,
                         notes: notes.nilIfBlank,
                         createdAt: timestamp,
                         updatedAt: timestamp,

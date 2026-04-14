@@ -263,6 +263,7 @@ func buildSettingsSnapshot(
         sql: "SELECT started_at FROM workout_logs WHERE source = ? ORDER BY started_at DESC LIMIT 1",
         arguments: [AtlasHealthDataSource.health.rawValue]
     )
+    let signalSummaries = try buildHealthSignalSummaries(db: db)
     let syncStatus: AtlasSyncScaffoldStatus = accountMode == .guest ? .localOnly : .accountBoundary
     let summarySettings = try readSummarySettings(db: db, featureFlags: featureFlags)
     let retentionSettings = try readRetentionSettings(db: db, featureFlags: featureFlags)
@@ -280,10 +281,13 @@ func buildSettingsSnapshot(
             connections: connections,
             syncsWeight: true,
             syncsWorkouts: true,
+            syncsNutrition: true,
+            syncsPassiveSignals: true,
             syncedWeightEntryCount: syncedWeightEntryCount,
             lastWeightEntryAt: lastWeightEntryAt,
             syncedWorkoutEntryCount: syncedWorkoutEntryCount,
-            lastWorkoutEntryAt: lastWorkoutEntryAt
+            lastWorkoutEntryAt: lastWorkoutEntryAt,
+            signalSummaries: signalSummaries
         ),
         labsEnabled: labsEnabled,
         surfacePreferences: surfacePreferences,
@@ -606,6 +610,138 @@ func atlasInferredMascotSelection(from gender: String?) -> AtlasMascotSelection?
     }
 
     return nil
+}
+
+private func buildHealthSignalSummaries(db: Database) throws -> [AtlasHealthSignalSummary] {
+    try AtlasHealthSignalKind.allCases.map { kind in
+        AtlasHealthSignalSummary(
+            kind: kind,
+            importedEntryCount: try healthSignalCount(kind: kind, db: db),
+            lastEntryAt: try healthSignalLastEntryAt(kind: kind, db: db)
+        )
+    }
+}
+
+private func healthSignalCount(kind: AtlasHealthSignalKind, db: Database) throws -> Int {
+    switch kind {
+    case .weight:
+        return try Int.fetchOne(
+            db,
+            sql: "SELECT COUNT(*) FROM weight_logs WHERE source = ?",
+            arguments: [AtlasHealthDataSource.health.rawValue]
+        ) ?? 0
+    case .workouts:
+        return try Int.fetchOne(
+            db,
+            sql: "SELECT COUNT(*) FROM workout_logs WHERE source = ?",
+            arguments: [AtlasHealthDataSource.health.rawValue]
+        ) ?? 0
+    case .bodyFat:
+        return try Int.fetchOne(
+            db,
+            sql: "SELECT COUNT(*) FROM progress_measurements WHERE kind = ? AND id LIKE 'health_progress_%'",
+            arguments: [AtlasProgressMeasurementKind.bodyFat.rawValue]
+        ) ?? 0
+    case .bloodPressure:
+        return try Int.fetchOne(
+            db,
+            sql: """
+            SELECT COUNT(*)
+            FROM metric_value_logs
+            JOIN custom_metrics ON custom_metrics.id = metric_value_logs.metric_id
+            WHERE metric_value_logs.source = ? AND custom_metrics.metric_key = ?
+            """,
+            arguments: [AtlasHealthDataSource.health.rawValue, AtlasHealthMetricKind.bloodPressureSystolic.metricKey]
+        ) ?? 0
+    case .water:
+        return try healthMetricValueCount(metricKey: AtlasHealthNutritionMetricKind.water.metricKey, db: db)
+    case .calories:
+        return try healthMetricValueCount(metricKey: AtlasHealthNutritionMetricKind.calories.metricKey, db: db)
+    case .protein:
+        return try healthMetricValueCount(metricKey: AtlasHealthNutritionMetricKind.protein.metricKey, db: db)
+    case .steps:
+        return try healthMetricValueCount(metricKey: AtlasHealthMetricKind.steps.metricKey, db: db)
+    case .sleep:
+        return try healthMetricValueCount(metricKey: AtlasHealthMetricKind.sleepHours.metricKey, db: db)
+    case .restingHeartRate:
+        return try healthMetricValueCount(metricKey: AtlasHealthMetricKind.restingHeartRate.metricKey, db: db)
+    case .heartRateVariability:
+        return try healthMetricValueCount(metricKey: AtlasHealthMetricKind.heartRateVariability.metricKey, db: db)
+    }
+}
+
+private func healthSignalLastEntryAt(kind: AtlasHealthSignalKind, db: Database) throws -> String? {
+    switch kind {
+    case .weight:
+        return try String.fetchOne(
+            db,
+            sql: "SELECT logged_at FROM weight_logs WHERE source = ? ORDER BY logged_at DESC LIMIT 1",
+            arguments: [AtlasHealthDataSource.health.rawValue]
+        )
+    case .workouts:
+        return try String.fetchOne(
+            db,
+            sql: "SELECT started_at FROM workout_logs WHERE source = ? ORDER BY started_at DESC LIMIT 1",
+            arguments: [AtlasHealthDataSource.health.rawValue]
+        )
+    case .bodyFat:
+        return try String.fetchOne(
+            db,
+            sql: "SELECT logged_at FROM progress_measurements WHERE kind = ? AND id LIKE 'health_progress_%' ORDER BY logged_at DESC LIMIT 1",
+            arguments: [AtlasProgressMeasurementKind.bodyFat.rawValue]
+        )
+    case .bloodPressure:
+        return try healthMetricValueLatest(metricKeys: [
+            AtlasHealthMetricKind.bloodPressureSystolic.metricKey,
+            AtlasHealthMetricKind.bloodPressureDiastolic.metricKey
+        ], db: db)
+    case .water:
+        return try healthMetricValueLatest(metricKeys: [AtlasHealthNutritionMetricKind.water.metricKey], db: db)
+    case .calories:
+        return try healthMetricValueLatest(metricKeys: [AtlasHealthNutritionMetricKind.calories.metricKey], db: db)
+    case .protein:
+        return try healthMetricValueLatest(metricKeys: [AtlasHealthNutritionMetricKind.protein.metricKey], db: db)
+    case .steps:
+        return try healthMetricValueLatest(metricKeys: [AtlasHealthMetricKind.steps.metricKey], db: db)
+    case .sleep:
+        return try healthMetricValueLatest(metricKeys: [AtlasHealthMetricKind.sleepHours.metricKey], db: db)
+    case .restingHeartRate:
+        return try healthMetricValueLatest(metricKeys: [AtlasHealthMetricKind.restingHeartRate.metricKey], db: db)
+    case .heartRateVariability:
+        return try healthMetricValueLatest(metricKeys: [AtlasHealthMetricKind.heartRateVariability.metricKey], db: db)
+    }
+}
+
+private func healthMetricValueCount(metricKey: String, db: Database) throws -> Int {
+    try Int.fetchOne(
+        db,
+        sql: """
+        SELECT COUNT(*)
+        FROM metric_value_logs
+        JOIN custom_metrics ON custom_metrics.id = metric_value_logs.metric_id
+        WHERE metric_value_logs.source = ? AND custom_metrics.metric_key = ?
+        """,
+        arguments: [AtlasHealthDataSource.health.rawValue, metricKey]
+    ) ?? 0
+}
+
+private func healthMetricValueLatest(metricKeys: [String], db: Database) throws -> String? {
+    let placeholders = Array(repeating: "?", count: metricKeys.count).joined(separator: ",")
+    let statementArguments = StatementArguments(
+        [AtlasHealthDataSource.health.rawValue] + metricKeys
+    )
+    return try String.fetchOne(
+        db,
+        sql: """
+        SELECT metric_value_logs.logged_at
+        FROM metric_value_logs
+        JOIN custom_metrics ON custom_metrics.id = metric_value_logs.metric_id
+        WHERE metric_value_logs.source = ? AND custom_metrics.metric_key IN (\(placeholders))
+        ORDER BY metric_value_logs.logged_at DESC
+        LIMIT 1
+        """,
+        arguments: statementArguments
+    )
 }
 
 func writeAppSetting(

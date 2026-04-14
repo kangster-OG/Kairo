@@ -44,12 +44,43 @@ public struct AtlasCloudConfiguration: Sendable, Equatable {
 public struct AtlasCloudSessionSnapshot: Sendable, Equatable {
     public var email: String
     public var userID: String
+    public var deviceID: String?
     public var lastSyncAt: Date?
+    public var latestRemoteBackupAt: Date?
+    public var latestRemoteBackupDeviceID: String?
+    public var latestRemoteBackupUpdatedAt: Date?
+    public var newerBackupAvailable: Bool
 
-    public init(email: String, userID: String, lastSyncAt: Date? = nil) {
+    public init(
+        email: String,
+        userID: String,
+        deviceID: String? = nil,
+        lastSyncAt: Date? = nil,
+        latestRemoteBackupAt: Date? = nil,
+        latestRemoteBackupDeviceID: String? = nil,
+        latestRemoteBackupUpdatedAt: Date? = nil,
+        newerBackupAvailable: Bool = false
+    ) {
         self.email = email
         self.userID = userID
+        self.deviceID = deviceID
         self.lastSyncAt = lastSyncAt
+        self.latestRemoteBackupAt = latestRemoteBackupAt
+        self.latestRemoteBackupDeviceID = latestRemoteBackupDeviceID
+        self.latestRemoteBackupUpdatedAt = latestRemoteBackupUpdatedAt
+        self.newerBackupAvailable = newerBackupAvailable
+    }
+}
+
+public struct AtlasCloudBackupMetadata: Sendable, Equatable {
+    public var manifestGeneratedAt: Date
+    public var deviceID: String?
+    public var updatedAt: Date?
+
+    public init(manifestGeneratedAt: Date, deviceID: String?, updatedAt: Date?) {
+        self.manifestGeneratedAt = manifestGeneratedAt
+        self.deviceID = deviceID
+        self.updatedAt = updatedAt
     }
 }
 
@@ -95,6 +126,7 @@ public enum AtlasCloudIdentityProvider: String, Sendable, Equatable {
 public protocol CloudSyncManaging: Sendable {
     func isConfigured() -> Bool
     func currentSession() async -> AtlasCloudSessionSnapshot?
+    func deviceIdentifier() -> String?
     func signUp(email: String, password: String) async throws -> AtlasCloudSessionSnapshot
     func signIn(email: String, password: String) async throws -> AtlasCloudSessionSnapshot
     func signIn(with provider: AtlasCloudIdentityProvider) async throws -> AtlasCloudSessionSnapshot
@@ -115,6 +147,7 @@ public final class AtlasSupabaseCloudSyncManager: CloudSyncManaging, @unchecked 
     private let urlSession: URLSession
     private let defaults: UserDefaults
     private let storageKey = "atlas.cloud.session"
+    private let deviceStorageKey = "atlas.cloud.device-id"
 
     public init(
         configuration: AtlasCloudConfiguration? = .environment(),
@@ -131,7 +164,16 @@ public final class AtlasSupabaseCloudSyncManager: CloudSyncManaging, @unchecked 
     }
 
     public func currentSession() async -> AtlasCloudSessionSnapshot? {
-        storedSession()?.snapshot
+        guard let session = storedSession() else {
+            return nil
+        }
+
+        let metadata = try? await fetchLatestBackupMetadata(session: session)
+        return buildSnapshot(from: session, latestBackup: metadata)
+    }
+
+    public func deviceIdentifier() -> String? {
+        persistedDeviceID()
     }
 
     public func signUp(email: String, password: String) async throws -> AtlasCloudSessionSnapshot {
@@ -223,12 +265,13 @@ public final class AtlasSupabaseCloudSyncManager: CloudSyncManaging, @unchecked 
         guard let session = storedSession() else {
             throw AtlasCloudSyncError.notAuthenticated
         }
+        let effectiveDeviceID = deviceID ?? persistedDeviceID()
 
         let payload: [String: AnySendable] = [
             "owner_id": .string(session.userID),
             "export_bundle": .rawJSON(data),
             "manifest_generated_at": .string(ISO8601DateFormatter().string(from: generatedAt)),
-            "device_id": .string(deviceID ?? "")
+            "device_id": .string(effectiveDeviceID)
         ]
 
         var components = URLComponents(url: configuration.projectURL.appending(path: "/rest/v1/atlas_account_snapshots"), resolvingAgainstBaseURL: false)
@@ -251,7 +294,14 @@ public final class AtlasSupabaseCloudSyncManager: CloudSyncManaging, @unchecked 
         var updated = session
         updated.lastSyncAt = generatedAt
         persist(updated)
-        return updated.snapshot
+        return buildSnapshot(
+            from: updated,
+            latestBackup: AtlasCloudBackupMetadata(
+                manifestGeneratedAt: generatedAt,
+                deviceID: effectiveDeviceID,
+                updatedAt: generatedAt
+            )
+        )
     }
 
     public func downloadLatestExportBundle() async throws -> Data? {
@@ -349,9 +399,13 @@ public final class AtlasSupabaseCloudSyncManager: CloudSyncManaging, @unchecked 
         guard configuration != nil else {
             return "Cloud sync is not configured yet. Atlas continues to work locally."
         }
-        if let session = storedSession()?.snapshot {
+        if let session = await currentSession() {
+            if session.newerBackupAvailable,
+               let remoteBackupAt = session.latestRemoteBackupAt {
+                return "Signed in as \(session.email). A newer Atlas Cloud backup from another device is available from \(remoteBackupAt.formatted(date: .abbreviated, time: .shortened))."
+            }
             if let lastSyncAt = session.lastSyncAt {
-                return "Signed in as \(session.email). Last sync \(lastSyncAt.formatted(date: .abbreviated, time: .shortened))."
+                return "Signed in as \(session.email). Last Atlas Cloud backup \(lastSyncAt.formatted(date: .abbreviated, time: .shortened))."
             }
             return "Signed in as \(session.email)."
         }
@@ -397,7 +451,7 @@ public final class AtlasSupabaseCloudSyncManager: CloudSyncManaging, @unchecked 
             lastSyncAt: nil
         )
         persist(session)
-        return session.snapshot
+        return buildSnapshot(from: session, latestBackup: nil)
     }
 
     private func authenticateWithIDToken(
@@ -449,7 +503,7 @@ public final class AtlasSupabaseCloudSyncManager: CloudSyncManaging, @unchecked 
             lastSyncAt: nil
         )
         persist(session)
-        return session.snapshot
+        return buildSnapshot(from: session, latestBackup: nil)
     }
 
     private func oauthParameters(from callbackURL: URL) -> [String: String] {
@@ -472,14 +526,137 @@ public final class AtlasSupabaseCloudSyncManager: CloudSyncManaging, @unchecked 
     }
 
     private func perform(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        do {
+            return try await performWithoutRefresh(request)
+        } catch AtlasCloudSyncError.unauthorized {
+            guard let session = storedSession() else {
+                throw AtlasCloudSyncError.notAuthenticated
+            }
+            let refreshed = try await refreshSession(session)
+            var retried = request
+            if request.value(forHTTPHeaderField: "Authorization") != nil {
+                retried.setValue("Bearer \(refreshed.accessToken)", forHTTPHeaderField: "Authorization")
+            }
+            return try await performWithoutRefresh(retried)
+        }
+    }
+
+    private func performWithoutRefresh(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         let (data, response) = try await urlSession.data(for: request)
         guard let http = response as? HTTPURLResponse else {
             throw AtlasCloudSyncError.invalidResponse
+        }
+        if http.statusCode == 401 {
+            throw AtlasCloudSyncError.unauthorized
         }
         guard (200..<300).contains(http.statusCode) else {
             throw AtlasCloudSyncError.requestFailed(String(decoding: data, as: UTF8.self))
         }
         return (data, http)
+    }
+
+    private func refreshSession(_ session: StoredSession) async throws -> StoredSession {
+        guard let configuration else {
+            throw AtlasCloudSyncError.notConfigured
+        }
+
+        var components = URLComponents(
+            url: configuration.projectURL.appending(path: "/auth/v1/token"),
+            resolvingAgainstBaseURL: false
+        )
+        components?.queryItems = [URLQueryItem(name: "grant_type", value: "refresh_token")]
+        guard let url = components?.url else {
+            throw AtlasCloudSyncError.invalidConfiguration
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(configuration.anonKey, forHTTPHeaderField: "apikey")
+        request.httpBody = try JSONEncoder().encode(["refresh_token": session.refreshToken])
+
+        let (data, _) = try await performWithoutRefresh(request)
+        let response = try JSONDecoder().decode(AtlasAuthResponse.self, from: data)
+        guard let accessToken = response.accessToken,
+              let refreshToken = response.refreshToken else {
+            throw AtlasCloudSyncError.invalidResponse
+        }
+
+        let refreshed = StoredSession(
+            email: response.user.email,
+            userID: response.user.id,
+            accessToken: accessToken,
+            refreshToken: refreshToken,
+            lastSyncAt: session.lastSyncAt
+        )
+        persist(refreshed)
+        return refreshed
+    }
+
+    private func fetchLatestBackupMetadata(session: StoredSession) async throws -> AtlasCloudBackupMetadata? {
+        guard let configuration else {
+            throw AtlasCloudSyncError.notConfigured
+        }
+
+        var components = URLComponents(
+            url: configuration.projectURL.appending(path: "/rest/v1/atlas_account_snapshots"),
+            resolvingAgainstBaseURL: false
+        )
+        components?.queryItems = [
+            URLQueryItem(name: "select", value: "manifest_generated_at,device_id,updated_at"),
+            URLQueryItem(name: "owner_id", value: "eq.\(session.userID)")
+        ]
+        guard let url = components?.url else {
+            throw AtlasCloudSyncError.invalidConfiguration
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue(configuration.anonKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(session.accessToken)", forHTTPHeaderField: "Authorization")
+        let (data, _) = try await perform(request)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let response = try decoder.decode([AtlasCloudBackupMetadataResponse].self, from: data)
+        return response.first.map {
+            AtlasCloudBackupMetadata(
+                manifestGeneratedAt: $0.manifestGeneratedAt,
+                deviceID: $0.deviceID,
+                updatedAt: $0.updatedAt
+            )
+        }
+    }
+
+    private func buildSnapshot(
+        from session: StoredSession,
+        latestBackup: AtlasCloudBackupMetadata?
+    ) -> AtlasCloudSessionSnapshot {
+        let deviceID = persistedDeviceID()
+        let newerBackupAvailable: Bool
+        if let latestBackup,
+           latestBackup.deviceID != nil,
+           latestBackup.deviceID != deviceID,
+           let lastSyncAt = session.lastSyncAt {
+            newerBackupAvailable = latestBackup.manifestGeneratedAt > lastSyncAt.addingTimeInterval(1)
+        } else if let latestBackup,
+                  latestBackup.deviceID != nil,
+                  latestBackup.deviceID != deviceID,
+                  session.lastSyncAt == nil {
+            newerBackupAvailable = true
+        } else {
+            newerBackupAvailable = false
+        }
+
+        return AtlasCloudSessionSnapshot(
+            email: session.email,
+            userID: session.userID,
+            deviceID: deviceID,
+            lastSyncAt: session.lastSyncAt,
+            latestRemoteBackupAt: latestBackup?.manifestGeneratedAt,
+            latestRemoteBackupDeviceID: latestBackup?.deviceID,
+            latestRemoteBackupUpdatedAt: latestBackup?.updatedAt,
+            newerBackupAvailable: newerBackupAvailable
+        )
     }
 
     private func storedSession() -> StoredSession? {
@@ -499,6 +676,17 @@ public final class AtlasSupabaseCloudSyncManager: CloudSyncManaging, @unchecked 
         defaults.removeObject(forKey: storageKey)
     }
 
+    private func persistedDeviceID() -> String {
+        if let existing = defaults.string(forKey: deviceStorageKey),
+           existing.isEmpty == false {
+            return existing
+        }
+
+        let id = UUID().uuidString.lowercased()
+        defaults.set(id, forKey: deviceStorageKey)
+        return id
+    }
+
     private static let oauthRedirectScheme = "atlas"
     private static let oauthRedirectURL = URL(string: "atlas://auth/callback")!
 }
@@ -511,6 +699,7 @@ private enum AtlasCloudSyncError: LocalizedError {
     case confirmationRequired(String)
     case requestFailed(String)
     case userCancelled
+    case unauthorized
 
     var errorDescription: String? {
         switch self {
@@ -528,6 +717,8 @@ private enum AtlasCloudSyncError: LocalizedError {
             return message.isEmpty ? "Cloud sync request failed." : message
         case .userCancelled:
             return "Sign-in was cancelled before Atlas received a session."
+        case .unauthorized:
+            return "Atlas Cloud needs you to sign in again."
         }
     }
 }
@@ -589,6 +780,18 @@ private struct AtlasLiveReviewCreateResponse: Codable, Sendable {
     }
 
     var session: Session
+}
+
+private struct AtlasCloudBackupMetadataResponse: Codable, Sendable {
+    var manifestGeneratedAt: Date
+    var deviceID: String?
+    var updatedAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case manifestGeneratedAt = "manifest_generated_at"
+        case deviceID = "device_id"
+        case updatedAt = "updated_at"
+    }
 }
 
 private struct AtlasAppleIdentityCredential: Sendable, Equatable {

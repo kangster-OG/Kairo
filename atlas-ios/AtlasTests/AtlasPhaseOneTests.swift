@@ -7072,6 +7072,117 @@ final class AtlasPhaseOneTests: XCTestCase {
         XCTAssertTrue(weeklyReview.isEarned)
     }
 
+    @MainActor
+    func testConnectHealthKitImportsBroaderPassiveSignals() async throws {
+        let controller = try makeInMemoryController()
+        let now = Date(timeIntervalSince1970: 1_776_100_000)
+        let healthKit = TestHealthKitManager(
+            available: true,
+            authorizationGranted: true,
+            metricSamples: [
+                AtlasHealthMetricSample(
+                    id: "steps-1",
+                    kind: .steps,
+                    recordedAt: now.addingTimeInterval(-3_600),
+                    value: 8_400
+                ),
+                AtlasHealthMetricSample(
+                    id: "sleep-1",
+                    kind: .sleepHours,
+                    recordedAt: now.addingTimeInterval(-1_800),
+                    value: 7.4
+                ),
+                AtlasHealthMetricSample(
+                    id: "rhr-1",
+                    kind: .restingHeartRate,
+                    recordedAt: now.addingTimeInterval(-600),
+                    value: 58
+                ),
+                AtlasHealthMetricSample(
+                    id: "bp-1-s",
+                    kind: .bloodPressureSystolic,
+                    recordedAt: now.addingTimeInterval(-300),
+                    value: 118
+                ),
+                AtlasHealthMetricSample(
+                    id: "bp-1-d",
+                    kind: .bloodPressureDiastolic,
+                    recordedAt: now.addingTimeInterval(-300),
+                    value: 74
+                ),
+                AtlasHealthMetricSample(
+                    id: "body-fat-1",
+                    kind: .bodyFatPercentage,
+                    recordedAt: now,
+                    value: 18.6
+                )
+            ]
+        )
+        let model = makeAppModel(controller: controller, healthKit: healthKit, referenceDate: now)
+
+        await model.connectHealthKit()
+
+        let summaries = Dictionary(uniqueKeysWithValues: model.settingsSnapshot.healthScaffold.signalSummaries.map { ($0.kind, $0) })
+        XCTAssertEqual(summaries[.steps]?.importedEntryCount, 1)
+        XCTAssertEqual(summaries[.sleep]?.importedEntryCount, 1)
+        XCTAssertEqual(summaries[.restingHeartRate]?.importedEntryCount, 1)
+        XCTAssertEqual(summaries[.bloodPressure]?.importedEntryCount, 1)
+        XCTAssertEqual(summaries[.bodyFat]?.importedEntryCount, 1)
+        XCTAssertEqual(healthKit.fetchMetricSinceRequests, [nil])
+        XCTAssertNil(model.loadErrorMessage)
+    }
+
+    func testInventorySitesPersistBodyMapRegions() async throws {
+        let controller = try makeInMemoryController()
+        let now = Date(timeIntervalSince1970: 1_776_100_000)
+
+        _ = try await controller.container.inventory.saveSite(
+            AtlasSiteDraft(
+                name: "Lower abdomen left",
+                bodyArea: "Abdomen",
+                mapRegionKey: .abdomenLowerLeft,
+                notes: "Primary rotation start"
+            ),
+            now: now
+        )
+
+        let sites = try await controller.container.inventory.listSites()
+
+        XCTAssertEqual(sites.first?.mapRegionKey, .abdomenLowerLeft)
+        XCTAssertEqual(sites.first?.bodyArea, "Abdomen")
+    }
+
+    @MainActor
+    func testSavingSiteQueuesAutomaticCloudBackup() async throws {
+        let controller = try makeInMemoryController()
+        let cloudSync = TestCloudSyncManager(
+            session: AtlasCloudSessionSnapshot(
+                email: "atlas@example.com",
+                userID: "test-user",
+                deviceID: "test-device"
+            )
+        )
+        let model = makeAppModel(controller: controller, cloudSync: cloudSync)
+
+        await model.refreshCloudStatus()
+        await model.saveSite(
+            AtlasSiteDraft(
+                name: "Upper abdomen right",
+                bodyArea: "Abdomen",
+                mapRegionKey: .abdomenUpperRight
+            )
+        )
+
+        try await Task.sleep(nanoseconds: 2_500_000_000)
+
+        let data = try XCTUnwrap(cloudSync.latestUploadedBundle())
+        let bundle = try JSONDecoder().decode(AtlasExportBundle.self, from: data)
+
+        XCTAssertEqual(bundle.snapshot.sites.first?.mapRegionKey, .abdomenUpperRight)
+        XCTAssertEqual(model.cloudSession?.deviceID, "test-device")
+        XCTAssertNotNil(model.cloudSession?.lastSyncAt)
+    }
+
     private func makeInMemoryController(
         featureFlags: AtlasFeatureFlagState = AtlasFeatureFlagState(),
         notifications: any NotificationManaging = TestNotificationManager()
@@ -8339,14 +8450,17 @@ final class TestCloudSyncManager: CloudSyncManaging, @unchecked Sendable {
     private var session: AtlasCloudSessionSnapshot?
     private var latestBundle: Data?
     private(set) var revokedRemoteIDs: [String]
+    private let localDeviceID: String
 
     init(
         session: AtlasCloudSessionSnapshot? = nil,
-        latestBundle: Data? = nil
+        latestBundle: Data? = nil,
+        localDeviceID: String = "test-device"
     ) {
         self.session = session
         self.latestBundle = latestBundle
         self.revokedRemoteIDs = []
+        self.localDeviceID = localDeviceID
     }
 
     func isConfigured() -> Bool {
@@ -8357,16 +8471,20 @@ final class TestCloudSyncManager: CloudSyncManaging, @unchecked Sendable {
         session
     }
 
+    func deviceIdentifier() -> String? {
+        localDeviceID
+    }
+
     func signUp(email: String, password: String) async throws -> AtlasCloudSessionSnapshot {
         _ = password
-        let snapshot = AtlasCloudSessionSnapshot(email: email, userID: "test-user")
+        let snapshot = AtlasCloudSessionSnapshot(email: email, userID: "test-user", deviceID: localDeviceID)
         session = snapshot
         return snapshot
     }
 
     func signIn(email: String, password: String) async throws -> AtlasCloudSessionSnapshot {
         _ = password
-        let snapshot = AtlasCloudSessionSnapshot(email: email, userID: "test-user")
+        let snapshot = AtlasCloudSessionSnapshot(email: email, userID: "test-user", deviceID: localDeviceID)
         session = snapshot
         return snapshot
     }
@@ -8375,9 +8493,9 @@ final class TestCloudSyncManager: CloudSyncManaging, @unchecked Sendable {
         let snapshot: AtlasCloudSessionSnapshot
         switch provider {
         case .google:
-            snapshot = AtlasCloudSessionSnapshot(email: "google@atlas.example", userID: "google-user")
+            snapshot = AtlasCloudSessionSnapshot(email: "google@atlas.example", userID: "google-user", deviceID: localDeviceID)
         case .apple:
-            snapshot = AtlasCloudSessionSnapshot(email: "apple@atlas.example", userID: "apple-user")
+            snapshot = AtlasCloudSessionSnapshot(email: "apple@atlas.example", userID: "apple-user", deviceID: localDeviceID)
         }
         session = snapshot
         return snapshot
@@ -8393,7 +8511,11 @@ final class TestCloudSyncManager: CloudSyncManaging, @unchecked Sendable {
         let snapshot = AtlasCloudSessionSnapshot(
             email: session?.email ?? "test@atlas.local",
             userID: session?.userID ?? "test-user",
-            lastSyncAt: generatedAt
+            deviceID: deviceID ?? localDeviceID,
+            lastSyncAt: generatedAt,
+            latestRemoteBackupAt: generatedAt,
+            latestRemoteBackupDeviceID: deviceID ?? localDeviceID,
+            latestRemoteBackupUpdatedAt: generatedAt
         )
         session = snapshot
         return snapshot
@@ -8443,12 +8565,15 @@ final class TestHealthKitManager: HealthKitManaging, @unchecked Sendable {
     private(set) var weightSamples: [AtlasHealthWeightSample]
     private(set) var workouts: [AtlasHealthWorkoutSample]
     private(set) var nutritionSamples: [AtlasHealthNutritionSample]
+    private(set) var metricSamples: [AtlasHealthMetricSample]
     private var workoutResponses: [[AtlasHealthWorkoutSample]]
     private var weightResponses: [[AtlasHealthWeightSample]]
     private var nutritionResponses: [[AtlasHealthNutritionSample]]
+    private var metricResponses: [[AtlasHealthMetricSample]]
     private(set) var fetchWorkoutSinceRequests: [Date?]
     private(set) var fetchWeightSinceRequests: [Date?]
     private(set) var fetchNutritionSinceRequests: [Date?]
+    private(set) var fetchMetricSinceRequests: [Date?]
     private(set) var connected: Bool
 
     init(
@@ -8458,9 +8583,11 @@ final class TestHealthKitManager: HealthKitManaging, @unchecked Sendable {
         weightSamples: [AtlasHealthWeightSample] = [],
         workouts: [AtlasHealthWorkoutSample] = [],
         nutritionSamples: [AtlasHealthNutritionSample] = [],
+        metricSamples: [AtlasHealthMetricSample] = [],
         workoutResponses: [[AtlasHealthWorkoutSample]] = [],
         weightResponses: [[AtlasHealthWeightSample]] = [],
-        nutritionResponses: [[AtlasHealthNutritionSample]] = []
+        nutritionResponses: [[AtlasHealthNutritionSample]] = [],
+        metricResponses: [[AtlasHealthMetricSample]] = []
     ) {
         self.available = available
         self.authorizationGranted = authorizationGranted
@@ -8470,12 +8597,15 @@ final class TestHealthKitManager: HealthKitManaging, @unchecked Sendable {
         self.weightSamples = weightSamples
         self.workouts = workouts
         self.nutritionSamples = nutritionSamples
+        self.metricSamples = metricSamples
         self.workoutResponses = workoutResponses
         self.weightResponses = weightResponses
         self.nutritionResponses = nutritionResponses
+        self.metricResponses = metricResponses
         self.fetchWorkoutSinceRequests = []
         self.fetchWeightSinceRequests = []
         self.fetchNutritionSinceRequests = []
+        self.fetchMetricSinceRequests = []
         self.connected = initiallyConnected
     }
 
@@ -8531,6 +8661,17 @@ final class TestHealthKitManager: HealthKitManaging, @unchecked Sendable {
         return nutritionSamples.filter { $0.recordedAt >= since }
     }
 
+    func fetchMetricSamples(since: Date?) async throws -> [AtlasHealthMetricSample] {
+        fetchMetricSinceRequests.append(since)
+        if metricResponses.isEmpty == false {
+            return metricResponses.removeFirst()
+        }
+        guard let since else {
+            return metricSamples
+        }
+        return metricSamples.filter { $0.recordedAt >= since }
+    }
+
     func replaceWorkouts(_ workouts: [AtlasHealthWorkoutSample]) {
         self.workouts = workouts
     }
@@ -8553,6 +8694,14 @@ final class TestHealthKitManager: HealthKitManaging, @unchecked Sendable {
 
     func replaceNutritionResponses(_ nutritionResponses: [[AtlasHealthNutritionSample]]) {
         self.nutritionResponses = nutritionResponses
+    }
+
+    func replaceMetricSamples(_ metricSamples: [AtlasHealthMetricSample]) {
+        self.metricSamples = metricSamples
+    }
+
+    func replaceMetricResponses(_ metricResponses: [[AtlasHealthMetricSample]]) {
+        self.metricResponses = metricResponses
     }
 
     func saveWeightSample(value: Double, unit: AtlasWeightUnit, recordedAt: Date) async throws {

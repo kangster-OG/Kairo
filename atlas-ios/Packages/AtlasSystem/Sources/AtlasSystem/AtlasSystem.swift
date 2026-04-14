@@ -35,6 +35,7 @@ public protocol HealthKitManaging: Sendable {
     func fetchWeightSamples(since: Date?) async throws -> [AtlasHealthWeightSample]
     func fetchWorkouts(since: Date?) async throws -> [AtlasHealthWorkoutSample]
     func fetchNutritionSamples(since: Date?) async throws -> [AtlasHealthNutritionSample]
+    func fetchMetricSamples(since: Date?) async throws -> [AtlasHealthMetricSample]
     func saveWeightSample(value: Double, unit: AtlasWeightUnit, recordedAt: Date) async throws
     func connectionDescription() -> String
 }
@@ -299,15 +300,38 @@ public struct AtlasHealthKitManager: HealthKitManaging {
               let weightType = HKObjectType.quantityType(forIdentifier: .bodyMass),
               let waterType = HKObjectType.quantityType(forIdentifier: .dietaryWater),
               let caloriesType = HKObjectType.quantityType(forIdentifier: .dietaryEnergyConsumed),
-              let proteinType = HKObjectType.quantityType(forIdentifier: .dietaryProtein) else {
+              let proteinType = HKObjectType.quantityType(forIdentifier: .dietaryProtein),
+              let stepsType = HKObjectType.quantityType(forIdentifier: .stepCount),
+              let restingHeartRateType = HKObjectType.quantityType(forIdentifier: .restingHeartRate),
+              let heartRateVariabilityType = HKObjectType.quantityType(forIdentifier: .heartRateVariabilitySDNN),
+              let bodyFatType = HKObjectType.quantityType(forIdentifier: .bodyFatPercentage),
+              let sleepType = HKObjectType.categoryType(forIdentifier: .sleepAnalysis),
+              let bloodPressureType = HKObjectType.correlationType(forIdentifier: .bloodPressure),
+              let systolicType = HKObjectType.quantityType(forIdentifier: .bloodPressureSystolic),
+              let diastolicType = HKObjectType.quantityType(forIdentifier: .bloodPressureDiastolic) else {
             return false
         }
         let workoutType = HKObjectType.workoutType()
+        let readTypes: Set<HKObjectType> = [
+            weightType,
+            workoutType,
+            waterType,
+            caloriesType,
+            proteinType,
+            stepsType,
+            sleepType,
+            restingHeartRateType,
+            heartRateVariabilityType,
+            bloodPressureType,
+            systolicType,
+            diastolicType,
+            bodyFatType
+        ]
 
         return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Bool, Error>) in
             store.requestAuthorization(
                 toShare: Set([weightType]),
-                read: Set([weightType, workoutType, waterType, caloriesType, proteinType])
+                read: readTypes
             ) { success, error in
                 if let error {
                     continuation.resume(throwing: error)
@@ -443,6 +467,36 @@ public struct AtlasHealthKitManager: HealthKitManaging {
         #endif
     }
 
+    public func fetchMetricSamples(since: Date?) async throws -> [AtlasHealthMetricSample] {
+        #if canImport(HealthKit)
+        async let steps = fetchQuantityMetricSamples(
+            identifier: .stepCount,
+            kind: .steps,
+            unit: .count(),
+            since: since
+        )
+        async let restingHeartRate = fetchQuantityMetricSamples(
+            identifier: .restingHeartRate,
+            kind: .restingHeartRate,
+            unit: HKUnit.count().unitDivided(by: .minute()),
+            since: since
+        )
+        async let heartRateVariability = fetchQuantityMetricSamples(
+            identifier: .heartRateVariabilitySDNN,
+            kind: .heartRateVariability,
+            unit: .secondUnit(with: .milli),
+            since: since
+        )
+        async let sleep = fetchSleepSamples(since: since)
+        async let bloodPressure = fetchBloodPressureSamples(since: since)
+        async let bodyFat = fetchBodyFatSamples(since: since)
+        let values = try await steps + restingHeartRate + heartRateVariability + sleep + bloodPressure + bodyFat
+        return values.sorted { $0.recordedAt > $1.recordedAt }
+        #else
+        return []
+        #endif
+    }
+
     public func saveWeightSample(value: Double, unit: AtlasWeightUnit, recordedAt: Date) async throws {
         #if canImport(HealthKit)
         guard let store = makeStore(),
@@ -476,7 +530,7 @@ public struct AtlasHealthKitManager: HealthKitManaging {
         guard isAvailable() else {
             return "Apple Health is unavailable on this device."
         }
-        return "Apple Health can import workouts, weight, water, calories, and protein history, and sync Atlas weight entries back when you connect it."
+        return "Apple Health can import workouts, weight, water, calories, protein, steps, sleep, resting heart rate, HRV, blood pressure, and body fat, and sync Atlas weight entries back when you connect it."
     }
 
     #if canImport(HealthKit)
@@ -611,6 +665,200 @@ public struct AtlasHealthKitManager: HealthKitManaging {
 
             store.execute(query)
         }
+    }
+
+    private func fetchQuantityMetricSamples(
+        identifier: HKQuantityTypeIdentifier,
+        kind: AtlasHealthMetricKind,
+        unit: HKUnit,
+        since: Date?
+    ) async throws -> [AtlasHealthMetricSample] {
+        guard let store = makeStore(),
+              let quantityType = HKQuantityType.quantityType(forIdentifier: identifier) else {
+            return []
+        }
+
+        let predicate = since.map {
+            HKQuery.predicateForSamples(withStart: $0, end: nil, options: .strictStartDate)
+        }
+        let sortDescriptors = [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)]
+
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[AtlasHealthMetricSample], Error>) in
+            let query = HKSampleQuery(
+                sampleType: quantityType,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: sortDescriptors
+            ) { _, samples, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                let metrics = (samples as? [HKQuantitySample] ?? []).map { sample in
+                    AtlasHealthMetricSample(
+                        id: sample.uuid.uuidString,
+                        kind: kind,
+                        recordedAt: sample.startDate,
+                        value: sample.quantity.doubleValue(for: unit)
+                    )
+                }
+                continuation.resume(returning: metrics)
+            }
+
+            store.execute(query)
+        }
+    }
+
+    private func fetchSleepSamples(since: Date?) async throws -> [AtlasHealthMetricSample] {
+        guard let store = makeStore(),
+              let categoryType = HKCategoryType.categoryType(forIdentifier: .sleepAnalysis) else {
+            return []
+        }
+
+        let predicate = since.map {
+            HKQuery.predicateForSamples(withStart: $0, end: nil, options: .strictStartDate)
+        }
+        let sortDescriptors = [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)]
+
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[AtlasHealthMetricSample], Error>) in
+            let query = HKSampleQuery(
+                sampleType: categoryType,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: sortDescriptors
+            ) { _, samples, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                let metrics = (samples as? [HKCategorySample] ?? [])
+                    .filter(isSleepSampleAsleep(_:))
+                    .map { sample in
+                        AtlasHealthMetricSample(
+                            id: sample.uuid.uuidString,
+                            kind: .sleepHours,
+                            recordedAt: sample.endDate,
+                            value: sample.endDate.timeIntervalSince(sample.startDate) / 3_600
+                        )
+                    }
+                continuation.resume(returning: metrics)
+            }
+
+            store.execute(query)
+        }
+    }
+
+    private func fetchBloodPressureSamples(since: Date?) async throws -> [AtlasHealthMetricSample] {
+        guard let store = makeStore(),
+              let correlationType = HKCorrelationType.correlationType(forIdentifier: .bloodPressure),
+              let systolicType = HKObjectType.quantityType(forIdentifier: .bloodPressureSystolic),
+              let diastolicType = HKObjectType.quantityType(forIdentifier: .bloodPressureDiastolic) else {
+            return []
+        }
+
+        let predicate = since.map {
+            HKQuery.predicateForSamples(withStart: $0, end: nil, options: .strictStartDate)
+        }
+        let sortDescriptors = [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)]
+
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[AtlasHealthMetricSample], Error>) in
+            let query = HKSampleQuery(
+                sampleType: correlationType,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: sortDescriptors
+            ) { _, samples, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                let metrics = (samples as? [HKCorrelation] ?? []).flatMap { sample -> [AtlasHealthMetricSample] in
+                    var items: [AtlasHealthMetricSample] = []
+                    if let systolicSample = sample.objects(for: systolicType).first as? HKQuantitySample {
+                        items.append(
+                            AtlasHealthMetricSample(
+                                id: "\(sample.uuid.uuidString)-systolic",
+                                kind: .bloodPressureSystolic,
+                                recordedAt: systolicSample.startDate,
+                                value: systolicSample.quantity.doubleValue(for: .millimeterOfMercury())
+                            )
+                        )
+                    }
+                    if let diastolicSample = sample.objects(for: diastolicType).first as? HKQuantitySample {
+                        items.append(
+                            AtlasHealthMetricSample(
+                                id: "\(sample.uuid.uuidString)-diastolic",
+                                kind: .bloodPressureDiastolic,
+                                recordedAt: diastolicSample.startDate,
+                                value: diastolicSample.quantity.doubleValue(for: .millimeterOfMercury())
+                            )
+                        )
+                    }
+                    return items
+                }
+                continuation.resume(returning: metrics)
+            }
+
+            store.execute(query)
+        }
+    }
+
+    private func fetchBodyFatSamples(since: Date?) async throws -> [AtlasHealthMetricSample] {
+        guard let store = makeStore(),
+              let quantityType = HKQuantityType.quantityType(forIdentifier: .bodyFatPercentage) else {
+            return []
+        }
+
+        let predicate = since.map {
+            HKQuery.predicateForSamples(withStart: $0, end: nil, options: .strictStartDate)
+        }
+        let sortDescriptors = [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)]
+
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[AtlasHealthMetricSample], Error>) in
+            let query = HKSampleQuery(
+                sampleType: quantityType,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: sortDescriptors
+            ) { _, samples, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                let metrics = (samples as? [HKQuantitySample] ?? []).map { sample in
+                    AtlasHealthMetricSample(
+                        id: sample.uuid.uuidString,
+                        kind: .bodyFatPercentage,
+                        recordedAt: sample.startDate,
+                        value: sample.quantity.doubleValue(for: .percent()) * 100
+                    )
+                }
+                continuation.resume(returning: metrics)
+            }
+
+            store.execute(query)
+        }
+    }
+
+    private func isSleepSampleAsleep(_ sample: HKCategorySample) -> Bool {
+        guard let value = HKCategoryValueSleepAnalysis(rawValue: sample.value) else {
+            return false
+        }
+
+        if #available(iOS 16.0, *) {
+            switch value {
+            case .asleep, .asleepCore, .asleepDeep, .asleepREM, .asleepUnspecified:
+                return true
+            default:
+                return false
+            }
+        }
+
+        return value == .asleep
     }
     #endif
 }

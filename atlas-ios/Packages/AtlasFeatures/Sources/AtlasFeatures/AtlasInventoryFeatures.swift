@@ -182,6 +182,7 @@ public struct AtlasInventoryScreen: View {
                                     id: site.id,
                                     name: site.name,
                                     bodyArea: site.bodyArea,
+                                    mapRegionKey: site.mapRegionKey,
                                     notes: site.notes,
                                     archivedAt: site.archivedAt
                                 )
@@ -471,13 +472,171 @@ private struct AtlasSiteSummaryCard: View {
                 Text(site.name)
                     .font(.body.weight(.semibold))
                     .foregroundStyle(AtlasPalette.textPrimary)
-                Text([site.bodyArea, site.notes].compactMap { $0 }.joined(separator: " • "))
+                Text([
+                    site.mapRegionKey?.title,
+                    site.bodyArea,
+                    site.notes
+                ].compactMap { $0 }.joined(separator: " • "))
                     .font(.caption)
                     .foregroundStyle(AtlasPalette.textSecondary)
                 Button("Edit site", action: onOpen)
                     .buttonStyle(AtlasSecondaryButtonStyle())
             }
         }
+    }
+}
+
+private struct AtlasBodyMapPicker: View {
+    @Binding var selection: AtlasBodyMapRegionKey?
+    let highlightedRegions: Set<AtlasBodyMapRegionKey>
+    @State private var surface: AtlasBodyMapSurface
+
+    init(
+        selection: Binding<AtlasBodyMapRegionKey?>,
+        highlightedRegions: Set<AtlasBodyMapRegionKey> = []
+    ) {
+        _selection = selection
+        self.highlightedRegions = highlightedRegions
+        _surface = State(initialValue: selection.wrappedValue?.surface ?? .front)
+    }
+
+    private var visibleRegions: [AtlasBodyMapRegionKey] {
+        AtlasBodyMapRegionKey.allCases.filter { $0.surface == surface }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+            Picker("Surface", selection: $surface) {
+                ForEach(AtlasBodyMapSurface.allCases) { item in
+                    Text(item.title).tag(item)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            GeometryReader { proxy in
+                let width = proxy.size.width
+                let height = proxy.size.height
+
+                ZStack {
+                    AtlasBodyMapSilhouette(surface: surface)
+                        .fill(AtlasPalette.surfaceSecondary)
+                        .overlay {
+                            AtlasBodyMapSilhouette(surface: surface)
+                                .stroke(AtlasPalette.border, lineWidth: 1)
+                        }
+
+                    ForEach(visibleRegions) { region in
+                        Button {
+                            selection = region
+                        } label: {
+                            VStack(spacing: 2) {
+                                Circle()
+                                    .fill(selection == region ? AtlasPalette.primary : (highlightedRegions.contains(region) ? AtlasPalette.success : AtlasPalette.secondaryText))
+                                    .frame(
+                                        width: max(width * region.markerDiameter, 30),
+                                        height: max(width * region.markerDiameter, 30)
+                                    )
+                                    .overlay {
+                                        Circle()
+                                            .stroke(Color.white.opacity(0.8), lineWidth: selection == region ? 2 : 1)
+                                    }
+                                Text(region.shortLabel)
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundStyle(AtlasPalette.textPrimary)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .position(x: width * region.normalizedX, y: height * region.normalizedY)
+                    }
+                }
+            }
+            .frame(height: 320)
+            .padding(.vertical, AtlasSpacing.xSmall)
+
+            Text("Tap a hotspot to attach this saved site to a reusable body-map location.")
+                .font(.caption)
+                .foregroundStyle(AtlasPalette.textSecondary)
+        }
+        .onChange(of: selection) { _, newValue in
+            guard let newValue else {
+                return
+            }
+            surface = newValue.surface
+        }
+    }
+}
+
+private struct AtlasBodyMapSilhouette: Shape {
+    let surface: AtlasBodyMapSurface
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+
+        let head = CGRect(
+            x: rect.midX - rect.width * 0.09,
+            y: rect.minY + rect.height * 0.03,
+            width: rect.width * 0.18,
+            height: rect.width * 0.18
+        )
+        path.addEllipse(in: head)
+
+        let torso = CGRect(
+            x: rect.midX - rect.width * 0.16,
+            y: rect.minY + rect.height * 0.21,
+            width: rect.width * 0.32,
+            height: rect.height * 0.34
+        )
+        path.addRoundedRect(in: torso, cornerSize: CGSize(width: rect.width * 0.07, height: rect.width * 0.07))
+
+        let leftArm = CGRect(
+            x: rect.midX - rect.width * 0.33,
+            y: rect.minY + rect.height * 0.23,
+            width: rect.width * 0.12,
+            height: rect.height * 0.30
+        )
+        let rightArm = CGRect(
+            x: rect.midX + rect.width * 0.21,
+            y: rect.minY + rect.height * 0.23,
+            width: rect.width * 0.12,
+            height: rect.height * 0.30
+        )
+        path.addRoundedRect(in: leftArm, cornerSize: CGSize(width: rect.width * 0.06, height: rect.width * 0.06))
+        path.addRoundedRect(in: rightArm, cornerSize: CGSize(width: rect.width * 0.06, height: rect.width * 0.06))
+
+        let hips = CGRect(
+            x: rect.midX - rect.width * 0.18,
+            y: rect.minY + rect.height * 0.50,
+            width: rect.width * 0.36,
+            height: rect.height * 0.11
+        )
+        path.addRoundedRect(in: hips, cornerSize: CGSize(width: rect.width * 0.08, height: rect.width * 0.08))
+
+        let leftLeg = CGRect(
+            x: rect.midX - rect.width * 0.16,
+            y: rect.minY + rect.height * 0.58,
+            width: rect.width * 0.12,
+            height: rect.height * 0.29
+        )
+        let rightLeg = CGRect(
+            x: rect.midX + rect.width * 0.04,
+            y: rect.minY + rect.height * 0.58,
+            width: rect.width * 0.12,
+            height: rect.height * 0.29
+        )
+        path.addRoundedRect(in: leftLeg, cornerSize: CGSize(width: rect.width * 0.06, height: rect.width * 0.06))
+        path.addRoundedRect(in: rightLeg, cornerSize: CGSize(width: rect.width * 0.06, height: rect.width * 0.06))
+
+        if surface == .back {
+            let spine = CGRect(
+                x: rect.midX - rect.width * 0.015,
+                y: rect.minY + rect.height * 0.25,
+                width: rect.width * 0.03,
+                height: rect.height * 0.28
+            )
+            path.addRoundedRect(in: spine, cornerSize: CGSize(width: rect.width * 0.015, height: rect.width * 0.015))
+        }
+
+        return path
     }
 }
 
@@ -1453,6 +1612,34 @@ private struct AtlasSiteEditorSheet: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section("Body map") {
+                    AtlasBodyMapPicker(selection: Binding(
+                        get: { draft.mapRegionKey },
+                        set: { region in
+                            draft.mapRegionKey = region
+                            guard let region else {
+                                return
+                            }
+                            if draft.bodyArea?.isEmpty != false {
+                                draft.bodyArea = region.bodyArea
+                            }
+                            if draft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                draft.name = region.title
+                            }
+                        }
+                    ))
+
+                    if let region = draft.mapRegionKey {
+                        Text("Selected hotspot: \(region.title)")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(AtlasPalette.textSecondary)
+                        Button("Clear hotspot") {
+                            draft.mapRegionKey = nil
+                        }
+                        .buttonStyle(AtlasSecondaryButtonStyle())
+                    }
+                }
+
                 Section("Site") {
                     TextField("Name", text: Binding(
                         get: { draft.name },
