@@ -648,6 +648,9 @@ private struct AtlasWeeklyReviewCommandDeck: View {
             } else {
                 details.append("Health connected")
             }
+            if health.syncedWorkoutEntryCount > 0 {
+                details.append("\(health.syncedWorkoutEntryCount) Health workout import\(health.syncedWorkoutEntryCount == 1 ? "" : "s")")
+            }
         } else {
             details.append("Health optional")
         }

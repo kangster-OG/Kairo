@@ -257,6 +257,11 @@ private struct AtlasVialSummaryCard: View {
                         .font(.caption)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
+                if let lowStockLabel = vial.lowStockLabel {
+                    Text(lowStockLabel)
+                        .font(.caption)
+                        .foregroundStyle(vial.isLowStock ? .orange : AtlasPalette.textSecondary)
+                }
                 if let autoDecrementLabel = vial.autoDecrementLabel {
                     Text(autoDecrementLabel)
                         .font(.caption)
@@ -500,6 +505,23 @@ private struct AtlasVialDetailScreen: View {
                                 .font(.title3.weight(.bold))
                             Text(loadedDetail.summary.quantityLabel)
                                 .foregroundStyle(AtlasPalette.textSecondary)
+                            if let concentrationValue = loadedDetail.editableDraft.concentrationValue,
+                               let concentrationUnit = loadedDetail.editableDraft.concentrationUnit {
+                                Text("Concentration: \(concentrationValue.cleanAtlasNumber) \(concentrationUnit)/mL")
+                                    .foregroundStyle(AtlasPalette.textSecondary)
+                            }
+                            if let volumeML = loadedDetail.editableDraft.volumeML {
+                                Text("Diluent volume: \(volumeML.cleanAtlasNumber) mL")
+                                    .foregroundStyle(AtlasPalette.textSecondary)
+                            }
+                            if let openedAt = loadedDetail.editableDraft.openedAt {
+                                Text("Opened: \(openedAt.formatted(date: .abbreviated, time: .shortened))")
+                                    .foregroundStyle(AtlasPalette.textSecondary)
+                            }
+                            if let expiresAt = loadedDetail.editableDraft.expiresAt {
+                                Text("Expires: \(expiresAt.formatted(date: .abbreviated, time: .shortened))")
+                                    .foregroundStyle(expiresAt < model.currentDate() ? .orange : AtlasPalette.textSecondary)
+                            }
                             if let linkedTitle = loadedDetail.summary.linkedProtocolCanonicalTitle {
                                 Text("Linked to \(model.renderedTitle(canonical: linkedTitle, alias: loadedDetail.summary.linkedProtocolAliasTitle))")
                                     .foregroundStyle(AtlasPalette.textSecondary)
@@ -846,6 +868,38 @@ private struct AtlasVialEditorSheet: View {
                         set: { draft.lowStockThreshold = Double($0) }
                     ))
                     .atlasDecimalKeyboard()
+                    Toggle("Track opened date", isOn: Binding(
+                        get: { draft.openedAt != nil },
+                        set: { enabled in
+                            draft.openedAt = enabled ? (draft.openedAt ?? model.currentDate()) : nil
+                        }
+                    ))
+                    if draft.openedAt != nil {
+                        DatePicker(
+                            "Opened on",
+                            selection: Binding(
+                                get: { draft.openedAt ?? model.currentDate() },
+                                set: { draft.openedAt = $0 }
+                            ),
+                            displayedComponents: [.date, .hourAndMinute]
+                        )
+                    }
+                    Toggle("Track expiration", isOn: Binding(
+                        get: { draft.expiresAt != nil },
+                        set: { enabled in
+                            draft.expiresAt = enabled ? (draft.expiresAt ?? model.currentDate()) : nil
+                        }
+                    ))
+                    if draft.expiresAt != nil {
+                        DatePicker(
+                            "Expires on",
+                            selection: Binding(
+                                get: { draft.expiresAt ?? model.currentDate() },
+                                set: { draft.expiresAt = $0 }
+                            ),
+                            displayedComponents: [.date, .hourAndMinute]
+                        )
+                    }
                 }
 
                 Section("Reconstitution link") {

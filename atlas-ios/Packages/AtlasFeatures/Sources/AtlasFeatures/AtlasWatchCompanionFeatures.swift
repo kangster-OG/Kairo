@@ -9,15 +9,16 @@ public struct AtlasWatchCompanionScreen: View {
     @State private var contextSheetPresented = false
 
     public var body: some View {
+        let weeklyReview = model.weeklyReviewPresentation()
         let guidance = atlasTodayGuidancePresentation(
             todaySnapshot: model.todaySnapshot,
-            weeklyReviewSeed: model.weeklyReviewPresentation()?.seed,
-            actionPlans: model.weeklyReviewPresentation()?.actionPlans ?? []
+            weeklyReviewSeed: weeklyReview?.seed,
+            actionPlans: weeklyReview?.actionPlans ?? []
         )
         let recovery = atlasTodayRecoveryPresentation(
             todaySnapshot: model.todaySnapshot,
-            weeklyReviewSeed: model.weeklyReviewPresentation()?.seed,
-            actionPlans: model.weeklyReviewPresentation()?.actionPlans ?? []
+            weeklyReviewSeed: weeklyReview?.seed,
+            actionPlans: weeklyReview?.actionPlans ?? []
         )
         let currentOccurrence = model.todaySnapshot.overdue.first ?? model.todaySnapshot.nextDue ?? model.todaySnapshot.upcoming.first
         let shortcutPhrases = [
@@ -105,6 +106,46 @@ public struct AtlasWatchCompanionScreen: View {
 
                         Button("Open the next plan") {
                             model.open(.protocolDetail(currentOccurrence.protocolID))
+                        }
+                        .buttonStyle(AtlasSecondaryButtonStyle())
+                    }
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
+                }
+            }
+
+            if let weeklyReview {
+                Section {
+                    AtlasSectionCard(title: "Week on wrist") {
+                        Text(weeklyReview.summaryText)
+                            .foregroundStyle(AtlasPalette.textSecondary)
+
+                        HStack(spacing: AtlasSpacing.small) {
+                            AtlasStatusBadge(
+                                "\(weeklyReview.seed.completedCount) completed",
+                                tint: AtlasPalette.success
+                            )
+                            AtlasStatusBadge(
+                                "\(weeklyReview.seed.overdueCount) open",
+                                tint: weeklyReview.seed.overdueCount > 0 ? .orange : AtlasPalette.secondaryText
+                            )
+                            AtlasStatusBadge(
+                                "\(weeklyReview.actionPlans.count) saved",
+                                tint: weeklyReview.actionPlans.isEmpty ? AtlasPalette.secondaryText : AtlasPalette.primary
+                            )
+                        }
+
+                        if let savedPlan = weeklyReview.actionPlans.first {
+                            Text("Top carry-forward: \(savedPlan.title)")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(AtlasPalette.textPrimary)
+                            Text(savedPlan.detail)
+                                .font(.caption)
+                                .foregroundStyle(AtlasPalette.textSecondary)
+                        }
+
+                        Button("Open weekly review") {
+                            model.open(.weeklyReview)
                         }
                         .buttonStyle(AtlasSecondaryButtonStyle())
                     }

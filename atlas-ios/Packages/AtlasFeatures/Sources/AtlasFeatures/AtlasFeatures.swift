@@ -2699,12 +2699,17 @@ private struct AtlasTodayContextQuickCard: View {
     let defaultProtocolID: String?
     let onTriggerShortcut: (AtlasTodayContextShortcut) -> Void
     let onOpenDetailedCapture: () -> Void
+    @State private var quickMealText = ""
 
     var body: some View {
         let presets = model.contextQuickPresets(limit: 3)
         let recentMeals = model.recentMealQuickItems(limit: 3)
         let nutritionTargets = model.insightsSnapshot.nutritionSnapshot.dailyTargets
         let featuredFoods = model.nutritionFeaturedLookupItems(limit: 4)
+        let textSuggestion = model.nutritionQuickCaptureSuggestion(
+            for: quickMealText,
+            loggedAt: model.currentDate()
+        )
 
         AtlasSectionCard(style: .utility) {
             VStack(alignment: .leading, spacing: AtlasSpacing.small) {
@@ -2721,6 +2726,28 @@ private struct AtlasTodayContextQuickCard: View {
 
                 if defaultProtocolID != nil {
                     Text("New Today captures will attach to the current visible plan until you choose a different context path.")
+                        .font(.caption)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                }
+
+                TextField("Type or dictate a meal", text: $quickMealText, axis: .vertical)
+                    .atlasStandaloneInputSurface()
+
+                if let textSuggestion {
+                    AtlasNutritionSuggestionButton(
+                        suggestion: textSuggestion,
+                        buttonTitle: "Log parsed meal"
+                    ) {
+                        var draft = textSuggestion.draft
+                        draft.protocolID = defaultProtocolID
+                        if let note = draft.note, quickMealText.isEmpty == false, note == textSuggestion.draft.note {
+                            draft.note = note
+                        }
+                        Task { await model.saveContextEntry(draft) }
+                        quickMealText = ""
+                    }
+                } else if quickMealText.isEmpty == false {
+                    Text("No structured meal match yet. Atlas will keep lookup suggestions below ready instead.")
                         .font(.caption)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
@@ -5033,6 +5060,12 @@ public struct AtlasSettingsScreen: View {
                             value: "\(health.syncedWeightEntryCount)"
                         )
                     }
+                    if health.syncedWorkoutEntryCount > 0 {
+                        AtlasSettingsStatusRow(
+                            title: "Imported workouts",
+                            value: "\(health.syncedWorkoutEntryCount)"
+                        )
+                    }
                 }
                 Text("Health imports configured: \(health.syncsWeight ? "Weight" : "")\(health.syncsWeight && health.syncsWorkouts ? " + " : "")\(health.syncsWorkouts ? "Workouts" : "")")
                     .font(.caption)
@@ -5065,6 +5098,12 @@ public struct AtlasSettingsScreen: View {
                 if let lastWeightEntryAt = health.lastWeightEntryAt,
                    let parsedWeightDate = ISO8601DateFormatter().date(from: lastWeightEntryAt) {
                     Text("Latest Health weight: \(parsedWeightDate.formatted(date: .abbreviated, time: .shortened))")
+                        .font(.caption)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                }
+                if let lastWorkoutEntryAt = health.lastWorkoutEntryAt,
+                   let parsedWorkoutDate = ISO8601DateFormatter().date(from: lastWorkoutEntryAt) {
+                    Text("Latest Health workout: \(parsedWorkoutDate.formatted(date: .abbreviated, time: .shortened))")
                         .font(.caption)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }

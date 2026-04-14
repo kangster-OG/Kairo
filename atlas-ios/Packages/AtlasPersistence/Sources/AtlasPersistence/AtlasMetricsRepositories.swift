@@ -2219,7 +2219,8 @@ private func buildAdherenceTrend(
     logEvents: [AtlasLogEventRecord],
     now: Date
 ) -> AtlasAdherenceTrendSummary {
-    let windowStart = Calendar.current.date(byAdding: .day, value: -atlasInsightsTrendWindowDays, to: now) ?? now
+    let calendar = Calendar.current
+    let windowStart = calendar.date(byAdding: .day, value: -atlasInsightsTrendWindowDays, to: now) ?? now
     let outstandingItems = context.pendingOccurrences.values
         .flatMap { $0 }
         .filter {
@@ -2237,13 +2238,81 @@ private func buildAdherenceTrend(
     let rescheduledCount = recentLogEvents.filter { $0.eventType == .rescheduled }.count
     let overdueCount = outstandingItems.filter { $0.state == .missed || $0.state == .due }.count
     let counted = completedCount + skippedCount + overdueCount
+    let startOfToday = calendar.startOfDay(for: now)
+    let stripStart = calendar.date(byAdding: .day, value: -13, to: startOfToday) ?? startOfToday
+    var dayBuckets: [Date: AtlasAdherenceTrendSummary.DaySummary] = [:]
+
+    for dayOffset in 0..<14 {
+        guard let day = calendar.date(byAdding: .day, value: dayOffset, to: stripStart) else {
+            continue
+        }
+        let dateKey = ISO8601DateFormatter.atlas.string(from: day)
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEE"
+        dayBuckets[day] = AtlasAdherenceTrendSummary.DaySummary(
+            dateKey: dateKey,
+            title: formatDateLabel(dateKey),
+            shortTitle: String(formatter.string(from: day).prefix(1)),
+            scheduledCount: 0,
+            dominantStatus: .quiet
+        )
+    }
+
+    for event in recentLogEvents {
+        let day = calendar.startOfDay(for: atlasDate(from: event.loggedAt))
+        guard var bucket = dayBuckets[day] else {
+            continue
+        }
+        switch event.eventType {
+        case .completed:
+            bucket.completedCount += 1
+        case .skipped:
+            bucket.skippedCount += 1
+        case .rescheduled:
+            bucket.rescheduledCount += 1
+        case .manualLog, .inventoryAdjustment:
+            break
+        }
+        bucket.scheduledCount += 1
+        dayBuckets[day] = bucket
+    }
+
+    for item in outstandingItems where item.state == .missed || item.state == .due {
+        let day = calendar.startOfDay(for: atlasDate(from: item.scheduledAt))
+        guard var bucket = dayBuckets[day] else {
+            continue
+        }
+        bucket.overdueCount += 1
+        bucket.scheduledCount += 1
+        dayBuckets[day] = bucket
+    }
+
+    let dailySummaries = dayBuckets.keys.sorted().compactMap { day -> AtlasAdherenceTrendSummary.DaySummary? in
+        guard var bucket = dayBuckets[day] else {
+            return nil
+        }
+
+        if bucket.completedCount > 0 {
+            bucket.dominantStatus = .completed
+        } else if bucket.overdueCount > 0 {
+            bucket.dominantStatus = .overdue
+        } else if bucket.skippedCount > 0 {
+            bucket.dominantStatus = .skipped
+        } else if bucket.rescheduledCount > 0 {
+            bucket.dominantStatus = .rescheduled
+        } else {
+            bucket.dominantStatus = .quiet
+        }
+        return bucket
+    }
 
     return AtlasAdherenceTrendSummary(
         completionRateLabel: counted > 0 ? "\(Int(round((Double(completedCount) / Double(counted)) * 100)))% logged on time" : nil,
         completedCount: completedCount,
         overdueCount: overdueCount,
         rescheduledCount: rescheduledCount,
-        skippedCount: skippedCount
+        skippedCount: skippedCount,
+        dailySummaries: dailySummaries
     )
 }
 

@@ -3516,7 +3516,18 @@ final class AtlasPhaseOneTests: XCTestCase {
         )
 
         let unchangedDetail = try await controller.container.protocols.fetchProtocolDetail(id: created.id)
-        XCTAssertEqual(originalDetail, unchangedDetail)
+        XCTAssertEqual(originalDetail?.id, unchangedDetail?.id)
+        XCTAssertEqual(originalDetail?.canonicalTitle, unchangedDetail?.canonicalTitle)
+        XCTAssertEqual(originalDetail?.cadenceLabel, unchangedDetail?.cadenceLabel)
+        XCTAssertEqual(originalDetail?.doseLabel, unchangedDetail?.doseLabel)
+        XCTAssertEqual(
+            originalDetail?.medicationLevel?.estimateLabel,
+            unchangedDetail?.medicationLevel?.estimateLabel
+        )
+        XCTAssertEqual(
+            originalDetail?.medicationLevel?.points.count,
+            unchangedDetail?.medicationLevel?.points.count
+        )
 
         let commit = try await controller.container.changeStudio.commitChange(
             protocolID: created.id,

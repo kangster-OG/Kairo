@@ -271,6 +271,8 @@ public struct AtlasHealthScaffoldSnapshot: Codable, Equatable, Sendable {
     public var syncsWorkouts: Bool
     public var syncedWeightEntryCount: Int
     public var lastWeightEntryAt: String?
+    public var syncedWorkoutEntryCount: Int
+    public var lastWorkoutEntryAt: String?
 
     public init(
         isAvailable: Bool = true,
@@ -278,7 +280,9 @@ public struct AtlasHealthScaffoldSnapshot: Codable, Equatable, Sendable {
         syncsWeight: Bool = true,
         syncsWorkouts: Bool = true,
         syncedWeightEntryCount: Int = 0,
-        lastWeightEntryAt: String? = nil
+        lastWeightEntryAt: String? = nil,
+        syncedWorkoutEntryCount: Int = 0,
+        lastWorkoutEntryAt: String? = nil
     ) {
         self.isAvailable = isAvailable
         self.connections = connections
@@ -286,6 +290,8 @@ public struct AtlasHealthScaffoldSnapshot: Codable, Equatable, Sendable {
         self.syncsWorkouts = syncsWorkouts
         self.syncedWeightEntryCount = syncedWeightEntryCount
         self.lastWeightEntryAt = lastWeightEntryAt
+        self.syncedWorkoutEntryCount = syncedWorkoutEntryCount
+        self.lastWorkoutEntryAt = lastWorkoutEntryAt
     }
 }
 

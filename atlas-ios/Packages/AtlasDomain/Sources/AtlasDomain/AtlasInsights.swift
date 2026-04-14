@@ -1061,24 +1061,70 @@ public struct AtlasInventoryBurnDownInsight: Identifiable, Equatable, Sendable {
 }
 
 public struct AtlasAdherenceTrendSummary: Equatable, Sendable {
+    public struct DaySummary: Identifiable, Equatable, Sendable {
+        public enum Status: String, Codable, Equatable, Sendable {
+            case completed
+            case skipped
+            case overdue
+            case rescheduled
+            case quiet
+        }
+
+        public var id: String { dateKey }
+        public var dateKey: String
+        public var title: String
+        public var shortTitle: String
+        public var completedCount: Int
+        public var skippedCount: Int
+        public var overdueCount: Int
+        public var rescheduledCount: Int
+        public var scheduledCount: Int
+        public var dominantStatus: Status
+
+        public init(
+            dateKey: String,
+            title: String,
+            shortTitle: String,
+            completedCount: Int = 0,
+            skippedCount: Int = 0,
+            overdueCount: Int = 0,
+            rescheduledCount: Int = 0,
+            scheduledCount: Int = 0,
+            dominantStatus: Status = .quiet
+        ) {
+            self.dateKey = dateKey
+            self.title = title
+            self.shortTitle = shortTitle
+            self.completedCount = completedCount
+            self.skippedCount = skippedCount
+            self.overdueCount = overdueCount
+            self.rescheduledCount = rescheduledCount
+            self.scheduledCount = scheduledCount
+            self.dominantStatus = dominantStatus
+        }
+    }
+
     public var completionRateLabel: String?
     public var completedCount: Int
     public var overdueCount: Int
     public var rescheduledCount: Int
     public var skippedCount: Int
+    public var dailySummaries: [DaySummary]
 
     public init(
         completionRateLabel: String? = nil,
         completedCount: Int = 0,
         overdueCount: Int = 0,
         rescheduledCount: Int = 0,
-        skippedCount: Int = 0
+        skippedCount: Int = 0,
+        dailySummaries: [DaySummary] = []
     ) {
         self.completionRateLabel = completionRateLabel
         self.completedCount = completedCount
         self.overdueCount = overdueCount
         self.rescheduledCount = rescheduledCount
         self.skippedCount = skippedCount
+        self.dailySummaries = dailySummaries
     }
 }
 

@@ -8,19 +8,21 @@ private struct AtlasLabMetricTemplate: Identifiable, Equatable {
     let unit: String
     let groupTitle: String
     let groupSubtitle: String
+    let referenceRange: ClosedRange<Double>?
+    let referenceRangeLabel: String?
 }
 
 private let atlasLabMetricTemplates: [AtlasLabMetricTemplate] = [
-    .init(id: "fasting-glucose", label: "Fasting Glucose", unit: "mg/dL", groupTitle: "Metabolic panel", groupSubtitle: "Glucose, insulin response, and baseline tolerance."),
-    .init(id: "hba1c", label: "HbA1c", unit: "%", groupTitle: "Metabolic panel", groupSubtitle: "Glucose, insulin response, and baseline tolerance."),
-    .init(id: "fasting-insulin", label: "Fasting Insulin", unit: "uIU/mL", groupTitle: "Metabolic panel", groupSubtitle: "Glucose, insulin response, and baseline tolerance."),
-    .init(id: "ldl-c", label: "LDL-C", unit: "mg/dL", groupTitle: "Lipids", groupSubtitle: "Baseline lipids for longer protocol review."),
-    .init(id: "hdl-c", label: "HDL-C", unit: "mg/dL", groupTitle: "Lipids", groupSubtitle: "Baseline lipids for longer protocol review."),
-    .init(id: "triglycerides", label: "Triglycerides", unit: "mg/dL", groupTitle: "Lipids", groupSubtitle: "Baseline lipids for longer protocol review."),
-    .init(id: "ast", label: "AST", unit: "U/L", groupTitle: "Liver", groupSubtitle: "Helpful when routines change appetite, recovery, or adjunct use."),
-    .init(id: "alt", label: "ALT", unit: "U/L", groupTitle: "Liver", groupSubtitle: "Helpful when routines change appetite, recovery, or adjunct use."),
-    .init(id: "total-testosterone", label: "Total Testosterone", unit: "ng/dL", groupTitle: "Hormones", groupSubtitle: "Optional support for advanced peptide or TRT-adjacent tracking."),
-    .init(id: "free-testosterone", label: "Free Testosterone", unit: "pg/mL", groupTitle: "Hormones", groupSubtitle: "Optional support for advanced peptide or TRT-adjacent tracking.")
+    .init(id: "fasting-glucose", label: "Fasting Glucose", unit: "mg/dL", groupTitle: "Metabolic panel", groupSubtitle: "Glucose, insulin response, and baseline tolerance.", referenceRange: 70...99, referenceRangeLabel: "70-99 mg/dL"),
+    .init(id: "hba1c", label: "HbA1c", unit: "%", groupTitle: "Metabolic panel", groupSubtitle: "Glucose, insulin response, and baseline tolerance.", referenceRange: 4.0...5.6, referenceRangeLabel: "4.0-5.6%"),
+    .init(id: "fasting-insulin", label: "Fasting Insulin", unit: "uIU/mL", groupTitle: "Metabolic panel", groupSubtitle: "Glucose, insulin response, and baseline tolerance.", referenceRange: 2...25, referenceRangeLabel: "2-25 uIU/mL"),
+    .init(id: "ldl-c", label: "LDL-C", unit: "mg/dL", groupTitle: "Lipids", groupSubtitle: "Baseline lipids for longer protocol review.", referenceRange: 0...99, referenceRangeLabel: "<100 mg/dL"),
+    .init(id: "hdl-c", label: "HDL-C", unit: "mg/dL", groupTitle: "Lipids", groupSubtitle: "Baseline lipids for longer protocol review.", referenceRange: 40...100, referenceRangeLabel: "40+ mg/dL"),
+    .init(id: "triglycerides", label: "Triglycerides", unit: "mg/dL", groupTitle: "Lipids", groupSubtitle: "Baseline lipids for longer protocol review.", referenceRange: 0...149, referenceRangeLabel: "<150 mg/dL"),
+    .init(id: "ast", label: "AST", unit: "U/L", groupTitle: "Liver", groupSubtitle: "Helpful when routines change appetite, recovery, or adjunct use.", referenceRange: 10...40, referenceRangeLabel: "10-40 U/L"),
+    .init(id: "alt", label: "ALT", unit: "U/L", groupTitle: "Liver", groupSubtitle: "Helpful when routines change appetite, recovery, or adjunct use.", referenceRange: 7...56, referenceRangeLabel: "7-56 U/L"),
+    .init(id: "total-testosterone", label: "Total Testosterone", unit: "ng/dL", groupTitle: "Hormones", groupSubtitle: "Optional support for advanced peptide or TRT-adjacent tracking.", referenceRange: 300...1000, referenceRangeLabel: "300-1000 ng/dL"),
+    .init(id: "free-testosterone", label: "Free Testosterone", unit: "pg/mL", groupTitle: "Hormones", groupSubtitle: "Optional support for advanced peptide or TRT-adjacent tracking.", referenceRange: 35...155, referenceRangeLabel: "35-155 pg/mL")
 ]
 
 public struct AtlasMedicationLevelsScreen: View {
@@ -216,6 +218,10 @@ public struct AtlasLabsScreen: View {
                         .font(.caption)
                         .foregroundStyle(AtlasPalette.textSecondary)
 
+                        Text("Starter markers include lightweight reference ranges so recent values read more like a review-ready report than a raw log list.")
+                            .font(.caption)
+                            .foregroundStyle(AtlasPalette.textSecondary)
+
                         ViewThatFits(in: .horizontal) {
                             HStack(spacing: AtlasSpacing.small) {
                                 Button("Add custom marker") {
@@ -266,6 +272,13 @@ public struct AtlasLabsScreen: View {
                                     .font(.caption)
                                     .foregroundStyle(AtlasPalette.textSecondary)
 
+                                let rangeLabels = templates.compactMap(\.referenceRangeLabel)
+                                if rangeLabels.isEmpty == false {
+                                    Text("Reference ranges: \(rangeLabels.joined(separator: " • "))")
+                                        .font(.caption)
+                                        .foregroundStyle(AtlasPalette.textSecondary)
+                                }
+
                                 Button("Add \(groupTitle)") {
                                     Task { await atlasEnsureLabMetrics(model: model, templates: templates) }
                                 }
@@ -293,9 +306,31 @@ public struct AtlasLabsScreen: View {
                                             .font(.body.weight(.semibold))
                                             .foregroundStyle(AtlasPalette.textPrimary)
 
-                                        Text(metric.unit ?? "Numeric marker")
-                                            .font(.caption)
-                                            .foregroundStyle(AtlasPalette.textSecondary)
+                                        if let template = atlasLabTemplate(for: metric.label) {
+                                            HStack(spacing: AtlasSpacing.xSmall) {
+                                                AtlasStatusBadge(
+                                                    atlasLabMetricStatus(
+                                                        for: metric,
+                                                        recentEntries: recentEntries,
+                                                        template: template
+                                                    ).title,
+                                                    tint: atlasLabMetricStatus(
+                                                        for: metric,
+                                                        recentEntries: recentEntries,
+                                                        template: template
+                                                    ).tint
+                                                )
+                                                if let rangeLabel = template.referenceRangeLabel {
+                                                    Text(rangeLabel)
+                                                        .font(.caption)
+                                                        .foregroundStyle(AtlasPalette.textSecondary)
+                                                }
+                                            }
+                                        } else {
+                                            Text(metric.unit ?? "Numeric marker")
+                                                .font(.caption)
+                                                .foregroundStyle(AtlasPalette.textSecondary)
+                                        }
 
                                         if let latest = metric.latestEntryLabel {
                                             Text("Latest: \(latest)")
@@ -323,9 +358,26 @@ public struct AtlasLabsScreen: View {
                     AtlasSectionCard(title: "Recent lab entries") {
                         ForEach(recentEntries) { entry in
                             VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
-                                Text("\(entry.label): \(entry.valueLabel)")
-                                    .font(.body.weight(.semibold))
-                                    .foregroundStyle(AtlasPalette.textPrimary)
+                                let template = atlasLabTemplate(for: entry.label)
+                                let status = template.map { atlasLabEntryStatus(for: entry, template: $0) }
+
+                                HStack(alignment: .top, spacing: AtlasSpacing.small) {
+                                    VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
+                                        Text("\(entry.label): \(entry.valueLabel)")
+                                            .font(.body.weight(.semibold))
+                                            .foregroundStyle(AtlasPalette.textPrimary)
+                                        if let template,
+                                           let rangeLabel = template.referenceRangeLabel {
+                                            Text("Reference range: \(rangeLabel)")
+                                                .font(.caption)
+                                                .foregroundStyle(AtlasPalette.textSecondary)
+                                        }
+                                    }
+                                    Spacer()
+                                    if let status {
+                                        AtlasStatusBadge(status.title, tint: status.tint)
+                                    }
+                                }
                                 Text(entry.loggedAt.formatted(date: .abbreviated, time: .shortened))
                                     .font(.caption)
                                     .foregroundStyle(AtlasPalette.textSecondary)
@@ -343,6 +395,50 @@ public struct AtlasLabsScreen: View {
             AtlasLabMetricEntrySheet(model: model, metric: metric)
         }
     }
+}
+
+private struct AtlasLabStatusPresentation {
+    let title: String
+    let tint: Color
+}
+
+private func atlasLabTemplate(for label: String) -> AtlasLabMetricTemplate? {
+    atlasLabMetricTemplates.first { $0.label.caseInsensitiveCompare(label) == .orderedSame }
+}
+
+private func atlasLabMetricStatus(
+    for metric: AtlasMetricDefinitionSummary,
+    recentEntries: [AtlasMetricValueEntrySummary],
+    template: AtlasLabMetricTemplate
+) -> AtlasLabStatusPresentation {
+    guard let entry = recentEntries.first(where: { $0.metricID == metric.id }) else {
+        return AtlasLabStatusPresentation(title: "No entry", tint: AtlasPalette.secondaryText)
+    }
+    return atlasLabEntryStatus(for: entry, template: template)
+}
+
+private func atlasLabEntryStatus(
+    for entry: AtlasMetricValueEntrySummary,
+    template: AtlasLabMetricTemplate
+) -> AtlasLabStatusPresentation {
+    guard let range = template.referenceRange,
+          let value = atlasFirstNumericValue(in: entry.valueLabel) else {
+        return AtlasLabStatusPresentation(title: "Logged", tint: AtlasPalette.primary)
+    }
+
+    if range.contains(value) {
+        return AtlasLabStatusPresentation(title: "In range", tint: AtlasPalette.success)
+    }
+    return AtlasLabStatusPresentation(title: value < range.lowerBound ? "Below range" : "Above range", tint: .orange)
+}
+
+private func atlasFirstNumericValue(in label: String) -> Double? {
+    let allowed = Set("0123456789.-")
+    let filtered = label.map { allowed.contains($0) ? $0 : " " }
+    return filtered
+        .split(separator: " ")
+        .compactMap { Double(String($0)) }
+        .first
 }
 
 private enum AtlasLabMetricSheetMode: Identifiable {

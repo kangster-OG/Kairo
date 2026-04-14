@@ -780,30 +780,141 @@ private struct AtlasAdherenceInsightSection: View {
     var body: some View {
         Section("Adherence") {
             AtlasSectionCard {
-                if snapshot.adherenceTrend.completedCount + snapshot.adherenceTrend.overdueCount + snapshot.adherenceTrend.skippedCount + snapshot.adherenceTrend.rescheduledCount == 0 {
+                let totalCount = snapshot.adherenceTrend.completedCount
+                    + snapshot.adherenceTrend.overdueCount
+                    + snapshot.adherenceTrend.skippedCount
+                    + snapshot.adherenceTrend.rescheduledCount
+
+                if totalCount == 0 {
                     Text("No due-history yet for this window.")
                         .foregroundStyle(AtlasPalette.textSecondary)
                 } else {
-                    Chart {
-                        BarMark(x: .value("State", "Taken"), y: .value("Count", snapshot.adherenceTrend.completedCount))
-                            .foregroundStyle(AtlasPalette.success)
-                        BarMark(x: .value("State", "Skipped"), y: .value("Count", snapshot.adherenceTrend.skippedCount))
-                            .foregroundStyle(.orange)
-                        BarMark(x: .value("State", "Overdue"), y: .value("Count", snapshot.adherenceTrend.overdueCount))
-                            .foregroundStyle(.red)
-                        BarMark(x: .value("State", "Moved"), y: .value("Count", snapshot.adherenceTrend.rescheduledCount))
-                            .foregroundStyle(AtlasPalette.primary)
-                    }
-                    .frame(height: 180)
+                    VStack(alignment: .leading, spacing: AtlasSpacing.medium) {
+                        Chart {
+                            BarMark(x: .value("State", "Taken"), y: .value("Count", snapshot.adherenceTrend.completedCount))
+                                .foregroundStyle(AtlasPalette.success)
+                            BarMark(x: .value("State", "Skipped"), y: .value("Count", snapshot.adherenceTrend.skippedCount))
+                                .foregroundStyle(.orange)
+                            BarMark(x: .value("State", "Overdue"), y: .value("Count", snapshot.adherenceTrend.overdueCount))
+                                .foregroundStyle(.red)
+                            BarMark(x: .value("State", "Moved"), y: .value("Count", snapshot.adherenceTrend.rescheduledCount))
+                                .foregroundStyle(AtlasPalette.primary)
+                        }
+                        .frame(height: 180)
 
-                    if let label = snapshot.adherenceTrend.completionRateLabel {
-                        Text(label)
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(AtlasPalette.textSecondary)
+                        if let label = snapshot.adherenceTrend.completionRateLabel {
+                            Text(label)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(AtlasPalette.textSecondary)
+                        }
+
+                        if snapshot.adherenceTrend.dailySummaries.isEmpty == false {
+                            VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+                                Text("Last 14 days")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(AtlasPalette.primary)
+                                    .textCase(.uppercase)
+
+                                AtlasAdherenceDayStrip(days: snapshot.adherenceTrend.dailySummaries)
+
+                                Text("Green means taken, orange means skipped, red means overdue, blue means moved, and muted means no due item for that day.")
+                                    .font(.caption)
+                                    .foregroundStyle(AtlasPalette.textSecondary)
+                            }
+                        }
                     }
                 }
             }
         }
+    }
+}
+
+private struct AtlasAdherenceDayStrip: View {
+    let days: [AtlasAdherenceTrendSummary.DaySummary]
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: AtlasSpacing.xSmall) {
+                ForEach(days) { day in
+                    AtlasAdherenceDayBadge(day: day)
+                }
+            }
+
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: AtlasSpacing.xSmall), count: 7), spacing: AtlasSpacing.xSmall) {
+                ForEach(days) { day in
+                    AtlasAdherenceDayBadge(day: day)
+                }
+            }
+        }
+    }
+}
+
+private struct AtlasAdherenceDayBadge: View {
+    let day: AtlasAdherenceTrendSummary.DaySummary
+
+    var body: some View {
+        VStack(spacing: 6) {
+            Text(day.shortTitle)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(AtlasPalette.textSecondary)
+            Text(day.scheduledCount == 0 ? " " : "\(max(1, day.scheduledCount))")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(textColor)
+                .frame(width: 28, height: 28)
+                .background(fillColor, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(borderColor, lineWidth: 1)
+                )
+                .accessibilityLabel("\(day.title): \(accessibilitySummary)")
+        }
+    }
+
+    private var fillColor: Color {
+        switch day.dominantStatus {
+        case .completed:
+            return AtlasPalette.success.opacity(0.18)
+        case .skipped:
+            return Color.orange.opacity(0.18)
+        case .overdue:
+            return Color.red.opacity(0.16)
+        case .rescheduled:
+            return AtlasPalette.primary.opacity(0.18)
+        case .quiet:
+            return AtlasPalette.surfaceSecondary
+        }
+    }
+
+    private var borderColor: Color {
+        switch day.dominantStatus {
+        case .completed:
+            return AtlasPalette.success.opacity(0.45)
+        case .skipped:
+            return .orange.opacity(0.45)
+        case .overdue:
+            return .red.opacity(0.45)
+        case .rescheduled:
+            return AtlasPalette.primary.opacity(0.4)
+        case .quiet:
+            return AtlasPalette.surfaceMuted
+        }
+    }
+
+    private var textColor: Color {
+        switch day.dominantStatus {
+        case .quiet:
+            return AtlasPalette.textSecondary
+        default:
+            return AtlasPalette.textPrimary
+        }
+    }
+
+    private var accessibilitySummary: String {
+        if day.scheduledCount == 0 {
+            return "no due items"
+        }
+
+        return "\(day.completedCount) taken, \(day.skippedCount) skipped, \(day.overdueCount) overdue, \(day.rescheduledCount) moved"
     }
 }
 
@@ -1881,7 +1992,7 @@ private struct AtlasNutritionCoachingCardView: View {
     }
 }
 
-private struct AtlasNutritionSuggestionButton: View {
+struct AtlasNutritionSuggestionButton: View {
     let suggestion: AtlasNutritionQuickCaptureSuggestion
     let buttonTitle: String
     let action: () -> Void

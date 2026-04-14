@@ -253,6 +253,16 @@ func buildSettingsSnapshot(
         sql: "SELECT logged_at FROM weight_logs WHERE source = ? ORDER BY logged_at DESC LIMIT 1",
         arguments: [AtlasHealthDataSource.health.rawValue]
     )
+    let syncedWorkoutEntryCount = try Int.fetchOne(
+        db,
+        sql: "SELECT COUNT(*) FROM workout_logs WHERE source = ?",
+        arguments: [AtlasHealthDataSource.health.rawValue]
+    ) ?? 0
+    let lastWorkoutEntryAt = try String.fetchOne(
+        db,
+        sql: "SELECT started_at FROM workout_logs WHERE source = ? ORDER BY started_at DESC LIMIT 1",
+        arguments: [AtlasHealthDataSource.health.rawValue]
+    )
     let syncStatus: AtlasSyncScaffoldStatus = accountMode == .guest ? .localOnly : .accountBoundary
     let summarySettings = try readSummarySettings(db: db, featureFlags: featureFlags)
     let retentionSettings = try readRetentionSettings(db: db, featureFlags: featureFlags)
@@ -270,7 +280,9 @@ func buildSettingsSnapshot(
             syncsWeight: true,
             syncsWorkouts: true,
             syncedWeightEntryCount: syncedWeightEntryCount,
-            lastWeightEntryAt: lastWeightEntryAt
+            lastWeightEntryAt: lastWeightEntryAt,
+            syncedWorkoutEntryCount: syncedWorkoutEntryCount,
+            lastWorkoutEntryAt: lastWorkoutEntryAt
         ),
         labsEnabled: labsEnabled,
         trustVaultStatus: TrustVaultStatus(
