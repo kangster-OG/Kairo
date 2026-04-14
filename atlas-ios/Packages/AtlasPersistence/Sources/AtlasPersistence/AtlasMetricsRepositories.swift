@@ -148,6 +148,45 @@ public struct GRDBMetricsRepository: MetricsRepository, Sendable {
         }
     }
 
+    public func importNutritionSamples(_ samples: [AtlasHealthNutritionSample], now: Date) async throws -> Int {
+        try await stack.canonical.write { db in
+            let timestamp = atlasTimestamp(from: now)
+            var metricIDsByKind: [AtlasHealthNutritionMetricKind: String] = [:]
+            var importedCount = 0
+
+            for sample in samples where sample.value > 0 {
+                let metricID: String
+                if let existingID = metricIDsByKind[sample.kind] {
+                    metricID = existingID
+                } else {
+                    let record = try ensureHealthNutritionMetric(kind: sample.kind, db: db, timestamp: timestamp)
+                    metricIDsByKind[sample.kind] = record.id
+                    metricID = record.id
+                }
+
+                let existing = try AtlasMetricValueLogDBRecord.fetchOne(db, key: "health_metric_\(sample.id.lowercased())")?.domain
+                let record = AtlasMetricValueLogRecord.make(
+                    id: existing?.id ?? "health_metric_\(sample.id.lowercased())",
+                    metricId: metricID,
+                    protocolId: nil,
+                    loggedAt: atlasTimestamp(from: sample.recordedAt),
+                    numberValue: sample.value,
+                    textValue: nil,
+                    booleanValue: nil,
+                    source: .health,
+                    createdAt: existing?.createdAt ?? timestamp,
+                    updatedAt: timestamp
+                )
+                try AtlasMetricValueLogDBRecord(record: record).save(db)
+                if existing == nil {
+                    importedCount += 1
+                }
+            }
+
+            return importedCount
+        }
+    }
+
     public func saveContextEntry(_ draft: AtlasContextEntryDraft, now: Date) async throws -> AtlasContextLogRecord {
         try await stack.canonical.write { db in
             let normalized = try normalize(contextDraft: draft)
@@ -384,6 +423,35 @@ public struct GRDBMetricsRepository: MetricsRepository, Sendable {
             return record
         }
     }
+}
+
+private func ensureHealthNutritionMetric(
+    kind: AtlasHealthNutritionMetricKind,
+    db: Database,
+    timestamp: String
+) throws -> AtlasCustomMetricRecord {
+    if let existing = try AtlasCustomMetricDBRecord
+        .filter(Column("metric_key") == kind.metricKey)
+        .fetchOne(db)?
+        .domain {
+        return existing
+    }
+
+    let record = AtlasCustomMetricRecord.make(
+        id: "metric_\(kind.metricKey)",
+        protocolId: nil,
+        metricKey: kind.metricKey,
+        label: kind.label,
+        valueType: .number,
+        unit: kind.unit,
+        scaleMin: nil,
+        scaleMax: nil,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        archivedAt: nil
+    )
+    try AtlasCustomMetricDBRecord(record: record).insert(db)
+    return record
 }
 
 private func normalize(contextDraft: AtlasContextEntryDraft) throws -> AtlasContextEntryDraft {
@@ -2239,10 +2307,10 @@ private func buildAdherenceTrend(
     let overdueCount = outstandingItems.filter { $0.state == .missed || $0.state == .due }.count
     let counted = completedCount + skippedCount + overdueCount
     let startOfToday = calendar.startOfDay(for: now)
-    let stripStart = calendar.date(byAdding: .day, value: -13, to: startOfToday) ?? startOfToday
+    let stripStart = calendar.date(byAdding: .day, value: -(atlasInsightsTrendWindowDays - 1), to: startOfToday) ?? startOfToday
     var dayBuckets: [Date: AtlasAdherenceTrendSummary.DaySummary] = [:]
 
-    for dayOffset in 0..<14 {
+    for dayOffset in 0..<atlasInsightsTrendWindowDays {
         guard let day = calendar.date(byAdding: .day, value: dayOffset, to: stripStart) else {
             continue
         }

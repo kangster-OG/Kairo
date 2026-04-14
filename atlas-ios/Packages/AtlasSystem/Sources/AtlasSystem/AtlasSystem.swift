@@ -34,6 +34,7 @@ public protocol HealthKitManaging: Sendable {
     func disconnect() async
     func fetchWeightSamples(since: Date?) async throws -> [AtlasHealthWeightSample]
     func fetchWorkouts(since: Date?) async throws -> [AtlasHealthWorkoutSample]
+    func fetchNutritionSamples(since: Date?) async throws -> [AtlasHealthNutritionSample]
     func saveWeightSample(value: Double, unit: AtlasWeightUnit, recordedAt: Date) async throws
     func connectionDescription() -> String
 }
@@ -295,7 +296,10 @@ public struct AtlasHealthKitManager: HealthKitManaging {
     public func requestAuthorization() async throws -> Bool {
         #if canImport(HealthKit)
         guard let store = makeStore(),
-              let weightType = HKObjectType.quantityType(forIdentifier: .bodyMass) else {
+              let weightType = HKObjectType.quantityType(forIdentifier: .bodyMass),
+              let waterType = HKObjectType.quantityType(forIdentifier: .dietaryWater),
+              let caloriesType = HKObjectType.quantityType(forIdentifier: .dietaryEnergyConsumed),
+              let proteinType = HKObjectType.quantityType(forIdentifier: .dietaryProtein) else {
             return false
         }
         let workoutType = HKObjectType.workoutType()
@@ -303,7 +307,7 @@ public struct AtlasHealthKitManager: HealthKitManaging {
         return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Bool, Error>) in
             store.requestAuthorization(
                 toShare: Set([weightType]),
-                read: Set([weightType, workoutType])
+                read: Set([weightType, workoutType, waterType, caloriesType, proteinType])
             ) { success, error in
                 if let error {
                     continuation.resume(throwing: error)
@@ -413,6 +417,32 @@ public struct AtlasHealthKitManager: HealthKitManaging {
         #endif
     }
 
+    public func fetchNutritionSamples(since: Date?) async throws -> [AtlasHealthNutritionSample] {
+        #if canImport(HealthKit)
+        let water = try await fetchNutritionSamples(
+            identifier: .dietaryWater,
+            kind: .water,
+            unit: .fluidOunceUS(),
+            since: since
+        )
+        let calories = try await fetchNutritionSamples(
+            identifier: .dietaryEnergyConsumed,
+            kind: .calories,
+            unit: .kilocalorie(),
+            since: since
+        )
+        let protein = try await fetchNutritionSamples(
+            identifier: .dietaryProtein,
+            kind: .protein,
+            unit: .gram(),
+            since: since
+        )
+        return (water + calories + protein).sorted { $0.recordedAt > $1.recordedAt }
+        #else
+        return []
+        #endif
+    }
+
     public func saveWeightSample(value: Double, unit: AtlasWeightUnit, recordedAt: Date) async throws {
         #if canImport(HealthKit)
         guard let store = makeStore(),
@@ -446,7 +476,7 @@ public struct AtlasHealthKitManager: HealthKitManaging {
         guard isAvailable() else {
             return "Apple Health is unavailable on this device."
         }
-        return "Apple Health can import workouts, bring weight history into Atlas, and sync Atlas weight entries back when you connect it."
+        return "Apple Health can import workouts, weight, water, calories, and protein history, and sync Atlas weight entries back when you connect it."
     }
 
     #if canImport(HealthKit)
@@ -538,6 +568,49 @@ public struct AtlasHealthKitManager: HealthKitManaging {
             return nil
         }
         return HKHealthStore()
+    }
+
+    private func fetchNutritionSamples(
+        identifier: HKQuantityTypeIdentifier,
+        kind: AtlasHealthNutritionMetricKind,
+        unit: HKUnit,
+        since: Date?
+    ) async throws -> [AtlasHealthNutritionSample] {
+        guard let store = makeStore(),
+              let quantityType = HKQuantityType.quantityType(forIdentifier: identifier) else {
+            return []
+        }
+
+        let predicate = since.map {
+            HKQuery.predicateForSamples(withStart: $0, end: nil, options: .strictStartDate)
+        }
+        let sortDescriptors = [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)]
+
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[AtlasHealthNutritionSample], Error>) in
+            let query = HKSampleQuery(
+                sampleType: quantityType,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: sortDescriptors
+            ) { _, samples, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                let nutritionSamples = (samples as? [HKQuantitySample] ?? []).map { sample in
+                    AtlasHealthNutritionSample(
+                        id: sample.uuid.uuidString,
+                        kind: kind,
+                        recordedAt: sample.startDate,
+                        value: sample.quantity.doubleValue(for: unit)
+                    )
+                }
+                continuation.resume(returning: nutritionSamples)
+            }
+
+            store.execute(query)
+        }
     }
     #endif
 }

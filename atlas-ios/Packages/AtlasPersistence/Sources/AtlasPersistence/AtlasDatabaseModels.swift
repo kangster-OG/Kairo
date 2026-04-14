@@ -690,6 +690,8 @@ struct AtlasVialDBRecord: Codable, FetchableRecord, PersistableRecord {
     var quantityUnit: String
     var openedAt: String?
     var expiresAt: String?
+    var referencePhotoRelativePath: String?
+    var labelScanText: String?
     var createdAt: String
     var updatedAt: String
     var archivedAt: String?
@@ -709,6 +711,8 @@ struct AtlasVialDBRecord: Codable, FetchableRecord, PersistableRecord {
         case quantityUnit = "quantity_unit"
         case openedAt = "opened_at"
         case expiresAt = "expires_at"
+        case referencePhotoRelativePath = "reference_photo_relative_path"
+        case labelScanText = "label_scan_text"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
         case archivedAt = "archived_at"
@@ -729,6 +733,8 @@ struct AtlasVialDBRecord: Codable, FetchableRecord, PersistableRecord {
         quantityUnit = record.quantityUnit
         openedAt = record.openedAt
         expiresAt = record.expiresAt
+        referencePhotoRelativePath = record.referencePhotoRelativePath
+        labelScanText = record.labelScanText
         createdAt = record.createdAt
         updatedAt = record.updatedAt
         archivedAt = record.archivedAt
@@ -750,6 +756,8 @@ struct AtlasVialDBRecord: Codable, FetchableRecord, PersistableRecord {
             quantityUnit: quantityUnit,
             openedAt: openedAt,
             expiresAt: expiresAt,
+            referencePhotoRelativePath: referencePhotoRelativePath,
+            labelScanText: labelScanText,
             createdAt: createdAt,
             updatedAt: updatedAt,
             archivedAt: archivedAt

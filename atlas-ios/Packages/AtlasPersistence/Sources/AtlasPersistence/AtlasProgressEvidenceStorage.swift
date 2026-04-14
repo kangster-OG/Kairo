@@ -21,7 +21,7 @@ func atlasWriteProgressPhoto(data: Data, id: String) throws -> String {
     return fileName
 }
 
-private func atlasApplicationSupportDirectory() throws -> URL {
+func atlasApplicationSupportDirectory() throws -> URL {
     guard let directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
         throw CocoaError(.fileNoSuchFile)
     }

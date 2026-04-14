@@ -142,6 +142,7 @@ public protocol MetricsRepository: Sendable {
     func fetchInsightsSnapshot(referenceDate: Date) async throws -> AtlasInsightsSnapshot
     func importWorkoutSamples(_ samples: [AtlasHealthWorkoutSample], now: Date) async throws -> Int
     func importWeightSamples(_ samples: [AtlasHealthWeightSample], now: Date) async throws -> Int
+    func importNutritionSamples(_ samples: [AtlasHealthNutritionSample], now: Date) async throws -> Int
     func saveContextEntry(_ draft: AtlasContextEntryDraft, now: Date) async throws -> AtlasContextLogRecord
     func saveContextPreset(_ draft: AtlasContextPresetDraft, now: Date) async throws -> AtlasContextPresetRecord
     func deleteContextPreset(id: String) async throws

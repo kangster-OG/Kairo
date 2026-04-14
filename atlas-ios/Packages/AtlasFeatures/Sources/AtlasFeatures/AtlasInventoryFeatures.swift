@@ -1,7 +1,14 @@
 import AtlasDesignSystem
 import AtlasDomain
+import AtlasPersistence
 import Foundation
 import SwiftUI
+#if canImport(PhotosUI)
+import PhotosUI
+#endif
+#if canImport(UIKit)
+import UIKit
+#endif
 
 public struct AtlasInventoryScreen: View {
     let model: AtlasAppModel
@@ -247,6 +254,10 @@ private struct AtlasVialSummaryCard: View {
                 Text(vial.quantityLabel)
                     .font(.caption)
                     .foregroundStyle(AtlasPalette.textSecondary)
+                if let referencePhotoPath = vial.referencePhotoPath {
+                    AtlasInventoryReferencePhoto(path: referencePhotoPath)
+                        .frame(height: 132)
+                }
                 if let protocolTitle = vial.linkedProtocolCanonicalTitle {
                     Text("Linked to \(model.renderedTitle(canonical: protocolTitle, alias: vial.linkedProtocolAliasTitle))")
                         .font(.caption)
@@ -266,6 +277,12 @@ private struct AtlasVialSummaryCard: View {
                     Text(autoDecrementLabel)
                         .font(.caption)
                         .foregroundStyle(AtlasPalette.textSecondary)
+                }
+                if let labelScanPreview = vial.labelScanPreview {
+                    Text(labelScanPreview)
+                        .font(.caption)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                        .lineLimit(3)
                 }
                 HStack(spacing: AtlasSpacing.small) {
                     Button("Open", action: onOpen)
@@ -505,6 +522,10 @@ private struct AtlasVialDetailScreen: View {
                                 .font(.title3.weight(.bold))
                             Text(loadedDetail.summary.quantityLabel)
                                 .foregroundStyle(AtlasPalette.textSecondary)
+                            if let referencePhotoPath = loadedDetail.summary.referencePhotoPath {
+                                AtlasInventoryReferencePhoto(path: referencePhotoPath)
+                                    .frame(height: 220)
+                            }
                             if let concentrationValue = loadedDetail.editableDraft.concentrationValue,
                                let concentrationUnit = loadedDetail.editableDraft.concentrationUnit {
                                 Text("Concentration: \(concentrationValue.cleanAtlasNumber) \(concentrationUnit)/mL")
@@ -528,6 +549,11 @@ private struct AtlasVialDetailScreen: View {
                             }
                             if let projectedDepletionLabel = loadedDetail.summary.projectedDepletionLabel {
                                 Text(projectedDepletionLabel)
+                                    .foregroundStyle(AtlasPalette.textSecondary)
+                            }
+                            if let labelScanText = loadedDetail.editableDraft.labelScanText {
+                                Text(labelScanText)
+                                    .font(.caption)
                                     .foregroundStyle(AtlasPalette.textSecondary)
                             }
                         }
@@ -824,6 +850,9 @@ private struct AtlasConsumableDetailScreen: View {
 private struct AtlasVialEditorSheet: View {
     let model: AtlasAppModel
     @State private var draft: AtlasVialDraft
+    @State private var selectedPhoto: PhotosPickerItem?
+    @State private var referencePhotoData = Data()
+    @State private var photoAnalysisState: AtlasImageAnalysisState = .idle
     @Environment(\.dismiss) private var dismiss
 
     init(model: AtlasAppModel, draft: AtlasVialDraft) {
@@ -834,6 +863,37 @@ private struct AtlasVialEditorSheet: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section("Reference capture") {
+                    PhotosPicker(selection: $selectedPhoto, matching: .images) {
+                        Label("Choose vial photo", systemImage: "camera")
+                    }
+
+                    if referencePhotoData.isEmpty == false {
+                        AtlasInlinePhotoPreview(data: referencePhotoData, height: 220)
+                    } else if let referencePhotoRelativePath = draft.referencePhotoRelativePath,
+                              let fileURL = try? atlasInventoryPhotoFileURL(relativePath: referencePhotoRelativePath) {
+                        AtlasInventoryReferencePhoto(path: fileURL.path)
+                            .frame(height: 220)
+                    }
+
+                    if case .loading = photoAnalysisState {
+                        ProgressView("Scanning label")
+                    } else if case let .ready(message) = photoAnalysisState {
+                        Text(message)
+                            .font(.caption)
+                            .foregroundStyle(AtlasPalette.textSecondary)
+                    } else if case let .failed(message) = photoAnalysisState {
+                        Text(message)
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
+
+                    TextField("Scanned label notes", text: Binding(
+                        get: { draft.labelScanText ?? "" },
+                        set: { draft.labelScanText = $0.isEmpty ? nil : $0 }
+                    ), axis: .vertical)
+                }
+
                 Section("Vial") {
                     TextField("Label", text: Binding(
                         get: { draft.label },
@@ -940,11 +1000,38 @@ private struct AtlasVialEditorSheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         Task {
-                            if await model.saveVial(draft) != nil {
+                            var saveDraft = draft
+                            if referencePhotoData.isEmpty == false {
+                                let vialID = saveDraft.id ?? UUID().uuidString
+                                saveDraft.id = vialID
+                                saveDraft.referencePhotoRelativePath = try? atlasWriteInventoryPhoto(data: referencePhotoData, id: vialID)
+                            }
+                            if await model.saveVial(saveDraft) != nil {
                                 dismiss()
                             }
                         }
                     }
+                }
+            }
+            .task(id: selectedPhoto) {
+                guard let selectedPhoto else {
+                    return
+                }
+                photoAnalysisState = .loading
+                guard let data = try? await selectedPhoto.loadTransferable(type: Data.self),
+                      let jpegData = atlasNormalizedJPEGData(from: data) else {
+                    photoAnalysisState = .failed("Atlas couldn't read that vial photo.")
+                    return
+                }
+                referencePhotoData = jpegData
+                if let scanText = await atlasInventoryLabelScanText(from: jpegData) {
+                    draft.labelScanText = scanText
+                    if draft.label.isEmpty {
+                        draft.label = atlasInventorySuggestedLabel(from: scanText)
+                    }
+                    photoAnalysisState = .ready("Atlas scanned the label and prefilled notes for review.")
+                } else {
+                    photoAnalysisState = .failed("Atlas couldn't read a label from that image yet.")
                 }
             }
         }
@@ -977,6 +1064,42 @@ private struct AtlasVialEditorSheet: View {
             draft.label = result.deliveredLabel
         }
     }
+}
+
+private struct AtlasInventoryReferencePhoto: View {
+    let path: String
+
+    var body: some View {
+        Group {
+            #if canImport(UIKit)
+            if let image = UIImage(contentsOfFile: path) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(AtlasPalette.surfaceSecondary)
+            }
+            #else
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(AtlasPalette.surfaceSecondary)
+            #endif
+        }
+        .frame(maxWidth: .infinity)
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(AtlasPalette.border.opacity(0.55), lineWidth: 1)
+        )
+    }
+}
+
+private func atlasInventorySuggestedLabel(from text: String) -> String {
+    text
+        .split(whereSeparator: \.isNewline)
+        .map(String.init)
+        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        .first(where: { $0.isEmpty == false }) ?? "Scanned vial"
 }
 
 private struct AtlasConsumableEditorSheet: View {

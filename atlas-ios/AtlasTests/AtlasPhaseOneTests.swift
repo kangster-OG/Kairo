@@ -5852,6 +5852,38 @@ final class AtlasPhaseOneTests: XCTestCase {
     }
 
     @MainActor
+    func testConnectHealthKitImportsNutritionMetricsIntoInsights() async throws {
+        let controller = try makeInMemoryController()
+        let loggedAt = Date(timeIntervalSince1970: 1_712_800_000)
+        let healthKit = TestHealthKitManager(
+            available: true,
+            authorizationGranted: true,
+            nutritionSamples: [
+                AtlasHealthNutritionSample(
+                    id: "hk-water-1",
+                    kind: .water,
+                    recordedAt: loggedAt,
+                    value: 32
+                ),
+                AtlasHealthNutritionSample(
+                    id: "hk-protein-1",
+                    kind: .protein,
+                    recordedAt: loggedAt.addingTimeInterval(300),
+                    value: 42
+                )
+            ]
+        )
+        let model = makeAppModel(controller: controller, healthKit: healthKit)
+
+        await model.connectHealthKit()
+
+        XCTAssertEqual(healthKit.fetchNutritionSinceRequests.count, 1)
+        XCTAssertTrue(model.insightsSnapshot.customMetricDefinitions.contains(where: { $0.label == "Water" }))
+        XCTAssertTrue(model.insightsSnapshot.customMetricDefinitions.contains(where: { $0.label == "Protein" }))
+        XCTAssertNil(model.loadErrorMessage)
+    }
+
+    @MainActor
     func testConnectHealthKitUsesPreviousLastSyncAtForFollowUpWorkoutImport() async throws {
         final class DateBox: @unchecked Sendable {
             var value: Date
@@ -8410,10 +8442,13 @@ final class TestHealthKitManager: HealthKitManaging, @unchecked Sendable {
     private(set) var savedWeights: [(value: Double, unit: AtlasWeightUnit, recordedAt: Date)]
     private(set) var weightSamples: [AtlasHealthWeightSample]
     private(set) var workouts: [AtlasHealthWorkoutSample]
+    private(set) var nutritionSamples: [AtlasHealthNutritionSample]
     private var workoutResponses: [[AtlasHealthWorkoutSample]]
     private var weightResponses: [[AtlasHealthWeightSample]]
+    private var nutritionResponses: [[AtlasHealthNutritionSample]]
     private(set) var fetchWorkoutSinceRequests: [Date?]
     private(set) var fetchWeightSinceRequests: [Date?]
+    private(set) var fetchNutritionSinceRequests: [Date?]
     private(set) var connected: Bool
 
     init(
@@ -8422,8 +8457,10 @@ final class TestHealthKitManager: HealthKitManaging, @unchecked Sendable {
         initiallyConnected: Bool = false,
         weightSamples: [AtlasHealthWeightSample] = [],
         workouts: [AtlasHealthWorkoutSample] = [],
+        nutritionSamples: [AtlasHealthNutritionSample] = [],
         workoutResponses: [[AtlasHealthWorkoutSample]] = [],
-        weightResponses: [[AtlasHealthWeightSample]] = []
+        weightResponses: [[AtlasHealthWeightSample]] = [],
+        nutritionResponses: [[AtlasHealthNutritionSample]] = []
     ) {
         self.available = available
         self.authorizationGranted = authorizationGranted
@@ -8432,10 +8469,13 @@ final class TestHealthKitManager: HealthKitManaging, @unchecked Sendable {
         self.savedWeights = []
         self.weightSamples = weightSamples
         self.workouts = workouts
+        self.nutritionSamples = nutritionSamples
         self.workoutResponses = workoutResponses
         self.weightResponses = weightResponses
+        self.nutritionResponses = nutritionResponses
         self.fetchWorkoutSinceRequests = []
         self.fetchWeightSinceRequests = []
+        self.fetchNutritionSinceRequests = []
         self.connected = initiallyConnected
     }
 
@@ -8480,6 +8520,17 @@ final class TestHealthKitManager: HealthKitManaging, @unchecked Sendable {
         return workouts.filter { $0.startedAt >= since }
     }
 
+    func fetchNutritionSamples(since: Date?) async throws -> [AtlasHealthNutritionSample] {
+        fetchNutritionSinceRequests.append(since)
+        if nutritionResponses.isEmpty == false {
+            return nutritionResponses.removeFirst()
+        }
+        guard let since else {
+            return nutritionSamples
+        }
+        return nutritionSamples.filter { $0.recordedAt >= since }
+    }
+
     func replaceWorkouts(_ workouts: [AtlasHealthWorkoutSample]) {
         self.workouts = workouts
     }
@@ -8494,6 +8545,14 @@ final class TestHealthKitManager: HealthKitManaging, @unchecked Sendable {
 
     func replaceWeightResponses(_ weightResponses: [[AtlasHealthWeightSample]]) {
         self.weightResponses = weightResponses
+    }
+
+    func replaceNutritionSamples(_ nutritionSamples: [AtlasHealthNutritionSample]) {
+        self.nutritionSamples = nutritionSamples
+    }
+
+    func replaceNutritionResponses(_ nutritionResponses: [[AtlasHealthNutritionSample]]) {
+        self.nutritionResponses = nutritionResponses
     }
 
     func saveWeightSample(value: Double, unit: AtlasWeightUnit, recordedAt: Date) async throws {

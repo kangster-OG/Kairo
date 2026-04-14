@@ -5,6 +5,9 @@ import AtlasPrivacy
 import AtlasSystem
 import Observation
 import SwiftUI
+#if canImport(PhotosUI)
+import PhotosUI
+#endif
 
 private enum AtlasPendingExtensionActionStore {
     static let appGroupIdentifier = "group.com.dkang2000.Atlas.shared"
@@ -771,8 +774,10 @@ public final class AtlasAppModel {
         let syncDate = currentDate()
         let weights = try await dependencies.healthKit.fetchWeightSamples(since: since)
         let workouts = try await dependencies.healthKit.fetchWorkouts(since: since)
+        let nutrition = try await dependencies.healthKit.fetchNutritionSamples(since: since)
         _ = try await dependencies.persistence.metrics.importWeightSamples(weights, now: syncDate)
         _ = try await dependencies.persistence.metrics.importWorkoutSamples(workouts, now: syncDate)
+        _ = try await dependencies.persistence.metrics.importNutritionSamples(nutrition, now: syncDate)
         settingsSnapshot = try await dependencies.persistence.settings.updateHealthConnection(
             provider: .appleHealth,
             enabled: true,
@@ -2700,6 +2705,9 @@ private struct AtlasTodayContextQuickCard: View {
     let onTriggerShortcut: (AtlasTodayContextShortcut) -> Void
     let onOpenDetailedCapture: () -> Void
     @State private var quickMealText = ""
+    @State private var selectedMealPhoto: PhotosPickerItem?
+    @State private var mealPhotoPreviewData = Data()
+    @State private var mealPhotoAnalysisState: AtlasImageAnalysisState = .idle
 
     var body: some View {
         let presets = model.contextQuickPresets(limit: 3)
@@ -2732,6 +2740,46 @@ private struct AtlasTodayContextQuickCard: View {
 
                 TextField("Type or dictate a meal", text: $quickMealText, axis: .vertical)
                     .atlasStandaloneInputSurface()
+
+                PhotosPicker(selection: $selectedMealPhoto, matching: .images) {
+                    HStack(spacing: AtlasSpacing.small) {
+                        Image(systemName: "camera.viewfinder")
+                            .foregroundStyle(AtlasPalette.primary)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Analyze meal photo")
+                                .font(.body.weight(.semibold))
+                                .foregroundStyle(AtlasPalette.textPrimary)
+                            Text(mealPhotoHelperText)
+                                .font(.caption)
+                                .foregroundStyle(AtlasPalette.textSecondary)
+                        }
+                        Spacer()
+                    }
+                    .padding(AtlasSpacing.medium)
+                    .background(
+                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                            .fill(AtlasPalette.surfacePrimary)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                            .stroke(AtlasPalette.border.opacity(0.55), lineWidth: 1)
+                    )
+                }
+                .buttonStyle(.plain)
+
+                if mealPhotoPreviewData.isEmpty == false {
+                    AtlasInlinePhotoPreview(data: mealPhotoPreviewData, height: 168)
+                }
+
+                if case let .ready(summary) = mealPhotoAnalysisState {
+                    Text(summary)
+                        .font(.caption)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                } else if case let .failed(message) = mealPhotoAnalysisState {
+                    Text(message)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
 
                 if let textSuggestion {
                     AtlasNutritionSuggestionButton(
@@ -2814,6 +2862,38 @@ private struct AtlasTodayContextQuickCard: View {
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
             }
+        }
+        .task(id: selectedMealPhoto) {
+            guard let selectedMealPhoto else {
+                return
+            }
+            mealPhotoAnalysisState = .loading
+            guard let data = try? await selectedMealPhoto.loadTransferable(type: Data.self),
+                  let jpegData = atlasNormalizedJPEGData(from: data) else {
+                mealPhotoAnalysisState = .failed("Atlas couldn't read that photo. Try a brighter image or type the meal instead.")
+                return
+            }
+
+            mealPhotoPreviewData = jpegData
+            if let suggestion = await atlasMealPhotoSuggestion(from: jpegData, loggedAt: model.currentDate()) {
+                quickMealText = [suggestion.title, suggestion.subtitle].joined(separator: " ")
+                mealPhotoAnalysisState = .ready(suggestion.helperText)
+            } else {
+                mealPhotoAnalysisState = .failed("Atlas couldn't find a confident meal structure from that photo yet.")
+            }
+        }
+    }
+
+    private var mealPhotoHelperText: String {
+        switch mealPhotoAnalysisState {
+        case .idle:
+            return "Use OCR and image cues to prefill a meal instead of typing."
+        case .loading:
+            return "Atlas is reading the label and plate right now."
+        case let .ready(summary):
+            return summary
+        case let .failed(message):
+            return message
         }
     }
 }

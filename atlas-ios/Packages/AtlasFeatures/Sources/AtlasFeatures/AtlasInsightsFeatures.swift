@@ -810,12 +810,19 @@ private struct AtlasAdherenceInsightSection: View {
 
                         if snapshot.adherenceTrend.dailySummaries.isEmpty == false {
                             VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+                                Text("Month view")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(AtlasPalette.primary)
+                                    .textCase(.uppercase)
+
+                                AtlasAdherenceMonthGrid(days: snapshot.adherenceTrend.dailySummaries)
+
                                 Text("Last 14 days")
                                     .font(.caption.weight(.semibold))
                                     .foregroundStyle(AtlasPalette.primary)
                                     .textCase(.uppercase)
 
-                                AtlasAdherenceDayStrip(days: snapshot.adherenceTrend.dailySummaries)
+                                AtlasAdherenceDayStrip(days: Array(snapshot.adherenceTrend.dailySummaries.suffix(14)))
 
                                 Text("Green means taken, orange means skipped, red means overdue, blue means moved, and muted means no due item for that day.")
                                     .font(.caption)
@@ -824,6 +831,20 @@ private struct AtlasAdherenceInsightSection: View {
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+private struct AtlasAdherenceMonthGrid: View {
+    let days: [AtlasAdherenceTrendSummary.DaySummary]
+
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: AtlasSpacing.xSmall), count: 7)
+
+    var body: some View {
+        LazyVGrid(columns: columns, spacing: AtlasSpacing.xSmall) {
+            ForEach(days) { day in
+                AtlasAdherenceCalendarDay(day: day)
             }
         }
     }
@@ -846,6 +867,73 @@ private struct AtlasAdherenceDayStrip: View {
                 }
             }
         }
+    }
+}
+
+private struct AtlasAdherenceCalendarDay: View {
+    let day: AtlasAdherenceTrendSummary.DaySummary
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Text(day.shortTitle)
+                .font(.caption2)
+                .foregroundStyle(AtlasPalette.textSecondary)
+            Text(dayOfMonthLabel)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(day.scheduledCount == 0 ? AtlasPalette.textSecondary : AtlasPalette.textPrimary)
+                .frame(maxWidth: .infinity)
+                .frame(height: 34)
+                .background(fillColor, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(borderColor, lineWidth: 1)
+                )
+        }
+        .accessibilityLabel("\(day.title): \(accessibilitySummary)")
+    }
+
+    private var dayOfMonthLabel: String {
+        guard let date = ISO8601DateFormatter.atlas.date(from: day.dateKey) else {
+            return String(day.title.split(separator: " ").last ?? "")
+        }
+        return String(Calendar.current.component(.day, from: date))
+    }
+
+    private var fillColor: Color {
+        switch day.dominantStatus {
+        case .completed:
+            return AtlasPalette.success.opacity(0.18)
+        case .skipped:
+            return Color.orange.opacity(0.18)
+        case .overdue:
+            return Color.red.opacity(0.16)
+        case .rescheduled:
+            return AtlasPalette.primary.opacity(0.18)
+        case .quiet:
+            return AtlasPalette.surfaceSecondary
+        }
+    }
+
+    private var borderColor: Color {
+        switch day.dominantStatus {
+        case .completed:
+            return AtlasPalette.success.opacity(0.45)
+        case .skipped:
+            return .orange.opacity(0.45)
+        case .overdue:
+            return .red.opacity(0.45)
+        case .rescheduled:
+            return AtlasPalette.primary.opacity(0.4)
+        case .quiet:
+            return AtlasPalette.surfaceMuted
+        }
+    }
+
+    private var accessibilitySummary: String {
+        if day.scheduledCount == 0 {
+            return "no due items"
+        }
+        return "\(day.completedCount) taken, \(day.skippedCount) skipped, \(day.overdueCount) overdue, \(day.rescheduledCount) moved"
     }
 }
 

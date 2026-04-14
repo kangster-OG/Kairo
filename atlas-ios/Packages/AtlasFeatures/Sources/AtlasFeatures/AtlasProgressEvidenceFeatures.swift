@@ -963,17 +963,6 @@ private func atlasProgressEvidenceExportContext(
     )
 }
 
-private func atlasNormalizedJPEGData(from data: Data) -> Data? {
-    #if canImport(UIKit)
-    guard let image = UIImage(data: data) else {
-        return nil
-    }
-    return image.jpegData(compressionQuality: 0.88)
-    #else
-    return data
-    #endif
-}
-
 #if canImport(UIKit)
 private struct AtlasProgressEvidenceShareSheet: UIViewControllerRepresentable {
     let fileURL: URL

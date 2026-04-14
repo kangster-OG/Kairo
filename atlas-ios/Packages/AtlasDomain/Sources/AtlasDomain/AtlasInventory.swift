@@ -80,6 +80,8 @@ public struct AtlasVialSummary: Identifiable, Hashable, Sendable {
     public var startingQuantity: Double
     public var quantityUnit: String
     public var isLowStock: Bool
+    public var referencePhotoPath: String?
+    public var labelScanPreview: String?
     public var archivedAt: Date?
 
     public init(
@@ -98,6 +100,8 @@ public struct AtlasVialSummary: Identifiable, Hashable, Sendable {
         startingQuantity: Double,
         quantityUnit: String,
         isLowStock: Bool,
+        referencePhotoPath: String?,
+        labelScanPreview: String?,
         archivedAt: Date?
     ) {
         self.id = id
@@ -115,6 +119,8 @@ public struct AtlasVialSummary: Identifiable, Hashable, Sendable {
         self.startingQuantity = startingQuantity
         self.quantityUnit = quantityUnit
         self.isLowStock = isLowStock
+        self.referencePhotoPath = referencePhotoPath
+        self.labelScanPreview = labelScanPreview
         self.archivedAt = archivedAt
     }
 }
@@ -252,6 +258,8 @@ public struct AtlasVialDraft: Equatable, Sendable {
     public var calculatorProfileID: String?
     public var openedAt: Date?
     public var expiresAt: Date?
+    public var referencePhotoRelativePath: String?
+    public var labelScanText: String?
     public var archivedAt: Date?
 
     public init(
@@ -268,6 +276,8 @@ public struct AtlasVialDraft: Equatable, Sendable {
         calculatorProfileID: String? = nil,
         openedAt: Date? = nil,
         expiresAt: Date? = nil,
+        referencePhotoRelativePath: String? = nil,
+        labelScanText: String? = nil,
         archivedAt: Date? = nil
     ) {
         self.id = id
@@ -283,6 +293,8 @@ public struct AtlasVialDraft: Equatable, Sendable {
         self.calculatorProfileID = calculatorProfileID
         self.openedAt = openedAt
         self.expiresAt = expiresAt
+        self.referencePhotoRelativePath = referencePhotoRelativePath
+        self.labelScanText = labelScanText
         self.archivedAt = archivedAt
     }
 }

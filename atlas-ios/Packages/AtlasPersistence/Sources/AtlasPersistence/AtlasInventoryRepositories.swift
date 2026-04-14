@@ -58,6 +58,8 @@ public struct GRDBInventoryRepository: InventoryRepository, Sendable {
                 quantityUnit: normalized.quantityUnit,
                 openedAt: normalized.openedAt.map(atlasTimestamp(from:)),
                 expiresAt: normalized.expiresAt.map(atlasTimestamp(from:)),
+                referencePhotoRelativePath: normalized.referencePhotoRelativePath,
+                labelScanText: normalized.labelScanText?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty,
                 createdAt: existing?.createdAt ?? timestamp,
                 updatedAt: timestamp,
                 archivedAt: normalized.archivedAt.map(atlasTimestamp(from:))
@@ -737,6 +739,8 @@ private func buildVialDetailSnapshot(
             calculatorProfileID: vial.calculatorProfileId,
             openedAt: vial.openedAt.map(atlasDate(from:)),
             expiresAt: vial.expiresAt.map(atlasDate(from:)),
+            referencePhotoRelativePath: vial.referencePhotoRelativePath,
+            labelScanText: vial.labelScanText,
             archivedAt: vial.archivedAt.map(atlasDate(from:))
         ),
         correctionHistory: corrections,
@@ -979,6 +983,12 @@ private func buildVialSummary(
     }
     let lowStockLabel = vial.lowStockThreshold.map { "Low stock at \(formatAtlasQuantity($0, unit: vial.quantityUnit))" }
     let isLowStock = vial.lowStockThreshold.map { vial.remainingQuantity <= $0 } ?? false
+    let referencePhotoPath: String?
+    if let relativePath = vial.referencePhotoRelativePath {
+        referencePhotoPath = try atlasInventoryPhotoFileURL(relativePath: relativePath).path
+    } else {
+        referencePhotoPath = nil
+    }
 
     return AtlasVialSummary(
         id: vial.id,
@@ -996,6 +1006,8 @@ private func buildVialSummary(
         startingQuantity: vial.startingQuantity,
         quantityUnit: vial.quantityUnit,
         isLowStock: isLowStock,
+        referencePhotoPath: referencePhotoPath,
+        labelScanPreview: vial.labelScanText.flatMap { String($0.prefix(120)) },
         archivedAt: vial.archivedAt.map(atlasDate(from:))
     )
 }
@@ -1250,6 +1262,8 @@ private func normalize(vialDraft: AtlasVialDraft) throws -> AtlasVialDraft {
         calculatorProfileID: vialDraft.calculatorProfileID,
         openedAt: vialDraft.openedAt,
         expiresAt: vialDraft.expiresAt,
+        referencePhotoRelativePath: vialDraft.referencePhotoRelativePath,
+        labelScanText: vialDraft.labelScanText?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty,
         archivedAt: vialDraft.archivedAt
     )
 }

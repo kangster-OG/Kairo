@@ -1863,6 +1863,8 @@ public struct AtlasVialRecord: Codable, Equatable, Sendable, Identifiable {
     public var quantityUnit: String
     public var openedAt: String?
     public var expiresAt: String?
+    public var referencePhotoRelativePath: String?
+    public var labelScanText: String?
     public var createdAt: String
     public var updatedAt: String
     public var archivedAt: String?
@@ -1923,6 +1925,57 @@ public struct AtlasHealthWorkoutSample: Codable, Equatable, Sendable, Identifiab
         self.durationMinutes = durationMinutes
         self.energyBurnedKilocalories = energyBurnedKilocalories
         self.distanceMeters = distanceMeters
+    }
+}
+
+public enum AtlasHealthNutritionMetricKind: String, Codable, CaseIterable, Equatable, Sendable, Identifiable {
+    case water
+    case calories
+    case protein
+
+    public var id: String { rawValue }
+
+    public var metricKey: String {
+        switch self {
+        case .water: "health_dietary_water"
+        case .calories: "health_dietary_energy"
+        case .protein: "health_dietary_protein"
+        }
+    }
+
+    public var label: String {
+        switch self {
+        case .water: "Water"
+        case .calories: "Calories"
+        case .protein: "Protein"
+        }
+    }
+
+    public var unit: String {
+        switch self {
+        case .water: "fl oz"
+        case .calories: "kcal"
+        case .protein: "g"
+        }
+    }
+}
+
+public struct AtlasHealthNutritionSample: Codable, Equatable, Sendable, Identifiable {
+    public var id: String
+    public var kind: AtlasHealthNutritionMetricKind
+    public var recordedAt: Date
+    public var value: Double
+
+    public init(
+        id: String,
+        kind: AtlasHealthNutritionMetricKind,
+        recordedAt: Date,
+        value: Double
+    ) {
+        self.id = id
+        self.kind = kind
+        self.recordedAt = recordedAt
+        self.value = value
     }
 }
 
@@ -2235,8 +2288,8 @@ public extension AtlasSymptomLogRecord {
 }
 
 public extension AtlasVialRecord {
-    static func make(id: String, protocolId: String?, compoundId: String?, calculatorProfileId: String? = nil, label: String, startingQuantity: Double, concentrationValue: Double?, concentrationUnit: String?, volumeMl: Double?, remainingQuantity: Double, lowStockThreshold: Double?, quantityUnit: String, openedAt: String?, expiresAt: String?, createdAt: String, updatedAt: String, archivedAt: String? = nil) -> Self {
-        .init(id: id, protocolId: protocolId, compoundId: compoundId, calculatorProfileId: calculatorProfileId, label: label, startingQuantity: startingQuantity, concentrationValue: concentrationValue, concentrationUnit: concentrationUnit, volumeMl: volumeMl, remainingQuantity: remainingQuantity, lowStockThreshold: lowStockThreshold, quantityUnit: quantityUnit, openedAt: openedAt, expiresAt: expiresAt, createdAt: createdAt, updatedAt: updatedAt, archivedAt: archivedAt)
+    static func make(id: String, protocolId: String?, compoundId: String?, calculatorProfileId: String? = nil, label: String, startingQuantity: Double, concentrationValue: Double?, concentrationUnit: String?, volumeMl: Double?, remainingQuantity: Double, lowStockThreshold: Double?, quantityUnit: String, openedAt: String?, expiresAt: String?, referencePhotoRelativePath: String? = nil, labelScanText: String? = nil, createdAt: String, updatedAt: String, archivedAt: String? = nil) -> Self {
+        .init(id: id, protocolId: protocolId, compoundId: compoundId, calculatorProfileId: calculatorProfileId, label: label, startingQuantity: startingQuantity, concentrationValue: concentrationValue, concentrationUnit: concentrationUnit, volumeMl: volumeMl, remainingQuantity: remainingQuantity, lowStockThreshold: lowStockThreshold, quantityUnit: quantityUnit, openedAt: openedAt, expiresAt: expiresAt, referencePhotoRelativePath: referencePhotoRelativePath, labelScanText: labelScanText, createdAt: createdAt, updatedAt: updatedAt, archivedAt: archivedAt)
     }
 }
 

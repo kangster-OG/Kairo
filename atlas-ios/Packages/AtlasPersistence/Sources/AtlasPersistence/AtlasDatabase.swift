@@ -272,6 +272,8 @@ final class AtlasDatabaseStack: @unchecked Sendable {
                 table.column("quantity_unit", .text).notNull()
                 table.column("opened_at", .text)
                 table.column("expires_at", .text)
+                table.column("reference_photo_relative_path", .text)
+                table.column("label_scan_text", .text)
                 table.column("created_at", .text).notNull()
                 table.column("updated_at", .text).notNull()
             }
@@ -702,6 +704,21 @@ final class AtlasDatabaseStack: @unchecked Sendable {
                     }
                     if revisionColumns.contains("doses_per_supply") == false {
                         table.add(column: "doses_per_supply", .integer)
+                    }
+                }
+            }
+        }
+
+        migrator.registerMigration("v18_add_vial_media_capture") { db in
+            let vialColumns = Set(try String.fetchAll(db, sql: "SELECT name FROM pragma_table_info('vials')"))
+            if vialColumns.contains("reference_photo_relative_path") == false ||
+                vialColumns.contains("label_scan_text") == false {
+                try db.alter(table: "vials") { table in
+                    if vialColumns.contains("reference_photo_relative_path") == false {
+                        table.add(column: "reference_photo_relative_path", .text)
+                    }
+                    if vialColumns.contains("label_scan_text") == false {
+                        table.add(column: "label_scan_text", .text)
                     }
                 }
             }
