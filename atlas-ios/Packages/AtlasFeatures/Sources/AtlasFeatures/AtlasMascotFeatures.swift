@@ -63,6 +63,140 @@ func atlasMascotStageFlavor(
     }
 }
 
+struct AtlasMascotArtDirection {
+    let lineTitle: String
+    let lineMotto: String
+    let stageLabel: String
+    let stageHeadline: String
+    let portraitNote: String
+    let posterKicker: String
+    let ornamentSymbol: String
+    let portraitSize: CGFloat
+    let portraitHaloSize: CGFloat
+    let portraitOffsetY: CGFloat
+    let portraitChipOffset: CGSize
+    let posterArtSize: CGFloat
+    let posterArtOffset: CGSize
+    let posterHaloSize: CGFloat
+    let posterFrameSize: CGSize
+}
+
+func atlasMascotArtDirection(
+    for selection: AtlasMascotSelection,
+    stage: AtlasMascotStage
+) -> AtlasMascotArtDirection {
+    switch (selection, stage) {
+    case (.aetherion, .stage1):
+        return AtlasMascotArtDirection(
+            lineTitle: "Aetherion line",
+            lineMotto: "Storm-forged drake guardian",
+            stageLabel: "Stage I",
+            stageHeadline: "Compressed potential",
+            portraitNote: "Keep the portrait tight, low, and powerful so Cindlet reads as compact stored energy rather than a tiny pet.",
+            posterKicker: "Low-angle starter silhouette with a bright chest core and compact storm aura.",
+            ornamentSymbol: "bolt.badge.clock",
+            portraitSize: 212,
+            portraitHaloSize: 248,
+            portraitOffsetY: 8,
+            portraitChipOffset: CGSize(width: 0, height: 12),
+            posterArtSize: 344,
+            posterArtOffset: CGSize(width: 6, height: 20),
+            posterHaloSize: 270,
+            posterFrameSize: CGSize(width: 372, height: 360)
+        )
+    case (.aetherion, .stage2):
+        return AtlasMascotArtDirection(
+            lineTitle: "Aetherion line",
+            lineMotto: "Storm-forged drake guardian",
+            stageLabel: "Stage II",
+            stageHeadline: "Kinetic discipline",
+            portraitNote: "Let the wings and tail carve a strong diagonal so Voltflare feels athletic, faster, and more deliberate.",
+            posterKicker: "Diagonal wing rhythm with a cleaner stride and brighter cobalt seam lighting.",
+            ornamentSymbol: "bolt.horizontal.circle",
+            portraitSize: 234,
+            portraitHaloSize: 270,
+            portraitOffsetY: 0,
+            portraitChipOffset: CGSize(width: 8, height: 8),
+            posterArtSize: 400,
+            posterArtOffset: CGSize(width: 16, height: 6),
+            posterHaloSize: 310,
+            posterFrameSize: CGSize(width: 404, height: 392)
+        )
+    case (.aetherion, .stage3):
+        return AtlasMascotArtDirection(
+            lineTitle: "Aetherion line",
+            lineMotto: "Storm-forged drake guardian",
+            stageLabel: "Stage III",
+            stageHeadline: "Ceremonial authority",
+            portraitNote: "Give the final guardian extra air above the horns and ring so the silhouette reads as mythic rather than merely large.",
+            posterKicker: "Ceremonial wing spread, halo framing, and anchored guardian posture.",
+            ornamentSymbol: "sparkles.rectangle.stack",
+            portraitSize: 248,
+            portraitHaloSize: 292,
+            portraitOffsetY: -6,
+            portraitChipOffset: CGSize(width: 12, height: 0),
+            posterArtSize: 462,
+            posterArtOffset: CGSize(width: 12, height: -8),
+            posterHaloSize: 350,
+            posterFrameSize: CGSize(width: 430, height: 432)
+        )
+    case (.aurielle, .stage1):
+        return AtlasMascotArtDirection(
+            lineTitle: "Aurielle line",
+            lineMotto: "Aurora hare guardian",
+            stageLabel: "Stage I",
+            stageHeadline: "Bright first light",
+            portraitNote: "Keep Moppet centered and upright with lots of breathing room so the softness feels premium instead of overly cute.",
+            posterKicker: "Rounded silhouette, pearl chest mark, and airy crescent framing.",
+            ornamentSymbol: "moonphase.waning.crescent",
+            portraitSize: 204,
+            portraitHaloSize: 240,
+            portraitOffsetY: 10,
+            portraitChipOffset: CGSize(width: -4, height: 12),
+            posterArtSize: 332,
+            posterArtOffset: CGSize(width: -6, height: 18),
+            posterHaloSize: 262,
+            posterFrameSize: CGSize(width: 370, height: 354)
+        )
+    case (.aurielle, .stage2):
+        return AtlasMascotArtDirection(
+            lineTitle: "Aurielle line",
+            lineMotto: "Aurora hare guardian",
+            stageLabel: "Stage II",
+            stageHeadline: "Skybound grace",
+            portraitNote: "Keep the body tall and elegant while letting the ears and tail describe motion around the torso.",
+            posterKicker: "Graceful vertical posture with ribbon-ear flow and visible tail sweep.",
+            ornamentSymbol: "wind",
+            portraitSize: 230,
+            portraitHaloSize: 268,
+            portraitOffsetY: 2,
+            portraitChipOffset: CGSize(width: 4, height: 6),
+            posterArtSize: 388,
+            posterArtOffset: CGSize(width: 2, height: 8),
+            posterHaloSize: 304,
+            posterFrameSize: CGSize(width: 402, height: 388)
+        )
+    case (.aurielle, .stage3):
+        return AtlasMascotArtDirection(
+            lineTitle: "Aurielle line",
+            lineMotto: "Aurora hare guardian",
+            stageLabel: "Stage III",
+            stageHeadline: "Celestial serenity",
+            portraitNote: "Protect the long-ear arc and tail crescent with more vertical room so the final form feels regal and calm.",
+            posterKicker: "Long-ear arc, crescent-tail sweep, and serene celestial posture.",
+            ornamentSymbol: "moon.stars.circle",
+            portraitSize: 244,
+            portraitHaloSize: 286,
+            portraitOffsetY: -4,
+            portraitChipOffset: CGSize(width: 8, height: 2),
+            posterArtSize: 438,
+            posterArtOffset: CGSize(width: 4, height: -10),
+            posterHaloSize: 340,
+            posterFrameSize: CGSize(width: 426, height: 426)
+        )
+    }
+}
+
 enum AtlasMascotPose {
     case idle
     case happy
@@ -1093,6 +1227,7 @@ public struct AtlasMascotDetailScreen: View {
         let nickname = model.settingsSnapshot.mascotNickname
         let rewardsSnapshot = model.rewardsSnapshot
         let evolution = atlasRewardsEvolutionProgress(for: rewardsSnapshot, selection: selection)
+        let artDirection = atlasMascotArtDirection(for: selection, stage: evolution.stage)
         let unlockedStage = model.settingsSnapshot.highestUnlockedStage(for: selection)
         let history = model.settingsSnapshot.mascotEvolutionHistory
         let moments = model.settingsSnapshot.mascotMoments
@@ -1130,12 +1265,26 @@ public struct AtlasMascotDetailScreen: View {
 
                 AtlasSectionCard(style: .hero) {
                     VStack(alignment: .leading, spacing: AtlasSpacing.large) {
-                        HStack(spacing: AtlasSpacing.small) {
-                            AtlasStatusBadge(evolution.stageBadge, tint: atlasMascotLineTint(for: selection))
-                            AtlasStatusBadge(
-                                evolution.currentFormName,
-                                tint: atlasMascotLineHighlight(for: selection)
-                            )
+                        HStack(alignment: .top, spacing: AtlasSpacing.small) {
+                            VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
+                                HStack(spacing: AtlasSpacing.small) {
+                                    AtlasStatusBadge(artDirection.stageLabel, tint: atlasMascotLineTint(for: selection))
+                                    AtlasStatusBadge(
+                                        evolution.currentFormName,
+                                        tint: atlasMascotLineHighlight(for: selection)
+                                    )
+                                }
+
+                                Text(artDirection.lineTitle)
+                                    .atlasTextRole(.deckEyebrow)
+                                    .foregroundStyle(atlasMascotLineTint(for: selection))
+                            }
+
+                            Spacer(minLength: 0)
+
+                            Label(artDirection.lineMotto, systemImage: artDirection.ornamentSymbol)
+                                .atlasTextRole(.metricLabel)
+                                .foregroundStyle(AtlasPalette.textSecondary)
                         }
 
                         VStack(alignment: .leading, spacing: AtlasSpacing.small) {
@@ -1155,6 +1304,10 @@ public struct AtlasMascotDetailScreen: View {
                                 .atlasTextRole(.deckEyebrow)
                                 .foregroundStyle(atlasMascotLineTint(for: selection))
 
+                            Text(artDirection.stageHeadline)
+                                .atlasTextRole(.cardTitle)
+                                .foregroundStyle(AtlasPalette.textPrimary)
+
                             Text(atlasMascotStageFlavor(for: selection, stage: evolution.stage))
                                 .atlasTextRole(.supporting)
                                 .foregroundStyle(AtlasPalette.textSecondary)
@@ -1162,6 +1315,20 @@ public struct AtlasMascotDetailScreen: View {
 
                         VStack(alignment: .center, spacing: AtlasSpacing.small) {
                             ZStack(alignment: .bottomTrailing) {
+                                RoundedRectangle(cornerRadius: 30, style: .continuous)
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [
+                                                atlasMascotLineHighlight(for: selection).opacity(0.12),
+                                                atlasMascotLineTint(for: selection).opacity(0.06),
+                                                .clear
+                                            ],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        )
+                                    )
+                                    .frame(width: artDirection.portraitHaloSize + 36, height: artDirection.portraitHaloSize + 48)
+
                                 Circle()
                                     .fill(
                                         RadialGradient(
@@ -1172,18 +1339,24 @@ public struct AtlasMascotDetailScreen: View {
                                             ],
                                             center: .center,
                                             startRadius: 16,
-                                            endRadius: 132
+                                            endRadius: artDirection.portraitHaloSize * 0.54
                                         )
                                     )
-                                    .frame(width: 244, height: 244)
+                                    .frame(width: artDirection.portraitHaloSize, height: artDirection.portraitHaloSize)
+
+                                Image(systemName: artDirection.ornamentSymbol)
+                                    .font(.system(size: 28, weight: .semibold))
+                                    .foregroundStyle(atlasMascotLineHighlight(for: selection).opacity(0.72))
+                                    .offset(x: -artDirection.portraitHaloSize * 0.22, y: -artDirection.portraitHaloSize * 0.28)
 
                                 AtlasInteractiveMascotIllustration(
                                     selection: selection,
                                     nickname: nickname,
                                     line: atlasMascotLine(for: selection),
                                     stage: evolution.stage,
-                                    size: 228
+                                    size: artDirection.portraitSize
                                 )
+                                .offset(y: artDirection.portraitOffsetY)
 
                                 HStack(spacing: 10) {
                                     AtlasMascotSprite(
@@ -1212,13 +1385,23 @@ public struct AtlasMascotDetailScreen: View {
                                     RoundedRectangle(cornerRadius: 20, style: .continuous)
                                         .stroke(AtlasPalette.chromeStroke, lineWidth: 1)
                                 )
-                                .offset(x: 4, y: 8)
+                                .offset(
+                                    x: artDirection.portraitChipOffset.width,
+                                    y: artDirection.portraitChipOffset.height
+                                )
                             }
                             .frame(maxWidth: .infinity)
 
-                            Label(selection.title, systemImage: atlasMascotLineSymbol(for: selection))
-                                .atlasTextRole(.deckEyebrow)
-                                .foregroundStyle(atlasMascotLineTint(for: selection))
+                            VStack(spacing: 4) {
+                                Label(selection.title, systemImage: atlasMascotLineSymbol(for: selection))
+                                    .atlasTextRole(.deckEyebrow)
+                                    .foregroundStyle(atlasMascotLineTint(for: selection))
+
+                                Text(artDirection.portraitNote)
+                                    .atlasTextRole(.supporting)
+                                    .foregroundStyle(AtlasPalette.textSecondary)
+                                    .multilineTextAlignment(.center)
+                            }
                         }
 
                         AtlasMetricStrip(
@@ -1228,6 +1411,14 @@ public struct AtlasMascotDetailScreen: View {
                                 momentsCount: moments.filter { $0.selection == selection }.count,
                                 stageBadge: evolution.stageBadge
                             )
+                        )
+
+                        AtlasCalloutRow(
+                            systemImage: artDirection.ornamentSymbol,
+                            title: "Art direction",
+                            detail: artDirection.posterKicker,
+                            tint: atlasMascotLineTint(for: selection),
+                            badge: artDirection.stageLabel
                         )
 
                         if let progressFraction = evolution.progressFraction {

@@ -469,6 +469,8 @@ private struct AtlasMascotRecapCanvas: View {
     let descriptor: AtlasMascotRecapDescriptor
 
     var body: some View {
+        let artDirection = atlasMascotArtDirection(for: descriptor.selection, stage: descriptor.stage)
+
         ZStack {
             RoundedRectangle(cornerRadius: 32, style: .continuous)
                 .fill(backgroundGradient)
@@ -485,26 +487,26 @@ private struct AtlasMascotRecapCanvas: View {
             decorativeBackdrop
 
             VStack(alignment: .leading, spacing: AtlasSpacing.large) {
-                header
+                header(artDirection: artDirection)
 
                 switch descriptor.kind {
                 case .weeklyRecap:
-                    weeklyRecapLayout
+                    weeklyRecapLayout(artDirection: artDirection)
                 case .evolutionMilestone:
-                    evolutionMilestoneLayout
+                    evolutionMilestoneLayout(artDirection: artDirection)
                 case .latestMoment:
-                    latestMomentLayout
+                    latestMomentLayout(artDirection: artDirection)
                 }
 
                 Spacer(minLength: 0)
 
-                footerBand
+                footerBand(artDirection: artDirection)
             }
             .padding(40)
         }
     }
 
-    private var header: some View {
+    private func header(artDirection: AtlasMascotArtDirection) -> some View {
         HStack(alignment: .top, spacing: AtlasSpacing.medium) {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
@@ -520,18 +522,26 @@ private struct AtlasMascotRecapCanvas: View {
                 Text(descriptor.displayName)
                     .font(.system(size: 42, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
+
+                Text("\(artDirection.lineTitle) • \(artDirection.stageHeadline)")
+                    .font(.system(size: 18, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.78))
             }
 
             Spacer(minLength: 24)
 
-            HStack(spacing: 8) {
-                atlasRecapCanvasBadge(descriptor.audience.title)
-                atlasRecapCanvasBadge(descriptor.privacyMode.title)
+            VStack(alignment: .trailing, spacing: 8) {
+                HStack(spacing: 8) {
+                    atlasRecapCanvasBadge(descriptor.audience.title)
+                    atlasRecapCanvasBadge(descriptor.privacyMode.title)
+                }
+
+                atlasRecapCanvasBadge(artDirection.stageLabel)
             }
         }
     }
 
-    private var weeklyRecapLayout: some View {
+    private func weeklyRecapLayout(artDirection: AtlasMascotArtDirection) -> some View {
         HStack(alignment: .top, spacing: 24) {
             VStack(alignment: .leading, spacing: 14) {
                 Text(descriptor.headline)
@@ -550,17 +560,21 @@ private struct AtlasMascotRecapCanvas: View {
                     atlasRecapCanvasMetric(title: "Form", value: descriptor.currentFormName)
                     atlasRecapCanvasMetric(title: "Direction", value: descriptor.footer)
                 }
+
+                Text(artDirection.posterKicker)
+                    .font(.system(size: 16, weight: .medium, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.72))
             }
 
             Spacer(minLength: 0)
 
-            heroArt
+            heroArt(artDirection: artDirection)
         }
     }
 
-    private var evolutionMilestoneLayout: some View {
+    private func evolutionMilestoneLayout(artDirection: AtlasMascotArtDirection) -> some View {
         VStack(spacing: 18) {
-            heroArt
+            heroArt(artDirection: artDirection)
 
             VStack(spacing: 10) {
                 Text(descriptor.headline)
@@ -582,12 +596,13 @@ private struct AtlasMascotRecapCanvas: View {
             HStack(spacing: 12) {
                 atlasRecapCanvasMetric(title: "Unlocked form", value: descriptor.currentFormName)
                 atlasRecapCanvasMetric(title: "Momentum", value: descriptor.footer)
+                atlasRecapCanvasMetric(title: "Treatment", value: artDirection.stageHeadline)
             }
         }
         .frame(maxWidth: .infinity)
     }
 
-    private var latestMomentLayout: some View {
+    private func latestMomentLayout(artDirection: AtlasMascotArtDirection) -> some View {
         HStack(alignment: .center, spacing: 26) {
             VStack(alignment: .leading, spacing: 14) {
                 Text(descriptor.headline)
@@ -603,19 +618,36 @@ private struct AtlasMascotRecapCanvas: View {
                     .foregroundStyle(.white.opacity(0.74))
 
                 atlasRecapCanvasMetric(title: "Current form", value: descriptor.currentFormName)
+                Text(artDirection.posterKicker)
+                    .font(.system(size: 16, weight: .medium, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.72))
             }
 
             Spacer(minLength: 0)
 
-            heroArt
+            heroArt(artDirection: artDirection)
         }
     }
 
-    private var heroArt: some View {
+    private func heroArt(artDirection: AtlasMascotArtDirection) -> some View {
         ZStack(alignment: .bottomTrailing) {
+            RoundedRectangle(cornerRadius: 32, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            atlasMascotLineHighlight(for: descriptor.selection).opacity(0.10),
+                            .clear,
+                            atlasMascotLineTint(for: descriptor.selection).opacity(0.10)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .frame(width: artDirection.posterFrameSize.width + 24, height: artDirection.posterFrameSize.height + 32)
+
             Circle()
                 .stroke(.white.opacity(0.28), lineWidth: 2)
-                .frame(width: artHaloSize, height: artHaloSize)
+                .frame(width: artDirection.posterHaloSize, height: artDirection.posterHaloSize)
 
             Circle()
                 .fill(
@@ -627,16 +659,22 @@ private struct AtlasMascotRecapCanvas: View {
                         ],
                         center: .center,
                         startRadius: 24,
-                        endRadius: artHaloSize * 0.56
+                        endRadius: artDirection.posterHaloSize * 0.56
                     )
                 )
-                .frame(width: artHaloSize * 0.92, height: artHaloSize * 0.92)
+                .frame(width: artDirection.posterHaloSize * 0.92, height: artDirection.posterHaloSize * 0.92)
+
+            Image(systemName: artDirection.ornamentSymbol)
+                .font(.system(size: 34, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.78))
+                .offset(x: -artDirection.posterFrameSize.width * 0.26, y: -artDirection.posterFrameSize.height * 0.3)
 
             AtlasMascotIllustration(
                 line: atlasMascotLine(for: descriptor.selection),
                 stage: descriptor.stage,
-                size: heroArtSize
+                size: artDirection.posterArtSize
             )
+            .offset(x: artDirection.posterArtOffset.width, y: artDirection.posterArtOffset.height)
 
             AtlasMascotSprite(
                 line: atlasMascotLine(for: descriptor.selection),
@@ -654,10 +692,10 @@ private struct AtlasMascotRecapCanvas: View {
                     .stroke(.white.opacity(0.12), lineWidth: 1)
             )
         }
-        .frame(width: artFrameWidth, height: artFrameHeight, alignment: .center)
+        .frame(width: artDirection.posterFrameSize.width, height: artDirection.posterFrameSize.height, alignment: .center)
     }
 
-    private var footerBand: some View {
+    private func footerBand(artDirection: AtlasMascotArtDirection) -> some View {
         HStack(alignment: .center, spacing: AtlasSpacing.medium) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(descriptor.currentFormName)
@@ -666,13 +704,21 @@ private struct AtlasMascotRecapCanvas: View {
                 Text(descriptor.footer)
                     .font(.system(size: 17, weight: .semibold, design: .rounded))
                     .foregroundStyle(.white.opacity(0.8))
+                Text(artDirection.lineMotto)
+                    .font(.system(size: 15, weight: .medium, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.62))
             }
 
             Spacer(minLength: 0)
 
-            Text("Shared from Atlas mascot recap")
-                .font(.system(size: 15, weight: .medium, design: .rounded))
-                .foregroundStyle(.white.opacity(0.62))
+            VStack(alignment: .trailing, spacing: 4) {
+                Text("Shared from Atlas mascot recap")
+                    .font(.system(size: 15, weight: .medium, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.62))
+                Text(artDirection.stageLabel)
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.74))
+            }
         }
         .padding(.top, 18)
         .overlay(alignment: .top) {
@@ -703,55 +749,60 @@ private struct AtlasMascotRecapCanvas: View {
                 )
                 .frame(width: 320, height: 320)
                 .offset(x: descriptor.kind == .evolutionMilestone ? 0 : 220, y: descriptor.kind == .evolutionMilestone ? -40 : -160)
+
+            RoundedRectangle(cornerRadius: 40, style: .continuous)
+                .stroke(.white.opacity(0.06), lineWidth: 1)
+                .frame(width: descriptor.kind == .evolutionMilestone ? 680 : 520, height: descriptor.kind == .latestMoment ? 360 : 300)
+                .offset(x: descriptor.kind == .latestMoment ? -120 : 40, y: descriptor.kind == .weeklyRecap ? 40 : -20)
         }
-    }
-
-    private var heroArtSize: CGFloat {
-        switch descriptor.kind {
-        case .weeklyRecap:
-            return descriptor.stage == .stage1 ? 360 : 410
-        case .evolutionMilestone:
-            return descriptor.stage == .stage3 ? 500 : 440
-        case .latestMoment:
-            return descriptor.stage == .stage3 ? 430 : 390
-        }
-    }
-
-    private var artHaloSize: CGFloat {
-        descriptor.kind == .evolutionMilestone ? 360 : 300
-    }
-
-    private var artFrameWidth: CGFloat {
-        descriptor.kind == .evolutionMilestone ? 460 : 400
-    }
-
-    private var artFrameHeight: CGFloat {
-        descriptor.kind == .evolutionMilestone ? 520 : 420
     }
 
     private var backgroundGradient: LinearGradient {
-        switch descriptor.selection {
-        case .aetherion:
-            return LinearGradient(
-                colors: [
-                    Color(red: 0.05, green: 0.08, blue: 0.21),
-                    Color(red: 0.08, green: 0.18, blue: 0.42),
-                    Color(red: 0.14, green: 0.26, blue: 0.58)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        case .aurielle:
-            return LinearGradient(
-                colors: [
-                    Color(red: 0.19, green: 0.29, blue: 0.52),
-                    Color(red: 0.30, green: 0.53, blue: 0.78),
-                    Color(red: 0.63, green: 0.79, blue: 0.94)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+        let base: [Color]
+        switch (descriptor.selection, descriptor.stage) {
+        case (.aetherion, .stage1):
+            base = [
+                Color(red: 0.05, green: 0.08, blue: 0.21),
+                Color(red: 0.08, green: 0.18, blue: 0.36),
+                Color(red: 0.12, green: 0.24, blue: 0.52)
+            ]
+        case (.aetherion, .stage2):
+            base = [
+                Color(red: 0.04, green: 0.11, blue: 0.24),
+                Color(red: 0.10, green: 0.22, blue: 0.46),
+                Color(red: 0.17, green: 0.32, blue: 0.62)
+            ]
+        case (.aetherion, .stage3):
+            base = [
+                Color(red: 0.04, green: 0.07, blue: 0.22),
+                Color(red: 0.09, green: 0.19, blue: 0.45),
+                Color(red: 0.18, green: 0.29, blue: 0.66)
+            ]
+        case (.aurielle, .stage1):
+            base = [
+                Color(red: 0.20, green: 0.31, blue: 0.52),
+                Color(red: 0.38, green: 0.58, blue: 0.80),
+                Color(red: 0.68, green: 0.83, blue: 0.95)
+            ]
+        case (.aurielle, .stage2):
+            base = [
+                Color(red: 0.18, green: 0.33, blue: 0.56),
+                Color(red: 0.34, green: 0.55, blue: 0.82),
+                Color(red: 0.62, green: 0.79, blue: 0.96)
+            ]
+        case (.aurielle, .stage3):
+            base = [
+                Color(red: 0.17, green: 0.29, blue: 0.58),
+                Color(red: 0.33, green: 0.54, blue: 0.84),
+                Color(red: 0.73, green: 0.86, blue: 0.98)
+            ]
         }
+
+        return LinearGradient(
+            colors: base,
+            startPoint: descriptor.privacyMode == .fullDetail ? .topLeading : .top,
+            endPoint: descriptor.kind == .latestMoment ? .bottomTrailing : .bottom
+        )
     }
 }
 
