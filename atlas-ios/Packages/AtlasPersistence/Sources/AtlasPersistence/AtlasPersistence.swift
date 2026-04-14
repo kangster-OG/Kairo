@@ -28,6 +28,7 @@ public protocol CoreLoopRepository: Sendable {
 public protocol SettingsRepository: Sendable {
     func currentSettingsSnapshot() async throws -> AtlasSettingsSnapshot
     func updateAccountMode(_ accountMode: AtlasAccountMode, now: Date) async throws -> AtlasSettingsSnapshot
+    func updateSurfacePreferences(_ preferences: AtlasSurfacePreferences, now: Date) async throws -> AtlasSettingsSnapshot
     func updateTrustVaultRenderMode(_ renderMode: AtlasPrivacyRenderMode, now: Date) async throws -> AtlasSettingsSnapshot
     func updateMascotSelection(_ mascotSelection: AtlasMascotSelection, now: Date) async throws -> AtlasSettingsSnapshot
     func updateMascotNickname(_ nickname: String?, now: Date) async throws -> AtlasSettingsSnapshot
@@ -110,6 +111,7 @@ public protocol InventoryRepository: Sendable {
     func saveVial(_ draft: AtlasVialDraft, now: Date) async throws -> AtlasVialDetailSnapshot
     func saveConsumable(_ draft: AtlasConsumableDraft, now: Date) async throws -> AtlasConsumableDetailSnapshot
     func archiveVial(id: String, now: Date) async throws
+    func setVialArchived(id: String, isArchived: Bool, now: Date) async throws
     func setConsumableArchived(id: String, isArchived: Bool, now: Date) async throws
     func updateProtocolInventorySettings(
         _ update: AtlasProtocolInventorySettingsUpdate,
@@ -146,14 +148,18 @@ public protocol MetricsRepository: Sendable {
     func saveContextEntry(_ draft: AtlasContextEntryDraft, now: Date) async throws -> AtlasContextLogRecord
     func saveContextPreset(_ draft: AtlasContextPresetDraft, now: Date) async throws -> AtlasContextPresetRecord
     func deleteContextPreset(id: String) async throws
+    func deleteContextEntry(id: String) async throws
     func saveWeightEntry(_ draft: AtlasWeightEntryDraft, now: Date) async throws -> AtlasWeightLogRecord
+    func deleteWeightEntry(id: String) async throws
     func saveSymptomEntry(_ draft: AtlasSymptomEntryDraft, now: Date) async throws -> AtlasSymptomLogRecord
+    func deleteSymptomEntry(id: String) async throws
     func saveProgressMeasurement(_ draft: AtlasProgressMeasurementDraft, now: Date) async throws -> AtlasProgressMeasurementRecord
     func saveProgressPhoto(_ draft: AtlasProgressPhotoDraft, now: Date) async throws -> AtlasProgressPhotoRecord
     func saveMetricDefinition(_ draft: AtlasMetricDefinitionDraft, now: Date) async throws -> AtlasCustomMetricRecord
     func archiveMetricDefinition(id: String, now: Date) async throws
     func deleteMetricDefinition(id: String) async throws
     func saveMetricValueEntry(_ draft: AtlasMetricValueEntryDraft, now: Date) async throws -> AtlasMetricValueLogRecord
+    func deleteMetricValueEntry(id: String) async throws
 }
 
 public protocol ProtocolChangeStudioRepository: Sendable {

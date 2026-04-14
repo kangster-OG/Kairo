@@ -1213,12 +1213,161 @@ public struct AtlasDeterministicInsightCard: Identifiable, Equatable, Sendable {
     }
 }
 
+public struct AtlasStackDashboardProtocolItem: Identifiable, Equatable, Sendable {
+    public var id: String
+    public var title: String
+    public var kindLabel: String
+    public var cadenceLabel: String
+    public var doseLabel: String?
+    public var nextDueLabel: String?
+    public var lowStockLabel: String?
+
+    public init(
+        id: String,
+        title: String,
+        kindLabel: String,
+        cadenceLabel: String,
+        doseLabel: String? = nil,
+        nextDueLabel: String? = nil,
+        lowStockLabel: String? = nil
+    ) {
+        self.id = id
+        self.title = title
+        self.kindLabel = kindLabel
+        self.cadenceLabel = cadenceLabel
+        self.doseLabel = doseLabel
+        self.nextDueLabel = nextDueLabel
+        self.lowStockLabel = lowStockLabel
+    }
+}
+
+public struct AtlasStackDashboardTimeLoad: Identifiable, Equatable, Sendable {
+    public var id: String
+    public var title: String
+    public var scheduledCount: Int
+    public var detail: String
+
+    public init(id: String, title: String, scheduledCount: Int, detail: String) {
+        self.id = id
+        self.title = title
+        self.scheduledCount = scheduledCount
+        self.detail = detail
+    }
+}
+
+public struct AtlasStackDashboardSnapshot: Equatable, Sendable {
+    public var activeProtocolCount: Int
+    public var summary: String
+    public var burdenFacts: [AtlasExplainerFact]
+    public var activeProtocols: [AtlasStackDashboardProtocolItem]
+    public var scheduleLoads: [AtlasStackDashboardTimeLoad]
+
+    public init(
+        activeProtocolCount: Int = 0,
+        summary: String = "",
+        burdenFacts: [AtlasExplainerFact] = [],
+        activeProtocols: [AtlasStackDashboardProtocolItem] = [],
+        scheduleLoads: [AtlasStackDashboardTimeLoad] = []
+    ) {
+        self.activeProtocolCount = activeProtocolCount
+        self.summary = summary
+        self.burdenFacts = burdenFacts
+        self.activeProtocols = activeProtocols
+        self.scheduleLoads = scheduleLoads
+    }
+}
+
+public struct AtlasProtocolChangeOverlayMarker: Identifiable, Equatable, Sendable {
+    public var id: String
+    public var title: String
+    public var date: Date
+    public var detail: String?
+
+    public init(id: String, title: String, date: Date, detail: String? = nil) {
+        self.id = id
+        self.title = title
+        self.date = date
+        self.detail = detail
+    }
+}
+
+public struct AtlasBiometricOverlayPoint: Identifiable, Equatable, Sendable {
+    public var id: String
+    public var label: String
+    public var loggedAt: Date
+    public var value: Double
+
+    public init(id: String, label: String, loggedAt: Date, value: Double) {
+        self.id = id
+        self.label = label
+        self.loggedAt = loggedAt
+        self.value = value
+    }
+}
+
+public struct AtlasBiometricOverlaySeries: Identifiable, Equatable, Sendable {
+    public var id: String
+    public var title: String
+    public var subtitle: String?
+    public var latestValueLabel: String
+    public var trendLabel: String?
+    public var referenceRangeLabel: String?
+    public var points: [AtlasBiometricOverlayPoint]
+    public var protocolChangeMarkers: [AtlasProtocolChangeOverlayMarker]
+
+    public init(
+        id: String,
+        title: String,
+        subtitle: String? = nil,
+        latestValueLabel: String,
+        trendLabel: String? = nil,
+        referenceRangeLabel: String? = nil,
+        points: [AtlasBiometricOverlayPoint] = [],
+        protocolChangeMarkers: [AtlasProtocolChangeOverlayMarker] = []
+    ) {
+        self.id = id
+        self.title = title
+        self.subtitle = subtitle
+        self.latestValueLabel = latestValueLabel
+        self.trendLabel = trendLabel
+        self.referenceRangeLabel = referenceRangeLabel
+        self.points = points
+        self.protocolChangeMarkers = protocolChangeMarkers
+    }
+}
+
+public struct AtlasBiometricOverlayGroup: Identifiable, Equatable, Sendable {
+    public var id: String
+    public var title: String
+    public var subtitle: String
+    public var series: [AtlasBiometricOverlaySeries]
+
+    public init(id: String, title: String, subtitle: String, series: [AtlasBiometricOverlaySeries]) {
+        self.id = id
+        self.title = title
+        self.subtitle = subtitle
+        self.series = series
+    }
+}
+
+public struct AtlasBiometricsOverlaySnapshot: Equatable, Sendable {
+    public var summary: String
+    public var groups: [AtlasBiometricOverlayGroup]
+
+    public init(summary: String = "", groups: [AtlasBiometricOverlayGroup] = []) {
+        self.summary = summary
+        self.groups = groups
+    }
+}
+
 public struct AtlasInsightsSnapshot: Equatable, Sendable {
     public var weightTrend: AtlasWeightTrendSummary
     public var symptomTrend: [AtlasSymptomTrendItem]
     public var contextTrend: AtlasContextTrendSummary
     public var nutritionSnapshot: AtlasNutritionSnapshot
     public var deterministicExplanations: [AtlasDeterministicInsightCard]
+    public var stackDashboard: AtlasStackDashboardSnapshot?
+    public var biometricsOverlay: AtlasBiometricsOverlaySnapshot?
     public var savedContextPresets: [AtlasContextPresetSummary]
     public var inventoryBurnDown: [AtlasInventoryBurnDownInsight]
     public var adherenceTrend: AtlasAdherenceTrendSummary
@@ -1244,6 +1393,8 @@ public struct AtlasInsightsSnapshot: Equatable, Sendable {
         contextTrend: AtlasContextTrendSummary = .init(),
         nutritionSnapshot: AtlasNutritionSnapshot = .init(),
         deterministicExplanations: [AtlasDeterministicInsightCard] = [],
+        stackDashboard: AtlasStackDashboardSnapshot? = nil,
+        biometricsOverlay: AtlasBiometricsOverlaySnapshot? = nil,
         savedContextPresets: [AtlasContextPresetSummary] = [],
         inventoryBurnDown: [AtlasInventoryBurnDownInsight] = [],
         adherenceTrend: AtlasAdherenceTrendSummary = .init(),
@@ -1268,6 +1419,8 @@ public struct AtlasInsightsSnapshot: Equatable, Sendable {
         self.contextTrend = contextTrend
         self.nutritionSnapshot = nutritionSnapshot
         self.deterministicExplanations = deterministicExplanations
+        self.stackDashboard = stackDashboard
+        self.biometricsOverlay = biometricsOverlay
         self.savedContextPresets = savedContextPresets
         self.inventoryBurnDown = inventoryBurnDown
         self.adherenceTrend = adherenceTrend

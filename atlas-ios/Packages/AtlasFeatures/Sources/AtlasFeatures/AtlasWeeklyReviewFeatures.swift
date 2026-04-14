@@ -353,6 +353,27 @@ public struct AtlasWeeklyReviewScreen: View {
                     }
                 }
 
+                if let stackSummary = snapshot.seed.stackSummary {
+                    AtlasSectionCard(style: .elevated, title: "Stack review") {
+                        Text(stackSummary.burdenSummary)
+                            .foregroundStyle(AtlasPalette.textSecondary)
+
+                        VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
+                            ForEach([
+                                AtlasExplainerFact(label: "Active stack items", value: String(stackSummary.activeProtocolCount)),
+                                AtlasExplainerFact(label: "Protocols changed", value: String(stackSummary.protocolsWithChanges)),
+                                AtlasExplainerFact(label: "Completed logs", value: String(stackSummary.weeklyCompletedCount)),
+                                AtlasExplainerFact(label: "Moved logs", value: String(stackSummary.weeklyRescheduledCount)),
+                                AtlasExplainerFact(label: "Inventory risk", value: String(stackSummary.lowStockRiskCount))
+                            ]) { fact in
+                                Text("\(fact.label): \(fact.value)")
+                                    .font(.caption)
+                                    .foregroundStyle(AtlasPalette.textSecondary)
+                            }
+                        }
+                    }
+                }
+
                 if let actionOutcomes = snapshot.actionOutcomes {
                     AtlasSectionCard(style: .elevated, title: "Action follow-through") {
                         Text(actionOutcomes.summary)

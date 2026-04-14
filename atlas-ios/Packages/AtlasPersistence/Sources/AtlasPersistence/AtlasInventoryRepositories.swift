@@ -180,6 +180,23 @@ public struct GRDBInventoryRepository: InventoryRepository, Sendable {
         }
     }
 
+    public func setVialArchived(id: String, isArchived: Bool, now: Date) async throws {
+        if isArchived {
+            try await archiveVial(id: id, now: now)
+            return
+        }
+
+        try await stack.canonical.write { db in
+            guard var vial = try AtlasVialDBRecord.fetchOne(db, key: id)?.domain else {
+                throw AtlasInventoryRepositoryError.vialNotFound
+            }
+
+            vial.archivedAt = nil
+            vial.updatedAt = atlasTimestamp(from: now)
+            try AtlasVialDBRecord(record: vial).update(db)
+        }
+    }
+
     public func setConsumableArchived(id: String, isArchived: Bool, now: Date) async throws {
         try await stack.canonical.write { db in
             guard var consumable = try AtlasConsumableDBRecord.fetchOne(db, key: id)?.domain else {

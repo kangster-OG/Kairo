@@ -14,6 +14,8 @@ public struct AtlasInventoryScreen: View {
     let model: AtlasAppModel
     @State private var selectedVialID: String?
     @State private var selectedConsumableID: String?
+    @State private var selectedVialIDs: Set<String> = []
+    @State private var selectedConsumableIDs: Set<String> = []
     @State private var editingVialDraft: AtlasVialEditorState?
     @State private var editingConsumableDraft: AtlasConsumableEditorState?
     @State private var editingSiteDraft: AtlasSiteEditorState?
@@ -64,6 +66,31 @@ public struct AtlasInventoryScreen: View {
             }
 
             Section("Vials") {
+                if selectedVialIDs.isEmpty == false {
+                    AtlasSectionCard(style: .utility, title: "Batch vial actions") {
+                        Text("\(selectedVialIDs.count) vial(s) selected.")
+                            .foregroundStyle(AtlasPalette.textSecondary)
+                        HStack(spacing: AtlasSpacing.small) {
+                            Button("Archive selected") {
+                                Task {
+                                    for id in selectedVialIDs {
+                                        await model.archiveVial(id: id)
+                                    }
+                                    selectedVialIDs.removeAll()
+                                }
+                            }
+                            .buttonStyle(AtlasPrimaryButtonStyle())
+
+                            Button("Clear selection") {
+                                selectedVialIDs.removeAll()
+                            }
+                            .buttonStyle(AtlasSecondaryButtonStyle())
+                        }
+                    }
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
+                }
+
                 if model.inventorySnapshot.vials.isEmpty {
                     Text("No vials saved yet.")
                         .foregroundStyle(AtlasPalette.textSecondary)
@@ -79,7 +106,9 @@ public struct AtlasInventoryScreen: View {
                             }
                         }, onArchive: vial.archivedAt == nil ? {
                             Task { await model.archiveVial(id: vial.id) }
-                        } : nil)
+                        } : nil, isSelected: selectedVialIDs.contains(vial.id), onToggleSelection: {
+                            atlasToggleSelection(id: vial.id, selected: &selectedVialIDs)
+                        })
                         .listRowInsets(EdgeInsets())
                         .listRowBackground(Color.clear)
                     }
@@ -87,6 +116,36 @@ public struct AtlasInventoryScreen: View {
             }
 
             Section("Supplies") {
+                if selectedConsumableIDs.isEmpty == false {
+                    AtlasSectionCard(style: .utility, title: "Batch supply actions") {
+                        Text("\(selectedConsumableIDs.count) supply item(s) selected.")
+                            .foregroundStyle(AtlasPalette.textSecondary)
+                        HStack(spacing: AtlasSpacing.small) {
+                            Button("Archive selected") {
+                                Task {
+                                    for id in selectedConsumableIDs {
+                                        await model.setConsumableArchived(id: id, isArchived: true)
+                                    }
+                                    selectedConsumableIDs.removeAll()
+                                }
+                            }
+                            .buttonStyle(AtlasPrimaryButtonStyle())
+
+                            Button("Restore selected") {
+                                Task {
+                                    for id in selectedConsumableIDs {
+                                        await model.setConsumableArchived(id: id, isArchived: false)
+                                    }
+                                    selectedConsumableIDs.removeAll()
+                                }
+                            }
+                            .buttonStyle(AtlasSecondaryButtonStyle())
+                        }
+                    }
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
+                }
+
                 if model.inventorySnapshot.consumables.isEmpty {
                     Text("No supplies saved yet.")
                         .foregroundStyle(AtlasPalette.textSecondary)
@@ -102,6 +161,8 @@ public struct AtlasInventoryScreen: View {
                             }
                         }, onArchiveToggle: {
                             Task { await model.setConsumableArchived(id: consumable.id, isArchived: consumable.archivedAt == nil) }
+                        }, isSelected: selectedConsumableIDs.contains(consumable.id), onToggleSelection: {
+                            atlasToggleSelection(id: consumable.id, selected: &selectedConsumableIDs)
                         })
                         .listRowInsets(EdgeInsets())
                         .listRowBackground(Color.clear)
@@ -236,6 +297,8 @@ private struct AtlasVialSummaryCard: View {
     let onOpen: () -> Void
     let onEdit: () -> Void
     let onArchive: (() -> Void)?
+    let isSelected: Bool
+    let onToggleSelection: () -> Void
 
     var body: some View {
         AtlasSectionCard {
@@ -294,6 +357,12 @@ private struct AtlasVialSummaryCard: View {
                     Button("Archive", action: onArchive)
                         .buttonStyle(AtlasChipButtonStyle(tint: .orange))
                 }
+                Button(isSelected ? "Selected for batch actions" : "Select for batch actions", action: onToggleSelection)
+                    .buttonStyle(
+                        AtlasChipButtonStyle(
+                            tint: isSelected ? AtlasPalette.primary : AtlasPalette.textSecondary
+                        )
+                    )
             }
         }
     }
@@ -305,6 +374,8 @@ private struct AtlasConsumableSummaryCard: View {
     let onOpen: () -> Void
     let onEdit: () -> Void
     let onArchiveToggle: () -> Void
+    let isSelected: Bool
+    let onToggleSelection: () -> Void
 
     var body: some View {
         AtlasSectionCard {
@@ -371,8 +442,22 @@ private struct AtlasConsumableSummaryCard: View {
                             tint: consumable.archivedAt == nil ? .orange : AtlasPalette.success
                         )
                     )
+                Button(isSelected ? "Selected for batch actions" : "Select for batch actions", action: onToggleSelection)
+                    .buttonStyle(
+                        AtlasChipButtonStyle(
+                            tint: isSelected ? AtlasPalette.primary : AtlasPalette.textSecondary
+                        )
+                    )
             }
         }
+    }
+}
+
+private func atlasToggleSelection(id: String, selected: inout Set<String>) {
+    if selected.contains(id) {
+        selected.remove(id)
+    } else {
+        selected.insert(id)
     }
 }
 

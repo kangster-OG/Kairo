@@ -268,6 +268,7 @@ func buildSettingsSnapshot(
     let retentionSettings = try readRetentionSettings(db: db, featureFlags: featureFlags)
     let rewardsSettings = try readRewardsSettings(db: db)
     let labsEnabled = try readLabsEnabled(db: db)
+    let surfacePreferences = try readSurfacePreferences(db: db)
 
     return AtlasSettingsSnapshot(
         accountMode: accountMode,
@@ -285,6 +286,7 @@ func buildSettingsSnapshot(
             lastWorkoutEntryAt: lastWorkoutEntryAt
         ),
         labsEnabled: labsEnabled,
+        surfacePreferences: surfacePreferences,
         trustVaultStatus: TrustVaultStatus(
             renderMode: profile.renderMode ?? (profile.aliasModeEnabled ? .alias : .full),
             biometricLockEnabled: profile.biometricLockEnabled
@@ -382,6 +384,16 @@ func readLabsEnabled(db: Database) throws -> Bool {
         db,
         sql: "SELECT value FROM atlas_app_settings WHERE key = 'labs_enabled'"
     ) == "1"
+}
+
+func readSurfacePreferences(db: Database) throws -> AtlasSurfacePreferences {
+    guard let json = try String.fetchOne(
+        db,
+        sql: "SELECT value FROM atlas_app_settings WHERE key = 'surface_preferences_json'"
+    ), json.isEmpty == false else {
+        return .init()
+    }
+    return try JSONDecoder().decode(AtlasSurfacePreferences.self, from: Data(json.utf8))
 }
 
 func ensureDefaultHealthConnection(db: Database) throws {
@@ -520,6 +532,13 @@ func atlasEncodeMascotArchivedRecaps(_ recaps: [AtlasMascotArchivedRecapRecord])
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.sortedKeys]
     let data = try encoder.encode(recaps)
+    return String(decoding: data, as: UTF8.self)
+}
+
+func atlasEncodeSurfacePreferences(_ preferences: AtlasSurfacePreferences) throws -> String {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys]
+    let data = try encoder.encode(preferences)
     return String(decoding: data, as: UTF8.self)
 }
 

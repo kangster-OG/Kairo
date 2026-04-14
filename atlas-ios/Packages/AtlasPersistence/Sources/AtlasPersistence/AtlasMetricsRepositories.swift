@@ -264,6 +264,12 @@ public struct GRDBMetricsRepository: MetricsRepository, Sendable {
         }
     }
 
+    public func deleteContextEntry(id: String) async throws {
+        try await stack.canonical.write { db in
+            _ = try AtlasContextLogDBRecord.deleteOne(db, key: id)
+        }
+    }
+
     public func saveWeightEntry(_ draft: AtlasWeightEntryDraft, now: Date) async throws -> AtlasWeightLogRecord {
         try await stack.canonical.write { db in
             let normalized = try normalize(weightDraft: draft)
@@ -284,6 +290,12 @@ public struct GRDBMetricsRepository: MetricsRepository, Sendable {
         }
     }
 
+    public func deleteWeightEntry(id: String) async throws {
+        try await stack.canonical.write { db in
+            _ = try AtlasWeightLogDBRecord.deleteOne(db, key: id)
+        }
+    }
+
     public func saveSymptomEntry(_ draft: AtlasSymptomEntryDraft, now: Date) async throws -> AtlasSymptomLogRecord {
         try await stack.canonical.write { db in
             let normalized = try normalize(symptomDraft: draft)
@@ -301,6 +313,12 @@ public struct GRDBMetricsRepository: MetricsRepository, Sendable {
             )
             try AtlasSymptomLogDBRecord(record: record).save(db)
             return record
+        }
+    }
+
+    public func deleteSymptomEntry(id: String) async throws {
+        try await stack.canonical.write { db in
+            _ = try AtlasSymptomLogDBRecord.deleteOne(db, key: id)
         }
     }
 
@@ -421,6 +439,12 @@ public struct GRDBMetricsRepository: MetricsRepository, Sendable {
             )
             try AtlasMetricValueLogDBRecord(record: record).save(db)
             return record
+        }
+    }
+
+    public func deleteMetricValueEntry(id: String) async throws {
+        try await stack.canonical.write { db in
+            _ = try AtlasMetricValueLogDBRecord.deleteOne(db, key: id)
         }
     }
 }
@@ -713,6 +737,7 @@ func buildInsightsSnapshot(
         for: try AtlasPrivacyProfileDBRecord.fetchOne(db)?.domain ?? .default()
     )
     let summarySettings = try readSummarySettings(db: db, featureFlags: featureFlags)
+    let surfacePreferences = try readSurfacePreferences(db: db)
     let summaryService = AtlasSummaryService(
         featureFlags: featureFlags,
         settings: summarySettings
@@ -846,6 +871,16 @@ func buildInsightsSnapshot(
     let weightTrend = buildWeightTrend(weightLogs: weightLogs)
     let symptomTrend = buildSymptomTrend(symptomLogs: symptomLogs, now: referenceDate)
     let contextTrend = buildContextTrend(contextLogs: contextLogs, now: referenceDate)
+    let stackDashboard = surfacePreferences.stackDashboardEnabled
+        ? buildStackDashboardSnapshot(
+            context: context,
+            logEvents: logEvents,
+            inventory: inventory,
+            referenceDate: referenceDate,
+            renderMode: renderMode,
+            privacyFormatter: privacyFormatter
+        )
+        : nil
     let nutritionSnapshot = buildNutritionSnapshot(
         contextLogs: contextLogs,
         contextPresets: contextPresets,
@@ -854,6 +889,16 @@ func buildInsightsSnapshot(
         onboardingDraft: onboardingDraft,
         now: referenceDate
     )
+    let biometricsOverlay = surfacePreferences.biometricsOverlayEnabled
+        ? buildBiometricsOverlaySnapshot(
+            customMetrics: customMetrics,
+            metricLogs: metricLogs,
+            weightLogs: weightLogs,
+            protocolChangeAudits: protocolChangeAudits,
+            referenceDate: referenceDate,
+            includeProtocolChanges: surfacePreferences.biometricsOverlayShowsProtocolChanges
+        )
+        : nil
     let progressEvidence = buildProgressEvidenceSnapshot(
         measurements: progressMeasurements,
         photos: progressPhotos
@@ -871,6 +916,8 @@ func buildInsightsSnapshot(
         renderMode: renderMode,
         privacyFormatter: privacyFormatter,
         summarySettings: summarySettings,
+        surfacePreferences: surfacePreferences,
+        inventorySnapshot: inventory,
         plainLanguageSummary: weeklyRecapSummary,
         periodTitle: atlasWeeklyReviewPeriodTitle(for: referenceDate),
         includeCurrentStateFacts: true
@@ -886,7 +933,9 @@ func buildInsightsSnapshot(
         referenceDate: referenceDate,
         renderMode: renderMode,
         privacyFormatter: privacyFormatter,
-        summarySettings: summarySettings
+        summarySettings: summarySettings,
+        surfacePreferences: surfacePreferences,
+        inventorySnapshot: inventory
     )
 
     return AtlasInsightsSnapshot(
@@ -895,6 +944,8 @@ func buildInsightsSnapshot(
         contextTrend: contextTrend,
         nutritionSnapshot: nutritionSnapshot,
         deterministicExplanations: deterministicExplanations,
+        stackDashboard: stackDashboard,
+        biometricsOverlay: biometricsOverlay,
         savedContextPresets: savedContextPresets,
         inventoryBurnDown: inventory.vials.map {
             AtlasInventoryBurnDownInsight(
@@ -939,6 +990,314 @@ func buildInsightsSnapshot(
     )
 }
 
+private func buildStackDashboardSnapshot(
+    context: AtlasCoreLoopContext,
+    logEvents: [AtlasLogEventRecord],
+    inventory: AtlasInventorySnapshot,
+    referenceDate: Date,
+    renderMode: AtlasPrivacyRenderMode,
+    privacyFormatter: AtlasPrivacyFormatter
+) -> AtlasStackDashboardSnapshot? {
+    let activeProtocols = context.protocols.values
+        .filter { $0.status == .active }
+        .sorted { $0.createdAt > $1.createdAt }
+
+    guard activeProtocols.count > 1 else {
+        return nil
+    }
+
+    let weeklyFloor = Calendar.current.date(byAdding: .day, value: -6, to: Calendar.current.startOfDay(for: referenceDate))
+        ?? referenceDate
+    let recentLogs = logEvents.filter {
+        let loggedAt = atlasDate(from: $0.loggedAt)
+        return loggedAt >= weeklyFloor && loggedAt <= referenceDate
+    }
+    let completedCount = recentLogs.filter { $0.eventType == .completed }.count
+    let rescheduledCount = recentLogs.filter { $0.eventType == .rescheduled }.count
+    let pending = context.pendingOccurrences.values.flatMap { $0 }
+        .map { buildScheduledOccurrence(occurrence: $0, context: context, now: referenceDate) }
+    let actionableTodayCount = pending.filter {
+        Calendar.current.isDate($0.scheduledAt, inSameDayAs: referenceDate)
+            && ($0.state == .due || $0.state == .overdue || $0.state == .upcoming)
+    }.count
+
+    let activeProtocolItems = activeProtocols.map { protocolRecord in
+        let summary = buildProtocolSummary(
+            protocolRecord: protocolRecord,
+            alias: context.aliases[protocolRecord.id],
+            protocolRules: context.protocolRules[protocolRecord.id] ?? [],
+            revisionSlices: context.revisionSlices[protocolRecord.id] ?? [],
+            pendingOccurrences: context.pendingOccurrences[protocolRecord.id] ?? [],
+            now: referenceDate
+        )
+        let lowStockLabel = inventory.vials.first(where: { $0.linkedProtocolID == protocolRecord.id && $0.isLowStock })?.quantityLabel
+        return AtlasStackDashboardProtocolItem(
+            id: protocolRecord.id,
+            title: privacyFormatter.title(
+                canonical: summary.canonicalTitle,
+                alias: summary.aliasTitle,
+                mode: renderMode
+            ),
+            kindLabel: summary.kindLabel,
+            cadenceLabel: summary.cadenceLabel,
+            doseLabel: summary.doseLabel,
+            nextDueLabel: summary.nextDueLabel,
+            lowStockLabel: lowStockLabel
+        )
+    }
+
+    let scheduleLoads = atlasStackDashboardTimeLoads(occurrences: pending, referenceDate: referenceDate)
+    let lowStockCount = inventory.lowStockCount
+    let burdenFacts = [
+        AtlasExplainerFact(label: "Active protocols", value: String(activeProtocols.count)),
+        AtlasExplainerFact(label: "Taken this week", value: String(completedCount)),
+        AtlasExplainerFact(label: "Moved this week", value: String(rescheduledCount)),
+        AtlasExplainerFact(label: "Inventory risk", value: String(lowStockCount)),
+        AtlasExplainerFact(label: "Scheduled today", value: String(actionableTodayCount))
+    ]
+
+    return AtlasStackDashboardSnapshot(
+        activeProtocolCount: activeProtocols.count,
+        summary: "Atlas is coordinating \(countPhrase(activeProtocols.count, singular: "active protocol")) with \(countPhrase(actionableTodayCount, singular: "scheduled anchor")) visible today. \(lowStockCount == 0 ? "Inventory is clear for the current stack." : "\(countPhrase(lowStockCount, singular: "inventory item")) needs attention before the stack gets noisier.")",
+        burdenFacts: burdenFacts,
+        activeProtocols: activeProtocolItems,
+        scheduleLoads: scheduleLoads
+    )
+}
+
+private func atlasStackDashboardTimeLoads(
+    occurrences: [AtlasScheduledOccurrence],
+    referenceDate: Date
+) -> [AtlasStackDashboardTimeLoad] {
+    let todayOccurrences = occurrences.filter { Calendar.current.isDate($0.scheduledAt, inSameDayAs: referenceDate) }
+    let buckets: [(String, String, Range<Int>)] = [
+        ("morning", "Morning", 5..<11),
+        ("midday", "Midday", 11..<15),
+        ("evening", "Evening", 15..<20),
+        ("late", "Late", 20..<24)
+    ]
+
+    return buckets.map { id, title, hours in
+        let matches = todayOccurrences.filter { hours.contains(Calendar.current.component(.hour, from: $0.scheduledAt)) }
+        return AtlasStackDashboardTimeLoad(
+            id: id,
+            title: title,
+            scheduledCount: matches.count,
+            detail: matches.isEmpty ? "No scheduled items." : "\(countPhrase(matches.count, singular: "item")) staged."
+        )
+    }
+}
+
+private struct AtlasBiometricsOverlayDescriptor {
+    let id: String
+    let title: String
+    let subtitle: String
+    let referenceRangeLabel: String?
+}
+
+private func buildBiometricsOverlaySnapshot(
+    customMetrics: [AtlasCustomMetricRecord],
+    metricLogs: [AtlasMetricValueLogRecord],
+    weightLogs: [AtlasWeightLogRecord],
+    protocolChangeAudits: [AtlasProtocolChangeAuditRecord],
+    referenceDate: Date,
+    includeProtocolChanges: Bool
+) -> AtlasBiometricsOverlaySnapshot? {
+    let calendar = Calendar.current
+    let floor = calendar.date(byAdding: .day, value: -89, to: calendar.startOfDay(for: referenceDate)) ?? referenceDate
+    let metricsByID = Dictionary(uniqueKeysWithValues: customMetrics.map { ($0.id, $0) })
+    let recentProtocolChanges = includeProtocolChanges
+        ? protocolChangeAudits.filter {
+            let changedAt = atlasDate(from: $0.createdAt)
+            return changedAt >= floor && changedAt <= referenceDate
+        }
+        : []
+
+    var groups: [String: AtlasBiometricOverlayGroup] = [:]
+
+    let recentWeights = weightLogs
+        .filter { atlasDate(from: $0.loggedAt) >= floor }
+        .prefix(8)
+        .reversed()
+    if recentWeights.isEmpty == false {
+        let points = recentWeights.map {
+            AtlasBiometricOverlayPoint(
+                id: $0.id,
+                label: formatWeightValue($0),
+                loggedAt: atlasDate(from: $0.loggedAt),
+                value: $0.value
+            )
+        }
+        let latest = recentWeights.last ?? recentWeights.first!
+        let oldest = recentWeights.first!
+        let delta = latest.value - oldest.value
+        let series = AtlasBiometricOverlaySeries(
+            id: "weight",
+            title: "Weight",
+            subtitle: "Body composition anchor",
+            latestValueLabel: formatWeightValue(latest),
+            trendLabel: points.count > 1 ? atlasBiometricsDeltaLabel(delta: delta, unit: latest.unit.rawValue) : nil,
+            points: Array(points),
+            protocolChangeMarkers: atlasProtocolChangeMarkers(recentProtocolChanges)
+        )
+        groups["metabolic"] = AtlasBiometricOverlayGroup(
+            id: "metabolic",
+            title: "Metabolic & body composition",
+            subtitle: "Keep weight and metabolic markers close to protocol shifts.",
+            series: [series]
+        )
+    }
+
+    let numericMetricLogs = metricLogs.filter { $0.numberValue != nil && atlasDate(from: $0.loggedAt) >= floor }
+    let groupedLogs = Dictionary(grouping: numericMetricLogs, by: \.metricId)
+
+    for metric in customMetrics {
+        guard let descriptor = atlasBiometricsDescriptor(for: metric),
+              let logs = groupedLogs[metric.id],
+              logs.isEmpty == false else {
+            continue
+        }
+
+        let orderedLogs = logs.sorted { atlasDate(from: $0.loggedAt) < atlasDate(from: $1.loggedAt) }
+        let points = orderedLogs.compactMap { log in
+            log.numberValue.map {
+                AtlasBiometricOverlayPoint(
+                    id: log.id,
+                    label: formatMetricValue(log: log, metric: metric),
+                    loggedAt: atlasDate(from: log.loggedAt),
+                    value: $0
+                )
+            }
+        }
+        guard let latestLog = orderedLogs.last else {
+            continue
+        }
+        let firstValue = orderedLogs.first?.numberValue ?? latestLog.numberValue ?? 0
+        let latestValue = latestLog.numberValue ?? firstValue
+        let trendLabel = orderedLogs.count > 1 ? atlasBiometricsDeltaLabel(delta: latestValue - firstValue, unit: metric.unit) : nil
+        let series = AtlasBiometricOverlaySeries(
+            id: metric.id,
+            title: metric.label,
+            subtitle: metric.unit,
+            latestValueLabel: formatMetricValue(log: latestLog, metric: metric),
+            trendLabel: trendLabel,
+            referenceRangeLabel: descriptor.referenceRangeLabel,
+            points: points,
+            protocolChangeMarkers: atlasProtocolChangeMarkers(recentProtocolChanges)
+        )
+
+        if var existing = groups[descriptor.id] {
+            existing.series.append(series)
+            existing.series.sort { $0.title < $1.title }
+            groups[descriptor.id] = existing
+        } else {
+            groups[descriptor.id] = AtlasBiometricOverlayGroup(
+                id: descriptor.id,
+                title: descriptor.title,
+                subtitle: descriptor.subtitle,
+                series: [series]
+            )
+        }
+    }
+
+    let orderedGroups = ["metabolic", "recovery", "cardio", "hormones", "lipids", "liver"]
+        .compactMap { groups[$0] }
+        .filter { $0.series.isEmpty == false }
+
+    guard orderedGroups.isEmpty == false else {
+        return nil
+    }
+
+    return AtlasBiometricsOverlaySnapshot(
+        summary: includeProtocolChanges
+            ? "Atlas is overlaying biometrics with recent protocol changes so the timing stays visible without claiming cause."
+            : "Atlas is grouping numeric biometrics and labs into reusable trend panels for review.",
+        groups: orderedGroups
+    )
+}
+
+private func atlasBiometricsDescriptor(for metric: AtlasCustomMetricRecord) -> AtlasBiometricsOverlayDescriptor? {
+    let key = metric.metricKey.lowercased()
+    let label = metric.label.lowercased()
+
+    switch true {
+    case key.contains("glucose") || label.contains("glucose") || key.contains("a1c") || label.contains("a1c") || label.contains("insulin"):
+        return .init(id: "metabolic", title: "Metabolic & body composition", subtitle: "Glucose tolerance, insulin response, and body trend anchors.", referenceRangeLabel: atlasLabReferenceRangeLabel(for: metric.label))
+    case label.contains("sleep") || label.contains("readiness") || label.contains("recovery") || label.contains("soreness"):
+        return .init(id: "recovery", title: "Recovery", subtitle: "Recovery metrics sit best next to schedule intensity and protocol changes.", referenceRangeLabel: nil)
+    case label.contains("blood pressure") || label.contains("resting heart rate") || label == "hrv" || label.contains("heart rate") || label.contains("waist"):
+        return .init(id: "cardio", title: "Cardio & recovery load", subtitle: "Cardiovascular and body measurements that often move with stack stress.", referenceRangeLabel: nil)
+    case label.contains("testosterone") || label.contains("estradiol") || label.contains("shbg"):
+        return .init(id: "hormones", title: "Hormones", subtitle: "Optional hormone tracking for advanced users who want longer-cycle overlays.", referenceRangeLabel: atlasLabReferenceRangeLabel(for: metric.label))
+    case label.contains("ldl") || label.contains("hdl") || label.contains("triglyceride"):
+        return .init(id: "lipids", title: "Lipids", subtitle: "Longer-horizon markers that make sense in stack and refill reviews.", referenceRangeLabel: atlasLabReferenceRangeLabel(for: metric.label))
+    case label == "ast" || label == "alt" || label.contains("liver"):
+        return .init(id: "liver", title: "Liver", subtitle: "Helpful when appetite, recovery, or adjunct load changes around a protocol.", referenceRangeLabel: atlasLabReferenceRangeLabel(for: metric.label))
+    default:
+        return nil
+    }
+}
+
+private func atlasProtocolChangeMarkers(
+    _ audits: [AtlasProtocolChangeAuditRecord]
+) -> [AtlasProtocolChangeOverlayMarker] {
+    Array(audits.prefix(4)).map {
+        AtlasProtocolChangeOverlayMarker(
+            id: $0.id,
+            title: $0.summary ?? "Protocol change",
+            date: atlasDate(from: $0.createdAt),
+            detail: $0.summary
+        )
+    }
+}
+
+private func atlasLabReferenceRangeLabel(for label: String) -> String? {
+    switch label.lowercased() {
+    case "fasting glucose":
+        return "70-99 mg/dL"
+    case "hba1c":
+        return "4.0-5.6%"
+    case "fasting insulin":
+        return "2-25 uIU/mL"
+    case "ldl-c":
+        return "<100 mg/dL"
+    case "hdl-c":
+        return "40+ mg/dL"
+    case "triglycerides":
+        return "<150 mg/dL"
+    case "ast":
+        return "10-40 U/L"
+    case "alt":
+        return "7-56 U/L"
+    case "total testosterone":
+        return "300-1000 ng/dL"
+    case "free testosterone":
+        return "35-155 pg/mL"
+    default:
+        return nil
+    }
+}
+
+private func atlasBiometricsDeltaLabel(delta: Double, unit: String?) -> String {
+    let direction: String
+    switch delta {
+    case let value where value > 0.001:
+        direction = "Up"
+    case let value where value < -0.001:
+        direction = "Down"
+    default:
+        direction = "Stable"
+    }
+
+    guard direction != "Stable" else {
+        return "Stable across this window"
+    }
+
+    let unitSuffix = unit.map { " \($0)" } ?? ""
+    let magnitude = abs(delta).formatted(.number.precision(.fractionLength(0...2)))
+    return "\(direction) \(magnitude)\(unitSuffix) across this window"
+}
+
 private func buildWeeklyReviewSeed(
     context: AtlasCoreLoopContext,
     logEvents: [AtlasLogEventRecord],
@@ -951,6 +1310,8 @@ private func buildWeeklyReviewSeed(
     renderMode: AtlasPrivacyRenderMode,
     privacyFormatter: AtlasPrivacyFormatter,
     summarySettings: AtlasSummarySettingsSnapshot,
+    surfacePreferences: AtlasSurfacePreferences,
+    inventorySnapshot: AtlasInventorySnapshot,
     plainLanguageSummary: AtlasGeneratedSummary?,
     periodTitle: String,
     includeCurrentStateFacts: Bool
@@ -1003,6 +1364,14 @@ private func buildWeeklyReviewSeed(
     let activeProtocolCount = context.protocols.values.filter { $0.status == .active }.count
     let latestWeight = weeklyWeights.first ?? weightLogs.first
     let latestProtocolChange = weeklyProtocolChanges.first
+    let stackSummary = buildWeeklyReviewStackSummary(
+        context: context,
+        weeklyLogs: weeklyLogs,
+        weeklyProtocolChanges: weeklyProtocolChanges,
+        inventorySnapshot: inventorySnapshot,
+        enabled: surfacePreferences.stackDashboardEnabled,
+        referenceDate: referenceDate
+    )
     let protocolChangeSummary = latestProtocolChange.map { audit in
         let title = context.protocols[audit.protocolId].map {
             privacyFormatter.title(
@@ -1119,6 +1488,21 @@ private func buildWeeklyReviewSeed(
             )
         )
     }
+    if let stackSummary {
+        sourceSections.append(
+            atlasSummarySection(
+                "weekly_stack_view",
+                "Stack view",
+                [
+                    atlasSummaryFact("stack_active_protocols", "Active stack items", String(stackSummary.activeProtocolCount)),
+                    atlasSummaryFact("stack_protocol_changes", "Protocols changed", String(stackSummary.protocolsWithChanges)),
+                    atlasSummaryFact("stack_completed", "Completed logs", String(stackSummary.weeklyCompletedCount)),
+                    atlasSummaryFact("stack_rescheduled", "Moved logs", String(stackSummary.weeklyRescheduledCount)),
+                    atlasSummaryFact("stack_inventory_risk", "Inventory risk", String(stackSummary.lowStockRiskCount))
+                ]
+            )
+        )
+    }
 
     return AtlasWeeklyReviewSeed(
         periodTitle: periodTitle,
@@ -1154,6 +1538,7 @@ private func buildWeeklyReviewSeed(
         workoutEntryCount: weeklyWorkouts.count,
         nextDueProtocolID: nextDue?.protocolID,
         nextDueTitle: nextDueLabel,
+        stackSummary: stackSummary,
         protocolChangeSummary: protocolChangeSummary,
         protocolFollowUpSummary: protocolFollowUpSummary
     )
@@ -1228,7 +1613,9 @@ private func atlasHistoricalWeeklyReviewSeeds(
     referenceDate: Date,
     renderMode: AtlasPrivacyRenderMode,
     privacyFormatter: AtlasPrivacyFormatter,
-    summarySettings: AtlasSummarySettingsSnapshot
+    summarySettings: AtlasSummarySettingsSnapshot,
+    surfacePreferences: AtlasSurfacePreferences,
+    inventorySnapshot: AtlasInventorySnapshot
 ) -> [AtlasWeeklyReviewSeed] {
     let calendar = Calendar.current
 
@@ -1249,11 +1636,49 @@ private func atlasHistoricalWeeklyReviewSeeds(
             renderMode: renderMode,
             privacyFormatter: privacyFormatter,
             summarySettings: summarySettings,
+            surfacePreferences: surfacePreferences,
+            inventorySnapshot: inventorySnapshot,
             plainLanguageSummary: nil,
             periodTitle: atlasWeeklyReviewPeriodTitle(for: historicalDate),
             includeCurrentStateFacts: false
         )
     }
+}
+
+private func buildWeeklyReviewStackSummary(
+    context: AtlasCoreLoopContext,
+    weeklyLogs: [AtlasLogEventRecord],
+    weeklyProtocolChanges: [AtlasProtocolChangeAuditRecord],
+    inventorySnapshot: AtlasInventorySnapshot,
+    enabled: Bool,
+    referenceDate: Date
+) -> AtlasWeeklyReviewStackSummary? {
+    guard enabled else {
+        return nil
+    }
+
+    let activeProtocolCount = context.protocols.values.filter { $0.status == .active }.count
+    guard activeProtocolCount > 1 else {
+        return nil
+    }
+
+    let changedProtocolCount = Set(weeklyProtocolChanges.map(\.protocolId)).count
+    let completedCount = weeklyLogs.filter { $0.eventType == .completed }.count
+    let rescheduledCount = weeklyLogs.filter { $0.eventType == .rescheduled }.count
+    let lowStockCount = inventorySnapshot.lowStockCount
+    let scheduleCount = context.pendingOccurrences.values
+        .flatMap { $0 }
+        .filter { Calendar.current.isDate(atlasDate(from: $0.scheduledAt), inSameDayAs: referenceDate) }
+        .count
+
+    return AtlasWeeklyReviewStackSummary(
+        activeProtocolCount: activeProtocolCount,
+        protocolsWithChanges: changedProtocolCount,
+        weeklyCompletedCount: completedCount,
+        weeklyRescheduledCount: rescheduledCount,
+        lowStockRiskCount: lowStockCount,
+        burdenSummary: "The current stack carried \(countPhrase(activeProtocolCount, singular: "active protocol")) with \(countPhrase(scheduleCount, singular: "visible schedule anchor")) on the current day and \(countPhrase(lowStockCount, singular: "inventory risk")) across the same window."
+    )
 }
 
 private func buildWeeklyReviewProtocolFollowUpSummary(

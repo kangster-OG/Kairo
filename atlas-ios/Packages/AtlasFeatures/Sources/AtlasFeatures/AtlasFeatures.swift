@@ -199,6 +199,37 @@ public final class AtlasSettingsViewState {
     }
 }
 
+enum AtlasUndoOperation: Equatable {
+    case deleteContextEntry(String)
+    case deleteWeightEntry(String)
+    case deleteSymptomEntry(String)
+    case deleteMetricValueEntry(String)
+    case setVialArchived(id: String, isArchived: Bool)
+    case setConsumableArchived(id: String, isArchived: Bool)
+}
+
+struct AtlasUndoBannerState: Identifiable, Equatable {
+    var id: String
+    var title: String
+    var detail: String
+    var actionTitle: String
+    var operation: AtlasUndoOperation
+
+    init(
+        id: String = UUID().uuidString.lowercased(),
+        title: String,
+        detail: String,
+        actionTitle: String = "Undo",
+        operation: AtlasUndoOperation
+    ) {
+        self.id = id
+        self.title = title
+        self.detail = detail
+        self.actionTitle = actionTitle
+        self.operation = operation
+    }
+}
+
 @MainActor
 @Observable
 public final class AtlasAppModel {
@@ -227,6 +258,7 @@ public final class AtlasAppModel {
     public var reviewOwnerSnapshot: AtlasReviewOwnerSnapshot
     public var reviewWorkspace: AtlasReviewWorkspace?
     public var pendingMascotCelebration: AtlasMascotCelebrationState?
+    var undoBanner: AtlasUndoBannerState?
     public var cloudSession: AtlasCloudSessionSnapshot?
     public var cloudStatusDescription: String
     public var isPerformingCloudAction: Bool
@@ -329,6 +361,7 @@ public final class AtlasAppModel {
         self.reviewOwnerSnapshot = reviewOwnerSnapshot
         self.reviewWorkspace = nil
         self.pendingMascotCelebration = nil
+        self.undoBanner = nil
         self.cloudSession = nil
         self.cloudStatusDescription = dependencies.cloudSync.isConfigured()
             ? "Cloud sync is ready for sign-in."
@@ -798,6 +831,54 @@ public final class AtlasAppModel {
         }
     }
 
+    public func updateSurfacePreferences(_ preferences: AtlasSurfacePreferences) async {
+        do {
+            settingsSnapshot = try await dependencies.persistence.settings.updateSurfacePreferences(
+                preferences,
+                now: currentDate()
+            )
+            syncShellViewStates()
+        } catch {
+            setLoadErrorMessage(error.localizedDescription)
+        }
+    }
+
+    public func dismissUndoBanner() {
+        undoBanner = nil
+    }
+
+    public func performUndo() async {
+        guard let banner = undoBanner else {
+            return
+        }
+        undoBanner = nil
+
+        do {
+            switch banner.operation {
+            case .deleteContextEntry(let id):
+                try await dependencies.persistence.metrics.deleteContextEntry(id: id)
+            case .deleteWeightEntry(let id):
+                try await dependencies.persistence.metrics.deleteWeightEntry(id: id)
+            case .deleteSymptomEntry(let id):
+                try await dependencies.persistence.metrics.deleteSymptomEntry(id: id)
+            case .deleteMetricValueEntry(let id):
+                try await dependencies.persistence.metrics.deleteMetricValueEntry(id: id)
+            case .setVialArchived(let id, let isArchived):
+                try await dependencies.persistence.inventory.setVialArchived(id: id, isArchived: isArchived, now: currentDate())
+            case .setConsumableArchived(let id, let isArchived):
+                try await dependencies.persistence.inventory.setConsumableArchived(id: id, isArchived: isArchived, now: currentDate())
+            }
+            invalidateInventoryCaches()
+            await refreshShellData()
+        } catch {
+            setLoadErrorMessage(error.localizedDescription)
+        }
+    }
+
+    private func presentUndoBanner(_ banner: AtlasUndoBannerState?) {
+        undoBanner = banner
+    }
+
     public func refreshCloudStatus() async {
         cloudSession = await dependencies.cloudSync.currentSession()
         cloudStatusDescription = await dependencies.cloudSync.statusDescription()
@@ -953,6 +1034,23 @@ public final class AtlasAppModel {
             try await dependencies.persistence.inventory.archiveVial(id: id, now: currentDate())
             invalidateInventoryCaches()
             await refreshShellData()
+            presentUndoBanner(
+                AtlasUndoBannerState(
+                    title: "Vial archived",
+                    detail: "Atlas removed it from active planning, but you can restore it right away.",
+                    operation: .setVialArchived(id: id, isArchived: false)
+                )
+            )
+        } catch {
+            setLoadErrorMessage(error.localizedDescription)
+        }
+    }
+
+    public func setVialArchived(id: String, isArchived: Bool) async {
+        do {
+            try await dependencies.persistence.inventory.setVialArchived(id: id, isArchived: isArchived, now: currentDate())
+            invalidateInventoryCaches()
+            await refreshShellData()
         } catch {
             setLoadErrorMessage(error.localizedDescription)
         }
@@ -963,6 +1061,15 @@ public final class AtlasAppModel {
             try await dependencies.persistence.inventory.setConsumableArchived(id: id, isArchived: isArchived, now: currentDate())
             invalidateInventoryCaches()
             await refreshShellData()
+            presentUndoBanner(
+                AtlasUndoBannerState(
+                    title: isArchived ? "Supply archived" : "Supply restored",
+                    detail: isArchived
+                        ? "Atlas removed this supply from active planning."
+                        : "Atlas brought this supply back into active planning.",
+                    operation: .setConsumableArchived(id: id, isArchived: !isArchived)
+                )
+            )
         } catch {
             setLoadErrorMessage(error.localizedDescription)
         }
@@ -1063,8 +1170,17 @@ public final class AtlasAppModel {
 
     public func saveContextEntry(_ draft: AtlasContextEntryDraft) async {
         do {
-            _ = try await dependencies.persistence.metrics.saveContextEntry(draft, now: currentDate())
+            let record = try await dependencies.persistence.metrics.saveContextEntry(draft, now: currentDate())
             await refreshShellData()
+            if draft.id == nil {
+                presentUndoBanner(
+                    AtlasUndoBannerState(
+                        title: "Context saved",
+                        detail: "The new context check-in is part of your local timeline.",
+                        operation: .deleteContextEntry(record.id)
+                    )
+                )
+            }
         } catch {
             setLoadErrorMessage(error.localizedDescription)
         }
@@ -1092,7 +1208,7 @@ public final class AtlasAppModel {
 
     public func saveWeightEntry(_ draft: AtlasWeightEntryDraft) async {
         do {
-            _ = try await dependencies.persistence.metrics.saveWeightEntry(draft, now: currentDate())
+            let record = try await dependencies.persistence.metrics.saveWeightEntry(draft, now: currentDate())
             if settingsSnapshot.healthScaffold.connections.contains(where: { $0.providerKey == .appleHealth && $0.connected }) {
                 do {
                     try await dependencies.healthKit.saveWeightSample(
@@ -1120,6 +1236,15 @@ public final class AtlasAppModel {
                 }
             }
             await refreshShellData()
+            if draft.id == nil {
+                presentUndoBanner(
+                    AtlasUndoBannerState(
+                        title: "Weight logged",
+                        detail: "Atlas added the new weight entry to your trends.",
+                        operation: .deleteWeightEntry(record.id)
+                    )
+                )
+            }
         } catch {
             setLoadErrorMessage(error.localizedDescription)
         }
@@ -1127,8 +1252,17 @@ public final class AtlasAppModel {
 
     public func saveSymptomEntry(_ draft: AtlasSymptomEntryDraft) async {
         do {
-            _ = try await dependencies.persistence.metrics.saveSymptomEntry(draft, now: currentDate())
+            let record = try await dependencies.persistence.metrics.saveSymptomEntry(draft, now: currentDate())
             await refreshShellData()
+            if draft.id == nil {
+                presentUndoBanner(
+                    AtlasUndoBannerState(
+                        title: "Symptom logged",
+                        detail: "Atlas added the symptom entry to the current review window.",
+                        operation: .deleteSymptomEntry(record.id)
+                    )
+                )
+            }
         } catch {
             setLoadErrorMessage(error.localizedDescription)
         }
@@ -1181,8 +1315,17 @@ public final class AtlasAppModel {
 
     public func saveMetricValueEntry(_ draft: AtlasMetricValueEntryDraft) async {
         do {
-            _ = try await dependencies.persistence.metrics.saveMetricValueEntry(draft, now: currentDate())
+            let record = try await dependencies.persistence.metrics.saveMetricValueEntry(draft, now: currentDate())
             await refreshShellData()
+            if draft.id == nil {
+                presentUndoBanner(
+                    AtlasUndoBannerState(
+                        title: "Metric logged",
+                        detail: "Atlas added the metric point to the current trend set.",
+                        operation: .deleteMetricValueEntry(record.id)
+                    )
+                )
+            }
         } catch {
             setLoadErrorMessage(error.localizedDescription)
         }
@@ -1926,6 +2069,17 @@ private struct AtlasShellView: View {
                 model.dismissMascotCelebration()
             }
         }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if let banner = model.undoBanner {
+                AtlasUndoBanner(banner: banner) {
+                    Task { await model.performUndo() }
+                } onDismiss: {
+                    model.dismissUndoBanner()
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+            }
+        }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             AtlasBottomTabBar(selection: $model.activeTab)
         }
@@ -1946,6 +2100,50 @@ private struct AtlasShellView: View {
         case .settings:
             AtlasSettingsScreen(model: model, state: model.settingsViewState)
         }
+    }
+}
+
+private struct AtlasUndoBanner: View {
+    let banner: AtlasUndoBannerState
+    let onUndo: () -> Void
+    let onDismiss: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: AtlasSpacing.small) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(banner.title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AtlasPalette.textPrimary)
+                Text(banner.detail)
+                    .font(.caption)
+                    .foregroundStyle(AtlasPalette.textSecondary)
+            }
+            Spacer(minLength: 12)
+            Button(banner.actionTitle, action: onUndo)
+                .buttonStyle(AtlasTertiaryButtonStyle())
+            Button(action: onDismiss) {
+                Image(systemName: "xmark")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AtlasPalette.textSecondary)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(AtlasSpacing.small)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.96), AtlasPalette.surfaceSecondary],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(Color.white.opacity(0.88), lineWidth: 1)
+        )
+        .shadow(color: AtlasPalette.shadow.opacity(0.18), radius: 14, x: 0, y: 10)
     }
 }
 
@@ -2148,126 +2346,12 @@ public struct AtlasTodayScreen: View {
                 }
             }
 
-            if let guidance {
-                AtlasRootSectionHeader("Today lens")
-                AtlasTodayGuidanceCard(
+            ForEach(model.settingsSnapshot.surfacePreferences.visibleTodayCards) { card in
+                todayLandingCard(
+                    card,
                     guidance: guidance,
-                    primaryAction: {
-                        performTodayGuidanceAction(guidance.primaryAction)
-                    },
-                    secondaryAction: { action in
-                        performTodayGuidanceAction(action)
-                    }
-                )
-            }
-
-            if let recovery {
-                AtlasRootSectionHeader("Recovery")
-                AtlasTodayRecoveryCard(
                     recovery: recovery,
-                    primaryAction: {
-                        performTodayGuidanceAction(recovery.primaryAction)
-                    },
-                    secondaryAction: recovery.secondaryAction.map { action in
-                        {
-                            performTodayGuidanceAction(action)
-                        }
-                    }
-                )
-            }
-
-            if state.todaySnapshot.hasProtocols {
-                AtlasRootSectionHeader("Quick capture")
-                AtlasTodayQuickCaptureCard(model: model, state: state)
-            }
-
-            if state.todaySnapshot.hasProtocols {
-                AtlasRootSectionHeader("Quick context")
-                AtlasTodayContextQuickCard(
-                    model: model,
-                    defaultProtocolID: atlasTodayContextProtocolID(snapshot: state.todaySnapshot),
-                    onTriggerShortcut: { shortcut in
-                        performTodayContextShortcut(shortcut)
-                    },
-                    onOpenDetailedCapture: {
-                        contextEditor = atlasTodayContextEditorState(
-                            shortcut: nil,
-                            referenceDate: model.currentDate(),
-                            protocolID: atlasTodayContextProtocolID(snapshot: state.todaySnapshot)
-                        )
-                        contextSheetPresented = true
-                    }
-                )
-            }
-
-            if state.todaySnapshot.hasProtocols {
-                AtlasRootSectionHeader("Apple Watch companion")
-                AtlasSectionCard(style: .utility, title: "Wrist-ready handoff") {
-                    Text("Keep next due, recovery handling, and quick context close through App Shortcuts and the focused watch companion surface.")
-                        .foregroundStyle(AtlasPalette.textSecondary)
-
-                    HStack(spacing: AtlasSpacing.small) {
-                        AtlasStatusBadge("Next due")
-                        AtlasStatusBadge("Recovery", tint: AtlasPalette.warning)
-                        AtlasStatusBadge("Quick context", tint: AtlasPalette.secondaryText)
-                    }
-
-                    Button("Open Apple Watch companion") {
-                        model.open(.watchCompanion)
-                    }
-                    .buttonStyle(AtlasSecondaryButtonStyle())
-                }
-            }
-
-            if let weeklyReview,
-               weeklyReview.actionPlans.isEmpty == false || weeklyReview.actions.isEmpty == false {
-                AtlasRootSectionHeader("Weekly focus")
-                AtlasWeeklyFocusTodaySection(model: model)
-            }
-
-            if atlasShouldPromptForMascotConfirmation(
-                bootstrapSnapshot: model.bootstrapSnapshot,
-                settingsSnapshot: model.settingsSnapshot
-            ) {
-                AtlasRootSectionHeader("Mascot line")
-                AtlasMascotConfirmationCard(
-                    bootstrapReason: model.bootstrapSnapshot.reason,
-                    currentSelection: model.settingsSnapshot.mascotSelection
-                ) { selection in
-                    Task { await model.updateMascotSelection(selection) }
-                }
-            }
-
-            if state.rewardsSnapshot.settings.enabled {
-                AtlasRootSectionHeader("Mascot")
-                AtlasMascotHomeCard(
-                    selection: model.settingsSnapshot.mascotSelection,
-                    nickname: model.settingsSnapshot.mascotNickname,
-                    rewardsSnapshot: state.rewardsSnapshot,
-                    history: model.settingsSnapshot.mascotEvolutionHistory,
-                    moments: model.settingsSnapshot.mascotMoments,
-                    onOpenDetail: {
-                        model.open(.mascot)
-                    }
-                )
-            }
-
-            if state.rewardsSnapshot.settings.enabled {
-                AtlasRootSectionHeader("Rewards")
-                AtlasRewardsTodayCard(
-                    snapshot: state.rewardsSnapshot,
-                    mascotSelection: model.settingsSnapshot.mascotSelection,
-                    mascotNickname: model.settingsSnapshot.mascotNickname,
-                    mascotHistory: model.settingsSnapshot.mascotEvolutionHistory
-                )
-            }
-
-            if state.retentionSnapshot.settings.progressEnabled {
-                AtlasRootSectionHeader("Calm continuity")
-                AtlasRetentionTodayCard(
-                    model: model,
-                    snapshot: state.retentionSnapshot,
-                    mascotSelection: model.settingsSnapshot.mascotSelection
+                    weeklyReview: weeklyReview
                 )
             }
 
@@ -2351,6 +2435,138 @@ public struct AtlasTodayScreen: View {
         }
         .sheet(item: $explanationSheet) { item in
             AtlasExplanationSheet(item: item)
+        }
+    }
+
+    @ViewBuilder
+    private func todayLandingCard(
+        _ card: AtlasTodayLandingCard,
+        guidance: AtlasTodayGuidancePresentation?,
+        recovery: AtlasTodayRecoveryPresentation?,
+        weeklyReview: AtlasWeeklyReviewPresentation?
+    ) -> some View {
+        switch card {
+        case .guidance:
+            if let guidance {
+                AtlasRootSectionHeader(card.title)
+                AtlasTodayGuidanceCard(
+                    guidance: guidance,
+                    primaryAction: {
+                        performTodayGuidanceAction(guidance.primaryAction)
+                    },
+                    secondaryAction: { action in
+                        performTodayGuidanceAction(action)
+                    }
+                )
+            }
+        case .recovery:
+            if let recovery {
+                AtlasRootSectionHeader(card.title)
+                AtlasTodayRecoveryCard(
+                    recovery: recovery,
+                    primaryAction: {
+                        performTodayGuidanceAction(recovery.primaryAction)
+                    },
+                    secondaryAction: recovery.secondaryAction.map { action in
+                        {
+                            performTodayGuidanceAction(action)
+                        }
+                    }
+                )
+            }
+        case .quickCapture:
+            if state.todaySnapshot.hasProtocols {
+                AtlasRootSectionHeader(card.title)
+                AtlasTodayQuickCaptureCard(model: model, state: state)
+            }
+        case .quickContext:
+            if state.todaySnapshot.hasProtocols {
+                AtlasRootSectionHeader(card.title)
+                AtlasTodayContextQuickCard(
+                    model: model,
+                    defaultProtocolID: atlasTodayContextProtocolID(snapshot: state.todaySnapshot),
+                    onTriggerShortcut: { shortcut in
+                        performTodayContextShortcut(shortcut)
+                    },
+                    onOpenDetailedCapture: {
+                        contextEditor = atlasTodayContextEditorState(
+                            shortcut: nil,
+                            referenceDate: model.currentDate(),
+                            protocolID: atlasTodayContextProtocolID(snapshot: state.todaySnapshot)
+                        )
+                        contextSheetPresented = true
+                    }
+                )
+            }
+        case .weeklyFocus:
+            if let weeklyReview,
+               weeklyReview.actionPlans.isEmpty == false || weeklyReview.actions.isEmpty == false {
+                AtlasRootSectionHeader(card.title)
+                AtlasWeeklyFocusTodaySection(model: model)
+            }
+        case .watchCompanion:
+            if state.todaySnapshot.hasProtocols {
+                AtlasRootSectionHeader(card.title)
+                AtlasSectionCard(style: .utility, title: "Wrist-ready handoff") {
+                    Text("Keep next due, recovery handling, and quick context close through App Shortcuts and the focused watch companion surface.")
+                        .foregroundStyle(AtlasPalette.textSecondary)
+
+                    HStack(spacing: AtlasSpacing.small) {
+                        AtlasStatusBadge("Next due")
+                        AtlasStatusBadge("Recovery", tint: AtlasPalette.warning)
+                        AtlasStatusBadge("Quick context", tint: AtlasPalette.secondaryText)
+                    }
+
+                    Button("Open Apple Watch companion") {
+                        model.open(.watchCompanion)
+                    }
+                    .buttonStyle(AtlasSecondaryButtonStyle())
+                }
+            }
+        case .mascot:
+            if atlasShouldPromptForMascotConfirmation(
+                bootstrapSnapshot: model.bootstrapSnapshot,
+                settingsSnapshot: model.settingsSnapshot
+            ) {
+                AtlasRootSectionHeader("Mascot line")
+                AtlasMascotConfirmationCard(
+                    bootstrapReason: model.bootstrapSnapshot.reason,
+                    currentSelection: model.settingsSnapshot.mascotSelection
+                ) { selection in
+                    Task { await model.updateMascotSelection(selection) }
+                }
+            } else if state.rewardsSnapshot.settings.enabled {
+                AtlasRootSectionHeader(card.title)
+                AtlasMascotHomeCard(
+                    selection: model.settingsSnapshot.mascotSelection,
+                    nickname: model.settingsSnapshot.mascotNickname,
+                    rewardsSnapshot: state.rewardsSnapshot,
+                    history: model.settingsSnapshot.mascotEvolutionHistory,
+                    moments: model.settingsSnapshot.mascotMoments,
+                    onOpenDetail: {
+                        model.open(.mascot)
+                    }
+                )
+            }
+        case .rewards:
+            if state.rewardsSnapshot.settings.enabled {
+                AtlasRootSectionHeader(card.title)
+                AtlasRewardsTodayCard(
+                    snapshot: state.rewardsSnapshot,
+                    mascotSelection: model.settingsSnapshot.mascotSelection,
+                    mascotNickname: model.settingsSnapshot.mascotNickname,
+                    mascotHistory: model.settingsSnapshot.mascotEvolutionHistory
+                )
+            }
+        case .calmContinuity:
+            if state.retentionSnapshot.settings.progressEnabled {
+                AtlasRootSectionHeader(card.title)
+                AtlasRetentionTodayCard(
+                    model: model,
+                    snapshot: state.retentionSnapshot,
+                    mascotSelection: model.settingsSnapshot.mascotSelection
+                )
+            }
         }
     }
 
@@ -4682,6 +4898,105 @@ public struct AtlasSettingsScreen: View {
                 }
             }
 
+            AtlasSectionCard(title: "Command surfaces") {
+                Text("Tune which command cards Atlas shows first on Today and Insights. Stack views stay optional, and biometrics overlays can stay broad without crowding the core loop.")
+                    .foregroundStyle(AtlasPalette.textSecondary)
+
+                AtlasSettingsToggleRow(
+                    title: "Enable stack dashboard",
+                    subtitle: "Only show stack-level summaries when you actually want a multi-protocol lens.",
+                    isOn: Binding(
+                        get: { state.settingsSnapshot.surfacePreferences.stackDashboardEnabled },
+                        set: { value in
+                            var prefs = state.settingsSnapshot.surfacePreferences
+                            prefs.stackDashboardEnabled = value
+                            state.settingsSnapshot.surfacePreferences = prefs
+                            model.settingsSnapshot.surfacePreferences = prefs
+                            Task { await model.updateSurfacePreferences(prefs) }
+                        }
+                    )
+                )
+
+                AtlasSettingsToggleRow(
+                    title: "Enable biometrics overlays",
+                    subtitle: "Show grouped biometrics and lab trend panels in Insights.",
+                    isOn: Binding(
+                        get: { state.settingsSnapshot.surfacePreferences.biometricsOverlayEnabled },
+                        set: { value in
+                            var prefs = state.settingsSnapshot.surfacePreferences
+                            prefs.biometricsOverlayEnabled = value
+                            state.settingsSnapshot.surfacePreferences = prefs
+                            model.settingsSnapshot.surfacePreferences = prefs
+                            Task { await model.updateSurfacePreferences(prefs) }
+                        }
+                    )
+                )
+
+                AtlasSettingsToggleRow(
+                    title: "Overlay protocol changes",
+                    subtitle: "Keep recent protocol edits visible beside biometrics trends.",
+                    isOn: Binding(
+                        get: { state.settingsSnapshot.surfacePreferences.biometricsOverlayShowsProtocolChanges },
+                        set: { value in
+                            var prefs = state.settingsSnapshot.surfacePreferences
+                            prefs.biometricsOverlayShowsProtocolChanges = value
+                            state.settingsSnapshot.surfacePreferences = prefs
+                            model.settingsSnapshot.surfacePreferences = prefs
+                            Task { await model.updateSurfacePreferences(prefs) }
+                        }
+                    ),
+                    isEnabled: state.settingsSnapshot.surfacePreferences.biometricsOverlayEnabled
+                )
+
+                Divider()
+
+                atlasLandingCardSettingsList(
+                    title: "Today layout",
+                    cards: AtlasTodayLandingCard.allCases,
+                    order: state.settingsSnapshot.surfacePreferences.todayCardOrder,
+                    isVisible: { state.settingsSnapshot.surfacePreferences.isTodayCardVisible($0) },
+                    titleFor: { $0.title },
+                    onToggleVisibility: { card, isVisible in
+                        var prefs = state.settingsSnapshot.surfacePreferences
+                        atlasSetVisibility(card: card, isVisible: isVisible, hiddenCards: &prefs.hiddenTodayCards)
+                        state.settingsSnapshot.surfacePreferences = prefs
+                        model.settingsSnapshot.surfacePreferences = prefs
+                        Task { await model.updateSurfacePreferences(prefs) }
+                    },
+                    onMove: { card, direction in
+                        var prefs = state.settingsSnapshot.surfacePreferences
+                        atlasMove(card: card, direction: direction, order: &prefs.todayCardOrder, fallback: AtlasTodayLandingCard.allCases)
+                        state.settingsSnapshot.surfacePreferences = prefs
+                        model.settingsSnapshot.surfacePreferences = prefs
+                        Task { await model.updateSurfacePreferences(prefs) }
+                    }
+                )
+
+                Divider()
+
+                atlasLandingCardSettingsList(
+                    title: "Insights layout",
+                    cards: AtlasInsightsLandingCard.allCases,
+                    order: state.settingsSnapshot.surfacePreferences.insightsCardOrder,
+                    isVisible: { state.settingsSnapshot.surfacePreferences.isInsightsCardVisible($0) },
+                    titleFor: { $0.title },
+                    onToggleVisibility: { card, isVisible in
+                        var prefs = state.settingsSnapshot.surfacePreferences
+                        atlasSetVisibility(card: card, isVisible: isVisible, hiddenCards: &prefs.hiddenInsightsCards)
+                        state.settingsSnapshot.surfacePreferences = prefs
+                        model.settingsSnapshot.surfacePreferences = prefs
+                        Task { await model.updateSurfacePreferences(prefs) }
+                    },
+                    onMove: { card, direction in
+                        var prefs = state.settingsSnapshot.surfacePreferences
+                        atlasMove(card: card, direction: direction, order: &prefs.insightsCardOrder, fallback: AtlasInsightsLandingCard.allCases)
+                        state.settingsSnapshot.surfacePreferences = prefs
+                        model.settingsSnapshot.surfacePreferences = prefs
+                        Task { await model.updateSurfacePreferences(prefs) }
+                    }
+                )
+            }
+
             AtlasSectionCard(title: "Plain-language summaries") {
                 Text("Optional, bounded recaps are generated from Atlas data already on device. They stay descriptive and keep the source facts visible.")
                     .foregroundStyle(AtlasPalette.textSecondary)
@@ -5261,6 +5576,113 @@ public struct AtlasSettingsScreen: View {
             tint: AtlasPalette.secondaryText
         )
     }
+}
+
+private enum AtlasLandingCardMoveDirection {
+    case up
+    case down
+}
+
+@MainActor
+@ViewBuilder
+private func atlasLandingCardSettingsList<Card: Identifiable & Hashable & Sendable>(
+    title: String,
+    cards: [Card],
+    order: [Card],
+    isVisible: @escaping (Card) -> Bool,
+    titleFor: @escaping (Card) -> String,
+    onToggleVisibility: @MainActor @escaping (Card, Bool) -> Void,
+    onMove: @MainActor @escaping (Card, AtlasLandingCardMoveDirection) -> Void
+) -> some View {
+    VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+        Text(title)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(AtlasPalette.primary)
+            .textCase(.uppercase)
+
+        ForEach(cards.sorted { atlasOrderIndex($0, order: order) < atlasOrderIndex($1, order: order) }) { card in
+            HStack(spacing: AtlasSpacing.small) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(titleFor(card))
+                        .foregroundStyle(AtlasPalette.textPrimary)
+                    Text(isVisible(card) ? "Visible on the landing surface." : "Hidden from the landing surface.")
+                        .font(.caption)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                }
+                Spacer()
+                Toggle("", isOn: Binding(
+                    get: { isVisible(card) },
+                    set: { onToggleVisibility(card, $0) }
+                ))
+                .labelsHidden()
+
+                VStack(spacing: 4) {
+                    Button {
+                        onMove(card, .up)
+                    } label: {
+                        Image(systemName: "chevron.up")
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        onMove(card, .down)
+                    } label: {
+                        Image(systemName: "chevron.down")
+                    }
+                    .buttonStyle(.plain)
+                }
+                .foregroundStyle(AtlasPalette.textSecondary)
+            }
+            .padding(.vertical, 4)
+        }
+    }
+}
+
+private func atlasSetVisibility<Card: Equatable & Sendable>(
+    card: Card,
+    isVisible: Bool,
+    hiddenCards: inout [Card]
+) {
+    hiddenCards.removeAll { $0 == card }
+    if isVisible == false {
+        hiddenCards.append(card)
+    }
+}
+
+private func atlasMove<Card: Equatable & Sendable>(
+    card: Card,
+    direction: AtlasLandingCardMoveDirection,
+    order: inout [Card],
+    fallback: [Card]
+) {
+    if order.isEmpty {
+        order = fallback
+    } else {
+        for item in fallback where order.contains(item) == false {
+            order.append(item)
+        }
+    }
+
+    guard let index = order.firstIndex(of: card) else {
+        return
+    }
+
+    let destination: Int
+    switch direction {
+    case .up:
+        destination = max(index - 1, 0)
+    case .down:
+        destination = min(index + 1, order.count - 1)
+    }
+    guard destination != index else {
+        return
+    }
+
+    order.swapAt(index, destination)
+}
+
+private func atlasOrderIndex<Card: Equatable & Sendable>(_ card: Card, order: [Card]) -> Int {
+    order.firstIndex(of: card) ?? order.count
 }
 
 public struct AtlasTrustVaultScreen: View {

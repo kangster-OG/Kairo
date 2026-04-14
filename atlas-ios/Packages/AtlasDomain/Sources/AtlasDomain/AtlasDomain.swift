@@ -967,6 +967,7 @@ public struct AtlasSettingsSnapshot: Sendable, Equatable {
     public var syncStatus: AtlasSyncScaffoldStatus
     public var healthScaffold: AtlasHealthScaffoldSnapshot
     public var labsEnabled: Bool
+    public var surfacePreferences: AtlasSurfacePreferences
     public var trustVaultStatus: TrustVaultStatus
     public var mascotSelection: AtlasMascotSelection
     public var mascotNickname: String?
@@ -989,6 +990,7 @@ public struct AtlasSettingsSnapshot: Sendable, Equatable {
         syncStatus: AtlasSyncScaffoldStatus = .localOnly,
         healthScaffold: AtlasHealthScaffoldSnapshot = .init(),
         labsEnabled: Bool = false,
+        surfacePreferences: AtlasSurfacePreferences = .init(),
         trustVaultStatus: TrustVaultStatus = .init(),
         mascotSelection: AtlasMascotSelection = .aetherion,
         mascotNickname: String? = nil,
@@ -1012,6 +1014,7 @@ public struct AtlasSettingsSnapshot: Sendable, Equatable {
         self.syncStatus = syncStatus
         self.healthScaffold = healthScaffold
         self.labsEnabled = labsEnabled
+        self.surfacePreferences = surfacePreferences
         self.trustVaultStatus = trustVaultStatus
         self.mascotSelection = mascotSelection
         self.mascotNickname = mascotNickname
@@ -1030,6 +1033,106 @@ public struct AtlasSettingsSnapshot: Sendable, Equatable {
 
     public func highestUnlockedStage(for selection: AtlasMascotSelection) -> AtlasMascotStage {
         mascotUnlocks.first(where: { $0.selection == selection })?.highestUnlockedStage ?? .stage1
+    }
+}
+
+public enum AtlasTodayLandingCard: String, Codable, CaseIterable, Hashable, Sendable, Identifiable {
+    case guidance
+    case recovery
+    case quickCapture = "quick_capture"
+    case quickContext = "quick_context"
+    case weeklyFocus = "weekly_focus"
+    case watchCompanion = "watch_companion"
+    case mascot
+    case rewards
+    case calmContinuity = "calm_continuity"
+
+    public var id: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .guidance: "Today lens"
+        case .recovery: "Recovery"
+        case .quickCapture: "Quick capture"
+        case .quickContext: "Quick context"
+        case .weeklyFocus: "Weekly focus"
+        case .watchCompanion: "Watch companion"
+        case .mascot: "Mascot"
+        case .rewards: "Rewards"
+        case .calmContinuity: "Calm continuity"
+        }
+    }
+}
+
+public enum AtlasInsightsLandingCard: String, Codable, CaseIterable, Hashable, Sendable, Identifiable {
+    case progressEvidence = "progress_evidence"
+    case weeklyReview = "weekly_review"
+    case stackDashboard = "stack_dashboard"
+    case biometricsOverlay = "biometrics_overlay"
+
+    public var id: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .progressEvidence: "Progress evidence"
+        case .weeklyReview: "Weekly review"
+        case .stackDashboard: "Stack dashboard"
+        case .biometricsOverlay: "Biometrics overlays"
+        }
+    }
+}
+
+public struct AtlasSurfacePreferences: Codable, Equatable, Sendable {
+    public var todayCardOrder: [AtlasTodayLandingCard]
+    public var hiddenTodayCards: [AtlasTodayLandingCard]
+    public var insightsCardOrder: [AtlasInsightsLandingCard]
+    public var hiddenInsightsCards: [AtlasInsightsLandingCard]
+    public var stackDashboardEnabled: Bool
+    public var biometricsOverlayEnabled: Bool
+    public var biometricsOverlayShowsProtocolChanges: Bool
+
+    public init(
+        todayCardOrder: [AtlasTodayLandingCard] = AtlasTodayLandingCard.allCases,
+        hiddenTodayCards: [AtlasTodayLandingCard] = [],
+        insightsCardOrder: [AtlasInsightsLandingCard] = AtlasInsightsLandingCard.allCases,
+        hiddenInsightsCards: [AtlasInsightsLandingCard] = [],
+        stackDashboardEnabled: Bool = false,
+        biometricsOverlayEnabled: Bool = true,
+        biometricsOverlayShowsProtocolChanges: Bool = true
+    ) {
+        self.todayCardOrder = todayCardOrder
+        self.hiddenTodayCards = hiddenTodayCards
+        self.insightsCardOrder = insightsCardOrder
+        self.hiddenInsightsCards = hiddenInsightsCards
+        self.stackDashboardEnabled = stackDashboardEnabled
+        self.biometricsOverlayEnabled = biometricsOverlayEnabled
+        self.biometricsOverlayShowsProtocolChanges = biometricsOverlayShowsProtocolChanges
+    }
+
+    public var visibleTodayCards: [AtlasTodayLandingCard] {
+        AtlasTodayLandingCard.allCases.filter { hiddenTodayCards.contains($0) == false }
+            .sorted { todayCardRank($0) < todayCardRank($1) }
+    }
+
+    public var visibleInsightsCards: [AtlasInsightsLandingCard] {
+        AtlasInsightsLandingCard.allCases.filter { hiddenInsightsCards.contains($0) == false }
+            .sorted { insightsCardRank($0) < insightsCardRank($1) }
+    }
+
+    public func isTodayCardVisible(_ card: AtlasTodayLandingCard) -> Bool {
+        hiddenTodayCards.contains(card) == false
+    }
+
+    public func isInsightsCardVisible(_ card: AtlasInsightsLandingCard) -> Bool {
+        hiddenInsightsCards.contains(card) == false
+    }
+
+    private func todayCardRank(_ card: AtlasTodayLandingCard) -> Int {
+        todayCardOrder.firstIndex(of: card) ?? AtlasTodayLandingCard.allCases.count
+    }
+
+    private func insightsCardRank(_ card: AtlasInsightsLandingCard) -> Int {
+        insightsCardOrder.firstIndex(of: card) ?? AtlasInsightsLandingCard.allCases.count
     }
 }
 

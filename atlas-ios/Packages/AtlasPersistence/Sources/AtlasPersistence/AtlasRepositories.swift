@@ -133,6 +133,25 @@ public struct GRDBSettingsRepository: SettingsRepository, Sendable {
         }
     }
 
+    public func updateSurfacePreferences(
+        _ preferences: AtlasSurfacePreferences,
+        now: Date
+    ) async throws -> AtlasSettingsSnapshot {
+        try await stack.canonical.write { db in
+            try writeAppSetting(
+                db: db,
+                key: "surface_preferences_json",
+                value: try atlasEncodeSurfacePreferences(preferences),
+                now: now
+            )
+            return try buildSettingsSnapshot(
+                db: db,
+                healthKit: healthKit,
+                featureFlags: featureFlags
+            )
+        }
+    }
+
     public func updateTrustVaultRenderMode(_ renderMode: AtlasPrivacyRenderMode, now: Date) async throws -> AtlasSettingsSnapshot {
         try await stack.canonical.write { db in
             var profile = try AtlasPrivacyProfileDBRecord.fetchOne(db)?.domain ?? .default()

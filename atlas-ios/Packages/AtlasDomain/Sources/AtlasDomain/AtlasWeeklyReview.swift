@@ -120,6 +120,31 @@ public struct AtlasWeeklyReviewProtocolFollowUpSummary: Equatable, Sendable {
     }
 }
 
+public struct AtlasWeeklyReviewStackSummary: Equatable, Sendable {
+    public var activeProtocolCount: Int
+    public var protocolsWithChanges: Int
+    public var weeklyCompletedCount: Int
+    public var weeklyRescheduledCount: Int
+    public var lowStockRiskCount: Int
+    public var burdenSummary: String
+
+    public init(
+        activeProtocolCount: Int,
+        protocolsWithChanges: Int,
+        weeklyCompletedCount: Int,
+        weeklyRescheduledCount: Int,
+        lowStockRiskCount: Int,
+        burdenSummary: String
+    ) {
+        self.activeProtocolCount = activeProtocolCount
+        self.protocolsWithChanges = protocolsWithChanges
+        self.weeklyCompletedCount = weeklyCompletedCount
+        self.weeklyRescheduledCount = weeklyRescheduledCount
+        self.lowStockRiskCount = lowStockRiskCount
+        self.burdenSummary = burdenSummary
+    }
+}
+
 public struct AtlasWeeklyReviewSeed: Equatable, Sendable {
     public var periodTitle: String
     public var generatedAt: Date
@@ -140,6 +165,7 @@ public struct AtlasWeeklyReviewSeed: Equatable, Sendable {
     public var workoutEntryCount: Int
     public var nextDueProtocolID: String?
     public var nextDueTitle: String?
+    public var stackSummary: AtlasWeeklyReviewStackSummary?
     public var protocolChangeSummary: AtlasWeeklyReviewProtocolChangeSummary?
     public var protocolFollowUpSummary: AtlasWeeklyReviewProtocolFollowUpSummary?
 
@@ -163,6 +189,7 @@ public struct AtlasWeeklyReviewSeed: Equatable, Sendable {
         workoutEntryCount: Int,
         nextDueProtocolID: String? = nil,
         nextDueTitle: String? = nil,
+        stackSummary: AtlasWeeklyReviewStackSummary? = nil,
         protocolChangeSummary: AtlasWeeklyReviewProtocolChangeSummary? = nil,
         protocolFollowUpSummary: AtlasWeeklyReviewProtocolFollowUpSummary? = nil
     ) {
@@ -185,6 +212,7 @@ public struct AtlasWeeklyReviewSeed: Equatable, Sendable {
         self.workoutEntryCount = workoutEntryCount
         self.nextDueProtocolID = nextDueProtocolID
         self.nextDueTitle = nextDueTitle
+        self.stackSummary = stackSummary
         self.protocolChangeSummary = protocolChangeSummary
         self.protocolFollowUpSummary = protocolFollowUpSummary
     }
