@@ -4,6 +4,8 @@ Atlas is a privacy-first, local-first protocol tracker for injectables and adjac
 
 The current product is a native iPhone app under `atlas-ios/`. It is no longer just a dose logger. The shipped native product combines protocol execution, immutable history, inventory, calculators, site tracking, bounded sharing, review outputs, progress evidence, weekly review, deterministic insights, optional nutrition context, optional labs, and optional cloud/account layers that remain additive to local-first use.
 
+Recent native refinements also include photo-assisted meal capture, broader Apple Health nutrition import, a fuller month-style adherence surface, and richer vial media capture for inventory workflows.
+
 ## Read This First
 
 If you are opening this repo in a future thread, use this file as the repo-level current-state map.
@@ -101,6 +103,8 @@ Current Today capabilities:
 - deterministic "Why this is due" explanations
 - recovery handling for drift, missed events, and plan resets
 - quick context access from the operational surface
+- freeform meal parsing from typed or dictated meal text
+- photo-assisted meal capture that reads a meal image and prefills a structured nutrition/context suggestion
 - route handoff into protocol detail and Protocol Change Studio
 
 ### Timeline
@@ -133,6 +137,7 @@ Current Insights capabilities:
 - bounded plain-language recap cards
 - deterministic explainability cards
 - adherence trend summaries
+- month-style adherence calendar view plus recent daily strip
 - medication amount-in-system estimates
 - Episode Intelligence
 - nutrition targets, weekly nutrition signals, and coaching cards
@@ -151,6 +156,7 @@ Current Settings capabilities:
 - biometrics and privacy gating
 - reminder controls and notification privacy modes
 - Health connection state
+- Apple Health import for workouts, weight, water, calories, and protein
 - labs enablement
 - rewards and continuity controls
 - weekly review reminders
@@ -179,6 +185,8 @@ Current Settings capabilities:
 - context logging
 - hydration quick capture
 - protein meal quick capture
+- freeform meal quick capture from typed/dictated text
+- photo-assisted meal quick capture
 - progress-photo quick capture
 - one-thumb quick capture flows from the main shell
 - reusable context presets
@@ -201,6 +209,8 @@ Current capabilities:
 - daily protein, fiber, hydration, and workout-fueling targets/signals
 - weekly coaching cards based on logged nutrition context
 - freeform local parsing helpers in the domain layer for quick meal capture suggestions
+- photo-assisted meal parsing using on-device OCR/image classification cues to prefill a quick-capture suggestion
+- Apple Health nutrition import for water, calories, and protein as health-sourced metrics
 
 ### Inventory and calculators
 - vial tracking
@@ -215,6 +225,9 @@ Current capabilities:
 - site tracking
 - site rotation support
 - inventory movement history
+- vial opened-date and expiration tracking
+- vial reference photo capture and display
+- OCR-based vial label scan notes stored with the vial record
 
 ### Privacy, review, and export
 This is one of Atlas's strongest differentiators.
@@ -282,6 +295,7 @@ Current capabilities:
 - Apple Health integration
 - optional cloud auth/sync scaffolding
 - additive watch companion handoff surface in-app
+- no full standalone watchOS app target yet
 
 ## Current Health + Cloud Scope
 
@@ -292,6 +306,7 @@ What is in scope now:
 - explicit opt-in connection
 - weight import/export behavior
 - workout ingestion into insights
+- water, calories, and protein ingestion into insights/custom metrics
 - visible connection state in Settings
 
 What is not the current core model:
