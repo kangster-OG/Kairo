@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		05A3B98070C1179AFBEE4B5F /* AtlasWidgetsExtension.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FBC561432DC055CE829A09B /* AtlasWidgetsExtension.swift */; };
 		05E17E884245BB29302345DA /* AtlasSystem in Frameworks */ = {isa = PBXBuildFile; productRef = ABCE5395E103D945CB382D58 /* AtlasSystem */; };
+		12A8B77F5E554A0C8B0D1201 /* AtlasWidgetsExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = C61EA6D3F09A3EFB580FDF92 /* AtlasWidgetsExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		175267A05D364918AD5D64BD /* IntentHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F63219A98B1D1057BD3F5BC /* IntentHandler.swift */; };
 		22DB838E8A66B4BDEABF198B /* AtlasPersistence in Frameworks */ = {isa = PBXBuildFile; productRef = C0FFA7AE014615512E0C6051 /* AtlasPersistence */; };
 		2C13CEC6C0AE0F4C711BA5B0 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 54344F38290975D53F442715 /* Foundation.framework */; };
@@ -28,6 +29,30 @@
 		D002E5A194118341D9124D30 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 54344F38290975D53F442715 /* Foundation.framework */; };
 		F72997CF315CBB3E8AC8A646 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 54344F38290975D53F442715 /* Foundation.framework */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		6A4EAD5A8E4A4D09B7C90101 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 21CFD5DC1ACA145F22686D11 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 76D3BD6E611D36A09BCEE631;
+			remoteInfo = AtlasWidgetsExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		44C3934FE30A4D73A34C1101 /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				12A8B77F5E554A0C8B0D1201 /* AtlasWidgetsExtension.appex in Embed App Extensions */,
+			);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		15A1C37FD512089F22208325 /* AtlasTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AtlasTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -240,10 +265,12 @@
 				AF9D31C6B9B36A09F85790C3 /* Sources */,
 				32B8D6B05B641B231BFDD7E9 /* Frameworks */,
 				98FCBC7C81F50883F8AF9E57 /* Resources */,
+				44C3934FE30A4D73A34C1101 /* Embed App Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				13E8453A4C2B48399A861101 /* PBXTargetDependency */,
 			);
 			name = Atlas;
 			packageProductDependencies = (
@@ -379,6 +406,14 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		13E8453A4C2B48399A861101 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 76D3BD6E611D36A09BCEE631 /* AtlasWidgetsExtension */;
+			targetProxy = 6A4EAD5A8E4A4D09B7C90101 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		1F85462777F2F0877C00F07C /* Release */ = {

@@ -519,6 +519,39 @@ struct AtlasMascotIllustration: View {
     }
 }
 
+struct AtlasMascotSticker: View {
+    let line: AtlasMascotLine
+    let stage: AtlasMascotStage
+    let size: CGFloat
+
+    var body: some View {
+        Image(assetName)
+            .resizable()
+            .interpolation(.high)
+            .scaledToFit()
+            .shadow(color: Color.black.opacity(0.12), radius: max(size * 0.05, 4), y: max(size * 0.02, 2))
+            .frame(width: size, height: size)
+            .accessibilityHidden(true)
+    }
+
+    private var assetName: String {
+        switch (line, stage) {
+        case (.aetherion, .stage1):
+            return "AtlasMascotAetherionStage1Sticker"
+        case (.aetherion, .stage2):
+            return "AtlasMascotAetherionStage2Sticker"
+        case (.aetherion, .stage3):
+            return "AtlasMascotAetherionStage3Sticker"
+        case (.aurielle, .stage1):
+            return "AtlasMascotAurielleStage1Sticker"
+        case (.aurielle, .stage2):
+            return "AtlasMascotAurielleStage2Sticker"
+        case (.aurielle, .stage3):
+            return "AtlasMascotAurielleStage3Sticker"
+        }
+    }
+}
+
 private struct AtlasInteractiveMascotIllustration: View {
     let selection: AtlasMascotSelection
     let nickname: String?
@@ -751,7 +784,7 @@ struct AtlasMascotHomeCard: View {
                 AtlasFeedback.selection()
                 onOpenDetail()
             } label: {
-                AtlasMascotIllustration(
+                AtlasMascotSticker(
                     line: line,
                     stage: stage,
                     size: 96
@@ -1057,7 +1090,7 @@ struct AtlasMascotConfirmationCard: View {
             onChoose(selection)
         } label: {
             VStack(alignment: .leading, spacing: AtlasSpacing.small) {
-                AtlasMascotIllustration(
+                AtlasMascotSticker(
                     line: atlasMascotLine(for: selection),
                     stage: .stage3,
                     size: 84
@@ -1126,7 +1159,7 @@ private struct AtlasMascotEvolutionPathCard: View {
                     HStack(spacing: AtlasSpacing.medium) {
                         ForEach(AtlasMascotStage.allCases, id: \.self) { stage in
                             VStack(alignment: .leading, spacing: AtlasSpacing.small) {
-                                AtlasMascotIllustration(
+                                AtlasMascotSticker(
                                     line: atlasMascotLine(for: selection),
                                     stage: stage,
                                     size: 112

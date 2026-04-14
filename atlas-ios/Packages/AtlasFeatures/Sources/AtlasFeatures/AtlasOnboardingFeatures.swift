@@ -747,7 +747,7 @@ private struct AtlasOnboardingMascotChoiceCard: View {
 
                     Spacer(minLength: 0)
 
-                    AtlasMascotIllustration(
+                    AtlasMascotSticker(
                         line: atlasMascotLine(for: selection),
                         stage: .stage3,
                         size: 108
@@ -796,7 +796,7 @@ private struct AtlasOnboardingMascotStagePreview: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            AtlasMascotIllustration(
+            AtlasMascotSticker(
                 line: atlasMascotLine(for: selection),
                 stage: stage,
                 size: 58

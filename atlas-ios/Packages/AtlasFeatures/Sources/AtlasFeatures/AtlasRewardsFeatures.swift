@@ -51,7 +51,7 @@ struct AtlasRewardsTodayCard: View {
                 }
 
                 VStack(spacing: AtlasSpacing.small) {
-                    AtlasMascotIllustration(
+                    AtlasMascotSticker(
                         line: atlasMascotLine(for: mascotSelection),
                         stage: evolution.stage,
                         size: 96
@@ -176,7 +176,7 @@ struct AtlasRewardsInsightSection: View {
                         }
 
                         VStack(spacing: AtlasSpacing.small) {
-                            AtlasMascotIllustration(
+                            AtlasMascotSticker(
                                 line: atlasMascotLine(for: mascotSelection),
                                 stage: evolution.stage,
                                 size: 104

@@ -1482,7 +1482,7 @@ private struct AtlasNextDueWidget: Widget {
         StaticConfiguration(kind: kind, provider: AtlasNextDueProvider()) { entry in
             AtlasNextDueWidgetView(entry: entry)
         }
-        .configurationDisplayName("Next Due")
+        .configurationDisplayName("Atlas Next Due")
         .description("See the next Atlas due item and open a quick log action.")
         .supportedFamilies([.systemSmall, .systemMedium])
     }
@@ -1495,8 +1495,8 @@ private struct AtlasLowStockWidget: Widget {
         StaticConfiguration(kind: kind, provider: AtlasLowStockProvider()) { entry in
             AtlasLowStockWidgetView(entry: entry)
         }
-        .configurationDisplayName("Low Stock")
-        .description("See privacy-aware supply and inventory status.")
+        .configurationDisplayName("Atlas Low Stock")
+        .description("See privacy-aware Atlas supply and inventory status.")
         .supportedFamilies([.systemSmall, .systemMedium])
     }
 }
@@ -1508,8 +1508,8 @@ private struct AtlasMascotWidget: Widget {
         AppIntentConfiguration(kind: kind, intent: AtlasMascotWidgetConfigurationIntent.self, provider: AtlasMascotProvider()) { entry in
             AtlasMascotWidgetView(entry: entry)
         }
-        .configurationDisplayName("Mascot")
-        .description("Track your mascot with a configurable focus on progress, status, moments, or history.")
+        .configurationDisplayName("Atlas Mascot")
+        .description("Track your Atlas mascot with a configurable focus on progress, status, moments, or history.")
         .supportedFamilies([.systemSmall, .systemMedium, .accessoryInline, .accessoryCircular, .accessoryRectangular])
     }
 }
@@ -1521,7 +1521,7 @@ private struct AtlasQuickCaptureWidget: Widget {
         StaticConfiguration(kind: kind, provider: AtlasNextDueProvider()) { _ in
             AtlasQuickCaptureWidgetView()
         }
-        .configurationDisplayName("Quick Capture")
+        .configurationDisplayName("Atlas Quick Capture")
         .description("Keep Atlas daily actions within easy reach from the Home Screen or Lock Screen.")
         .supportedFamilies([.systemSmall, .accessoryRectangular])
     }

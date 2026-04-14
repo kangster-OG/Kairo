@@ -50,6 +50,15 @@ If no dedicated simplified export exists yet, medium surfaces may use portrait-d
 - less atmosphere
 - faster scan
 
+Shipped sticker assets now live in the main app asset catalog:
+
+- `atlas-ios/Atlas/Assets.xcassets/AtlasMascotAetherionStage1Sticker.imageset`
+- `atlas-ios/Atlas/Assets.xcassets/AtlasMascotAetherionStage2Sticker.imageset`
+- `atlas-ios/Atlas/Assets.xcassets/AtlasMascotAetherionStage3Sticker.imageset`
+- `atlas-ios/Atlas/Assets.xcassets/AtlasMascotAurielleStage1Sticker.imageset`
+- `atlas-ios/Atlas/Assets.xcassets/AtlasMascotAurielleStage2Sticker.imageset`
+- `atlas-ios/Atlas/Assets.xcassets/AtlasMascotAurielleStage3Sticker.imageset`
+
 ### Pixel live-state sprites
 
 These remain the only correct family for tiny live-state surfaces.
@@ -121,6 +130,7 @@ Widget extension mirrors:
 ### In-app
 
 - `AtlasMascotIllustration` is the large-surface family and should remain portrait-led.
+- `AtlasMascotSticker` is the medium-surface family and should power compact cards, onboarding choices, and medium reward surfaces.
 - `AtlasMascotSprite` is the live-state family and should remain pixel-led.
 - Surfaces that show both should have a clear reason:
   - portrait for premium hero read
@@ -152,6 +162,6 @@ Widget extension mirrors:
 
 ## Future Work
 
-- export true simplified sticker PNGs for all six stages so medium surfaces stop relying on portrait-derived framing
+- if the style evolves, refresh the sticker family from the approved masters rather than reverting medium surfaces back to portrait-only art
 - keep any new mascot asset request attached to one of the three families above
 - do not add a fourth mascot art family unless there is a real product need
