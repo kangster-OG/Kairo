@@ -16,6 +16,53 @@ func atlasMascotLine(for selection: AtlasMascotSelection) -> AtlasMascotLine {
     }
 }
 
+func atlasMascotLineTint(for selection: AtlasMascotSelection) -> Color {
+    switch selection {
+    case .aetherion:
+        return Color(red: 0.16, green: 0.42, blue: 0.96)
+    case .aurielle:
+        return Color(red: 0.39, green: 0.69, blue: 0.96)
+    }
+}
+
+func atlasMascotLineHighlight(for selection: AtlasMascotSelection) -> Color {
+    switch selection {
+    case .aetherion:
+        return Color(red: 0.95, green: 0.74, blue: 0.34)
+    case .aurielle:
+        return Color(red: 0.87, green: 0.95, blue: 1.00)
+    }
+}
+
+func atlasMascotLineSymbol(for selection: AtlasMascotSelection) -> String {
+    switch selection {
+    case .aetherion:
+        return "bolt.circle.fill"
+    case .aurielle:
+        return "moon.stars.fill"
+    }
+}
+
+func atlasMascotStageFlavor(
+    for selection: AtlasMascotSelection,
+    stage: AtlasMascotStage
+) -> String {
+    switch (selection, stage) {
+    case (.aetherion, .stage1):
+        return "Compressed storm energy, oversized forearms, and a scrappy guardian spark."
+    case (.aetherion, .stage2):
+        return "Faster wings, sharper lines, and a more disciplined kinetic stance."
+    case (.aetherion, .stage3):
+        return "Ceremonial wings, halo framing, and the full guardian silhouette."
+    case (.aurielle, .stage1):
+        return "Soft proportions, bright charm, and a first-light companion presence."
+    case (.aurielle, .stage2):
+        return "Longer rhythm, ribbon-like ears, and visible skybound motion."
+    case (.aurielle, .stage3):
+        return "Regal posture, celestial flow, and the complete sky guardian silhouette."
+    }
+}
+
 enum AtlasMascotPose {
     case idle
     case happy
@@ -657,11 +704,25 @@ private struct AtlasMascotMomentsJournalCard: View {
     var limit: Int? = nil
 
     var body: some View {
-        AtlasSectionCard {
-            VStack(alignment: .leading, spacing: AtlasSpacing.small) {
-                Text("Mascot moments")
-                    .atlasTextRole(.deckEyebrow)
-                    .foregroundStyle(AtlasPalette.primary)
+        AtlasSectionCard(style: .task) {
+            VStack(alignment: .leading, spacing: AtlasSpacing.medium) {
+                HStack(alignment: .firstTextBaseline, spacing: AtlasSpacing.small) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Moments journal")
+                            .atlasTextRole(.cardTitle)
+                            .foregroundStyle(AtlasPalette.textPrimary)
+                        Text("A collectible record of mascot reactions, milestone notes, and companion check-ins.")
+                            .atlasTextRole(.supporting)
+                            .foregroundStyle(AtlasPalette.textSecondary)
+                    }
+
+                    Spacer(minLength: 0)
+
+                    AtlasStatusBadge(
+                        displayedMoments.isEmpty ? "Empty" : "\(displayedMoments.count) saved",
+                        tint: displayedMoments.isEmpty ? AtlasPalette.secondaryText : atlasMascotLineTint(for: selection)
+                    )
+                }
 
                 if displayedMoments.isEmpty {
                     Text("No mascot moments yet. Tap the mascot, close goals, or use the new shortcut check-ins to start filling the journal.")
@@ -678,7 +739,11 @@ private struct AtlasMascotMomentsJournalCard: View {
                                 .frame(width: 28, height: 28)
                                 .background(
                                     RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                        .fill(AtlasPalette.secondaryFill)
+                                        .fill(atlasMascotLineTint(for: selection).opacity(0.12))
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                        .stroke(atlasMascotLineTint(for: selection).opacity(0.16), lineWidth: 1)
                                 )
 
                             VStack(alignment: .leading, spacing: 2) {
@@ -731,53 +796,85 @@ struct AtlasMascotCelebrationSheet: View {
             )
         ]
 
-        VStack(spacing: AtlasSpacing.large) {
-            Capsule(style: .continuous)
-                .fill(AtlasPalette.surfaceSecondary)
-                .frame(width: 42, height: 5)
-                .padding(.top, 8)
+        ScrollView {
+            VStack(spacing: AtlasSpacing.large) {
+                Capsule(style: .continuous)
+                    .fill(AtlasPalette.surfaceSecondary)
+                    .frame(width: 42, height: 5)
+                    .padding(.top, 8)
 
-            AtlasMascotIllustration(
-                line: atlasMascotLine(for: celebration.selection),
-                stage: celebration.stage,
-                size: 184
-            )
+                AtlasSectionCard(style: .hero) {
+                    VStack(alignment: .leading, spacing: AtlasSpacing.large) {
+                        HStack(alignment: .top, spacing: AtlasSpacing.large) {
+                            VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+                                AtlasStatusBadge("Evolution unlocked", tint: atlasMascotLineTint(for: celebration.selection))
 
-            AtlasCommandDeck(
-                eyebrow: "Evolution unlocked",
-                title: evolution.celebrationHeadline,
-                detail: evolution.celebrationBody,
-                metrics: metrics,
-                tint: AtlasPalette.reward,
-                style: .reward
-            ) {
-                Button("Continue") {
-                    AtlasFeedback.notify(.success)
-                    onDismiss()
+                                Text(evolution.celebrationHeadline)
+                                    .atlasTextRole(.screenTitle)
+                                    .foregroundStyle(AtlasPalette.textPrimary)
+
+                                Text(evolution.celebrationBody)
+                                    .atlasTextRole(.screenSubtitle)
+                                    .foregroundStyle(AtlasPalette.textSecondary)
+                            }
+
+                            Spacer(minLength: 8)
+
+                            ZStack {
+                                Circle()
+                                    .fill(
+                                        RadialGradient(
+                                            colors: [
+                                                atlasMascotLineHighlight(for: celebration.selection).opacity(0.34),
+                                                atlasMascotLineTint(for: celebration.selection).opacity(0.14),
+                                                .clear
+                                            ],
+                                            center: .center,
+                                            startRadius: 16,
+                                            endRadius: 112
+                                        )
+                                    )
+                                    .frame(width: 212, height: 212)
+
+                                AtlasMascotIllustration(
+                                    line: atlasMascotLine(for: celebration.selection),
+                                    stage: celebration.stage,
+                                    size: 192
+                                )
+                            }
+                        }
+
+                        AtlasMetricStrip(metrics: metrics)
+
+                        Button("Continue") {
+                            AtlasFeedback.notify(.success)
+                            onDismiss()
+                        }
+                        .buttonStyle(AtlasPrimaryButtonStyle())
+                    }
                 }
-                .buttonStyle(AtlasPrimaryButtonStyle())
-            } footer: {
-                if let nextFormName = evolution.nextFormName,
-                   let nextThresholdPoints = evolution.nextThresholdPoints {
-                    AtlasCalloutRow(
-                        systemImage: "sparkles",
-                        title: "Next milestone",
-                        detail: "\(nextFormName) unlocks at \(atlasMascotPointLabel(nextThresholdPoints)).",
-                        tint: AtlasPalette.reward
-                    )
-                } else {
-                    AtlasCalloutRow(
-                        systemImage: "crown.fill",
-                        title: "Final guardian form",
-                        detail: "This mascot line has reached its highest evolution stage.",
-                        tint: AtlasPalette.success
-                    )
+
+                AtlasSectionCard(style: .reward) {
+                    if let nextFormName = evolution.nextFormName,
+                       let nextThresholdPoints = evolution.nextThresholdPoints {
+                        AtlasCalloutRow(
+                            systemImage: "sparkles",
+                            title: "Next milestone",
+                            detail: "\(nextFormName) unlocks at \(atlasMascotPointLabel(nextThresholdPoints)).",
+                            tint: AtlasPalette.reward
+                        )
+                    } else {
+                        AtlasCalloutRow(
+                            systemImage: "crown.fill",
+                            title: "Final guardian form",
+                            detail: "This mascot line has reached its highest evolution stage.",
+                            tint: AtlasPalette.success
+                        )
+                    }
                 }
             }
-
-            Spacer(minLength: 0)
+            .padding(AtlasSpacing.large)
         }
-        .padding(AtlasSpacing.large)
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.hidden)
         .task {
@@ -874,45 +971,58 @@ private struct AtlasMascotEvolutionPathCard: View {
     let unlockedStage: AtlasMascotStage
 
     var body: some View {
-        AtlasSectionCard(style: .utility, title: "Evolution path") {
-            Text("Rewards milestones permanently unlock each form, while Atlas keeps the same guardian identity across the entire line.")
-                .atlasTextRole(.supporting)
-                .foregroundStyle(AtlasPalette.textSecondary)
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: AtlasSpacing.medium) {
-                    ForEach(AtlasMascotStage.allCases, id: \.self) { stage in
-                        VStack(alignment: .leading, spacing: AtlasSpacing.small) {
-                            AtlasMascotIllustration(
-                                line: atlasMascotLine(for: selection),
-                                stage: stage,
-                                size: 104
-                            )
-
-                            Text(selection.title(for: stage))
-                                .atlasTextRole(.cardBody)
-                                .foregroundStyle(AtlasPalette.textPrimary)
-
-                            Text(stageCopy(for: stage))
-                                .atlasTextRole(.supporting)
-                                .foregroundStyle(AtlasPalette.textSecondary)
-                                .lineLimit(2)
-
-                            AtlasStatusBadge(stageBadge(for: stage), tint: stageTint(for: stage))
-                        }
-                        .frame(width: 180, alignment: .leading)
-                        .padding(14)
-                        .background(
-                            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                                .fill(stage == currentStage ? AtlasPalette.secondaryFill : Color.white.opacity(0.94))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                                .stroke(stage == currentStage ? AtlasPalette.primary.opacity(0.45) : Color.white.opacity(0.82), lineWidth: 1)
-                        )
+        AtlasSectionCard(style: .utility) {
+            VStack(alignment: .leading, spacing: AtlasSpacing.medium) {
+                HStack(alignment: .firstTextBaseline, spacing: AtlasSpacing.small) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Evolution path")
+                            .atlasTextRole(.cardTitle)
+                            .foregroundStyle(AtlasPalette.textPrimary)
+                        Text("Rewards milestones permanently unlock each form, while Atlas keeps the same guardian identity across the entire line.")
+                            .atlasTextRole(.supporting)
+                            .foregroundStyle(AtlasPalette.textSecondary)
                     }
+
+                    Spacer(minLength: 0)
+
+                    AtlasStatusBadge(stageBadge(for: currentStage), tint: stageTint(for: currentStage))
                 }
-                .padding(.vertical, 2)
+
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: AtlasSpacing.medium) {
+                        ForEach(AtlasMascotStage.allCases, id: \.self) { stage in
+                            VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+                                AtlasMascotIllustration(
+                                    line: atlasMascotLine(for: selection),
+                                    stage: stage,
+                                    size: 112
+                                )
+
+                                Text(selection.title(for: stage))
+                                    .atlasTextRole(.cardBody)
+                                    .foregroundStyle(AtlasPalette.textPrimary)
+
+                                Text(stageCopy(for: stage))
+                                    .atlasTextRole(.supporting)
+                                    .foregroundStyle(AtlasPalette.textSecondary)
+                                    .lineLimit(3)
+
+                                AtlasStatusBadge(stageBadge(for: stage), tint: stageTint(for: stage))
+                            }
+                            .frame(width: 196, alignment: .leading)
+                            .padding(16)
+                            .background(
+                                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                                    .fill(stage == currentStage ? AtlasPalette.secondaryFill : Color.white.opacity(0.94))
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                                    .stroke(stage == currentStage ? atlasMascotLineTint(for: selection).opacity(0.45) : Color.white.opacity(0.82), lineWidth: 1)
+                            )
+                        }
+                    }
+                    .padding(.vertical, 2)
+                }
             }
         }
     }
@@ -993,148 +1103,393 @@ public struct AtlasMascotDetailScreen: View {
             rewardsSnapshot: rewardsSnapshot,
             history: history
         )
+        let latestMoment = moments.first { $0.selection == selection }
+        let weeklyDescriptor = recapDescriptor(
+            kind: .weeklyRecap,
+            selection: selection,
+            nickname: nickname,
+            rewardsSnapshot: rewardsSnapshot,
+            history: history,
+            moments: moments
+        )
+        let milestoneDescriptor = recapDescriptor(
+            kind: .evolutionMilestone,
+            selection: selection,
+            nickname: nickname,
+            rewardsSnapshot: rewardsSnapshot,
+            history: history,
+            moments: moments
+        )
 
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 20) {
                 AtlasTabHeader(
                     title: profile.displayName,
-                    subtitle: "See the active form, next target, larger portrait art, and the full recorded history for this mascot line."
+                    subtitle: "See the live guardian form, share editorial recap cards, and follow the full momentum line without dropping back into utility UI."
                 )
 
                 AtlasSectionCard(style: .hero) {
                     VStack(alignment: .leading, spacing: AtlasSpacing.large) {
-                        VStack(spacing: AtlasSpacing.small) {
-                            AtlasInteractiveMascotIllustration(
-                                selection: selection,
-                                nickname: nickname,
-                                line: atlasMascotLine(for: selection),
-                                stage: evolution.stage,
-                                size: 220
+                        HStack(spacing: AtlasSpacing.small) {
+                            AtlasStatusBadge(evolution.stageBadge, tint: atlasMascotLineTint(for: selection))
+                            AtlasStatusBadge(
+                                evolution.currentFormName,
+                                tint: atlasMascotLineHighlight(for: selection)
                             )
-                            .frame(maxWidth: .infinity)
                         }
 
                         VStack(alignment: .leading, spacing: AtlasSpacing.small) {
-                            AtlasStatusBadge(evolution.stageBadge, tint: AtlasPalette.primary)
-
                             Text(profile.displayName)
                                 .atlasTextRole(.screenTitle)
                                 .foregroundStyle(AtlasPalette.textPrimary)
 
-                            if profile.nickname != nil {
-                                Text(profile.currentFormName)
-                                    .atlasTextRole(.cardBody)
-                                    .foregroundStyle(AtlasPalette.primary)
-                            } else {
-                                Text(selection.subtitle)
-                                    .atlasTextRole(.screenSubtitle)
-                                    .foregroundStyle(AtlasPalette.primary)
-                            }
+                            Text(profile.nickname != nil ? profile.currentFormName : selection.subtitle)
+                                .atlasTextRole(.screenSubtitle)
+                                .foregroundStyle(atlasMascotLineTint(for: selection))
 
                             Text(profile.statusLine)
                                 .atlasTextRole(.screenSubtitle)
                                 .foregroundStyle(AtlasPalette.textSecondary)
 
-                            if profile.nickname != nil {
-                                Text(selection.subtitle)
-                                    .atlasTextRole(.deckEyebrow)
-                                    .foregroundStyle(AtlasPalette.textSecondary)
-                            }
-
                             Text(evolution.milestoneHeadline)
-                                .atlasTextRole(.screenSubtitle)
-                                .foregroundStyle(AtlasPalette.textSecondary)
-
-                            Text(evolution.progressLabel)
                                 .atlasTextRole(.deckEyebrow)
-                                .foregroundStyle(AtlasPalette.primary)
+                                .foregroundStyle(atlasMascotLineTint(for: selection))
 
-                            Text("\(rewardsSnapshot.totalPoints) total rewards points")
+                            Text(atlasMascotStageFlavor(for: selection, stage: evolution.stage))
                                 .atlasTextRole(.supporting)
                                 .foregroundStyle(AtlasPalette.textSecondary)
                         }
-                    }
 
-                    if let reaction = profile.reaction {
-                        AtlasMascotReactionStrip(reaction: reaction)
-                    }
+                        VStack(alignment: .center, spacing: AtlasSpacing.small) {
+                            ZStack(alignment: .bottomTrailing) {
+                                Circle()
+                                    .fill(
+                                        RadialGradient(
+                                            colors: [
+                                                atlasMascotLineHighlight(for: selection).opacity(0.34),
+                                                atlasMascotLineTint(for: selection).opacity(0.16),
+                                                .clear
+                                            ],
+                                            center: .center,
+                                            startRadius: 16,
+                                            endRadius: 132
+                                        )
+                                    )
+                                    .frame(width: 244, height: 244)
 
-                    HStack(spacing: AtlasSpacing.medium) {
-                        AtlasMascotSprite(
-                            line: atlasMascotLine(for: selection),
-                            stage: evolution.stage,
-                            pose: atlasRewardsMascotPose(for: rewardsSnapshot),
-                            size: 88
+                                AtlasInteractiveMascotIllustration(
+                                    selection: selection,
+                                    nickname: nickname,
+                                    line: atlasMascotLine(for: selection),
+                                    stage: evolution.stage,
+                                    size: 228
+                                )
+
+                                HStack(spacing: 10) {
+                                    AtlasMascotSprite(
+                                        line: atlasMascotLine(for: selection),
+                                        stage: evolution.stage,
+                                        pose: atlasRewardsMascotPose(for: rewardsSnapshot),
+                                        size: 64
+                                    )
+
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text("Live sprite")
+                                            .atlasTextRole(.deckEyebrow)
+                                            .foregroundStyle(atlasMascotLineTint(for: selection))
+                                        Text("Widgets and compact surfaces stay synced to this state.")
+                                            .atlasTextRole(.supporting)
+                                            .foregroundStyle(AtlasPalette.textSecondary)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                    }
+                                }
+                                .padding(12)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                        .fill(AtlasPalette.surfaceTop.opacity(0.96))
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                        .stroke(AtlasPalette.chromeStroke, lineWidth: 1)
+                                )
+                                .offset(x: 4, y: 8)
+                            }
+                            .frame(maxWidth: .infinity)
+
+                            Label(selection.title, systemImage: atlasMascotLineSymbol(for: selection))
+                                .atlasTextRole(.deckEyebrow)
+                                .foregroundStyle(atlasMascotLineTint(for: selection))
+                        }
+
+                        AtlasMetricStrip(
+                            metrics: atlasMascotMetrics(
+                                rewardsSnapshot: rewardsSnapshot,
+                                historyCount: history.filter { $0.selection == selection }.count,
+                                momentsCount: moments.filter { $0.selection == selection }.count,
+                                stageBadge: evolution.stageBadge
+                            )
                         )
 
-                        VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
-                            Text("Pixel sprite state")
-                                .atlasTextRole(.deckEyebrow)
-                                .foregroundStyle(AtlasPalette.primary)
-                            Text("The widget layer and compact surfaces use this live pixel state for the same current form.")
-                                .atlasTextRole(.supporting)
-                                .foregroundStyle(AtlasPalette.textSecondary)
+                        if let progressFraction = evolution.progressFraction {
+                            AtlasProgressMeter(
+                                title: "Evolution progress",
+                                detail: evolution.progressLabel,
+                                value: progressFraction,
+                                tint: atlasMascotLineTint(for: selection)
+                            )
+                        } else {
+                            AtlasCalloutRow(
+                                systemImage: "crown.fill",
+                                title: "Final guardian unlocked",
+                                detail: "\(evolution.currentFormName) is the highest unlocked form in this line.",
+                                tint: AtlasPalette.success
+                            )
                         }
 
-                        Spacer(minLength: 0)
+                        if let reaction = profile.reaction {
+                            AtlasMascotReactionStrip(reaction: reaction)
+                        }
+
+                        if let latestMoment {
+                            AtlasMascotMomentHighlight(moment: latestMoment)
+                        }
+
+                        HStack(spacing: AtlasSpacing.small) {
+                            Button {
+                                AtlasFeedback.selection()
+                                Task {
+                                    await recordMoment()
+                                }
+                            } label: {
+                                Label("Capture mascot moment", systemImage: "sparkles")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(AtlasPrimaryButtonStyle())
+
+                            Button {
+                                AtlasFeedback.selection()
+                                Task {
+                                    await createMascotRecapExport(weeklyDescriptor)
+                                }
+                            } label: {
+                                Label("Share weekly poster", systemImage: "square.and.arrow.up")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(AtlasSecondaryButtonStyle())
+                        }
                     }
                 }
 
-                AtlasSectionCard(style: .elevated, title: "Shareable recap cards") {
+                AtlasCommandDeck(
+                    eyebrow: "Momentum loop",
+                    title: "Keep the guardian line feeling alive",
+                    detail: "Atlas should always make the next rewarding action obvious: capture a moment, export a recap, or push the next evolution threshold.",
+                    metrics: [
+                        .init(id: "points", title: "Points", value: "\(rewardsSnapshot.totalPoints)", tint: AtlasPalette.reward),
+                        .init(
+                            id: "next",
+                            title: "Next form",
+                            value: evolution.nextFormName ?? "Final form",
+                            tint: evolution.nextFormName == nil ? AtlasPalette.success : atlasMascotLineTint(for: selection)
+                        ),
+                        .init(
+                            id: "gallery",
+                            title: "Gallery",
+                            value: "\(archivedRecaps.count)",
+                            tint: AtlasPalette.primary
+                        )
+                    ],
+                    tint: atlasMascotLineTint(for: selection),
+                    style: .reward
+                ) {
+                    HStack(spacing: AtlasSpacing.small) {
+                        Button {
+                            AtlasFeedback.selection()
+                            Task {
+                                await createMascotRecapExport(milestoneDescriptor)
+                            }
+                        } label: {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Label("Milestone card", systemImage: "sparkles")
+                                    .atlasTextRole(.cardBody)
+                                    .foregroundStyle(AtlasPalette.textPrimary)
+                                Text("Export the current evolution line as a polished PNG.")
+                                    .atlasTextRole(.supporting)
+                                    .foregroundStyle(AtlasPalette.textSecondary)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(16)
+                        }
+                        .buttonStyle(AtlasTactileTileButtonStyle(tint: atlasMascotLineTint(for: selection)))
+
+                        Button {
+                            AtlasFeedback.selection()
+                            Task {
+                                await createMascotRecapExport(
+                                    recapDescriptor(
+                                        kind: .latestMoment,
+                                        selection: selection,
+                                        nickname: nickname,
+                                        rewardsSnapshot: rewardsSnapshot,
+                                        history: history,
+                                        moments: moments
+                                    )
+                                )
+                            }
+                        } label: {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Label("Latest moment", systemImage: "clock.arrow.circlepath")
+                                    .atlasTextRole(.cardBody)
+                                    .foregroundStyle(AtlasPalette.textPrimary)
+                                Text("Turn the freshest mascot reaction into a shareable artifact.")
+                                    .atlasTextRole(.supporting)
+                                    .foregroundStyle(AtlasPalette.textSecondary)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(16)
+                        }
+                        .buttonStyle(AtlasTactileTileButtonStyle(tint: atlasMascotLineHighlight(for: selection)))
+                    }
+                } footer: {
+                    if let latestMoment {
+                        AtlasCalloutRow(
+                            systemImage: latestMoment.symbolName,
+                            title: "Most recent mascot moment",
+                            detail: "\(latestMoment.title) • \(latestMoment.detail)",
+                            tint: atlasMascotLineTint(for: selection),
+                            badge: atlasMascotMomentDateLabel(latestMoment.recordedAt)
+                        )
+                    } else {
+                        AtlasCalloutRow(
+                            systemImage: "sparkles",
+                            title: "Next unlock focus",
+                            detail: evolution.nextFormName == nil
+                                ? "This guardian line is fully evolved, so every new moment now builds the archive and recap gallery."
+                                : "\(evolution.nextFormName ?? "Next form") is still ahead. Small milestones and check-ins keep the line feeling alive.",
+                            tint: atlasMascotLineTint(for: selection)
+                        )
+                    }
+                }
+
+                AtlasSectionCard(style: .elevated, title: "Recap studio") {
                     VStack(alignment: .leading, spacing: AtlasSpacing.medium) {
-                        Text("Create clean PNG recap cards for weekly momentum, evolution milestones, and the latest mascot moment.")
+                        Text("Choose the audience and privacy mode first, then export one of the editorial recap layouts below. These cards now use the portrait art family for large surfaces and keep the pixel layer only where compact readability matters.")
                             .atlasTextRole(.screenSubtitle)
                             .foregroundStyle(AtlasPalette.textSecondary)
 
-                        Picker("Audience", selection: $recapAudience) {
-                            ForEach(AtlasMascotRecapAudience.allCases, id: \.self) { audience in
-                                Text(audience.title).tag(audience)
-                            }
-                        }
-                        .pickerStyle(.segmented)
+                        VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+                            Text("Audience")
+                                .atlasTextRole(.deckEyebrow)
+                                .foregroundStyle(atlasMascotLineTint(for: selection))
 
-                        Picker("Privacy", selection: $recapPrivacyMode) {
-                            ForEach(AtlasMascotRecapPrivacyMode.allCases, id: \.self) { privacyMode in
-                                Text(privacyMode.title).tag(privacyMode)
+                            HStack(spacing: AtlasSpacing.small) {
+                                ForEach(AtlasMascotRecapAudience.allCases, id: \.self) { audience in
+                                    Button {
+                                        AtlasFeedback.selection()
+                                        recapAudience = audience
+                                    } label: {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(audience.title)
+                                                .atlasTextRole(.cardBody)
+                                                .foregroundStyle(AtlasPalette.textPrimary)
+                                            Text(audience == recapAudience ? "Current share lens" : "Switch audience lens")
+                                                .atlasTextRole(.supporting)
+                                                .foregroundStyle(AtlasPalette.textSecondary)
+                                        }
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .padding(14)
+                                    }
+                                    .buttonStyle(
+                                        AtlasTactileTileButtonStyle(
+                                            tint: audience == recapAudience
+                                                ? atlasMascotLineTint(for: selection)
+                                                : AtlasPalette.secondaryText
+                                        )
+                                    )
+                                }
                             }
                         }
-                        .pickerStyle(.segmented)
+
+                        VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+                            Text("Privacy")
+                                .atlasTextRole(.deckEyebrow)
+                                .foregroundStyle(atlasMascotLineTint(for: selection))
+
+                            HStack(spacing: AtlasSpacing.small) {
+                                ForEach(AtlasMascotRecapPrivacyMode.allCases, id: \.self) { privacyMode in
+                                    Button {
+                                        AtlasFeedback.selection()
+                                        recapPrivacyMode = privacyMode
+                                    } label: {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(privacyMode.title)
+                                                .atlasTextRole(.cardBody)
+                                                .foregroundStyle(AtlasPalette.textPrimary)
+                                            Text(privacyMode == recapPrivacyMode ? "Current privacy mode" : "Switch privacy mode")
+                                                .atlasTextRole(.supporting)
+                                                .foregroundStyle(AtlasPalette.textSecondary)
+                                        }
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .padding(14)
+                                    }
+                                    .buttonStyle(
+                                        AtlasTactileTileButtonStyle(
+                                            tint: privacyMode == recapPrivacyMode
+                                                ? atlasMascotLineHighlight(for: selection)
+                                                : AtlasPalette.secondaryText
+                                        )
+                                    )
+                                }
+                            }
+                        }
 
                         ForEach(AtlasMascotRecapCardKind.allCases) { kind in
-                            let descriptor = atlasMascotRecapDescriptor(
+                            let descriptor = recapDescriptor(
                                 kind: kind,
-                                audience: recapAudience,
-                                privacyMode: recapPrivacyMode,
                                 selection: selection,
                                 nickname: nickname,
                                 rewardsSnapshot: rewardsSnapshot,
-                                evolutionHistory: history,
+                                history: history,
                                 moments: moments
                             )
 
-                            VStack(alignment: .leading, spacing: AtlasSpacing.small) {
-                                AtlasMascotRecapPreviewCard(descriptor: descriptor)
-
-                                HStack(alignment: .top, spacing: AtlasSpacing.medium) {
-                                    VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
-                                        Text(kind.title)
-                                            .atlasTextRole(.cardBody)
-                                            .foregroundStyle(AtlasPalette.textPrimary)
-                                        Text(kind.subtitle)
-                                            .atlasTextRole(.supporting)
-                                            .foregroundStyle(AtlasPalette.textSecondary)
+                            AtlasSectionCard(style: .task) {
+                                VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+                                    HStack(spacing: AtlasSpacing.small) {
+                                        AtlasStatusBadge(kind.title, tint: atlasMascotLineTint(for: selection))
+                                        AtlasStatusBadge(recapAudience.title, tint: AtlasPalette.reward)
+                                        AtlasStatusBadge(recapPrivacyMode.title, tint: AtlasPalette.secondaryText)
                                     }
 
-                                    Spacer(minLength: 8)
+                                    Text(kind.subtitle)
+                                        .atlasTextRole(.supporting)
+                                        .foregroundStyle(AtlasPalette.textSecondary)
 
-                                    Button("Share PNG") {
-                                        AtlasFeedback.selection()
-                                        Task {
-                                            await createMascotRecapExport(descriptor)
+                                    AtlasMascotRecapPreviewCard(descriptor: descriptor)
+
+                                    HStack(alignment: .top, spacing: AtlasSpacing.medium) {
+                                        VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
+                                            Text(descriptor.headline)
+                                                .atlasTextRole(.cardBody)
+                                                .foregroundStyle(AtlasPalette.textPrimary)
+                                                .lineLimit(2)
+                                            Text(descriptor.detail)
+                                                .atlasTextRole(.supporting)
+                                                .foregroundStyle(AtlasPalette.textSecondary)
+                                                .lineLimit(3)
                                         }
+
+                                        Spacer(minLength: 8)
+
+                                        Button("Share PNG") {
+                                            AtlasFeedback.selection()
+                                            Task {
+                                                await createMascotRecapExport(descriptor)
+                                            }
+                                        }
+                                        .buttonStyle(AtlasPrimaryButtonStyle())
+                                        .frame(maxWidth: 180)
                                     }
-                                    .buttonStyle(.borderedProminent)
-                                    .tint(AtlasPalette.primary)
                                 }
                             }
                         }
@@ -1196,20 +1551,6 @@ public struct AtlasMascotDetailScreen: View {
                     currentStage: evolution.stage,
                     unlockedStage: unlockedStage
                 )
-
-                AtlasMascotHomeCard(
-                    selection: selection,
-                    nickname: nickname,
-                    rewardsSnapshot: rewardsSnapshot,
-                    history: history,
-                    moments: moments,
-                    historyLimit: nil,
-                    onRecordMoment: {
-                        Task {
-                            await model.recordMascotInteractionMoment()
-                        }
-                    }
-                )
             }
             .padding(.horizontal, 20)
             .padding(.top, 8)
@@ -1246,6 +1587,7 @@ public struct AtlasMascotDetailScreen: View {
     private func createMascotRecapExport(_ descriptor: AtlasMascotRecapDescriptor) async {
         do {
             shareArtifact = try await model.exportMascotRecapCard(descriptor)
+            AtlasFeedback.notify(.success)
         } catch {
             exportErrorMessage = error.localizedDescription
         }
@@ -1259,9 +1601,36 @@ public struct AtlasMascotDetailScreen: View {
                 fileURL: try atlasMascotArchivedRecapFileURL(recap),
                 archiveRecord: recap
             )
+            AtlasFeedback.selection()
         } catch {
             exportErrorMessage = error.localizedDescription
         }
+    }
+
+    private func recapDescriptor(
+        kind: AtlasMascotRecapCardKind,
+        selection: AtlasMascotSelection,
+        nickname: String?,
+        rewardsSnapshot: AtlasRewardsSnapshot,
+        history: [AtlasMascotEvolutionRecord],
+        moments: [AtlasMascotMomentRecord]
+    ) -> AtlasMascotRecapDescriptor {
+        atlasMascotRecapDescriptor(
+            kind: kind,
+            audience: recapAudience,
+            privacyMode: recapPrivacyMode,
+            selection: selection,
+            nickname: nickname,
+            rewardsSnapshot: rewardsSnapshot,
+            evolutionHistory: history,
+            moments: moments
+        )
+    }
+
+    @MainActor
+    private func recordMoment() async {
+        await model.recordMascotInteractionMoment()
+        AtlasFeedback.notify(.success)
     }
 }
 

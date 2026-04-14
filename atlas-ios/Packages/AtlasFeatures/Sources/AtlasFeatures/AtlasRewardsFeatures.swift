@@ -17,13 +17,13 @@ struct AtlasRewardsTodayCard: View {
             history: mascotHistory
         )
 
-        AtlasSectionCard {
+        AtlasSectionCard(style: .reward) {
             HStack(alignment: .top, spacing: AtlasSpacing.medium) {
                 VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
                     HStack(alignment: .firstTextBaseline, spacing: AtlasSpacing.small) {
                         VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
                             Text("Rewards board")
-                                .font(.body.weight(.semibold))
+                                .atlasTextRole(.cardBody)
                                 .foregroundStyle(AtlasPalette.textPrimary)
                             Text("Level \(snapshot.level) with \(snapshot.totalPoints) points.")
                                 .foregroundStyle(AtlasPalette.textSecondary)
@@ -38,25 +38,37 @@ struct AtlasRewardsTodayCard: View {
                     }
 
                     Text(evolution.milestoneHeadline)
-                        .font(.caption.weight(.semibold))
+                        .atlasTextRole(.deckEyebrow)
                         .foregroundStyle(AtlasPalette.primary)
 
                     Text(evolution.progressLabel)
-                        .font(.caption)
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
 
                     Text(profile.statusLine)
-                        .font(.caption)
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
 
-                AtlasMascotSprite(
-                    line: atlasMascotLine(for: mascotSelection),
-                    stage: evolution.stage,
-                    pose: atlasRewardsMascotPose(for: snapshot),
-                    size: 88
-                )
+                VStack(spacing: AtlasSpacing.small) {
+                    AtlasMascotIllustration(
+                        line: atlasMascotLine(for: mascotSelection),
+                        stage: evolution.stage,
+                        size: 96
+                    )
+
+                    AtlasStatusBadge("Live guardian", tint: atlasMascotLineTint(for: mascotSelection))
+                }
             }
+
+            AtlasMetricStrip(metrics: atlasRewardsMetrics(snapshot: snapshot, earnedBadgeCount: earnedBadgeCount))
+
+            AtlasProgressMeter(
+                title: "Next unlock",
+                detail: evolution.progressLabel,
+                value: atlasRewardsProgressValue(snapshot),
+                tint: AtlasPalette.reward
+            )
 
             if snapshot.streaks.isEmpty == false {
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -74,19 +86,25 @@ struct AtlasRewardsTodayCard: View {
             }
 
             if let reaction = profile.reaction {
-                Text("\(reaction.title) • \(reaction.detail)")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(AtlasPalette.primary)
+                AtlasCalloutRow(
+                    systemImage: reaction.symbolName,
+                    title: reaction.title,
+                    detail: reaction.detail,
+                    tint: AtlasPalette.reward
+                )
             }
 
             if let headlineBadge {
-                Text(headlineBadge)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(AtlasPalette.primary)
+                AtlasCalloutRow(
+                    systemImage: "star.circle.fill",
+                    title: "Badge momentum",
+                    detail: headlineBadge,
+                    tint: AtlasPalette.reward
+                )
             }
 
             Text(snapshot.note)
-                .font(.caption)
+                .atlasTextRole(.supporting)
                 .foregroundStyle(AtlasPalette.textSecondary)
         }
     }
@@ -124,13 +142,13 @@ struct AtlasRewardsInsightSection: View {
             )
 
             Section("Rewards") {
-                AtlasSectionCard {
+                AtlasSectionCard(style: .reward) {
                     HStack(alignment: .top, spacing: AtlasSpacing.medium) {
                         VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
                             HStack(alignment: .firstTextBaseline) {
                                 VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
                                     Text("Level \(snapshot.level)")
-                                        .font(.title3.weight(.semibold))
+                                        .atlasTextRole(.cardTitle)
                                         .foregroundStyle(AtlasPalette.textPrimary)
                                     Text("\(snapshot.totalPoints) total points • \(snapshot.nextLevelPoints - snapshot.totalPoints) to next level")
                                         .foregroundStyle(AtlasPalette.textSecondary)
@@ -145,25 +163,42 @@ struct AtlasRewardsInsightSection: View {
                             }
 
                             Text(evolution.milestoneHeadline)
-                                .font(.caption.weight(.semibold))
+                                .atlasTextRole(.deckEyebrow)
                                 .foregroundStyle(AtlasPalette.primary)
 
                             Text(evolution.progressLabel)
-                                .font(.caption)
+                                .atlasTextRole(.supporting)
                                 .foregroundStyle(AtlasPalette.textSecondary)
 
                             Text(profile.statusLine)
-                                .font(.caption)
+                                .atlasTextRole(.supporting)
                                 .foregroundStyle(AtlasPalette.textSecondary)
                         }
 
-                        AtlasMascotSprite(
-                            line: atlasMascotLine(for: mascotSelection),
-                            stage: evolution.stage,
-                            pose: atlasRewardsMascotPose(for: snapshot),
-                            size: 96
-                        )
+                        VStack(spacing: AtlasSpacing.small) {
+                            AtlasMascotIllustration(
+                                line: atlasMascotLine(for: mascotSelection),
+                                stage: evolution.stage,
+                                size: 104
+                            )
+
+                            AtlasStatusBadge("Live guardian", tint: atlasMascotLineTint(for: mascotSelection))
+                        }
                     }
+
+                    AtlasMetricStrip(
+                        metrics: atlasRewardsMetrics(
+                            snapshot: snapshot,
+                            earnedBadgeCount: snapshot.badges.filter(\.isEarned).count
+                        )
+                    )
+
+                    AtlasProgressMeter(
+                        title: "Next unlock",
+                        detail: evolution.progressLabel,
+                        value: atlasRewardsProgressValue(snapshot),
+                        tint: AtlasPalette.reward
+                    )
 
                     VStack(spacing: AtlasSpacing.small) {
                         ForEach(snapshot.goals) { goal in
@@ -178,13 +213,16 @@ struct AtlasRewardsInsightSection: View {
                     }
 
                     if let reaction = profile.reaction {
-                        Text("\(reaction.title) • \(reaction.detail)")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(AtlasPalette.primary)
+                        AtlasCalloutRow(
+                            systemImage: reaction.symbolName,
+                            title: reaction.title,
+                            detail: reaction.detail,
+                            tint: AtlasPalette.reward
+                        )
                     }
 
                     Text(snapshot.note)
-                        .font(.caption)
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
             }
@@ -200,17 +238,27 @@ private struct AtlasRewardStreakChip: View {
             Image(systemName: streak.symbolName)
             VStack(alignment: .leading, spacing: 2) {
                 Text(streak.title)
+                    .atlasTextRole(.deckEyebrow)
                 Text(streak.valueLabel)
-                    .font(.caption2.weight(.semibold))
+                    .atlasTextRole(.metricLabel)
             }
         }
-        .font(.caption.weight(.semibold))
         .foregroundStyle(streak.isActive ? AtlasPalette.success : AtlasPalette.primary)
         .padding(.horizontal, 12)
         .padding(.vertical, 9)
         .background(
             Capsule(style: .continuous)
                 .fill((streak.isActive ? AtlasPalette.success : AtlasPalette.primary).opacity(0.12))
+        )
+        .overlay(
+            Capsule(style: .continuous)
+                .stroke((streak.isActive ? AtlasPalette.success : AtlasPalette.primary).opacity(0.18), lineWidth: 1)
+        )
+        .shadow(
+            color: (streak.isActive ? AtlasPalette.success : AtlasPalette.primary).opacity(0.08),
+            radius: 6,
+            x: 0,
+            y: 3
         )
     }
 }
@@ -225,9 +273,10 @@ private struct AtlasRewardGoalRow: View {
                     .foregroundStyle(goal.isMet ? AtlasPalette.success : AtlasPalette.primary)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(goal.title)
-                        .font(.body.weight(.semibold))
+                        .atlasTextRole(.cardBody)
                         .foregroundStyle(AtlasPalette.textPrimary)
                     Text(goal.progressLabel)
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
                 Spacer()
@@ -237,12 +286,11 @@ private struct AtlasRewardGoalRow: View {
                 )
             }
 
-            ProgressView(value: goal.progress)
-                .tint(goal.isMet ? AtlasPalette.success : AtlasPalette.primary)
-
-            Text(goal.helperText)
-                .font(.caption)
-                .foregroundStyle(AtlasPalette.textSecondary)
+            AtlasProgressMeter(
+                detail: goal.helperText,
+                value: goal.progress,
+                tint: goal.isMet ? AtlasPalette.success : AtlasPalette.primary
+            )
         }
     }
 }
@@ -257,16 +305,18 @@ private struct AtlasRewardBadgeRow: View {
                 .frame(width: 44, height: 44)
                 .overlay(
                     Image(systemName: badge.symbolName)
-                        .font(.system(size: 18, weight: .semibold))
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 18, height: 18)
                         .foregroundStyle(badge.isEarned ? AtlasPalette.success : AtlasPalette.textSecondary)
                 )
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(badge.title)
-                    .font(.body.weight(.semibold))
+                    .atlasTextRole(.cardBody)
                     .foregroundStyle(AtlasPalette.textPrimary)
                 Text(badge.subtitle)
-                    .font(.caption)
+                    .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
             }
 
@@ -278,4 +328,25 @@ private struct AtlasRewardBadgeRow: View {
             )
         }
     }
+}
+
+private func atlasRewardsMetrics(
+    snapshot: AtlasRewardsSnapshot,
+    earnedBadgeCount: Int
+) -> [AtlasMetricItem] {
+    let activeStreak = snapshot.streaks.filter(\.isActive).map(\.count).max() ?? 0
+
+    return [
+        .init(id: "level", title: "Level", value: "\(snapshot.level)", tint: AtlasPalette.reward),
+        .init(id: "points", title: "Points", value: "\(snapshot.totalPoints)", tint: AtlasPalette.primary),
+        .init(id: "streak", title: "Best streak", value: activeStreak == 0 ? "None" : "\(activeStreak)", tint: AtlasPalette.success),
+        .init(id: "badges", title: "Badges", value: "\(earnedBadgeCount)", tint: earnedBadgeCount == 0 ? AtlasPalette.secondaryText : AtlasPalette.reward)
+    ]
+}
+
+private func atlasRewardsProgressValue(_ snapshot: AtlasRewardsSnapshot) -> Double {
+    guard snapshot.nextLevelPoints > 0 else {
+        return 1
+    }
+    return min(max(Double(snapshot.totalPoints) / Double(snapshot.nextLevelPoints), 0), 1)
 }

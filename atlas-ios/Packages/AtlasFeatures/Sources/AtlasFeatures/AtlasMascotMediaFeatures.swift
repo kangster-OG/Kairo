@@ -429,13 +429,26 @@ struct AtlasMascotRecapPreviewCard: View {
             .frame(width: proxy.size.width, height: proxy.size.height, alignment: .top)
         }
         .frame(maxWidth: .infinity)
-        .frame(height: 320)
+        .frame(height: 340)
         .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .overlay(alignment: .topLeading) {
+            HStack(spacing: 8) {
+                atlasRecapBadge(descriptor.kind.title, tint: atlasMascotLineTint(for: descriptor.selection))
+                atlasRecapBadge(descriptor.privacyMode.title, tint: AtlasPalette.textSecondary)
+            }
+            .padding(18)
+        }
         .overlay {
             RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .stroke(.white.opacity(0.16), lineWidth: 1)
+                .stroke(atlasMascotLineTint(for: descriptor.selection).opacity(0.18), lineWidth: 1)
         }
         .contentShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .shadow(
+            color: atlasMascotLineTint(for: descriptor.selection).opacity(0.14),
+            radius: 18,
+            x: 0,
+            y: 12
+        )
         .task(id: descriptor.id) {
             previewImage = atlasMascotRecapPreviewImage(for: descriptor)
         }
@@ -460,76 +473,260 @@ private struct AtlasMascotRecapCanvas: View {
             RoundedRectangle(cornerRadius: 32, style: .continuous)
                 .fill(backgroundGradient)
 
+            RoundedRectangle(cornerRadius: 32, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [.white.opacity(0.08), .clear, .black.opacity(0.18)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+
+            decorativeBackdrop
+
             VStack(alignment: .leading, spacing: AtlasSpacing.large) {
-                HStack(alignment: .top, spacing: AtlasSpacing.large) {
-                    VStack(alignment: .leading, spacing: AtlasSpacing.medium) {
-                        HStack(spacing: AtlasSpacing.small) {
-                            Image(systemName: descriptor.symbolName)
-                                .font(.system(size: 14, weight: .semibold))
-                            Text(descriptor.eyebrow)
-                                .font(.caption.weight(.semibold))
-                                .textCase(.uppercase)
-                                .tracking(1.1)
-                        }
-                        .foregroundStyle(.white.opacity(0.76))
+                header
 
-                        Text(descriptor.displayName)
-                            .font(.system(size: 40, weight: .bold, design: .rounded))
-                            .foregroundStyle(.white)
-
-                        Text("\(descriptor.audience.title) • \(descriptor.privacyMode.title)")
-                            .font(.system(size: 16, weight: .semibold, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.7))
-
-                        Text(descriptor.headline)
-                            .font(.system(size: 28, weight: .semibold, design: .rounded))
-                            .foregroundStyle(.white)
-
-                        Text(descriptor.detail)
-                            .font(.system(size: 22, weight: .medium, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.84))
-
-                        Text(descriptor.secondaryDetail)
-                            .font(.system(size: 18, weight: .medium, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.68))
-                    }
-
-                    Spacer(minLength: 24)
-
-                    AtlasMascotIllustration(
-                        line: atlasMascotLine(for: descriptor.selection),
-                        stage: descriptor.stage,
-                        size: 480
-                    )
+                switch descriptor.kind {
+                case .weeklyRecap:
+                    weeklyRecapLayout
+                case .evolutionMilestone:
+                    evolutionMilestoneLayout
+                case .latestMoment:
+                    latestMomentLayout
                 }
 
-                Spacer(minLength: 12)
+                Spacer(minLength: 0)
 
-                HStack(alignment: .center, spacing: AtlasSpacing.medium) {
-                    AtlasMascotSprite(
-                        line: atlasMascotLine(for: descriptor.selection),
-                        stage: descriptor.stage,
-                        pose: .happy,
-                        size: 120
-                    )
-
-                    VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
-                        Text(descriptor.currentFormName)
-                            .font(.system(size: 22, weight: .bold, design: .rounded))
-                            .foregroundStyle(.white)
-                        Text(descriptor.footer)
-                            .font(.system(size: 18, weight: .semibold, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.76))
-                        Text("Shared from Atlas mascot recap")
-                            .font(.system(size: 16, weight: .medium, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.58))
-                    }
-
-                    Spacer(minLength: 0)
-                }
+                footerBand
             }
             .padding(40)
         }
+    }
+
+    private var header: some View {
+        HStack(alignment: .top, spacing: AtlasSpacing.medium) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 8) {
+                    Image(systemName: descriptor.symbolName)
+                        .font(.system(size: 15, weight: .semibold))
+                    Text(descriptor.eyebrow)
+                        .font(.caption.weight(.semibold))
+                        .tracking(1.2)
+                        .textCase(.uppercase)
+                }
+                .foregroundStyle(.white.opacity(0.84))
+
+                Text(descriptor.displayName)
+                    .font(.system(size: 42, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+            }
+
+            Spacer(minLength: 24)
+
+            HStack(spacing: 8) {
+                atlasRecapCanvasBadge(descriptor.audience.title)
+                atlasRecapCanvasBadge(descriptor.privacyMode.title)
+            }
+        }
+    }
+
+    private var weeklyRecapLayout: some View {
+        HStack(alignment: .top, spacing: 24) {
+            VStack(alignment: .leading, spacing: 14) {
+                Text(descriptor.headline)
+                    .font(.system(size: 30, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+
+                Text(descriptor.detail)
+                    .font(.system(size: 21, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.9))
+
+                Text(descriptor.secondaryDetail)
+                    .font(.system(size: 18, weight: .medium, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.72))
+
+                HStack(spacing: 12) {
+                    atlasRecapCanvasMetric(title: "Form", value: descriptor.currentFormName)
+                    atlasRecapCanvasMetric(title: "Direction", value: descriptor.footer)
+                }
+            }
+
+            Spacer(minLength: 0)
+
+            heroArt
+        }
+    }
+
+    private var evolutionMilestoneLayout: some View {
+        VStack(spacing: 18) {
+            heroArt
+
+            VStack(spacing: 10) {
+                Text(descriptor.headline)
+                    .font(.system(size: 34, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .multilineTextAlignment(.center)
+
+                Text(descriptor.detail)
+                    .font(.system(size: 22, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.88))
+                    .multilineTextAlignment(.center)
+
+                Text(descriptor.secondaryDetail)
+                    .font(.system(size: 17, weight: .medium, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.7))
+                    .multilineTextAlignment(.center)
+            }
+
+            HStack(spacing: 12) {
+                atlasRecapCanvasMetric(title: "Unlocked form", value: descriptor.currentFormName)
+                atlasRecapCanvasMetric(title: "Momentum", value: descriptor.footer)
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var latestMomentLayout: some View {
+        HStack(alignment: .center, spacing: 26) {
+            VStack(alignment: .leading, spacing: 14) {
+                Text(descriptor.headline)
+                    .font(.system(size: 32, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+
+                Text(descriptor.detail)
+                    .font(.system(size: 22, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.9))
+
+                Text(descriptor.secondaryDetail)
+                    .font(.system(size: 18, weight: .medium, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.74))
+
+                atlasRecapCanvasMetric(title: "Current form", value: descriptor.currentFormName)
+            }
+
+            Spacer(minLength: 0)
+
+            heroArt
+        }
+    }
+
+    private var heroArt: some View {
+        ZStack(alignment: .bottomTrailing) {
+            Circle()
+                .stroke(.white.opacity(0.28), lineWidth: 2)
+                .frame(width: artHaloSize, height: artHaloSize)
+
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [
+                            atlasMascotLineHighlight(for: descriptor.selection).opacity(0.34),
+                            atlasMascotLineTint(for: descriptor.selection).opacity(0.16),
+                            .clear
+                        ],
+                        center: .center,
+                        startRadius: 24,
+                        endRadius: artHaloSize * 0.56
+                    )
+                )
+                .frame(width: artHaloSize * 0.92, height: artHaloSize * 0.92)
+
+            AtlasMascotIllustration(
+                line: atlasMascotLine(for: descriptor.selection),
+                stage: descriptor.stage,
+                size: heroArtSize
+            )
+
+            AtlasMascotSprite(
+                line: atlasMascotLine(for: descriptor.selection),
+                stage: descriptor.stage,
+                pose: .happy,
+                size: 108
+            )
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(Color.black.opacity(0.18))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .stroke(.white.opacity(0.12), lineWidth: 1)
+            )
+        }
+        .frame(width: artFrameWidth, height: artFrameHeight, alignment: .center)
+    }
+
+    private var footerBand: some View {
+        HStack(alignment: .center, spacing: AtlasSpacing.medium) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(descriptor.currentFormName)
+                    .font(.system(size: 23, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                Text(descriptor.footer)
+                    .font(.system(size: 17, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.8))
+            }
+
+            Spacer(minLength: 0)
+
+            Text("Shared from Atlas mascot recap")
+                .font(.system(size: 15, weight: .medium, design: .rounded))
+                .foregroundStyle(.white.opacity(0.62))
+        }
+        .padding(.top, 18)
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(.white.opacity(0.14))
+                .frame(height: 1)
+        }
+    }
+
+    private var decorativeBackdrop: some View {
+        ZStack {
+            Circle()
+                .stroke(.white.opacity(0.08), lineWidth: 1)
+                .frame(width: 560, height: 560)
+                .offset(x: descriptor.kind == .latestMoment ? 180 : 240, y: -180)
+
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [
+                            atlasMascotLineHighlight(for: descriptor.selection).opacity(0.24),
+                            .clear
+                        ],
+                        center: .center,
+                        startRadius: 10,
+                        endRadius: 180
+                    )
+                )
+                .frame(width: 320, height: 320)
+                .offset(x: descriptor.kind == .evolutionMilestone ? 0 : 220, y: descriptor.kind == .evolutionMilestone ? -40 : -160)
+        }
+    }
+
+    private var heroArtSize: CGFloat {
+        switch descriptor.kind {
+        case .weeklyRecap:
+            return descriptor.stage == .stage1 ? 360 : 410
+        case .evolutionMilestone:
+            return descriptor.stage == .stage3 ? 500 : 440
+        case .latestMoment:
+            return descriptor.stage == .stage3 ? 430 : 390
+        }
+    }
+
+    private var artHaloSize: CGFloat {
+        descriptor.kind == .evolutionMilestone ? 360 : 300
+    }
+
+    private var artFrameWidth: CGFloat {
+        descriptor.kind == .evolutionMilestone ? 460 : 400
+    }
+
+    private var artFrameHeight: CGFloat {
+        descriptor.kind == .evolutionMilestone ? 520 : 420
     }
 
     private var backgroundGradient: LinearGradient {
@@ -556,6 +753,54 @@ private struct AtlasMascotRecapCanvas: View {
             )
         }
     }
+}
+
+private func atlasRecapBadge(_ title: String, tint: Color) -> some View {
+    Text(title)
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.white)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(
+            Capsule(style: .continuous)
+                .fill(tint.opacity(0.9))
+        )
+}
+
+private func atlasRecapCanvasBadge(_ title: String) -> some View {
+    Text(title)
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.white.opacity(0.9))
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(
+            Capsule(style: .continuous)
+                .fill(.white.opacity(0.14))
+        )
+}
+
+private func atlasRecapCanvasMetric(title: String, value: String) -> some View {
+    VStack(alignment: .leading, spacing: 4) {
+        Text(title)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.white.opacity(0.68))
+            .textCase(.uppercase)
+            .tracking(1)
+        Text(value)
+            .font(.system(size: 18, weight: .semibold, design: .rounded))
+            .foregroundStyle(.white)
+            .lineLimit(2)
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .padding(14)
+    .background(
+        RoundedRectangle(cornerRadius: 22, style: .continuous)
+            .fill(Color.black.opacity(0.16))
+    )
+    .overlay(
+        RoundedRectangle(cornerRadius: 22, style: .continuous)
+            .stroke(.white.opacity(0.12), lineWidth: 1)
+    )
 }
 
 private func atlasMascotReadableTimestamp(_ timestamp: String) -> String {

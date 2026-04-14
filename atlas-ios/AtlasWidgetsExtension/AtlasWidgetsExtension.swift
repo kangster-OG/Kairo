@@ -870,6 +870,21 @@ private struct AtlasWidgetMascotSprite: View {
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [highlightTint.opacity(0.42), accentTint.opacity(0.16), .clear],
+                        center: .center,
+                        startRadius: 6,
+                        endRadius: size * 0.72
+                    )
+                )
+                .frame(width: size * 1.1, height: size * 1.1)
+
+            Circle()
+                .stroke(.white.opacity(0.14), lineWidth: 1)
+                .frame(width: size * 0.94, height: size * 0.94)
+
             Image(assetName)
                 .resizable()
                 .interpolation(.none)
@@ -877,6 +892,7 @@ private struct AtlasWidgetMascotSprite: View {
                 .saturation(snapshot.pose == .rest ? 0.72 : 1)
                 .opacity(snapshot.pose == .rest ? 0.9 : 1)
                 .scaleEffect(snapshot.pose == .milestone ? 1.04 : (snapshot.pose == .evolutionReady ? 1.03 : 1))
+                .shadow(color: accentTint.opacity(0.16), radius: size * 0.12, y: size * 0.06)
                 .frame(width: size, height: size)
 
             if let badgeSymbol {
@@ -884,7 +900,11 @@ private struct AtlasWidgetMascotSprite: View {
                     .font(.system(size: max(size * 0.14, 10), weight: .bold))
                     .foregroundStyle(badgeTint)
                     .padding(max(size * 0.05, 4))
-                    .background(Circle().fill(.white.opacity(0.9)))
+                    .background(Circle().fill(Color.black.opacity(0.72)))
+                    .overlay(
+                        Circle()
+                            .stroke(.white.opacity(0.18), lineWidth: 1)
+                    )
             }
         }
     }
@@ -954,6 +974,24 @@ private struct AtlasWidgetMascotSprite: View {
             return .indigo
         case .idle, .happy:
             return .white
+        }
+    }
+
+    private var accentTint: Color {
+        switch snapshot.selection {
+        case .aetherion:
+            return Color(red: 0.16, green: 0.42, blue: 0.96)
+        case .aurielle:
+            return Color(red: 0.39, green: 0.69, blue: 0.96)
+        }
+    }
+
+    private var highlightTint: Color {
+        switch snapshot.selection {
+        case .aetherion:
+            return Color(red: 0.95, green: 0.74, blue: 0.34)
+        case .aurielle:
+            return Color(red: 0.92, green: 0.97, blue: 1.00)
         }
     }
 }
@@ -1039,7 +1077,16 @@ private struct AtlasMascotWidgetView: View {
         case .accessoryCircular:
             ZStack {
                 Circle()
-                    .fill(Color.white.opacity(0.12))
+                    .fill(
+                        RadialGradient(
+                            colors: [widgetHighlightTint(for: mascot).opacity(0.28), Color.white.opacity(0.06)],
+                            center: .center,
+                            startRadius: 6,
+                            endRadius: 46
+                        )
+                    )
+                Circle()
+                    .stroke(Color.white.opacity(0.12), lineWidth: 1)
                 AtlasWidgetMascotSprite(snapshot: mascot, size: 44)
             }
         case .accessoryRectangular:
@@ -1047,9 +1094,12 @@ private struct AtlasMascotWidgetView: View {
                 AtlasWidgetMascotSprite(snapshot: mascot, size: 46)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(mascot.displayName)
-                        .font(.caption.weight(.semibold))
-                        .lineLimit(1)
+                    HStack(spacing: 6) {
+                        Text(mascot.displayName)
+                            .font(.caption.weight(.semibold))
+                            .lineLimit(1)
+                        AtlasStatusBadge(text: widgetStageBadge(for: mascot))
+                    }
                     Text(rectangularDetail(for: mascot, focus: focus))
                         .font(.caption2)
                         .lineLimit(2)
@@ -1065,9 +1115,12 @@ private struct AtlasMascotWidgetView: View {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .top, spacing: 10) {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Mascot")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.white.opacity(0.72))
+                        HStack(spacing: 6) {
+                            Text("Mascot")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.white.opacity(0.72))
+                            AtlasStatusBadge(text: widgetStageBadge(for: mascot))
+                        }
                         Text(mascot.displayName)
                             .font(family == .systemSmall ? .headline.weight(.semibold) : .title3.weight(.semibold))
                             .foregroundStyle(.white)
@@ -1085,10 +1138,16 @@ private struct AtlasMascotWidgetView: View {
 
                     Spacer(minLength: 8)
 
-                    AtlasWidgetMascotSprite(
-                        snapshot: mascot,
-                        size: family == .systemSmall ? 62 : 84
-                    )
+                    VStack(alignment: .center, spacing: 6) {
+                        AtlasWidgetMascotSprite(
+                            snapshot: mascot,
+                            size: family == .systemSmall ? 62 : 84
+                        )
+                        Text(mascot.currentFormName)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.white.opacity(0.82))
+                            .lineLimit(1)
+                    }
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
@@ -1106,6 +1165,13 @@ private struct AtlasMascotWidgetView: View {
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(.white.opacity(0.86))
                         .lineLimit(2)
+                }
+
+                if let nextFormName = mascot.nextFormName {
+                    Label("Next unlock: \(nextFormName)", systemImage: "sparkles")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(widgetHighlightTint(for: mascot))
+                        .lineLimit(1)
                 }
 
                 Spacer(minLength: 0)
@@ -1158,9 +1224,12 @@ private struct AtlasMascotWidgetView: View {
             }
         default:
             VStack(alignment: .leading, spacing: 10) {
-                Text("Mascot")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.72))
+                HStack(spacing: 6) {
+                    Text("Mascot")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.72))
+                    AtlasStatusBadge(text: isStale ? "Needs refresh" : "Standby")
+                }
                 Text(
                     isStale
                         ? "Open Atlas to refresh your mascot progression and sprite state."
@@ -1312,6 +1381,26 @@ private struct AtlasMascotWidgetView: View {
                 return (lastEvolutionLabel(for: lastEvolution), "clock.arrow.circlepath")
             }
             return nil
+        }
+    }
+
+    private func widgetStageBadge(for mascot: AtlasWidgetMascotSnapshot) -> String {
+        switch mascot.stage {
+        case .stage1:
+            return "Stage 1"
+        case .stage2:
+            return "Stage 2"
+        case .stage3:
+            return "Stage 3"
+        }
+    }
+
+    private func widgetHighlightTint(for mascot: AtlasWidgetMascotSnapshot) -> Color {
+        switch mascot.selection {
+        case .aetherion:
+            return Color(red: 0.95, green: 0.74, blue: 0.34)
+        case .aurielle:
+            return Color(red: 0.88, green: 0.97, blue: 1.0)
         }
     }
 
