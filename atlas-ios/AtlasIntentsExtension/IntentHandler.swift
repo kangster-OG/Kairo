@@ -290,6 +290,28 @@ struct AtlasOpenProgressEvidenceIntent: AppIntent {
     }
 }
 
+struct AtlasOpenRewardsIntent: AppIntent {
+    static let title: LocalizedStringResource = "Open Rewards"
+    static let description = IntentDescription("Open Atlas to the rewards and mascot momentum surfaces.")
+    static let openAppWhenRun = true
+
+    func perform() async throws -> some IntentResult {
+        try AtlasPendingIntentActionStore.write(route: "rewards")
+        return .result()
+    }
+}
+
+struct AtlasOpenWeeklyReviewIntent: AppIntent {
+    static let title: LocalizedStringResource = "Open Weekly Review"
+    static let description = IntentDescription("Open Atlas to the weekly closeout and follow-through surface.")
+    static let openAppWhenRun = true
+
+    func perform() async throws -> some IntentResult {
+        try AtlasPendingIntentActionStore.write(route: "weekly-review")
+        return .result()
+    }
+}
+
 struct AtlasOpenMascotIntent: AppIntent {
     static let title: LocalizedStringResource = "Open Mascot"
     static let description = IntentDescription("Open Atlas to the mascot detail screen.")
@@ -498,6 +520,42 @@ struct AtlasShortcutsProvider: AppShortcutsProvider {
                 ],
                 shortTitle: "Progress Evidence",
                 systemImageName: "camera.metering.partial"
+            ),
+            AppShortcut(
+                intent: AtlasOpenRewardsIntent(),
+                phrases: [
+                    "Open rewards in \(.applicationName)",
+                    "Show mascot rewards in \(.applicationName)"
+                ],
+                shortTitle: "Open Rewards",
+                systemImageName: "sparkles.rectangle.stack"
+            ),
+            AppShortcut(
+                intent: AtlasOpenWeeklyReviewIntent(),
+                phrases: [
+                    "Open weekly review in \(.applicationName)",
+                    "Show weekly closeout in \(.applicationName)"
+                ],
+                shortTitle: "Weekly Review",
+                systemImageName: "calendar.badge.clock"
+            ),
+            AppShortcut(
+                intent: AtlasOpenMascotIntent(),
+                phrases: [
+                    "Open mascot in \(.applicationName)",
+                    "Show guardian detail in \(.applicationName)"
+                ],
+                shortTitle: "Open Mascot",
+                systemImageName: "sparkles"
+            ),
+            AppShortcut(
+                intent: AtlasCheckInWithMascotIntent(),
+                phrases: [
+                    "Check in with mascot in \(.applicationName)",
+                    "Capture mascot moment in \(.applicationName)"
+                ],
+                shortTitle: "Mascot Moment",
+                systemImageName: "star.bubble.fill"
             ),
             AppShortcut(
                 intent: AtlasMarkNextDueTakenIntent(),

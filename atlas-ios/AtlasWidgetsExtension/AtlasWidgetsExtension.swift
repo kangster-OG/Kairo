@@ -1219,7 +1219,7 @@ private struct AtlasMascotWidgetView: View {
                 Circle()
                     .fill(
                         RadialGradient(
-                            colors: [widgetHighlightTint(for: mascot).opacity(0.34), widgetAccentTint(for: mascot).opacity(0.18), Color.white.opacity(0.04)],
+                            colors: [widgetHighlightTint(for: mascot).opacity(0.4), widgetAccentTint(for: mascot).opacity(0.22), Color.white.opacity(0.04)],
                             center: .center,
                             startRadius: 6,
                             endRadius: 46
@@ -1232,12 +1232,22 @@ private struct AtlasMascotWidgetView: View {
                     .stroke(widgetHighlightTint(for: mascot), style: StrokeStyle(lineWidth: 4, lineCap: .round))
                     .rotationEffect(.degrees(-90))
                     .padding(4)
-                VStack(spacing: 2) {
-                    AtlasWidgetMascotSprite(snapshot: mascot, size: 38)
+                AtlasWidgetMascotStickerArt(snapshot: mascot, size: 42)
+                VStack {
+                    HStack {
+                        Spacer()
+                        Image(systemName: focusAccentSymbol(for: mascot, focus: focus))
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(widgetHighlightTint(for: mascot))
+                            .padding(5)
+                            .background(.black.opacity(0.24), in: Circle())
+                    }
+                    Spacer()
                     Text(shortStageLabel(for: mascot))
                         .font(.system(size: 8, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.78))
+                        .foregroundStyle(.white.opacity(0.82))
                 }
+                .padding(6)
             }
         case .accessoryRectangular:
             HStack(spacing: 10) {
@@ -1245,12 +1255,16 @@ private struct AtlasMascotWidgetView: View {
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .fill(
                             LinearGradient(
-                                colors: [widgetAccentTint(for: mascot).opacity(0.28), Color.white.opacity(0.08)],
+                                colors: [widgetAccentTint(for: mascot).opacity(0.34), widgetHighlightTint(for: mascot).opacity(0.12), Color.white.opacity(0.04)],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
                         )
-                    AtlasWidgetMascotSprite(snapshot: mascot, size: 44)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                        )
+                    AtlasWidgetMascotStickerArt(snapshot: mascot, size: 46)
                 }
                 .frame(width: 58, height: 58)
 
@@ -1268,6 +1282,12 @@ private struct AtlasMascotWidgetView: View {
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
+                    if let footer = focusFooter(for: mascot, focus: focus) {
+                        Label(footer.text, systemImage: footer.symbol)
+                            .font(.system(size: 10, weight: .semibold, design: .rounded))
+                            .foregroundStyle(widgetHighlightTint(for: mascot))
+                            .lineLimit(1)
+                    }
                 }
 
                 Spacer(minLength: 0)
@@ -1702,6 +1722,19 @@ private struct AtlasMascotWidgetView: View {
             return "Stage 2"
         case .stage3:
             return "Stage 3"
+        }
+    }
+
+    private func focusAccentSymbol(for mascot: AtlasWidgetMascotSnapshot, focus: AtlasMascotWidgetFocus) -> String {
+        switch focus {
+        case .automatic, .progress:
+            return mascot.nextFormName == nil ? "crown.fill" : "sparkles"
+        case .status:
+            return mascot.reactionSymbolName ?? "person.crop.circle.badge.checkmark"
+        case .moments:
+            return mascot.latestMomentSymbolName ?? "star.bubble.fill"
+        case .history:
+            return "clock.arrow.circlepath"
         }
     }
 

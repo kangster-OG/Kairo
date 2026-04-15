@@ -234,6 +234,7 @@ public struct AtlasWeeklyReviewScreen: View {
     @State private var archivePresented = false
     @State private var shareURL: URL?
     @State private var isExporting = false
+    @State private var closeoutState: AtlasWeeklyReviewCloseoutState?
 
     public init(model: AtlasAppModel) {
         self.model = model
@@ -273,8 +274,7 @@ public struct AtlasWeeklyReviewScreen: View {
 
                         if snapshot.isMarkedReviewed == false {
                             Button("Mark weekly review complete") {
-                                AtlasFeedback.notify(.success)
-                                Task { await model.markWeeklyReviewComplete() }
+                                Task { await completeWeeklyReviewWithReveal() }
                             }
                             .buttonStyle(AtlasTertiaryButtonStyle())
                         }
@@ -302,23 +302,26 @@ public struct AtlasWeeklyReviewScreen: View {
                     snapshot: snapshot
                 )
 
+                if let closeoutState {
+                    AtlasMilestoneRevealBanner(
+                        eyebrow: closeoutState.eyebrow,
+                        title: closeoutState.title,
+                        detail: closeoutState.detail,
+                        tint: closeoutState.tint,
+                        badge: closeoutState.badge,
+                        symbolName: closeoutState.symbolName
+                    )
+                }
+
                 AtlasWeeklyReviewPayoffCard(
                     model: model,
                     snapshot: snapshot,
                     closureValue: weeklyReviewClosureValue(snapshot),
                     closureDetail: weeklyReviewClosureDetail(snapshot),
-                    exportAction: {
-                        Task {
-                            await exportWeeklyReview(snapshot)
-                        }
-                    },
+                    exportAction: { await exportWeeklyReview(snapshot) },
                     markCompleteAction: snapshot.isMarkedReviewed
                         ? nil
-                        : {
-                            Task {
-                                await model.markWeeklyReviewComplete()
-                            }
-                        },
+                        : { await completeWeeklyReviewWithReveal() },
                     openMascotAction: model.rewardsSnapshot.settings.enabled
                         ? {
                             model.routePath.removeAll()
@@ -637,14 +640,60 @@ public struct AtlasWeeklyReviewScreen: View {
             model.activeTab = .today
             model.open(.protocolChange(id))
         case .markReviewComplete:
-            Task { await model.markWeeklyReviewComplete() }
+            Task { await completeWeeklyReviewWithReveal() }
         }
     }
 
     private func exportWeeklyReview(_ snapshot: AtlasWeeklyReviewPresentation) async {
         isExporting = true
         defer { isExporting = false }
+        closeoutState = AtlasWeeklyReviewCloseoutState(
+            eyebrow: "Pack staging",
+            title: "Atlas is packaging this week into a shareable handoff.",
+            detail: "The summary, highlights, and closure signal are being assembled so the export feels like a finished chapter instead of a raw dump.",
+            tint: AtlasPalette.reward,
+            badge: snapshot.periodTitle,
+            symbolName: "square.and.arrow.up.fill"
+        )
+        AtlasFeedback.milestoneReveal()
         shareURL = await model.exportWeeklyReviewPack(snapshot)
+        if shareURL != nil {
+            closeoutState = AtlasWeeklyReviewCloseoutState(
+                eyebrow: "Pack ready",
+                title: "This week is staged as a real recap handoff.",
+                detail: "Atlas finished the export and kept the closure signal attached so sharing the pack still feels like the end of a chapter.",
+                tint: model.rewardsSnapshot.settings.enabled ? atlasMascotLineTint(for: model.settingsSnapshot.mascotSelection) : AtlasPalette.success,
+                badge: model.rewardsSnapshot.settings.enabled ? atlasRewardsEvolutionProgress(for: model.rewardsSnapshot, selection: model.settingsSnapshot.mascotSelection).stageBadge : "Review",
+                symbolName: "sparkles"
+            )
+            AtlasFeedback.weeklyCloseout()
+        } else {
+            closeoutState = nil
+        }
+    }
+
+    private func completeWeeklyReviewWithReveal() async {
+        closeoutState = AtlasWeeklyReviewCloseoutState(
+            eyebrow: "Closing the loop",
+            title: "Atlas is anchoring this week into memory.",
+            detail: "Weekly Review is being marked complete and the carry-forward payoff is being attached to Today, archive, and mascot continuity.",
+            tint: AtlasPalette.reward,
+            badge: model.rewardsSnapshot.settings.enabled ? atlasRewardsEvolutionProgress(for: model.rewardsSnapshot, selection: model.settingsSnapshot.mascotSelection).stageBadge : "Review",
+            symbolName: "checkmark.seal.fill"
+        )
+        AtlasFeedback.milestoneReveal()
+        await model.markWeeklyReviewComplete()
+        closeoutState = AtlasWeeklyReviewCloseoutState(
+            eyebrow: "Week anchored",
+            title: "This week now reads like a finished chapter.",
+            detail: model.rewardsSnapshot.settings.enabled
+                ? "\(atlasRewardsEvolutionProgress(for: model.rewardsSnapshot, selection: model.settingsSnapshot.mascotSelection).currentFormName) carries the closeout forward, and the next unlock stays visible instead of disappearing into admin."
+                : "Atlas stored the review, kept your follow-through visible, and preserved the week as a reusable memory instead of a one-time checklist.",
+            tint: model.rewardsSnapshot.settings.enabled ? atlasMascotLineTint(for: model.settingsSnapshot.mascotSelection) : AtlasPalette.success,
+            badge: model.rewardsSnapshot.settings.enabled ? "Guardian payoff" : "Reviewed",
+            symbolName: model.rewardsSnapshot.settings.enabled ? atlasMascotLineSymbol(for: model.settingsSnapshot.mascotSelection) : "checkmark.circle.fill"
+        )
+        AtlasFeedback.weeklyCloseout()
     }
 
     private func weeklyReviewDeckTitle(_ snapshot: AtlasWeeklyReviewPresentation) -> String {
@@ -875,9 +924,11 @@ private struct AtlasWeeklyReviewPayoffCard: View {
     let snapshot: AtlasWeeklyReviewPresentation
     let closureValue: Double
     let closureDetail: String
-    let exportAction: () -> Void
-    let markCompleteAction: (() -> Void)?
+    let exportAction: () async -> Void
+    let markCompleteAction: (() async -> Void)?
     let openMascotAction: (() -> Void)?
+    @State private var isSharingPack = false
+    @State private var isClosingWeek = false
 
     var body: some View {
         let rewardsEnabled = model.rewardsSnapshot.settings.enabled
@@ -982,20 +1033,34 @@ private struct AtlasWeeklyReviewPayoffCard: View {
 
                 HStack(spacing: AtlasSpacing.small) {
                     if let markCompleteAction {
-                        Button("Mark review complete") {
-                            AtlasFeedback.notify(.success)
-                            markCompleteAction()
+                        Button(isClosingWeek ? "Anchoring week…" : "Mark review complete") {
+                            guard isClosingWeek == false else {
+                                return
+                            }
+                            isClosingWeek = true
+                            Task {
+                                await markCompleteAction()
+                                isClosingWeek = false
+                            }
                         }
                         .buttonStyle(AtlasPrimaryButtonStyle())
+                        .disabled(isClosingWeek)
                     }
 
-                    Button("Share weekly pack") {
-                        AtlasFeedback.selection()
-                        exportAction()
+                    Button(isSharingPack ? "Preparing pack…" : "Share weekly pack") {
+                        guard isSharingPack == false else {
+                            return
+                        }
+                        isSharingPack = true
+                        Task {
+                            await exportAction()
+                            isSharingPack = false
+                        }
                     }
                     .modifier(
                         AtlasWeeklyReviewShareButtonStyleModifier(usePrimary: markCompleteAction == nil)
                     )
+                    .disabled(isSharingPack)
 
                     if let openMascotAction {
                         Button("Open mascot") {
@@ -1008,6 +1073,15 @@ private struct AtlasWeeklyReviewPayoffCard: View {
             }
         }
     }
+}
+
+private struct AtlasWeeklyReviewCloseoutState {
+    let eyebrow: String
+    let title: String
+    let detail: String
+    let tint: Color
+    let badge: String?
+    let symbolName: String
 }
 
 private struct AtlasWeeklyReviewShareButtonStyleModifier: ViewModifier {

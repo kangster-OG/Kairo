@@ -896,7 +896,10 @@ private struct AtlasMascotMomentsJournalCard: View {
                         .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 } else {
+                    AtlasMetricStrip(metrics: journalMetrics)
+
                     ForEach(displayedMoments) { moment in
+                        let presentation = atlasMascotMomentPresentation(moment)
                         HStack(alignment: .top, spacing: AtlasSpacing.small) {
                             Image(systemName: moment.symbolName)
                                 .resizable()
@@ -914,9 +917,12 @@ private struct AtlasMascotMomentsJournalCard: View {
                                 )
 
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(moment.title)
-                                    .atlasTextRole(.deckEyebrow)
-                                    .foregroundStyle(AtlasPalette.textPrimary)
+                                HStack(spacing: AtlasSpacing.small) {
+                                    Text(moment.title)
+                                        .atlasTextRole(.deckEyebrow)
+                                        .foregroundStyle(AtlasPalette.textPrimary)
+                                    AtlasStatusBadge(presentation.badge, tint: presentation.tint)
+                                }
                                 Text(moment.detail)
                                     .atlasTextRole(.supporting)
                                     .foregroundStyle(AtlasPalette.textSecondary)
@@ -940,6 +946,22 @@ private struct AtlasMascotMomentsJournalCard: View {
             return filtered
         }
         return Array(filtered.prefix(limit))
+    }
+
+    private var journalMetrics: [AtlasMetricItem] {
+        let collectibleCount = displayedMoments.filter {
+            $0.kind == .levelUp || $0.kind == .weeklyCloseout || $0.kind == .recapExport || $0.kind == .evolution
+        }.count
+        return [
+            AtlasMetricItem(id: "saved", title: "Saved", value: "\(displayedMoments.count)", tint: atlasMascotLineTint(for: selection)),
+            AtlasMetricItem(id: "collectible", title: "Collectible", value: "\(collectibleCount)", tint: AtlasPalette.reward),
+            AtlasMetricItem(
+                id: "latest",
+                title: "Latest kind",
+                value: displayedMoments.first.map { atlasMascotMomentPresentation($0).badge } ?? "None",
+                tint: AtlasPalette.secondaryText
+            )
+        ]
     }
 }
 
@@ -1250,6 +1272,7 @@ public struct AtlasMascotDetailScreen: View {
     @State private var exportErrorMessage: String?
     @State private var recapAudience: AtlasMascotRecapAudience = .personal
     @State private var recapPrivacyMode: AtlasMascotRecapPrivacyMode = .fullDetail
+    @State private var recapHandoffState: AtlasMascotRecapHandoffState?
 
     public init(model: AtlasAppModel) {
         self.model = model
@@ -1272,6 +1295,13 @@ public struct AtlasMascotDetailScreen: View {
             history: history
         )
         let latestMoment = moments.first { $0.selection == selection }
+        let progressionSummary = atlasMascotProgressionSummary(
+            selection: selection,
+            rewardsSnapshot: rewardsSnapshot,
+            evolution: evolution,
+            latestMoment: latestMoment,
+            archivedRecapCount: archivedRecaps.count
+        )
         let weeklyDescriptor = recapDescriptor(
             kind: .weeklyRecap,
             selection: selection,
@@ -1295,6 +1325,17 @@ public struct AtlasMascotDetailScreen: View {
                     title: profile.displayName,
                     subtitle: "See the live guardian form, share editorial recap cards, and follow the full momentum line without dropping back into utility UI."
                 )
+
+                if let recapHandoffState {
+                    AtlasMilestoneRevealBanner(
+                        eyebrow: recapHandoffState.eyebrow,
+                        title: recapHandoffState.title,
+                        detail: recapHandoffState.detail,
+                        tint: recapHandoffState.tint,
+                        badge: recapHandoffState.badge,
+                        symbolName: recapHandoffState.symbolName
+                    )
+                }
 
                 AtlasSectionCard(style: .hero) {
                     VStack(alignment: .leading, spacing: AtlasSpacing.large) {
@@ -1444,6 +1485,15 @@ public struct AtlasMascotDetailScreen: View {
                                 momentsCount: moments.filter { $0.selection == selection }.count,
                                 stageBadge: evolution.stageBadge
                             )
+                        )
+
+                        AtlasMilestoneRevealBanner(
+                            eyebrow: progressionSummary.badge,
+                            title: progressionSummary.title,
+                            detail: progressionSummary.detail,
+                            tint: progressionSummary.tint,
+                            badge: evolution.stageBadge,
+                            symbolName: progressionSummary.symbolName
                         )
 
                         AtlasCalloutRow(
@@ -1827,11 +1877,29 @@ public struct AtlasMascotDetailScreen: View {
 
     @MainActor
     private func createMascotRecapExport(_ descriptor: AtlasMascotRecapDescriptor) async {
+        recapHandoffState = AtlasMascotRecapHandoffState(
+            eyebrow: "Export staging",
+            title: "Atlas is building the \(descriptor.kind.title.lowercased()) poster.",
+            detail: "The recap is being rendered with the current guardian art, privacy mode, and audience treatment before it hands off to share.",
+            tint: atlasMascotLineTint(for: descriptor.selection),
+            badge: descriptor.audience.title,
+            symbolName: descriptor.symbolName
+        )
+        AtlasFeedback.milestoneReveal()
         do {
             shareArtifact = try await model.exportMascotRecapCard(descriptor)
-            AtlasFeedback.notify(.success)
+            recapHandoffState = AtlasMascotRecapHandoffState(
+                eyebrow: "Poster ready",
+                title: "\(descriptor.kind.title) is staged and ready to share.",
+                detail: "Atlas archived the export and turned this milestone into a collectible handoff instead of a raw file dump.",
+                tint: atlasMascotLineHighlight(for: descriptor.selection),
+                badge: descriptor.privacyMode.title,
+                symbolName: "square.and.arrow.up.fill"
+            )
+            AtlasFeedback.levelUp()
         } catch {
             exportErrorMessage = error.localizedDescription
+            recapHandoffState = nil
         }
     }
 
@@ -1843,7 +1911,15 @@ public struct AtlasMascotDetailScreen: View {
                 fileURL: try atlasMascotArchivedRecapFileURL(recap),
                 archiveRecord: recap
             )
-            AtlasFeedback.selection()
+            recapHandoffState = AtlasMascotRecapHandoffState(
+                eyebrow: "Archive reopen",
+                title: "A saved recap poster is back in hand.",
+                detail: "Atlas reopened this collectible straight from the archive so it can be shared again without rebuilding it.",
+                tint: atlasMascotLineTint(for: recap.selection),
+                badge: recap.audience.title,
+                symbolName: "photo.stack.fill"
+            )
+            AtlasFeedback.milestoneReveal()
         } catch {
             exportErrorMessage = error.localizedDescription
         }
@@ -1872,8 +1948,17 @@ public struct AtlasMascotDetailScreen: View {
     @MainActor
     private func recordMoment() async {
         await model.recordMascotInteractionMoment()
-        AtlasFeedback.notify(.success)
+        AtlasFeedback.mascotMoment()
     }
+}
+
+private struct AtlasMascotRecapHandoffState {
+    let eyebrow: String
+    let title: String
+    let detail: String
+    let tint: Color
+    let badge: String?
+    let symbolName: String
 }
 
 private struct AtlasMascotUnlockReadinessRow: View {
@@ -1893,6 +1978,15 @@ private struct AtlasMascotUnlockReadinessRow: View {
         )
 
         VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+            AtlasMilestoneRevealBanner(
+                eyebrow: summary.badge,
+                title: summary.title,
+                detail: summary.detail,
+                tint: summary.tint,
+                badge: evolution.stageBadge,
+                symbolName: summary.symbolName
+            )
+
             HStack(spacing: AtlasSpacing.small) {
                 AtlasMascotMomentumTile(
                     title: "Next unlock",
@@ -2014,6 +2108,34 @@ private struct AtlasMascotRecapRecommendation {
     let readinessDetail: String
     let readinessValue: Double
     let tint: Color
+}
+
+private struct AtlasMascotMomentPresentation {
+    let badge: String
+    let tint: Color
+}
+
+private func atlasMascotMomentPresentation(_ moment: AtlasMascotMomentRecord) -> AtlasMascotMomentPresentation {
+    switch moment.kind {
+    case .interaction:
+        return AtlasMascotMomentPresentation(badge: "Check-in", tint: AtlasPalette.primary)
+    case .evolution:
+        return AtlasMascotMomentPresentation(badge: "Evolved", tint: AtlasPalette.success)
+    case .badge:
+        return AtlasMascotMomentPresentation(badge: "Badge", tint: AtlasPalette.reward)
+    case .goal:
+        return AtlasMascotMomentPresentation(badge: "Goal", tint: AtlasPalette.primary)
+    case .streak:
+        return AtlasMascotMomentPresentation(badge: "Streak", tint: AtlasPalette.success)
+    case .shortcut:
+        return AtlasMascotMomentPresentation(badge: "Shortcut", tint: AtlasPalette.secondaryText)
+    case .levelUp:
+        return AtlasMascotMomentPresentation(badge: "Level up", tint: AtlasPalette.reward)
+    case .weeklyCloseout:
+        return AtlasMascotMomentPresentation(badge: "Week closed", tint: AtlasPalette.success)
+    case .recapExport:
+        return AtlasMascotMomentPresentation(badge: "Poster", tint: AtlasPalette.reward)
+    }
 }
 
 private func atlasMascotProgressionSummary(

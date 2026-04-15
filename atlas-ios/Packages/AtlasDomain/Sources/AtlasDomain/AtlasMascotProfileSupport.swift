@@ -112,12 +112,14 @@ public func atlasMascotSharedPose(
 
     if let latestMoment, latestMoment.stage == stage {
         switch latestMoment.kind {
-        case .evolution, .badge, .goal:
+        case .evolution, .badge, .goal, .levelUp:
             return .milestone
         case .streak:
             if latestMoment.eventKey?.hasSuffix("-1") == true {
                 return .recovery
             }
+            return .happy
+        case .weeklyCloseout, .recapExport:
             return .happy
         case .interaction, .shortcut:
             break

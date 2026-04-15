@@ -59,14 +59,53 @@ public func atlasMascotManualMoment(
         stage: stage,
         nickname: nickname
     )
+    let displayName = atlasMascotDisplayName(selection: selection, stage: stage, nickname: nickname)
+
+    let title: String
+    let detail: String
+    let symbolName: String
+    switch kind {
+    case .interaction:
+        title = response.title
+        detail = response.detail
+        symbolName = response.symbolName
+    case .shortcut:
+        title = "\(displayName) answered a shortcut check-in"
+        detail = selection == .aetherion
+            ? "The guardian logged a fast system touchpoint without breaking momentum."
+            : "The guardian tucked a quiet check-in into the journal without adding friction."
+        symbolName = selection == .aetherion ? "bolt.badge.checkmark.fill" : "star.bubble.fill"
+    case .levelUp:
+        title = "\(displayName) climbed into a new rewards tier"
+        detail = selection == .aetherion
+            ? "The line tightened its storm arc and locked in a stronger posture for the next unlock."
+            : "The line brightened and settled into a more confident, skybound rhythm."
+        symbolName = selection == .aetherion ? "arrow.up.right.circle.fill" : "sparkles"
+    case .weeklyCloseout:
+        title = "\(displayName) anchored the week"
+        detail = selection == .aetherion
+            ? "Weekly Review closed with a deliberate checkpoint, giving the next unlock a cleaner runway."
+            : "Weekly Review closed with a calm handoff, turning the week into a collectible chapter instead of admin."
+        symbolName = selection == .aetherion ? "checkmark.seal.fill" : "moon.stars.fill"
+    case .recapExport:
+        title = "\(displayName) published a recap poster"
+        detail = selection == .aetherion
+            ? "A mascot recap left Atlas as a proper milestone artifact."
+            : "A mascot recap turned the latest momentum into a shareable keepsake."
+        symbolName = selection == .aetherion ? "square.and.arrow.up.fill" : "photo.stack.fill"
+    case .evolution, .badge, .goal, .streak:
+        title = response.title
+        detail = response.detail
+        symbolName = response.symbolName
+    }
 
     return AtlasMascotMomentRecord(
         selection: selection,
         stage: stage,
         kind: kind,
-        title: response.title,
-        detail: response.detail,
-        symbolName: response.symbolName,
+        title: title,
+        detail: detail,
+        symbolName: symbolName,
         recordedAt: atlasMascotMomentTimestamp(from: recordedAt),
         eventKey: nil
     )
@@ -119,6 +158,18 @@ public func atlasMascotAutomaticMomentCandidates(
             detail: "A new evolution unlocked at \(rewardsSnapshot.totalPoints) rewards points.",
             symbolName: "sparkles",
             stage: stage
+        )
+    }
+
+    if rewardsSnapshot.level > 1 {
+        appendCandidate(
+            kind: .levelUp,
+            eventKey: "level-\(selection.rawValue)-\(rewardsSnapshot.level)",
+            title: "\(displayName) reached level \(rewardsSnapshot.level)",
+            detail: selection == .aetherion
+                ? "The rewards line climbed into a new tier and sharpened the next milestone reveal."
+                : "The rewards line climbed into a new tier and widened the halo around the next unlock.",
+            symbolName: selection == .aetherion ? "arrow.up.right.circle.fill" : "sparkles"
         )
     }
 
@@ -195,7 +246,14 @@ public func atlasMascotNotificationRequest(
             body: moment.detail,
             triggerAt: referenceDate.addingTimeInterval(5)
         )
-    case .interaction, .badge, .goal, .shortcut:
+    case .weeklyCloseout, .recapExport:
+        return AtlasMascotNotificationRequest(
+            identifier: "atlas.mascot.\(moment.selection.rawValue).\(moment.eventKey ?? moment.id)",
+            title: moment.title,
+            body: moment.detail,
+            triggerAt: referenceDate.addingTimeInterval(5)
+        )
+    case .interaction, .badge, .goal, .shortcut, .levelUp:
         return nil
     }
 }

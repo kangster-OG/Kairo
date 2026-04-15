@@ -840,6 +840,17 @@ public final class AtlasAppModel {
             artifact.archiveRecord,
             now: now
         )
+        if settingsSnapshot.mascotSelectionConfirmed,
+           rewardsSnapshot.settings.enabled {
+            let recapMoment = atlasMascotManualMoment(
+                selection: settingsSnapshot.mascotSelection,
+                nickname: settingsSnapshot.mascotNickname,
+                stage: atlasRewardsMascotStage(for: rewardsSnapshot),
+                kind: .recapExport,
+                recordedAt: now
+            )
+            settingsSnapshot = try await dependencies.persistence.settings.recordMascotMoment(recapMoment, now: now)
+        }
         syncShellViewStates()
         return artifact
     }
@@ -1084,6 +1095,17 @@ public final class AtlasAppModel {
     public func markWeeklyReviewComplete() async {
         do {
             retentionSnapshot = try await dependencies.persistence.retention.markWeeklyReviewComplete(now: currentDate())
+            if settingsSnapshot.mascotSelectionConfirmed,
+               rewardsSnapshot.settings.enabled {
+                let moment = atlasMascotManualMoment(
+                    selection: settingsSnapshot.mascotSelection,
+                    nickname: settingsSnapshot.mascotNickname,
+                    stage: atlasRewardsMascotStage(for: rewardsSnapshot),
+                    kind: .weeklyCloseout,
+                    recordedAt: currentDate()
+                )
+                settingsSnapshot = try await dependencies.persistence.settings.recordMascotMoment(moment, now: currentDate())
+            }
             await refreshShellData()
         } catch {
             setLoadErrorMessage(error.localizedDescription)
@@ -1650,6 +1672,10 @@ public final class AtlasAppModel {
         case "today":
             routePath.removeAll()
             activeTab = .today
+        case "rewards":
+            routePath.removeAll()
+            activeTab = .today
+            open(.rewards)
         case "compound-intelligence", "compoundintelligence":
             guard let slug = atlasURLValue("slug", in: query),
                   slug.isEmpty == false else {
@@ -2217,6 +2243,8 @@ public struct AtlasRootView: View {
                             AtlasMedicationLevelsScreen(model: model, protocolID: id)
                         case .compoundIntelligence(let slug):
                             AtlasCompoundIntelligenceScreen(model: model, knowledgeSlug: slug)
+                        case .rewards:
+                            AtlasRewardsScreen(model: model)
                         case .inventory:
                             AtlasInventoryScreen(model: model)
                         case .labs:
@@ -2306,6 +2334,49 @@ private struct AtlasShellView: View {
         case .settings:
             AtlasSettingsScreen(model: model, state: model.settingsViewState)
         }
+    }
+}
+
+private struct AtlasRewardsScreen: View {
+    @Bindable var model: AtlasAppModel
+
+    var body: some View {
+        AtlasScreen {
+            AtlasSectionCard(style: .hero) {
+                Text("Rewards momentum")
+                    .atlasTextRole(.deckEyebrow)
+                    .foregroundStyle(AtlasPalette.reward)
+                Text("Keep the next unlock visible.")
+                    .atlasTextRole(.screenTitle)
+                    .foregroundStyle(AtlasPalette.textPrimary)
+                Text("Open Atlas straight into mascot progression, badges, and the most honest next milestone instead of making system entry points land in a generic tab shell.")
+                    .atlasTextRole(.screenSubtitle)
+                    .foregroundStyle(AtlasPalette.textSecondary)
+            }
+
+            VStack(alignment: .leading, spacing: AtlasSpacing.large) {
+                AtlasRewardsTodayCard(
+                    snapshot: model.rewardsSnapshot,
+                    mascotSelection: model.settingsSnapshot.mascotSelection,
+                    mascotNickname: model.settingsSnapshot.mascotNickname,
+                    mascotHistory: model.settingsSnapshot.mascotEvolutionHistory
+                )
+
+                AtlasMascotHomeCard(
+                    selection: model.settingsSnapshot.mascotSelection,
+                    nickname: model.settingsSnapshot.mascotNickname,
+                    rewardsSnapshot: model.rewardsSnapshot,
+                    history: model.settingsSnapshot.mascotEvolutionHistory,
+                    moments: model.settingsSnapshot.mascotMoments,
+                    compact: false,
+                    onOpenDetail: {
+                        model.open(.mascot)
+                    }
+                )
+            }
+        }
+        .navigationTitle("Rewards")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
@@ -3090,12 +3161,13 @@ private struct AtlasTodayCommandDeck: View {
                 }
 
                 if let rewardHeadline = presentation.rewardHeadline {
-                    AtlasCalloutRow(
-                        systemImage: "sparkles",
-                        title: "Next unlock",
-                        detail: rewardHeadline,
+                    AtlasMilestoneRevealBanner(
+                        eyebrow: "Next unlock",
+                        title: rewardHeadline,
+                        detail: presentation.rewardDetail ?? "Atlas keeps the next reward threshold visible so Today stays motivational instead of purely operational.",
                         tint: presentation.rewardTint ?? AtlasPalette.reward,
-                        badge: presentation.rewardBadge
+                        badge: presentation.rewardBadge,
+                        symbolName: "sparkles"
                     )
                 }
             }

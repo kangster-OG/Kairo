@@ -37,6 +37,7 @@ public enum AtlasRoute: Hashable, Sendable {
     case protocolChange(String)
     case medicationLevels(String)
     case compoundIntelligence(String)
+    case rewards
     case inventory
     case labs
     case mascot
@@ -821,6 +822,9 @@ public enum AtlasMascotMomentKind: String, Codable, CaseIterable, Sendable {
     case goal
     case streak
     case shortcut
+    case levelUp = "level_up"
+    case weeklyCloseout = "weekly_closeout"
+    case recapExport = "recap_export"
 }
 
 public enum AtlasMascotRecapAudience: String, Codable, CaseIterable, Sendable {
