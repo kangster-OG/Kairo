@@ -14,6 +14,21 @@ Last updated: 2026-04-10 (post-local-path recovery)
 - Live review edge function and launch schema are deployed.
 - `master` has been pushed with the current Atlas iOS launch tree.
 
+## Current Codex context
+
+Fresh Codex threads should treat the following repo files as the current high-value handoff set:
+
+- `AGENTS.md`
+- `README.md`
+- `atlas-ios/README.md`
+- `docs/backlog-execution-handoff.md`
+- `docs/ios-premium-ui-rubric.md`
+- `docs/ios-ui-audit-2026-04-10.md`
+- `docs/ios-ui-skill-stack.md`
+- `docs/ios-redesign-context-2026-04-14.md`
+- `docs/mascot-concepts/atlas-mascot-asset-matrix.md` for mascot/rewards/media/widget work
+- `docs/fresh-codex-thread-prompt.md` for a copy/paste fresh-thread starter prompt
+
 ## Live backend
 
 - Supabase project ref: `nppqywaxawvvdhiedpxc`

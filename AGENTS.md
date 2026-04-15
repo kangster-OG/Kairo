@@ -15,6 +15,16 @@ Use the native iOS codebase plus those docs as the primary source of truth.
 
 If you need to distinguish current native docs from historical migration/spec docs quickly, use `docs/repo-truth-map.md`.
 
+## UI / UX read first
+If the user asks about UI, UX, design, polish, motion, typography, layout, interaction quality, widgets, or SwiftUI presentation, also read:
+1. `docs/ios-premium-ui-rubric.md`
+2. `docs/ios-ui-audit-2026-04-10.md`
+3. `docs/ios-ui-skill-stack.md`
+4. `docs/ios-redesign-context-2026-04-14.md`
+5. `docs/mascot-concepts/atlas-mascot-asset-matrix.md` when the work touches mascot/rewards/media/widgets
+
+Treat those files as the standing Atlas UI design system brief for future Codex threads.
+
 ## Source-of-truth rule
 If repo docs disagree, use this order:
 1. native iOS code under `atlas-ios/`
@@ -81,6 +91,18 @@ This app must not include:
 
 ## Planning rule
 For tasks spanning multiple feature areas or broad architecture/doc changes, update `PLANS.md` first unless the user explicitly asks to skip planning.
+
+## UI execution rule
+For UI-related work:
+- prefer the Build iOS Apps skill stack documented in `docs/ios-ui-skill-stack.md`
+- keep Atlas aligned with the redesign context in `docs/ios-redesign-context-2026-04-14.md`
+- preserve the product direction: calm, tactile, premium, local-first, trust-heavy, and non-gimmicky
+- avoid generic health-app UI, flat interchangeable card stacks, and noisy gamification
+- preserve the mascot asset deployment matrix:
+  - portrait art for in-app hero/detail/export surfaces
+  - sticker art for medium cards
+  - pixel art for widgets and compact live-state surfaces
+- default to simulator QA for UI changes, then note any remaining manual/device checks explicitly
 
 ## Done when
 A task is only done when:
