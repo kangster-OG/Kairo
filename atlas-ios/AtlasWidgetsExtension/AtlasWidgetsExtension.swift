@@ -1085,6 +1085,7 @@ private struct AtlasMascotWidgetView: View {
                 )
             }
         }
+        .unredacted()
         .widgetURL(URL(string: "atlas://mascot"))
     }
 
