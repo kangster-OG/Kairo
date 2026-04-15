@@ -1068,7 +1068,6 @@ private struct AtlasMascotWidgetView: View {
             let context = entry.snapshotContext(for: .mascot)
             if let context,
                context.snapshot.featureFlags.flags.nativeWidgets,
-               context.freshness.isStale == false,
                let mascot = context.snapshot.mascot {
                 let focus = resolvedFocus(for: mascot, configuredFocus: entry.configuration.focus)
                 liveContent(
@@ -1206,6 +1205,9 @@ private struct AtlasMascotWidgetView: View {
                                 .foregroundStyle(.white.opacity(0.72))
                             AtlasStatusBadge(text: widgetFocusBadge(for: focus))
                             AtlasStatusBadge(text: widgetStageBadge(for: mascot))
+                            if freshness.isStale {
+                                AtlasStatusBadge(text: "Needs refresh")
+                            }
                         }
                         Text(mascot.displayName)
                             .font(family == .systemSmall ? .headline.weight(.bold) : .title3.weight(.bold))

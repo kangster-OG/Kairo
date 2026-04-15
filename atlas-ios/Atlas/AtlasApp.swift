@@ -17,10 +17,10 @@ struct AtlasApp: App {
             switch bootstrapState {
             case .ready(let model):
                 AtlasRootView(model: model)
-                    .preferredColorScheme(.light)
                     .tint(.blue)
                     .task {
                         model.dependencies.diagnostics.markLaunchCompleted()
+                        AtlasWidgetRefreshCoordinator.reloadAll()
                     }
                     .onOpenURL { url in
                         Task {
@@ -28,12 +28,13 @@ struct AtlasApp: App {
                         }
                     }
                     .onChange(of: model.widgetProjectionVersion) { _, _ in
-                        WidgetCenter.shared.reloadAllTimelines()
+                        AtlasWidgetRefreshCoordinator.reloadAll()
                     }
                     .onChange(of: scenePhase) { _, newPhase in
                         guard newPhase == .active else {
                             return
                         }
+                        AtlasWidgetRefreshCoordinator.reloadAll()
                         Task {
                             await model.consumePendingExtensionActionIfNeeded()
                         }
@@ -69,6 +70,19 @@ private struct AtlasBootstrapFailureView: View {
             Spacer()
         }
         .padding(24)
-        .preferredColorScheme(.light)
+    }
+}
+
+private enum AtlasWidgetRefreshCoordinator {
+    private static let widgetKinds = [
+        "AtlasNextDueWidget",
+        "AtlasLowStockWidget",
+        "AtlasQuickCaptureWidget",
+        "AtlasMascotWidget"
+    ]
+
+    static func reloadAll() {
+        WidgetCenter.shared.reloadAllTimelines()
+        widgetKinds.forEach { WidgetCenter.shared.reloadTimelines(ofKind: $0) }
     }
 }
