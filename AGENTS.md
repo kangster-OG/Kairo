@@ -21,7 +21,8 @@ If the user asks about UI, UX, design, polish, motion, typography, layout, inter
 2. `docs/ios-ui-audit-2026-04-10.md`
 3. `docs/ios-ui-skill-stack.md`
 4. `docs/ios-redesign-context-2026-04-14.md`
-5. `docs/mascot-concepts/atlas-mascot-asset-matrix.md` when the work touches mascot/rewards/media/widgets
+5. `docs/ios-ui-mascot-rewards-changelog-2026-04-14.md`
+6. `docs/mascot-concepts/atlas-mascot-asset-matrix.md` when the work touches mascot/rewards/media/widgets
 
 Treat those files as the standing Atlas UI design system brief for future Codex threads.
 

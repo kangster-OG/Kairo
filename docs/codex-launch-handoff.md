@@ -26,6 +26,7 @@ Fresh Codex threads should treat the following repo files as the current high-va
 - `docs/ios-ui-audit-2026-04-10.md`
 - `docs/ios-ui-skill-stack.md`
 - `docs/ios-redesign-context-2026-04-14.md`
+- `docs/ios-ui-mascot-rewards-changelog-2026-04-14.md`
 - `docs/mascot-concepts/atlas-mascot-asset-matrix.md` for mascot/rewards/media/widget work
 - `docs/fresh-codex-thread-prompt.md` for a copy/paste fresh-thread starter prompt
 
