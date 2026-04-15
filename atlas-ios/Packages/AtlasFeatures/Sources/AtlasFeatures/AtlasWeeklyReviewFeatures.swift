@@ -244,50 +244,43 @@ public struct AtlasWeeklyReviewScreen: View {
 
         AtlasScreen {
             if let snapshot {
-                AtlasSectionCard(style: .hero) {
+                AtlasCommandDeck(
+                    eyebrow: snapshot.periodTitle,
+                    title: weeklyReviewDeckTitle(snapshot),
+                    detail: snapshot.summaryText,
+                    metrics: weeklyReviewMetrics(snapshot),
+                    style: .hero
+                ) {
+                    VStack(spacing: AtlasSpacing.small) {
+                        if let primaryAction = snapshot.actions.first {
+                            Button(primaryAction.title) {
+                                AtlasFeedback.selection()
+                                perform(primaryAction)
+                            }
+                            .buttonStyle(AtlasPrimaryButtonStyle())
+
+                            if atlasWeeklyReviewRoute(for: primaryAction.destination) != nil,
+                               snapshot.actionPlans.contains(where: { $0.id == atlasWeeklyReviewActionPlanID(for: primaryAction, seed: snapshot.seed) }) == false {
+                                Button("Save for next week") {
+                                    AtlasFeedback.selection()
+                                    Task {
+                                        await model.saveWeeklyReviewActionPlan(primaryAction, seed: snapshot.seed)
+                                    }
+                                }
+                                .buttonStyle(AtlasSecondaryButtonStyle())
+                            }
+                        }
+
+                        if snapshot.isMarkedReviewed == false {
+                            Button("Mark weekly review complete") {
+                                AtlasFeedback.notify(.success)
+                                Task { await model.markWeeklyReviewComplete() }
+                            }
+                            .buttonStyle(AtlasTertiaryButtonStyle())
+                        }
+                    }
+                } footer: {
                     VStack(alignment: .leading, spacing: AtlasSpacing.medium) {
-                        HStack(alignment: .top, spacing: AtlasSpacing.medium) {
-                            VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
-                                Text("Weekly Review")
-                                    .font(.system(size: 30, weight: .bold, design: .rounded))
-                                    .foregroundStyle(AtlasPalette.textPrimary)
-                                Text(snapshot.periodTitle)
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(AtlasPalette.primary)
-                                    .textCase(.uppercase)
-                                Text(snapshot.generatedAt.formatted(date: .abbreviated, time: .shortened))
-                                    .font(.caption)
-                                    .foregroundStyle(AtlasPalette.textSecondary)
-                            }
-
-                            Spacer()
-
-                            AtlasStatusBadge(
-                                snapshot.isMarkedReviewed ? "Reviewed" : "Ready",
-                                tint: snapshot.isMarkedReviewed ? AtlasPalette.success : AtlasPalette.secondaryText
-                            )
-                        }
-
-                        ViewThatFits(in: .horizontal) {
-                            HStack(spacing: AtlasSpacing.small) {
-                                AtlasStatusBadge(snapshot.trustLabel, tint: AtlasPalette.secondaryText)
-                                if snapshot.reminderEnabled {
-                                    AtlasStatusBadge("Reminder on", tint: AtlasPalette.primary)
-                                }
-                            }
-
-                            VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
-                                AtlasStatusBadge(snapshot.trustLabel, tint: AtlasPalette.secondaryText)
-                                if snapshot.reminderEnabled {
-                                    AtlasStatusBadge("Reminder on", tint: AtlasPalette.primary)
-                                }
-                            }
-                        }
-
-                        Text(snapshot.summaryText)
-                            .font(.title3.weight(.semibold))
-                            .foregroundStyle(AtlasPalette.textPrimary)
-
                         AtlasWeeklyReviewSignalStrip(snapshot: snapshot)
 
                         AtlasWeeklyReviewTrustPanel(
@@ -295,28 +288,12 @@ public struct AtlasWeeklyReviewScreen: View {
                             disclaimer: snapshot.disclaimer
                         )
 
-                        if let primaryAction = snapshot.actions.first {
-                            VStack(alignment: .leading, spacing: AtlasSpacing.small) {
-                                Button(primaryAction.title) {
-                                    perform(primaryAction)
-                                }
-                                .buttonStyle(AtlasPrimaryButtonStyle())
-
-                                if atlasWeeklyReviewRoute(for: primaryAction.destination) != nil,
-                                   snapshot.actionPlans.contains(where: { $0.id == atlasWeeklyReviewActionPlanID(for: primaryAction, seed: snapshot.seed) }) == false {
-                                    Button("Save for next week") {
-                                        Task {
-                                            await model.saveWeeklyReviewActionPlan(primaryAction, seed: snapshot.seed)
-                                        }
-                                    }
-                                    .buttonStyle(AtlasTertiaryButtonStyle())
-                                }
-                            }
-
-                            Text(primaryAction.detail)
-                                .font(.caption)
-                                .foregroundStyle(AtlasPalette.textSecondary)
-                        }
+                        AtlasProgressMeter(
+                            title: "Closure",
+                            detail: weeklyReviewClosureDetail(snapshot),
+                            value: weeklyReviewClosureValue(snapshot),
+                            tint: snapshot.isMarkedReviewed ? AtlasPalette.success : AtlasPalette.primary
+                        )
                     }
                 }
 
@@ -325,8 +302,34 @@ public struct AtlasWeeklyReviewScreen: View {
                     snapshot: snapshot
                 )
 
+                AtlasWeeklyReviewPayoffCard(
+                    model: model,
+                    snapshot: snapshot,
+                    closureValue: weeklyReviewClosureValue(snapshot),
+                    closureDetail: weeklyReviewClosureDetail(snapshot),
+                    exportAction: {
+                        Task {
+                            await exportWeeklyReview(snapshot)
+                        }
+                    },
+                    markCompleteAction: snapshot.isMarkedReviewed
+                        ? nil
+                        : {
+                            Task {
+                                await model.markWeeklyReviewComplete()
+                            }
+                        },
+                    openMascotAction: model.rewardsSnapshot.settings.enabled
+                        ? {
+                            model.routePath.removeAll()
+                            model.activeTab = .today
+                            model.open(.mascot)
+                        }
+                        : nil
+                )
+
                 if snapshot.highlights.isEmpty == false {
-                    AtlasSectionCard(style: .elevated, title: "Weekly highlights") {
+                    AtlasSectionCard(style: .reward, title: "Weekly highlights") {
                         ForEach(Array(snapshot.highlights.prefix(3).enumerated()), id: \.element.id) { index, highlight in
                             if index > 0 {
                                 Divider()
@@ -337,10 +340,13 @@ public struct AtlasWeeklyReviewScreen: View {
                 }
 
                 if snapshot.shifts.isEmpty == false {
-                    AtlasSectionCard(title: "What shifted") {
-                        Text("Atlas is keeping this descriptive. These notes restate visible patterns from your local records without claiming causes.")
-                            .font(.caption)
-                            .foregroundStyle(AtlasPalette.textSecondary)
+                    AtlasSectionCard(style: .task, title: "What shifted") {
+                        AtlasCalloutRow(
+                            systemImage: "waveform.path.ecg.text",
+                            title: "Descriptive, not diagnostic",
+                            detail: "These notes restate visible patterns from your local records without claiming causes.",
+                            tint: AtlasPalette.secondaryText
+                        )
 
                         ForEach(Array(snapshot.shifts.prefix(3).enumerated()), id: \.element.id) { index, shift in
                             if index > 0 {
@@ -354,9 +360,13 @@ public struct AtlasWeeklyReviewScreen: View {
                 }
 
                 if let stackSummary = snapshot.seed.stackSummary {
-                    AtlasSectionCard(style: .elevated, title: "Stack review") {
-                        Text(stackSummary.burdenSummary)
-                            .foregroundStyle(AtlasPalette.textSecondary)
+                    AtlasSectionCard(style: .task, title: "Stack review") {
+                        AtlasCalloutRow(
+                            systemImage: "square.stack.3d.up.fill",
+                            title: "Current stack burden",
+                            detail: stackSummary.burdenSummary,
+                            tint: AtlasPalette.primary
+                        )
 
                         VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
                             ForEach([
@@ -367,7 +377,7 @@ public struct AtlasWeeklyReviewScreen: View {
                                 AtlasExplainerFact(label: "Inventory risk", value: String(stackSummary.lowStockRiskCount))
                             ]) { fact in
                                 Text("\(fact.label): \(fact.value)")
-                                    .font(.caption)
+                                    .atlasTextRole(.supporting)
                                     .foregroundStyle(AtlasPalette.textSecondary)
                             }
                         }
@@ -375,10 +385,13 @@ public struct AtlasWeeklyReviewScreen: View {
                 }
 
                 if let actionOutcomes = snapshot.actionOutcomes {
-                    AtlasSectionCard(style: .elevated, title: "Action follow-through") {
-                        Text(actionOutcomes.summary)
-                            .font(.caption)
-                            .foregroundStyle(AtlasPalette.textSecondary)
+                    AtlasSectionCard(style: .task, title: "Action follow-through") {
+                        AtlasCalloutRow(
+                            systemImage: "checkmark.circle.badge.questionmark",
+                            title: "Follow-through signal",
+                            detail: actionOutcomes.summary,
+                            tint: AtlasPalette.success
+                        )
 
                         ForEach(Array(actionOutcomes.items.enumerated()), id: \.element.id) { index, item in
                             if index > 0 {
@@ -390,7 +403,7 @@ public struct AtlasWeeklyReviewScreen: View {
                 }
 
                 if let protocolFollowUp = snapshot.protocolFollowUp {
-                    AtlasSectionCard(style: .elevated, title: "Since the latest plan change") {
+                    AtlasSectionCard(style: .task, title: "Since the latest plan change") {
                         AtlasWeeklyReviewProtocolFollowUpView(
                             summary: protocolFollowUp,
                             openAction: {
@@ -402,9 +415,12 @@ public struct AtlasWeeklyReviewScreen: View {
 
                 if snapshot.history.isEmpty == false {
                     AtlasSectionCard(style: .utility, title: "Archive & compare") {
-                        Text("Prior weeks stay available here so the current review has memory, not just a moment-in-time snapshot.")
-                            .font(.caption)
-                            .foregroundStyle(AtlasPalette.textSecondary)
+                        AtlasCalloutRow(
+                            systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90",
+                            title: "Review memory stays attached",
+                            detail: "Prior weeks stay available here so the current review has memory, not just a moment-in-time snapshot.",
+                            tint: AtlasPalette.secondaryText
+                        )
 
                         if let comparison = snapshot.comparison {
                             AtlasWeeklyReviewComparisonCard(snapshot: comparison) {
@@ -422,6 +438,7 @@ public struct AtlasWeeklyReviewScreen: View {
                         }
 
                         Button("Open full archive") {
+                            AtlasFeedback.selection()
                             archivePresented = true
                         }
                         .buttonStyle(AtlasSecondaryButtonStyle())
@@ -429,10 +446,13 @@ public struct AtlasWeeklyReviewScreen: View {
                 }
 
                 if snapshot.actionPlans.isEmpty == false {
-                    AtlasSectionCard(style: .elevated, title: "Weekly focus") {
-                        Text("Saved follow-through items stay visible across Today and Weekly Review until you clear or carry them forward.")
-                            .font(.caption)
-                            .foregroundStyle(AtlasPalette.textSecondary)
+                    AtlasSectionCard(style: .reward, title: "Weekly focus") {
+                        AtlasCalloutRow(
+                            systemImage: "flag.2.crossed",
+                            title: "Carry-forward actions stay anchored",
+                            detail: "Saved follow-through items stay visible across Today and Weekly Review until you clear or carry them forward.",
+                            tint: AtlasPalette.reward
+                        )
 
                         ForEach(Array(snapshot.actionPlans.enumerated()), id: \.element.id) { index, plan in
                             if index > 0 {
@@ -470,7 +490,7 @@ public struct AtlasWeeklyReviewScreen: View {
                 }
 
                 if snapshot.actions.count > 1 {
-                    AtlasSectionCard(style: .elevated, title: "Next actions") {
+                    AtlasSectionCard(style: .task, title: "Next actions") {
                         ForEach(Array(snapshot.actions.dropFirst().enumerated()), id: \.element.id) { index, action in
                             if index > 0 {
                                 Divider()
@@ -503,18 +523,17 @@ public struct AtlasWeeklyReviewScreen: View {
 
                         VStack(alignment: .leading, spacing: AtlasSpacing.small) {
                             Text(section.title)
-                                .font(.caption.weight(.semibold))
+                                .atlasTextRole(.deckEyebrow)
                                 .foregroundStyle(AtlasPalette.primary)
-                                .textCase(.uppercase)
 
                             ForEach(section.facts) { fact in
                                 HStack(alignment: .top, spacing: AtlasSpacing.small) {
                                     Text(fact.label)
-                                        .font(.caption.weight(.semibold))
+                                        .atlasTextRole(.supporting)
                                         .foregroundStyle(AtlasPalette.textSecondary)
                                     Spacer(minLength: 12)
                                     Text(fact.value)
-                                        .font(.caption)
+                                        .atlasTextRole(.supporting)
                                         .multilineTextAlignment(.trailing)
                                         .foregroundStyle(AtlasPalette.textPrimary)
                                 }
@@ -523,19 +542,25 @@ public struct AtlasWeeklyReviewScreen: View {
                     }
                 }
             } else {
-                AtlasSectionCard(style: .hero) {
-                    VStack(alignment: .leading, spacing: AtlasSpacing.small) {
-                        Text("Weekly Review")
-                            .font(.system(size: 30, weight: .bold, design: .rounded))
-                            .foregroundStyle(AtlasPalette.textPrimary)
-                        Text("Atlas needs a little more local activity before it can build a meaningful weekly review.")
-                            .foregroundStyle(AtlasPalette.textSecondary)
-                        Button("Open Insights") {
-                            model.routePath.removeAll()
-                            model.activeTab = .insights
-                        }
-                        .buttonStyle(AtlasPrimaryButtonStyle())
+                AtlasCommandDeck(
+                    eyebrow: "WEEKLY REVIEW",
+                    title: "Atlas needs a little more signal first.",
+                    detail: "Weekly Review becomes valuable once Atlas has enough local activity to summarize patterns, follow-through, and recent shifts without guessing.",
+                    style: .hero
+                ) {
+                    Button("Open Insights") {
+                        AtlasFeedback.selection()
+                        model.routePath.removeAll()
+                        model.activeTab = .insights
                     }
+                    .buttonStyle(AtlasPrimaryButtonStyle())
+                } footer: {
+                    AtlasCalloutRow(
+                        systemImage: "sparkles.rectangle.stack",
+                        title: "The payoff comes later",
+                        detail: "Once Atlas has a fuller week of logs, the review will become a proper closure and planning surface instead of a placeholder.",
+                        tint: AtlasPalette.secondaryText
+                    )
                 }
             }
         }
@@ -545,6 +570,7 @@ public struct AtlasWeeklyReviewScreen: View {
             if let snapshot {
                 ToolbarItem(placement: .topBarTrailing) {
                         Button {
+                            AtlasFeedback.selection()
                             Task {
                                 await exportWeeklyReview(snapshot)
                             }
@@ -620,6 +646,64 @@ public struct AtlasWeeklyReviewScreen: View {
         defer { isExporting = false }
         shareURL = await model.exportWeeklyReviewPack(snapshot)
     }
+
+    private func weeklyReviewDeckTitle(_ snapshot: AtlasWeeklyReviewPresentation) -> String {
+        if snapshot.isMarkedReviewed {
+            return "This week has been reviewed and anchored."
+        }
+        if snapshot.actions.isEmpty == false {
+            return "Close the week with one clear next move."
+        }
+        return "Review the week, then carry the right signal forward."
+    }
+
+    private func weeklyReviewMetrics(_ snapshot: AtlasWeeklyReviewPresentation) -> [AtlasMetricItem] {
+        [
+            AtlasMetricItem(
+                id: "review_status",
+                title: "Status",
+                value: snapshot.isMarkedReviewed ? "Reviewed" : "Ready",
+                tint: snapshot.isMarkedReviewed ? AtlasPalette.success : AtlasPalette.primary
+            ),
+            AtlasMetricItem(
+                id: "highlights",
+                title: "Highlights",
+                value: "\(snapshot.highlights.count)",
+                tint: AtlasPalette.reward
+            ),
+            AtlasMetricItem(
+                id: "shifts",
+                title: "Shifts",
+                value: "\(snapshot.shifts.count)",
+                tint: AtlasPalette.secondaryText
+            ),
+            AtlasMetricItem(
+                id: "saved",
+                title: "Saved",
+                value: "\(snapshot.actionPlans.count)",
+                tint: AtlasPalette.secondaryText
+            )
+        ]
+    }
+
+    private func weeklyReviewClosureValue(_ snapshot: AtlasWeeklyReviewPresentation) -> Double {
+        if snapshot.isMarkedReviewed {
+            return 1
+        }
+        let total = max(snapshot.actions.count + snapshot.actionPlans.count, 1)
+        let completed = snapshot.actionPlans.filter(\.isCompleted).count
+        return min(max(Double(completed) / Double(total), 0.18), 0.92)
+    }
+
+    private func weeklyReviewClosureDetail(_ snapshot: AtlasWeeklyReviewPresentation) -> String {
+        if snapshot.isMarkedReviewed {
+            return "This review is marked complete. Saved follow-through stays visible in Today until you clear or carry it forward."
+        }
+        if let primaryAction = snapshot.actions.first {
+            return "Primary focus: \(primaryAction.title). Save it for next week if you want Atlas to keep it pinned in your operating loop."
+        }
+        return "Atlas has enough source data for a descriptive weekly review, but no single follow-through item rose above the rest."
+    }
 }
 
 private struct AtlasWeeklyReviewCommandDeck: View {
@@ -627,26 +711,50 @@ private struct AtlasWeeklyReviewCommandDeck: View {
     let snapshot: AtlasWeeklyReviewPresentation
 
     var body: some View {
-        AtlasSectionCard(style: .utility, title: "At a glance") {
+        AtlasCommandDeck(
+            eyebrow: "AT A GLANCE",
+            title: snapshot.actions.first?.title ?? "No follow-through queued",
+            detail: snapshot.actions.first?.detail ?? "Atlas did not detect a single high-priority follow-up for this review, so the rest of the screen stays descriptive and source-backed.",
+            metrics: [
+                AtlasMetricItem(id: "plans", title: "Saved plans", value: "\(snapshot.actionPlans.count)", tint: AtlasPalette.reward),
+                AtlasMetricItem(id: "history", title: "History", value: "\(snapshot.history.count)", tint: AtlasPalette.secondaryText)
+            ],
+            tint: AtlasPalette.primary,
+            style: .task
+        ) {
+            HStack(spacing: AtlasSpacing.small) {
+                Button("Open Today") {
+                    AtlasFeedback.selection()
+                    model.routePath.removeAll()
+                    model.activeTab = .today
+                }
+                .buttonStyle(AtlasPrimaryButtonStyle())
+
+                Button("Open Insights") {
+                    AtlasFeedback.selection()
+                    model.routePath.removeAll()
+                    model.activeTab = .insights
+                }
+                .buttonStyle(AtlasSecondaryButtonStyle())
+            }
+        } footer: {
             VStack(alignment: .leading, spacing: AtlasSpacing.small) {
-                AtlasWeeklyReviewCommandCard(
-                    title: "Primary focus",
-                    value: snapshot.actions.first?.title ?? "No follow-through queued",
-                    detail: snapshot.actions.first?.detail ?? "Atlas did not detect a high-priority follow-up for this review."
+                AtlasCalloutRow(
+                    systemImage: "waveform.path.ecg",
+                    title: continuityTitle,
+                    detail: continuityDetail,
+                    tint: AtlasPalette.secondaryText,
+                    badge: model.settingsSnapshot.labsEnabled ? "Labs" : nil
                 )
 
-                AtlasWeeklyReviewCommandCard(
-                    title: "Continuity",
-                    value: continuityTitle,
-                    detail: continuityDetail
-                )
-
-                AtlasWeeklyReviewCommandCard(
-                    title: "Carry forward",
-                    value: snapshot.actionPlans.isEmpty ? "No saved plans" : "\(snapshot.actionPlans.count) saved plan\(snapshot.actionPlans.count == 1 ? "" : "s")",
+                AtlasCalloutRow(
+                    systemImage: "pin",
+                    title: snapshot.actionPlans.isEmpty ? "No saved plans yet" : "\(snapshot.actionPlans.count) follow-through item(s) saved",
                     detail: snapshot.actionPlans.isEmpty
                         ? "Save one action from this review to keep it visible in Today next week."
-                        : "Saved follow-through items stay anchored in Weekly Review and Today until you clear them."
+                        : "Saved follow-through items stay anchored in Weekly Review and Today until you clear them.",
+                    tint: AtlasPalette.reward,
+                    badge: snapshot.actionPlans.isEmpty ? nil : "Pinned"
                 )
             }
         }
@@ -742,11 +850,10 @@ private struct AtlasWeeklyReviewSignalPill: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title)
-                .font(.caption2.weight(.semibold))
+                .atlasTextRole(.metricLabel)
                 .foregroundStyle(AtlasPalette.primary)
-                .textCase(.uppercase)
             Text(value)
-                .font(.body.weight(.semibold))
+                .atlasTextRole(.cardBody)
                 .foregroundStyle(AtlasPalette.textPrimary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -763,6 +870,158 @@ private struct AtlasWeeklyReviewSignalPill: View {
     }
 }
 
+private struct AtlasWeeklyReviewPayoffCard: View {
+    let model: AtlasAppModel
+    let snapshot: AtlasWeeklyReviewPresentation
+    let closureValue: Double
+    let closureDetail: String
+    let exportAction: () -> Void
+    let markCompleteAction: (() -> Void)?
+    let openMascotAction: (() -> Void)?
+
+    var body: some View {
+        let rewardsEnabled = model.rewardsSnapshot.settings.enabled
+        let selection = model.settingsSnapshot.mascotSelection
+        let evolution = atlasRewardsEvolutionProgress(for: model.rewardsSnapshot, selection: selection)
+        let latestMoment = model.settingsSnapshot.mascotMoments.first { $0.selection == selection }
+
+        AtlasSectionCard(style: .reward) {
+            VStack(alignment: .leading, spacing: AtlasSpacing.medium) {
+                HStack(alignment: .top, spacing: AtlasSpacing.medium) {
+                    VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
+                        HStack(spacing: AtlasSpacing.small) {
+                            AtlasStatusBadge(
+                                snapshot.isMarkedReviewed ? "Week anchored" : "Review payoff",
+                                tint: snapshot.isMarkedReviewed ? AtlasPalette.success : AtlasPalette.reward
+                            )
+                            if rewardsEnabled {
+                                AtlasStatusBadge(evolution.stageBadge, tint: atlasMascotLineTint(for: selection))
+                            }
+                        }
+
+                        Text(
+                            snapshot.isMarkedReviewed
+                                ? "This week is already stored as a finished chapter."
+                                : "Close the week with a payoff that feels earned."
+                        )
+                        .atlasTextRole(.cardTitle)
+                        .foregroundStyle(AtlasPalette.textPrimary)
+
+                        Text(
+                            rewardsEnabled
+                                ? (snapshot.isMarkedReviewed
+                                    ? "\(evolution.currentFormName) stays visible as the guardian for this week’s closure, and the next unlock remains attached to the operating loop."
+                                    : "\(evolution.currentFormName) carries the week forward. Save the week, export the pack, and keep the next unlock visible instead of letting it disappear into admin.")
+                                : closureDetail
+                        )
+                        .atlasTextRole(.supporting)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                    }
+
+                    Spacer(minLength: 8)
+
+                    if rewardsEnabled {
+                        VStack(spacing: AtlasSpacing.small) {
+                            AtlasMascotSticker(
+                                line: atlasMascotLine(for: selection),
+                                stage: evolution.stage,
+                                size: 96
+                            )
+                            AtlasStatusBadge("Weekly guardian", tint: atlasMascotLineHighlight(for: selection))
+                        }
+                    }
+                }
+
+                AtlasMetricStrip(
+                    metrics: [
+                        AtlasMetricItem(
+                            id: "closure",
+                            title: "Closure",
+                            value: snapshot.isMarkedReviewed ? "Done" : "\(Int(closureValue * 100))%",
+                            tint: snapshot.isMarkedReviewed ? AtlasPalette.success : AtlasPalette.reward
+                        ),
+                        AtlasMetricItem(
+                            id: "saved",
+                            title: "Saved plans",
+                            value: "\(snapshot.actionPlans.count)",
+                            tint: snapshot.actionPlans.isEmpty ? AtlasPalette.secondaryText : AtlasPalette.primary
+                        ),
+                        AtlasMetricItem(
+                            id: "archive",
+                            title: "Archive",
+                            value: "\(snapshot.history.count)",
+                            tint: AtlasPalette.secondaryText
+                        )
+                    ]
+                )
+
+                AtlasProgressMeter(
+                    title: rewardsEnabled ? "Mascot payoff" : "Review payoff",
+                    detail: rewardsEnabled
+                        ? (evolution.nextFormName == nil
+                            ? "The guardian line is fully evolved, so this week now feeds archive quality and recap poster strength."
+                            : evolution.progressLabel)
+                        : closureDetail,
+                    value: rewardsEnabled ? max(evolution.progressFraction ?? 1, closureValue) : closureValue,
+                    tint: rewardsEnabled ? atlasMascotLineTint(for: selection) : AtlasPalette.reward
+                )
+
+                if rewardsEnabled {
+                    AtlasCalloutRow(
+                        systemImage: latestMoment?.symbolName ?? atlasMascotLineSymbol(for: selection),
+                        title: latestMoment == nil ? "Next unlock stays attached" : "Mascot momentum is already visible",
+                        detail: latestMoment == nil
+                            ? (evolution.nextFormName == nil
+                                ? "The full line is already unlocked, so the payoff now shifts to recap quality and collectible memory."
+                                : "\(evolution.nextFormName ?? "Next form") remains the next big unlock, and Weekly Review is one of the cleanest ways to make that feel earned.")
+                            : "\(latestMoment?.title ?? "") is already in the journal, so this week can end with a specific emotional beat instead of a generic summary.",
+                        tint: atlasMascotLineTint(for: selection),
+                        badge: latestMoment == nil ? evolution.stageBadge : "Journaled"
+                    )
+                }
+
+                HStack(spacing: AtlasSpacing.small) {
+                    if let markCompleteAction {
+                        Button("Mark review complete") {
+                            AtlasFeedback.notify(.success)
+                            markCompleteAction()
+                        }
+                        .buttonStyle(AtlasPrimaryButtonStyle())
+                    }
+
+                    Button("Share weekly pack") {
+                        AtlasFeedback.selection()
+                        exportAction()
+                    }
+                    .modifier(
+                        AtlasWeeklyReviewShareButtonStyleModifier(usePrimary: markCompleteAction == nil)
+                    )
+
+                    if let openMascotAction {
+                        Button("Open mascot") {
+                            AtlasFeedback.selection()
+                            openMascotAction()
+                        }
+                        .buttonStyle(AtlasTertiaryButtonStyle())
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct AtlasWeeklyReviewShareButtonStyleModifier: ViewModifier {
+    let usePrimary: Bool
+
+    func body(content: Content) -> some View {
+        if usePrimary {
+            content.buttonStyle(AtlasPrimaryButtonStyle())
+        } else {
+            content.buttonStyle(AtlasSecondaryButtonStyle())
+        }
+    }
+}
+
 private struct AtlasWeeklyReviewCommandCard: View {
     let title: String
     let value: String
@@ -771,14 +1030,13 @@ private struct AtlasWeeklyReviewCommandCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
             Text(title)
-                .font(.caption.weight(.semibold))
+                .atlasTextRole(.deckEyebrow)
                 .foregroundStyle(AtlasPalette.primary)
-                .textCase(.uppercase)
             Text(value)
-                .font(.body.weight(.semibold))
+                .atlasTextRole(.cardBody)
                 .foregroundStyle(AtlasPalette.textPrimary)
             Text(detail)
-                .font(.caption)
+                .atlasTextRole(.supporting)
                 .foregroundStyle(AtlasPalette.textSecondary)
         }
         .padding(.horizontal, 14)
@@ -806,10 +1064,10 @@ struct AtlasWeeklyReviewEntrySection: View {
                     HStack(alignment: .top, spacing: AtlasSpacing.medium) {
                         VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
                             Text("Weekly Review")
-                                .font(.body.weight(.semibold))
+                                .atlasTextRole(.cardBody)
                                 .foregroundStyle(AtlasPalette.textPrimary)
                             Text(snapshot.generatedAt.formatted(date: .abbreviated, time: .shortened))
-                                .font(.caption)
+                                .atlasTextRole(.supporting)
                                 .foregroundStyle(AtlasPalette.textSecondary)
                         }
 
@@ -822,6 +1080,7 @@ struct AtlasWeeklyReviewEntrySection: View {
                     }
 
                     Text(snapshot.summaryText)
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
                         .lineLimit(4)
 
@@ -830,13 +1089,14 @@ struct AtlasWeeklyReviewEntrySection: View {
                             Image(systemName: highlight.symbolName)
                                 .foregroundStyle(AtlasPalette.primary)
                             Text(highlight.title)
-                                .font(.caption.weight(.semibold))
+                                .atlasTextRole(.deckEyebrow)
                                 .foregroundStyle(AtlasPalette.textPrimary)
                             Spacer()
                         }
                     }
 
                     Button("Open weekly review") {
+                        AtlasFeedback.selection()
                         model.open(.weeklyReview)
                     }
                     .buttonStyle(AtlasPrimaryButtonStyle())
@@ -858,10 +1118,10 @@ struct AtlasWeeklyFocusTodaySection: View {
                     HStack(alignment: .top, spacing: AtlasSpacing.small) {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Weekly focus")
-                                .font(.body.weight(.semibold))
+                                .atlasTextRole(.cardBody)
                                 .foregroundStyle(AtlasPalette.textPrimary)
                             Text(snapshot.periodTitle)
-                                .font(.caption)
+                                .atlasTextRole(.supporting)
                                 .foregroundStyle(AtlasPalette.textSecondary)
                         }
                         Spacer()
@@ -873,19 +1133,21 @@ struct AtlasWeeklyFocusTodaySection: View {
 
                     if let savedPlan = snapshot.actionPlans.first {
                         Text(savedPlan.title)
-                            .font(.body.weight(.semibold))
+                            .atlasTextRole(.cardBody)
                             .foregroundStyle(AtlasPalette.textPrimary)
                         Text(savedPlan.detail)
-                            .font(.caption)
+                            .atlasTextRole(.supporting)
                             .foregroundStyle(AtlasPalette.textSecondary)
 
                         HStack(spacing: AtlasSpacing.small) {
                             Button("Open focus") {
+                                AtlasFeedback.selection()
                                 model.openWeeklyReviewRoute(savedPlan.route)
                             }
                             .buttonStyle(AtlasSecondaryButtonStyle())
 
                             Button(savedPlan.isCompleted ? "Mark active" : "Mark done") {
+                                AtlasFeedback.selection()
                                 Task {
                                     await model.updateWeeklyReviewActionPlan(
                                         id: savedPlan.id,
@@ -897,20 +1159,22 @@ struct AtlasWeeklyFocusTodaySection: View {
                         }
                     } else if let nextAction = snapshot.actions.first {
                         Text(nextAction.title)
-                            .font(.body.weight(.semibold))
+                            .atlasTextRole(.cardBody)
                             .foregroundStyle(AtlasPalette.textPrimary)
                         Text(nextAction.detail)
-                            .font(.caption)
+                            .atlasTextRole(.supporting)
                             .foregroundStyle(AtlasPalette.textSecondary)
 
                         HStack(spacing: AtlasSpacing.small) {
                             Button("Open weekly review") {
+                                AtlasFeedback.selection()
                                 model.open(.weeklyReview)
                             }
                             .buttonStyle(AtlasPrimaryButtonStyle())
 
                             if atlasWeeklyReviewRoute(for: nextAction.destination) != nil {
                                 Button("Save focus") {
+                                    AtlasFeedback.selection()
                                     Task {
                                         await model.saveWeeklyReviewActionPlan(nextAction, seed: snapshot.seed)
                                     }
@@ -1009,22 +1273,11 @@ private struct AtlasWeeklyReviewTrustPanel: View {
     let disclaimer: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
-            Label(trustLabel, systemImage: "lock.shield.fill")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(AtlasPalette.secondaryText)
-            Text(disclaimer)
-                .font(.caption)
-                .foregroundStyle(AtlasPalette.textSecondary)
-        }
-        .padding(AtlasSpacing.small)
-        .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color.white.opacity(0.74))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(Color.white.opacity(0.86), lineWidth: 1)
+        AtlasCalloutRow(
+            systemImage: "lock.shield.fill",
+            title: trustLabel,
+            detail: disclaimer,
+            tint: AtlasPalette.secondaryText
         )
     }
 }
@@ -1035,16 +1288,18 @@ private struct AtlasWeeklyReviewHighlightRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: AtlasSpacing.medium) {
             Image(systemName: item.symbolName)
-                .font(.system(size: 18, weight: .semibold))
+                .resizable()
+                .scaledToFit()
+                .frame(width: 18, height: 18)
                 .foregroundStyle(AtlasPalette.primary)
                 .frame(width: 24, height: 24)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(item.title)
-                    .font(.body.weight(.semibold))
+                    .atlasTextRole(.cardBody)
                     .foregroundStyle(AtlasPalette.textPrimary)
                 Text(item.detail)
-                    .font(.caption)
+                    .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
             }
         }
@@ -1056,21 +1311,25 @@ private struct AtlasWeeklyReviewShiftRow: View {
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
+        Button {
+            AtlasFeedback.selection()
+            action()
+        } label: {
             VStack(alignment: .leading, spacing: AtlasSpacing.small) {
                 HStack(alignment: .top, spacing: AtlasSpacing.small) {
                     Image(systemName: item.symbolName)
                         .foregroundStyle(AtlasPalette.primary)
                     VStack(alignment: .leading, spacing: 4) {
                         Text(item.title)
-                            .font(.body.weight(.semibold))
+                            .atlasTextRole(.cardBody)
                             .foregroundStyle(AtlasPalette.textPrimary)
                         Text(item.summary)
+                            .atlasTextRole(.supporting)
                             .foregroundStyle(AtlasPalette.textSecondary)
                     }
                     Spacer()
                     Image(systemName: "chevron.right")
-                        .font(.caption.weight(.semibold))
+                        .atlasTextRole(.deckEyebrow)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
 
@@ -1078,7 +1337,7 @@ private struct AtlasWeeklyReviewShiftRow: View {
                     VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
                         ForEach(item.facts.prefix(2)) { fact in
                             Text("\(fact.label): \(fact.value)")
-                                .font(.caption)
+                                .atlasTextRole(.supporting)
                                 .foregroundStyle(AtlasPalette.textSecondary)
                         }
                     }
@@ -1104,20 +1363,24 @@ private struct AtlasWeeklyReviewActionRow: View {
                     .foregroundStyle(AtlasPalette.primary)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(item.title)
-                        .font(.body.weight(.semibold))
+                        .atlasTextRole(.cardBody)
                         .foregroundStyle(AtlasPalette.textPrimary)
                     Text(item.detail)
-                        .font(.caption)
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
             }
 
             HStack(spacing: AtlasSpacing.small) {
-                Button(item.title, action: action)
+                Button(item.title) {
+                    AtlasFeedback.selection()
+                    action()
+                }
                     .buttonStyle(AtlasSecondaryButtonStyle())
 
                 if let saveAction, isSaved == false {
                     Button("Save") {
+                        AtlasFeedback.selection()
                         saveAction()
                     }
                     .buttonStyle(AtlasTertiaryButtonStyle())
@@ -1135,15 +1398,18 @@ private struct AtlasWeeklyReviewHistoryRow: View {
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
+        Button {
+            AtlasFeedback.selection()
+            action()
+        } label: {
             VStack(alignment: .leading, spacing: AtlasSpacing.small) {
                 HStack(alignment: .top, spacing: AtlasSpacing.small) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(item.periodTitle)
-                            .font(.body.weight(.semibold))
+                            .atlasTextRole(.cardBody)
                             .foregroundStyle(AtlasPalette.textPrimary)
                         Text(item.comparisonLabel)
-                            .font(.caption.weight(.semibold))
+                            .atlasTextRole(.deckEyebrow)
                             .foregroundStyle(AtlasPalette.primary)
                     }
                     Spacer()
@@ -1152,7 +1418,7 @@ private struct AtlasWeeklyReviewHistoryRow: View {
                 }
 
                 Text(item.summary)
-                    .font(.caption)
+                    .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
                     .lineLimit(3)
             }
@@ -1167,16 +1433,18 @@ private struct AtlasWeeklyReviewComparisonCard: View {
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
+        Button {
+            AtlasFeedback.selection()
+            action()
+        } label: {
             VStack(alignment: .leading, spacing: AtlasSpacing.small) {
                 HStack(alignment: .top, spacing: AtlasSpacing.small) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Compared with \(snapshot.historicalPeriodTitle)")
-                            .font(.caption.weight(.semibold))
+                            .atlasTextRole(.deckEyebrow)
                             .foregroundStyle(AtlasPalette.primary)
-                            .textCase(.uppercase)
                         Text(snapshot.headline)
-                            .font(.body.weight(.semibold))
+                            .atlasTextRole(.cardBody)
                             .foregroundStyle(AtlasPalette.textPrimary)
                     }
                     Spacer()
@@ -1185,13 +1453,13 @@ private struct AtlasWeeklyReviewComparisonCard: View {
                 }
 
                 Text(snapshot.summary)
-                    .font(.caption)
+                    .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
 
                 VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
                     ForEach(snapshot.metrics.prefix(3)) { metric in
                         Text("\(metric.label): \(metric.deltaLabel)")
-                            .font(.caption)
+                            .atlasTextRole(.supporting)
                             .foregroundStyle(AtlasPalette.textSecondary)
                     }
                 }
@@ -1216,10 +1484,10 @@ private struct AtlasWeeklyReviewActionOutcomeRow: View {
                     .foregroundStyle(AtlasPalette.primary)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(item.title)
-                        .font(.body.weight(.semibold))
+                        .atlasTextRole(.cardBody)
                         .foregroundStyle(AtlasPalette.textPrimary)
                     Text(item.detail)
-                        .font(.caption)
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
                 Spacer()
@@ -1227,7 +1495,7 @@ private struct AtlasWeeklyReviewActionOutcomeRow: View {
             }
 
             Text(item.statusDetail)
-                .font(.caption)
+                .atlasTextRole(.supporting)
                 .foregroundStyle(AtlasPalette.textSecondary)
                 .padding(.leading, 28)
         }
@@ -1246,29 +1514,32 @@ private struct AtlasWeeklyReviewProtocolFollowUpView: View {
                     .foregroundStyle(AtlasPalette.primary)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(summary.title ?? "Atlas protocol")
-                        .font(.body.weight(.semibold))
+                        .atlasTextRole(.cardBody)
                         .foregroundStyle(AtlasPalette.textPrimary)
                     Text(summary.summary ?? "\(summary.changeTypeTitle) is still within Atlas's follow-up window.")
-                        .font(.caption)
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
             }
 
             VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
                 Text("Changed \(summary.changedAt.formatted(date: .abbreviated, time: .omitted)) • \(summary.windowDays)-day follow-up")
-                    .font(.caption.weight(.semibold))
+                    .atlasTextRole(.deckEyebrow)
                     .foregroundStyle(AtlasPalette.primary)
                 Text("Completed logs: \(summary.completedCount) • Skipped: \(summary.skippedCount) • Rescheduled: \(summary.rescheduledCount) • Context: \(summary.contextEntryCount)")
-                    .font(.caption)
+                    .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
                 Text(summary.hasVisibleSupportingData
                     ? "Atlas has visible follow-through around the change and is keeping the read descriptive."
                     : "Atlas has the change audit, but very little follow-through around it yet.")
-                    .font(.caption)
+                    .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
             }
 
-            Button("Open change follow-up", action: openAction)
+            Button("Open change follow-up") {
+                AtlasFeedback.selection()
+                openAction()
+            }
                 .buttonStyle(AtlasSecondaryButtonStyle())
         }
     }
@@ -1288,10 +1559,10 @@ private struct AtlasWeeklyReviewSavedActionRow: View {
                     .foregroundStyle(item.isCompleted ? AtlasPalette.success : AtlasPalette.primary)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(item.title)
-                        .font(.body.weight(.semibold))
+                        .atlasTextRole(.cardBody)
                         .foregroundStyle(AtlasPalette.textPrimary)
                     Text(item.detail)
-                        .font(.caption)
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
                 Spacer()
@@ -1302,13 +1573,25 @@ private struct AtlasWeeklyReviewSavedActionRow: View {
             }
 
             HStack(spacing: AtlasSpacing.small) {
-                Button("Open", action: openAction)
+                Button("Open") {
+                    AtlasFeedback.selection()
+                    openAction()
+                }
                     .buttonStyle(AtlasSecondaryButtonStyle())
-                Button(item.isCompleted ? "Mark active" : "Mark done", action: toggleCompleteAction)
+                Button(item.isCompleted ? "Mark active" : "Mark done") {
+                    AtlasFeedback.selection()
+                    toggleCompleteAction()
+                }
                     .buttonStyle(AtlasTertiaryButtonStyle())
-                Button(item.isPinnedForNextWeek ? "Unpin" : "Pin", action: togglePinnedAction)
+                Button(item.isPinnedForNextWeek ? "Unpin" : "Pin") {
+                    AtlasFeedback.selection()
+                    togglePinnedAction()
+                }
                     .buttonStyle(AtlasTertiaryButtonStyle())
-                Button("Remove", action: removeAction)
+                Button("Remove") {
+                    AtlasFeedback.selection()
+                    removeAction()
+                }
                     .buttonStyle(AtlasTertiaryButtonStyle())
             }
         }
@@ -1328,9 +1611,10 @@ private struct AtlasWeeklyReviewDetailSheetView: View {
                     AtlasSectionCard(style: .hero) {
                         VStack(alignment: .leading, spacing: AtlasSpacing.medium) {
                             Label(shift.title, systemImage: shift.symbolName)
-                                .font(.title3.weight(.semibold))
+                                .atlasTextRole(.cardTitle)
                                 .foregroundStyle(AtlasPalette.textPrimary)
                             Text(shift.summary)
+                                .atlasTextRole(.supporting)
                                 .foregroundStyle(AtlasPalette.textSecondary)
                         }
                     }
@@ -1339,11 +1623,11 @@ private struct AtlasWeeklyReviewDetailSheetView: View {
                         ForEach(shift.facts) { fact in
                             HStack(alignment: .top, spacing: AtlasSpacing.small) {
                                 Text(fact.label)
-                                    .font(.caption.weight(.semibold))
+                                    .atlasTextRole(.deckEyebrow)
                                     .foregroundStyle(AtlasPalette.textSecondary)
                                 Spacer()
                                 Text(fact.value)
-                                    .font(.caption)
+                                    .atlasTextRole(.supporting)
                                     .multilineTextAlignment(.trailing)
                                     .foregroundStyle(AtlasPalette.textPrimary)
                             }
@@ -1353,12 +1637,13 @@ private struct AtlasWeeklyReviewDetailSheetView: View {
                     AtlasSectionCard(style: .hero) {
                         VStack(alignment: .leading, spacing: AtlasSpacing.medium) {
                             Text(history.periodTitle)
-                                .font(.title3.weight(.semibold))
+                                .atlasTextRole(.cardTitle)
                                 .foregroundStyle(AtlasPalette.textPrimary)
                             Text(history.comparisonLabel)
-                                .font(.caption.weight(.semibold))
+                                .atlasTextRole(.deckEyebrow)
                                 .foregroundStyle(AtlasPalette.primary)
                             Text(history.summary)
+                                .atlasTextRole(.supporting)
                                 .foregroundStyle(AtlasPalette.textSecondary)
                         }
                     }
@@ -1370,18 +1655,17 @@ private struct AtlasWeeklyReviewDetailSheetView: View {
                             }
                             VStack(alignment: .leading, spacing: AtlasSpacing.small) {
                                 Text(section.title)
-                                    .font(.caption.weight(.semibold))
+                                    .atlasTextRole(.deckEyebrow)
                                     .foregroundStyle(AtlasPalette.primary)
-                                    .textCase(.uppercase)
 
                                 ForEach(section.facts) { fact in
                                     HStack(alignment: .top, spacing: AtlasSpacing.small) {
                                         Text(fact.label)
-                                            .font(.caption.weight(.semibold))
+                                            .atlasTextRole(.deckEyebrow)
                                             .foregroundStyle(AtlasPalette.textSecondary)
                                         Spacer()
                                         Text(fact.value)
-                                            .font(.caption)
+                                            .atlasTextRole(.supporting)
                                             .multilineTextAlignment(.trailing)
                                             .foregroundStyle(AtlasPalette.textPrimary)
                                     }
@@ -1396,6 +1680,7 @@ private struct AtlasWeeklyReviewDetailSheetView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") {
+                        AtlasFeedback.selection()
                         dismiss()
                     }
                 }
@@ -1430,16 +1715,16 @@ private struct AtlasWeeklyReviewArchiveScreen: View {
                     AtlasSectionCard(style: .hero) {
                         VStack(alignment: .leading, spacing: AtlasSpacing.medium) {
                             Text("Archive & Compare")
-                                .font(.system(size: 30, weight: .bold, design: .rounded))
+                                .atlasTextRole(.screenTitle)
                                 .foregroundStyle(AtlasPalette.textPrimary)
                             Text("Comparing \(snapshot.periodTitle) with \(selectedHistory.periodTitle)")
-                                .font(.caption.weight(.semibold))
+                                .atlasTextRole(.deckEyebrow)
                                 .foregroundStyle(AtlasPalette.primary)
-                                .textCase(.uppercase)
                             Text(comparison.headline)
-                                .font(.title3.weight(.semibold))
+                                .atlasTextRole(.cardTitle)
                                 .foregroundStyle(AtlasPalette.textPrimary)
                             Text(comparison.summary)
+                                .atlasTextRole(.supporting)
                                 .foregroundStyle(AtlasPalette.textSecondary)
                         }
                     }
@@ -1452,15 +1737,15 @@ private struct AtlasWeeklyReviewArchiveScreen: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 HStack {
                                     Text(metric.label)
-                                        .font(.body.weight(.semibold))
+                                        .atlasTextRole(.cardBody)
                                         .foregroundStyle(AtlasPalette.textPrimary)
                                     Spacer()
                                     Text(metric.deltaLabel)
-                                        .font(.caption.weight(.semibold))
+                                        .atlasTextRole(.deckEyebrow)
                                         .foregroundStyle(AtlasPalette.primary)
                                 }
                                 Text("This week: \(metric.currentValue) • Archive week: \(metric.historicalValue)")
-                                    .font(.caption)
+                                    .atlasTextRole(.supporting)
                                     .foregroundStyle(AtlasPalette.textSecondary)
                             }
                             .padding(.vertical, AtlasSpacing.xSmall)
@@ -1470,15 +1755,16 @@ private struct AtlasWeeklyReviewArchiveScreen: View {
                     AtlasSectionCard(style: .utility, title: "Archive weeks") {
                         ForEach(snapshot.history) { item in
                             Button {
+                                AtlasFeedback.selection()
                                 selectedHistoryID = item.id
                             } label: {
                                 HStack(alignment: .top, spacing: AtlasSpacing.small) {
                                     VStack(alignment: .leading, spacing: 4) {
                                         Text(item.periodTitle)
-                                            .font(.body.weight(.semibold))
+                                            .atlasTextRole(.cardBody)
                                             .foregroundStyle(AtlasPalette.textPrimary)
                                         Text(item.comparisonLabel)
-                                            .font(.caption)
+                                            .atlasTextRole(.supporting)
                                             .foregroundStyle(AtlasPalette.textSecondary)
                                     }
                                     Spacer()
@@ -1503,6 +1789,7 @@ private struct AtlasWeeklyReviewArchiveScreen: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") {
+                        AtlasFeedback.selection()
                         dismiss()
                     }
                 }

@@ -1,6 +1,7 @@
 import AppIntents
 import Foundation
 import SwiftUI
+import UIKit
 import WidgetKit
 
 private enum AtlasWidgetConfiguration {
@@ -150,12 +151,8 @@ private struct AtlasMascotWidgetConfigurationIntent: WidgetConfigurationIntent {
     static let title: LocalizedStringResource = "Mascot Widget"
     static let description = IntentDescription("Choose which mascot detail Atlas should emphasize in this widget.")
 
-    @Parameter(title: "Focus")
+    @Parameter(title: "Focus", default: .automatic)
     var focus: AtlasMascotWidgetFocus
-
-    init() {
-        focus = .automatic
-    }
 
     static var parameterSummary: some ParameterSummary {
         Summary("Show mascot \(\.$focus)")
@@ -948,15 +945,40 @@ private struct AtlasWidgetMascotSprite: View {
                 .stroke(.white.opacity(0.14), lineWidth: 1)
                 .frame(width: size * 0.94, height: size * 0.94)
 
-            Image(assetName)
-                .resizable()
-                .interpolation(.none)
-                .scaledToFit()
-                .saturation(snapshot.pose == .rest ? 0.72 : 1)
-                .opacity(snapshot.pose == .rest ? 0.9 : 1)
-                .scaleEffect(snapshot.pose == .milestone ? 1.04 : (snapshot.pose == .evolutionReady ? 1.03 : 1))
-                .shadow(color: accentTint.opacity(0.16), radius: size * 0.12, y: size * 0.06)
-                .frame(width: size, height: size)
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [Color.white.opacity(0.12), accentTint.opacity(0.12), Color.clear],
+                        center: .center,
+                        startRadius: 4,
+                        endRadius: size * 0.52
+                    )
+                )
+                .frame(width: size * 0.88, height: size * 0.88)
+
+            Group {
+                if let spriteImage {
+                    Image(uiImage: spriteImage)
+                        .renderingMode(.original)
+                        .resizable()
+                        .interpolation(.none)
+                        .scaledToFit()
+                } else {
+                    Image(systemName: fallbackSymbol)
+                        .resizable()
+                        .scaledToFit()
+                        .padding(size * 0.18)
+                        .foregroundStyle(highlightTint)
+                }
+            }
+            .saturation(snapshot.pose == .rest ? 0.72 : 1)
+            .brightness(snapshot.selection == .aetherion ? 0.06 : 0.02)
+            .contrast(1.06)
+            .opacity(snapshot.pose == .rest ? 0.9 : 1)
+            .scaleEffect(snapshot.pose == .milestone ? 1.04 : (snapshot.pose == .evolutionReady ? 1.03 : 1))
+            .shadow(color: Color.white.opacity(0.08), radius: size * 0.08, y: size * 0.02)
+            .shadow(color: accentTint.opacity(0.22), radius: size * 0.12, y: size * 0.06)
+            .frame(width: size, height: size)
 
             if let badgeSymbol {
                 Image(systemName: badgeSymbol)
@@ -970,6 +992,8 @@ private struct AtlasWidgetMascotSprite: View {
                     )
             }
         }
+        .frame(width: size, height: size)
+        .clipped()
     }
 
     private var assetName: String {
@@ -998,6 +1022,19 @@ private struct AtlasWidgetMascotSprite: View {
             return "AtlasMascotAurielleStage3Idle"
         case (.aurielle, .stage3, true):
             return "AtlasMascotAurielleStage3Happy"
+        }
+    }
+
+    private var spriteImage: UIImage? {
+        UIImage(named: assetName, in: .main, compatibleWith: nil)
+    }
+
+    private var fallbackSymbol: String {
+        switch snapshot.selection {
+        case .aetherion:
+            return "bolt.circle.fill"
+        case .aurielle:
+            return "moon.stars.fill"
         }
     }
 
@@ -1055,6 +1092,46 @@ private struct AtlasWidgetMascotSprite: View {
             return Color(red: 0.95, green: 0.74, blue: 0.34)
         case .aurielle:
             return Color(red: 0.92, green: 0.97, blue: 1.00)
+        }
+    }
+}
+
+private struct AtlasWidgetMascotStickerArt: View {
+    var snapshot: AtlasWidgetMascotSnapshot
+    var size: CGFloat
+
+    var body: some View {
+        Group {
+            if let stickerImage {
+                Image(uiImage: stickerImage)
+                    .renderingMode(.original)
+                    .resizable()
+                    .scaledToFit()
+            } else {
+                AtlasWidgetMascotSprite(snapshot: snapshot, size: size * 0.82)
+            }
+        }
+        .frame(width: size, height: size)
+    }
+
+    private var stickerImage: UIImage? {
+        UIImage(named: stickerAssetName, in: .main, compatibleWith: nil)
+    }
+
+    private var stickerAssetName: String {
+        switch (snapshot.selection, snapshot.stage) {
+        case (.aetherion, .stage1):
+            return "AtlasMascotAetherionStage1Sticker"
+        case (.aetherion, .stage2):
+            return "AtlasMascotAetherionStage2Sticker"
+        case (.aetherion, .stage3):
+            return "AtlasMascotAetherionStage3Sticker"
+        case (.aurielle, .stage1):
+            return "AtlasMascotAurielleStage1Sticker"
+        case (.aurielle, .stage2):
+            return "AtlasMascotAurielleStage2Sticker"
+        case (.aurielle, .stage3):
+            return "AtlasMascotAurielleStage3Sticker"
         }
     }
 }
@@ -1195,8 +1272,84 @@ private struct AtlasMascotWidgetView: View {
 
                 Spacer(minLength: 0)
             }
+        case .systemSmall:
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .top, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        HStack(spacing: 6) {
+                            AtlasStatusBadge(text: widgetStageBadge(for: mascot))
+                            AtlasStatusBadge(text: widgetFocusBadge(for: focus))
+                        }
+                        Text(mascot.displayName)
+                            .font(.headline.weight(.bold))
+                            .foregroundStyle(.white)
+                            .lineLimit(1)
+                        Text(focusHeadline(for: mascot, focus: focus))
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(widgetHighlightTint(for: mascot))
+                            .lineLimit(2)
+                    }
+
+                    Spacer(minLength: 6)
+
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        widgetAccentTint(for: mascot).opacity(0.3),
+                                        widgetHighlightTint(for: mascot).opacity(0.12),
+                                        Color.white.opacity(0.03)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                            )
+                        AtlasWidgetMascotStickerArt(snapshot: mascot, size: 60)
+                    }
+                    .frame(width: 76, height: 76)
+                }
+
+                Text(focusBody(for: mascot, focus: focus))
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.82))
+                    .lineLimit(3)
+
+                HStack(spacing: 8) {
+                    AtlasWidgetMetricPill(
+                        title: "Points",
+                        value: "\(mascot.totalPoints)",
+                        tint: widgetHighlightTint(for: mascot)
+                    )
+                    if let nextFormName = mascot.nextFormName {
+                        AtlasWidgetMetricPill(
+                            title: "Next",
+                            value: nextFormName,
+                            tint: widgetAccentTint(for: mascot)
+                        )
+                    } else {
+                        AtlasWidgetMetricPill(
+                            title: "Form",
+                            value: mascot.currentFormName,
+                            tint: widgetAccentTint(for: mascot)
+                        )
+                    }
+                }
+
+                if let footer = focusFooter(for: mascot, focus: focus) {
+                    Label(footer.text, systemImage: footer.symbol)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.86))
+                        .lineLimit(1)
+                }
+            }
+            .atlasWidgetCardBackground()
         default:
-            VStack(alignment: .leading, spacing: family == .systemSmall ? 10 : 12) {
+            VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .top, spacing: 8) {
                     VStack(alignment: .leading, spacing: 6) {
                         HStack(spacing: 6) {
@@ -1210,11 +1363,11 @@ private struct AtlasMascotWidgetView: View {
                             }
                         }
                         Text(mascot.displayName)
-                            .font(family == .systemSmall ? .headline.weight(.bold) : .title3.weight(.bold))
+                            .font(.title3.weight(.bold))
                             .foregroundStyle(.white)
                             .lineLimit(2)
                         Text(focusHeadline(for: mascot, focus: focus))
-                            .font(family == .systemSmall ? .caption.weight(.semibold) : .subheadline.weight(.semibold))
+                            .font(.subheadline.weight(.semibold))
                             .foregroundStyle(widgetHighlightTint(for: mascot))
                             .lineLimit(2)
                     }
@@ -1222,7 +1375,7 @@ private struct AtlasMascotWidgetView: View {
                     Spacer(minLength: 8)
 
                     ZStack {
-                        RoundedRectangle(cornerRadius: family == .systemSmall ? 20 : 24, style: .continuous)
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
                             .fill(
                                 LinearGradient(
                                     colors: [
@@ -1235,21 +1388,18 @@ private struct AtlasMascotWidgetView: View {
                                 )
                             )
                             .overlay(
-                                RoundedRectangle(cornerRadius: family == .systemSmall ? 20 : 24, style: .continuous)
+                                RoundedRectangle(cornerRadius: 24, style: .continuous)
                                     .stroke(Color.white.opacity(0.08), lineWidth: 1)
                             )
-                        AtlasWidgetMascotSprite(
-                            snapshot: mascot,
-                            size: family == .systemSmall ? 74 : 92
-                        )
+                        AtlasWidgetMascotStickerArt(snapshot: mascot, size: 98)
                     }
-                    .frame(width: family == .systemSmall ? 110 : 126, height: family == .systemSmall ? 110 : 126)
+                    .frame(width: 126, height: 126)
                 }
 
                 Text(focusBody(for: mascot, focus: focus))
                     .font(.caption)
                     .foregroundStyle(.white.opacity(0.8))
-                    .lineLimit(family == .systemSmall ? 3 : 2)
+                    .lineLimit(2)
 
                 HStack(spacing: 8) {
                     AtlasWidgetMetricPill(
@@ -1335,6 +1485,39 @@ private struct AtlasMascotWidgetView: View {
                 .font(.caption2)
                 .lineLimit(3)
             }
+        case .systemSmall:
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 6) {
+                    AtlasStatusBadge(text: isStale ? "Needs refresh" : "Standby")
+                    AtlasStatusBadge(text: widgetFocusBadge(for: focus))
+                }
+                ZStack {
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [Color.white.opacity(0.08), Color.white.opacity(0.03)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                    Image(systemName: isStale ? "arrow.clockwise.circle.fill" : "sparkles")
+                        .font(.system(size: 30, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.88))
+                }
+                .frame(height: 74)
+                Text(
+                    isStale
+                        ? "Open Atlas to refresh mascot progression."
+                        : "Turn on rewards to activate the mascot widget."
+                )
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.white)
+                .lineLimit(3)
+                if let generatedAt = freshness?.generatedAt {
+                    AtlasProjectionTimestampLine(prefix: "Last refreshed", date: generatedAt)
+                }
+            }
+            .atlasWidgetCardBackground()
         default:
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 6) {

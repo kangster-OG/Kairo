@@ -2861,6 +2861,9 @@ private struct AtlasTodayCommandDeckPresentation {
     let secondaryAction: AtlasTodayCommandDestination?
     let rewardProgress: Double?
     let rewardDetail: String?
+    let rewardHeadline: String?
+    let rewardBadge: String?
+    let rewardTint: Color?
 }
 
 @MainActor
@@ -2870,6 +2873,10 @@ private func atlasTodayCommandDeckPresentation(
     weeklyReview: AtlasWeeklyReviewPresentation?
 ) -> AtlasTodayCommandDeckPresentation {
     let snapshot = state.todaySnapshot
+    let rewardEvolution = atlasRewardsEvolutionProgress(
+        for: state.rewardsSnapshot,
+        selection: model.settingsSnapshot.mascotSelection
+    )
     var metrics: [AtlasMetricItem] = [
         .init(
             id: "overdue",
@@ -2923,7 +2930,10 @@ private func atlasTodayCommandDeckPresentation(
             secondaryTitle: "Import Atlas data",
             secondaryAction: .importFlow,
             rewardProgress: nil,
-            rewardDetail: nil
+            rewardDetail: nil,
+            rewardHeadline: nil,
+            rewardBadge: nil,
+            rewardTint: nil
         )
     }
 
@@ -2938,7 +2948,10 @@ private func atlasTodayCommandDeckPresentation(
             secondaryTitle: weeklyReview.map { _ in "Open weekly review" } ?? "Open protocol",
             secondaryAction: weeklyReview.map { _ in .weeklyReview } ?? .protocolDetail(overdue.protocolID),
             rewardProgress: atlasTodayRewardProgress(snapshot: state.rewardsSnapshot),
-            rewardDetail: atlasTodayRewardDetail(snapshot: state.rewardsSnapshot)
+            rewardDetail: atlasTodayRewardDetail(snapshot: state.rewardsSnapshot),
+            rewardHeadline: atlasTodayRewardHeadline(snapshot: state.rewardsSnapshot, evolution: rewardEvolution),
+            rewardBadge: atlasTodayRewardBadge(snapshot: state.rewardsSnapshot, evolution: rewardEvolution),
+            rewardTint: state.rewardsSnapshot.settings.enabled ? atlasMascotLineTint(for: model.settingsSnapshot.mascotSelection) : nil
         )
     }
 
@@ -2953,7 +2966,10 @@ private func atlasTodayCommandDeckPresentation(
             secondaryTitle: weeklyReview.map { _ in "Open weekly review" } ?? "Open protocol",
             secondaryAction: weeklyReview.map { _ in .weeklyReview } ?? .protocolDetail(nextDue.protocolID),
             rewardProgress: atlasTodayRewardProgress(snapshot: state.rewardsSnapshot),
-            rewardDetail: atlasTodayRewardDetail(snapshot: state.rewardsSnapshot)
+            rewardDetail: atlasTodayRewardDetail(snapshot: state.rewardsSnapshot),
+            rewardHeadline: atlasTodayRewardHeadline(snapshot: state.rewardsSnapshot, evolution: rewardEvolution),
+            rewardBadge: atlasTodayRewardBadge(snapshot: state.rewardsSnapshot, evolution: rewardEvolution),
+            rewardTint: state.rewardsSnapshot.settings.enabled ? atlasMascotLineTint(for: model.settingsSnapshot.mascotSelection) : nil
         )
     }
 
@@ -2967,7 +2983,10 @@ private func atlasTodayCommandDeckPresentation(
         secondaryTitle: weeklyReview.map { _ in "Open weekly review" } ?? "Open Insights",
         secondaryAction: weeklyReview.map { _ in .weeklyReview } ?? .insights,
         rewardProgress: atlasTodayRewardProgress(snapshot: state.rewardsSnapshot),
-        rewardDetail: atlasTodayRewardDetail(snapshot: state.rewardsSnapshot)
+        rewardDetail: atlasTodayRewardDetail(snapshot: state.rewardsSnapshot),
+        rewardHeadline: atlasTodayRewardHeadline(snapshot: state.rewardsSnapshot, evolution: rewardEvolution),
+        rewardBadge: atlasTodayRewardBadge(snapshot: state.rewardsSnapshot, evolution: rewardEvolution),
+        rewardTint: state.rewardsSnapshot.settings.enabled ? atlasMascotLineTint(for: model.settingsSnapshot.mascotSelection) : nil
     )
 }
 
@@ -2986,6 +3005,49 @@ private func atlasTodayRewardDetail(snapshot: AtlasRewardsSnapshot) -> String? {
     return remaining == 0
         ? "Level \(snapshot.level) reached. Atlas is ready for the next milestone."
         : "\(remaining) points to the next level."
+}
+
+private func atlasTodayRewardHeadline(
+    snapshot: AtlasRewardsSnapshot,
+    evolution: AtlasMascotEvolutionProgress
+) -> String? {
+    guard snapshot.settings.enabled else {
+        return nil
+    }
+
+    if let nextFormName = evolution.nextFormName,
+       let nextThresholdPoints = evolution.nextThresholdPoints {
+        let remainingFormPoints = max(nextThresholdPoints - snapshot.totalPoints, 0)
+        if remainingFormPoints == 0 || (evolution.progressFraction ?? 0) >= 0.86 {
+            return "\(nextFormName) is close enough that one more honest win could unlock it."
+        }
+        return "\(evolution.currentFormName) is still carrying the line. \(remainingFormPoints) more points unlock \(nextFormName)."
+    }
+
+    return "\(evolution.currentFormName) is fully evolved. Use this quiet stretch to bank moments and archive another recap."
+}
+
+private func atlasTodayRewardBadge(
+    snapshot: AtlasRewardsSnapshot,
+    evolution: AtlasMascotEvolutionProgress
+) -> String? {
+    guard snapshot.settings.enabled else {
+        return nil
+    }
+
+    if evolution.nextFormName == nil {
+        return "Final form"
+    }
+
+    if (evolution.progressFraction ?? 0) >= 0.86 {
+        return "Near unlock"
+    }
+
+    if max(snapshot.nextLevelPoints - snapshot.totalPoints, 0) == 0 {
+        return "Level ready"
+    }
+
+    return "In motion"
 }
 
 private struct AtlasTodayCommandDeck: View {
@@ -3016,14 +3078,26 @@ private struct AtlasTodayCommandDeck: View {
                 }
             }
         } footer: {
-            if let rewardProgress = presentation.rewardProgress,
-               let rewardDetail = presentation.rewardDetail {
-                AtlasProgressMeter(
-                    title: "Momentum",
-                    detail: rewardDetail,
-                    value: rewardProgress,
-                    tint: AtlasPalette.reward
-                )
+            VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+                if let rewardProgress = presentation.rewardProgress,
+                   let rewardDetail = presentation.rewardDetail {
+                    AtlasProgressMeter(
+                        title: "Momentum",
+                        detail: rewardDetail,
+                        value: rewardProgress,
+                        tint: AtlasPalette.reward
+                    )
+                }
+
+                if let rewardHeadline = presentation.rewardHeadline {
+                    AtlasCalloutRow(
+                        systemImage: "sparkles",
+                        title: "Next unlock",
+                        detail: rewardHeadline,
+                        tint: presentation.rewardTint ?? AtlasPalette.reward,
+                        badge: presentation.rewardBadge
+                    )
+                }
             }
         }
     }

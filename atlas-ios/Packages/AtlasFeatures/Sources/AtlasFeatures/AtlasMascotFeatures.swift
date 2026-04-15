@@ -1470,6 +1470,14 @@ public struct AtlasMascotDetailScreen: View {
                             )
                         }
 
+                        AtlasMascotUnlockReadinessRow(
+                            selection: selection,
+                            rewardsSnapshot: rewardsSnapshot,
+                            evolution: evolution,
+                            archivedRecapCount: archivedRecaps.count,
+                            latestMoment: latestMoment
+                        )
+
                         if let reaction = profile.reaction {
                             AtlasMascotReactionStrip(reaction: reaction)
                         }
@@ -1667,6 +1675,16 @@ public struct AtlasMascotDetailScreen: View {
                             }
                         }
 
+                        AtlasMascotRecapRecommendationRow(
+                            selection: selection,
+                            rewardsSnapshot: rewardsSnapshot,
+                            evolution: evolution,
+                            latestMoment: latestMoment,
+                            archivedRecapCount: archivedRecaps.count,
+                            audience: recapAudience,
+                            privacyMode: recapPrivacyMode
+                        )
+
                         ForEach(AtlasMascotRecapCardKind.allCases) { kind in
                             let descriptor = recapDescriptor(
                                 kind: kind,
@@ -1856,6 +1874,237 @@ public struct AtlasMascotDetailScreen: View {
         await model.recordMascotInteractionMoment()
         AtlasFeedback.notify(.success)
     }
+}
+
+private struct AtlasMascotUnlockReadinessRow: View {
+    let selection: AtlasMascotSelection
+    let rewardsSnapshot: AtlasRewardsSnapshot
+    let evolution: AtlasMascotEvolutionProgress
+    let archivedRecapCount: Int
+    let latestMoment: AtlasMascotMomentRecord?
+
+    var body: some View {
+        let summary = atlasMascotProgressionSummary(
+            selection: selection,
+            rewardsSnapshot: rewardsSnapshot,
+            evolution: evolution,
+            latestMoment: latestMoment,
+            archivedRecapCount: archivedRecapCount
+        )
+
+        VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+            HStack(spacing: AtlasSpacing.small) {
+                AtlasMascotMomentumTile(
+                    title: "Next unlock",
+                    value: evolution.nextFormName ?? "Final form",
+                    detail: evolution.nextFormName == nil ? "Archive mode" : evolution.progressLabel,
+                    tint: summary.tint
+                )
+                AtlasMascotMomentumTile(
+                    title: "Recap gallery",
+                    value: "\(archivedRecapCount)",
+                    detail: archivedRecapCount == 0 ? "Nothing exported yet" : "collectible poster\(archivedRecapCount == 1 ? "" : "s")",
+                    tint: AtlasPalette.primary
+                )
+            }
+
+            AtlasCalloutRow(
+                systemImage: summary.symbolName,
+                title: summary.title,
+                detail: summary.detail,
+                tint: summary.tint,
+                badge: summary.badge
+            )
+        }
+    }
+}
+
+private struct AtlasMascotRecapRecommendationRow: View {
+    let selection: AtlasMascotSelection
+    let rewardsSnapshot: AtlasRewardsSnapshot
+    let evolution: AtlasMascotEvolutionProgress
+    let latestMoment: AtlasMascotMomentRecord?
+    let archivedRecapCount: Int
+    let audience: AtlasMascotRecapAudience
+    let privacyMode: AtlasMascotRecapPrivacyMode
+
+    var body: some View {
+        let recommendation = atlasMascotRecapRecommendation(
+            selection: selection,
+            rewardsSnapshot: rewardsSnapshot,
+            evolution: evolution,
+            latestMoment: latestMoment,
+            archivedRecapCount: archivedRecapCount
+        )
+
+        AtlasSectionCard(style: .reward) {
+            VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+                HStack(spacing: AtlasSpacing.small) {
+                    AtlasStatusBadge("Recommended export", tint: atlasMascotLineTint(for: selection))
+                    AtlasStatusBadge(recommendation.kind.title, tint: AtlasPalette.reward)
+                    AtlasStatusBadge(audience.title, tint: atlasMascotLineHighlight(for: selection))
+                    AtlasStatusBadge(privacyMode.title, tint: AtlasPalette.secondaryText)
+                }
+
+                Text(recommendation.title)
+                    .atlasTextRole(.cardTitle)
+                    .foregroundStyle(AtlasPalette.textPrimary)
+
+                Text(recommendation.detail)
+                    .atlasTextRole(.supporting)
+                    .foregroundStyle(AtlasPalette.textSecondary)
+
+                AtlasProgressMeter(
+                    title: "Export payoff",
+                    detail: recommendation.readinessDetail,
+                    value: recommendation.readinessValue,
+                    tint: recommendation.tint
+                )
+            }
+        }
+    }
+}
+
+private struct AtlasMascotMomentumTile: View {
+    let title: String
+    let value: String
+    let detail: String
+    let tint: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .atlasTextRole(.metricLabel)
+                .foregroundStyle(tint)
+            Text(value)
+                .atlasTextRole(.cardBody)
+                .foregroundStyle(AtlasPalette.textPrimary)
+                .lineLimit(1)
+            Text(detail)
+                .atlasTextRole(.supporting)
+                .foregroundStyle(AtlasPalette.textSecondary)
+                .lineLimit(2)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.white.opacity(0.62))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(tint.opacity(0.18), lineWidth: 1)
+        )
+    }
+}
+
+private struct AtlasMascotProgressionSummary {
+    let title: String
+    let detail: String
+    let badge: String
+    let symbolName: String
+    let tint: Color
+}
+
+private struct AtlasMascotRecapRecommendation {
+    let kind: AtlasMascotRecapCardKind
+    let title: String
+    let detail: String
+    let readinessDetail: String
+    let readinessValue: Double
+    let tint: Color
+}
+
+private func atlasMascotProgressionSummary(
+    selection: AtlasMascotSelection,
+    rewardsSnapshot: AtlasRewardsSnapshot,
+    evolution: AtlasMascotEvolutionProgress,
+    latestMoment: AtlasMascotMomentRecord?,
+    archivedRecapCount: Int
+) -> AtlasMascotProgressionSummary {
+    guard let nextFormName = evolution.nextFormName,
+          let nextThresholdPoints = evolution.nextThresholdPoints else {
+        return AtlasMascotProgressionSummary(
+            title: "The full guardian line is unlocked",
+            detail: archivedRecapCount == 0
+                ? "The next layer of payoff is archival: capture fresh mascot moments and turn them into collectible recap cards."
+                : "New moments now feed the recap gallery and keep the fully evolved guardian feeling alive instead of static.",
+            badge: "Final form",
+            symbolName: "crown.fill",
+            tint: AtlasPalette.success
+        )
+    }
+
+    let remainingPoints = max(nextThresholdPoints - rewardsSnapshot.totalPoints, 0)
+    if remainingPoints == 0 || (evolution.progressFraction ?? 0) >= 0.86 {
+        return AtlasMascotProgressionSummary(
+            title: "\(nextFormName) is close enough to tease",
+            detail: "Only \(remainingPoints) points remain. The right goal completion, streak extension, or weekly closure can turn this line into its next silhouette.",
+            badge: "Near unlock",
+            symbolName: "sparkles",
+            tint: atlasMascotLineTint(for: selection)
+        )
+    }
+
+    if let latestMoment {
+        return AtlasMascotProgressionSummary(
+            title: "Momentum is visible between unlocks",
+            detail: "\(latestMoment.title) is already in the journal. Atlas can use moments like this to make the journey feel alive before the next stage lands.",
+            badge: "Live journey",
+            symbolName: latestMoment.symbolName,
+            tint: atlasMascotLineTint(for: selection)
+        )
+    }
+
+    return AtlasMascotProgressionSummary(
+        title: "\(nextFormName) is still the next major leap",
+        detail: "There are \(remainingPoints) points left before the next form. In the meantime, small mascot moments and recap exports keep the line feeling present.",
+        badge: "In motion",
+        symbolName: atlasMascotLineSymbol(for: selection),
+        tint: atlasMascotLineTint(for: selection)
+    )
+}
+
+private func atlasMascotRecapRecommendation(
+    selection: AtlasMascotSelection,
+    rewardsSnapshot: AtlasRewardsSnapshot,
+    evolution: AtlasMascotEvolutionProgress,
+    latestMoment: AtlasMascotMomentRecord?,
+    archivedRecapCount: Int
+) -> AtlasMascotRecapRecommendation {
+    if let latestMoment {
+        return AtlasMascotRecapRecommendation(
+            kind: .latestMoment,
+            title: "Latest moment is the strongest export right now",
+            detail: "\(latestMoment.title) already gives the poster a clear emotional beat, so this export will feel more specific than a generic summary card.",
+            readinessDetail: archivedRecapCount == 0
+                ? "Start the gallery with a moment-driven card."
+                : "Moment cards add personality between milestone posters.",
+            readinessValue: 0.88,
+            tint: atlasMascotLineHighlight(for: selection)
+        )
+    }
+
+    if evolution.nextFormName == nil {
+        return AtlasMascotRecapRecommendation(
+            kind: .evolutionMilestone,
+            title: "Milestone export is now a proper final-form poster",
+            detail: "Because the line is fully evolved, the milestone layout reads like a finished collector card instead of a progress placeholder.",
+            readinessDetail: "The full line is unlocked, so this export is ready to read like a capstone artifact.",
+            readinessValue: 1,
+            tint: AtlasPalette.success
+        )
+    }
+
+    return AtlasMascotRecapRecommendation(
+        kind: .weeklyRecap,
+        title: "Weekly poster is the best way to make progress feel earned",
+        detail: "There is still another form ahead, so the weekly export does the best job of showing movement and anticipation at the same time.",
+        readinessDetail: "\(evolution.currentFormName) is moving toward \(evolution.nextFormName ?? "the next form").",
+        readinessValue: max(evolution.progressFraction ?? 0.22, 0.22),
+        tint: atlasMascotLineTint(for: selection)
+    )
 }
 
 func atlasShouldPromptForMascotConfirmation(

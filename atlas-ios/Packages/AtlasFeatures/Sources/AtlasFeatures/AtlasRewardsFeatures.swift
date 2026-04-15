@@ -70,6 +70,12 @@ struct AtlasRewardsTodayCard: View {
                 tint: AtlasPalette.reward
             )
 
+            AtlasRewardUnlockReadinessRow(
+                snapshot: snapshot,
+                evolution: evolution,
+                selection: mascotSelection
+            )
+
             if snapshot.streaks.isEmpty == false {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: AtlasSpacing.small) {
@@ -200,6 +206,12 @@ struct AtlasRewardsInsightSection: View {
                         tint: AtlasPalette.reward
                     )
 
+                    AtlasRewardUnlockReadinessRow(
+                        snapshot: snapshot,
+                        evolution: evolution,
+                        selection: mascotSelection
+                    )
+
                     VStack(spacing: AtlasSpacing.small) {
                         ForEach(snapshot.goals) { goal in
                             AtlasRewardGoalRow(goal: goal)
@@ -295,6 +307,97 @@ private struct AtlasRewardGoalRow: View {
     }
 }
 
+private struct AtlasRewardUnlockReadinessRow: View {
+    let snapshot: AtlasRewardsSnapshot
+    let evolution: AtlasMascotEvolutionProgress
+    let selection: AtlasMascotSelection
+
+    var body: some View {
+        let summary = atlasRewardUnlockSummary(
+            snapshot: snapshot,
+            evolution: evolution,
+            selection: selection
+        )
+
+        VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+            HStack(spacing: AtlasSpacing.small) {
+                AtlasRewardSignalTile(
+                    title: "Mascot",
+                    value: evolution.nextFormName ?? "Archive",
+                    detail: evolution.nextFormName == nil ? "All forms unlocked" : evolution.progressLabel,
+                    tint: summary.tint
+                )
+                AtlasRewardSignalTile(
+                    title: "Level",
+                    value: max(snapshot.nextLevelPoints - snapshot.totalPoints, 0) == 0 ? "Ready" : "\(max(snapshot.nextLevelPoints - snapshot.totalPoints, 0))",
+                    detail: max(snapshot.nextLevelPoints - snapshot.totalPoints, 0) == 0 ? "Next level queued" : "points to next level",
+                    tint: AtlasPalette.primary
+                )
+            }
+
+            AtlasCalloutRow(
+                systemImage: summary.symbolName,
+                title: summary.title,
+                detail: summary.detail,
+                tint: summary.tint,
+                badge: summary.badge
+            )
+
+            if let streak = snapshot.streaks.first(where: \.isActive) {
+                AtlasCalloutRow(
+                    systemImage: streak.symbolName,
+                    title: "Momentum is compounding",
+                    detail: "\(streak.title) is active at \(streak.valueLabel.lowercased()). Keeping the chain alive is the fastest path to the next unlock.",
+                    tint: AtlasPalette.success,
+                    badge: "Active streak"
+                )
+            }
+        }
+    }
+}
+
+private struct AtlasRewardSignalTile: View {
+    let title: String
+    let value: String
+    let detail: String
+    let tint: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .atlasTextRole(.metricLabel)
+                .foregroundStyle(tint)
+            Text(value)
+                .atlasTextRole(.cardBody)
+                .foregroundStyle(AtlasPalette.textPrimary)
+                .lineLimit(1)
+            Text(detail)
+                .atlasTextRole(.supporting)
+                .foregroundStyle(AtlasPalette.textSecondary)
+                .lineLimit(2)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.white.opacity(0.62))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(tint.opacity(0.18), lineWidth: 1)
+        )
+    }
+}
+
+private struct AtlasRewardUnlockSummary {
+    let title: String
+    let detail: String
+    let badge: String
+    let symbolName: String
+    let tint: Color
+}
+
 private struct AtlasRewardBadgeRow: View {
     let badge: AtlasRewardBadgeSnapshot
 
@@ -349,4 +452,54 @@ private func atlasRewardsProgressValue(_ snapshot: AtlasRewardsSnapshot) -> Doub
         return 1
     }
     return min(max(Double(snapshot.totalPoints) / Double(snapshot.nextLevelPoints), 0), 1)
+}
+
+private func atlasRewardUnlockSummary(
+    snapshot: AtlasRewardsSnapshot,
+    evolution: AtlasMascotEvolutionProgress,
+    selection: AtlasMascotSelection
+) -> AtlasRewardUnlockSummary {
+    let remainingLevelPoints = max(snapshot.nextLevelPoints - snapshot.totalPoints, 0)
+
+    guard let nextFormName = evolution.nextFormName,
+          let nextThresholdPoints = evolution.nextThresholdPoints else {
+        return AtlasRewardUnlockSummary(
+            title: "Final guardian momentum is now archival",
+            detail: "Every new point now deepens recap cards, streak presence, and the mascot gallery because the full line is already unlocked.",
+            badge: "Final form",
+            symbolName: "crown.fill",
+            tint: AtlasPalette.success
+        )
+    }
+
+    let remainingFormPoints = max(nextThresholdPoints - snapshot.totalPoints, 0)
+    let progressFraction = evolution.progressFraction ?? 0
+
+    if remainingFormPoints == 0 || progressFraction >= 0.86 {
+        return AtlasRewardUnlockSummary(
+            title: "\(nextFormName) is close enough to feel real",
+            detail: "Only \(remainingFormPoints) points remain. One more finished goal, honest check-in, or completed week can tip the line into its next form.",
+            badge: "Near unlock",
+            symbolName: "sparkles",
+            tint: atlasMascotLineTint(for: selection)
+        )
+    }
+
+    if remainingLevelPoints == 0 {
+        return AtlasRewardUnlockSummary(
+            title: "The next level is already loaded",
+            detail: "\(nextFormName) still needs \(remainingFormPoints) more points, but Atlas is ready to count the next level-up immediately.",
+            badge: "Level ready",
+            symbolName: "arrow.up.circle.fill",
+            tint: AtlasPalette.reward
+        )
+    }
+
+    return AtlasRewardUnlockSummary(
+        title: "Atlas can already show the path to \(nextFormName)",
+        detail: "\(remainingLevelPoints) points to the next level and \(remainingFormPoints) points to the next mascot evolution. The line is advancing even when the jump is still ahead.",
+        badge: "In motion",
+        symbolName: atlasMascotLineSymbol(for: selection),
+        tint: atlasMascotLineTint(for: selection)
+    )
 }
