@@ -329,14 +329,15 @@ final class AtlasPhaseOneTests: XCTestCase {
             nickname: "Nova",
             rewardsSnapshot: snapshot,
             evolutionHistory: [],
+            archivedRecaps: [],
             existingMoments: [],
             recordedAt: Date(timeIntervalSince1970: 1_773_950_400)
         )
 
         XCTAssertEqual(moments.count, 1)
-        XCTAssertEqual(moments.first?.kind, .streak)
-        XCTAssertEqual(moments.first?.title, "Nova restarted a streak")
-        XCTAssertEqual(moments.first?.detail, "Workout streak is back on track.")
+        XCTAssertEqual(moments.first?.kind, .streakRescue)
+        XCTAssertEqual(moments.first?.title, "Nova recovered the line")
+        XCTAssertTrue(moments.first?.detail.contains("Workout streak is back on track.") == true)
         XCTAssertEqual(moments.first?.symbolName, "arrow.clockwise.circle.fill")
     }
 
@@ -355,8 +356,8 @@ final class AtlasPhaseOneTests: XCTestCase {
         let recovery = AtlasMascotMomentRecord(
             selection: .aurielle,
             stage: .stage1,
-            kind: .streak,
-            title: "Nova restarted a streak",
+            kind: .streakRescue,
+            title: "Nova recovered the line",
             detail: "Workout streak is back on track.",
             symbolName: "arrow.clockwise.circle.fill",
             recordedAt: atlasMascotMomentTimestamp(from: referenceDate),
@@ -380,6 +381,110 @@ final class AtlasPhaseOneTests: XCTestCase {
         XCTAssertEqual(evolutionRequest?.identifier, "atlas.mascot.aetherion.evolution-aetherion-stage2")
         XCTAssertEqual(recoveryRequest?.identifier, "atlas.mascot.aurielle.streak-aurielle-activity_days-1")
         XCTAssertNil(goalRequest)
+    }
+
+    func testMascotAutomaticMomentCandidatesCreateNearEvolutionAndArchiveMilestoneMoments() {
+        let snapshot = AtlasRewardsSnapshot(
+            settings: AtlasRewardsSettingsSnapshot(enabled: true),
+            totalPoints: 470,
+            level: 2,
+            nextLevelPoints: 500,
+            streaks: [
+                AtlasRewardStreakSnapshot(
+                    kind: .activityDays,
+                    title: "Workout streak",
+                    valueLabel: "7 days",
+                    helperText: "Moving.",
+                    symbolName: "figure.run",
+                    count: 7,
+                    isActive: true
+                )
+            ],
+            goals: [
+                AtlasRewardGoalSnapshot(
+                    kind: .weeklyWorkouts,
+                    title: "Weekly workouts",
+                    progressLabel: "3/3 complete",
+                    helperText: "Goal met.",
+                    symbolName: "figure.strengthtraining.traditional",
+                    currentValue: 3,
+                    targetValue: 3,
+                    progress: 1,
+                    isMet: true
+                )
+            ]
+        )
+
+        let recaps = [
+            AtlasMascotArchivedRecapRecord(
+                id: "r1",
+                selection: .aetherion,
+                stage: .stage1,
+                kind: AtlasMascotRecapCardKind.weeklyRecap.rawValue,
+                audience: .personal,
+                privacyMode: .fullDetail,
+                displayName: "Cindlet",
+                currentFormName: "Cindlet",
+                eyebrow: "Weekly recap",
+                headline: "One",
+                detail: "Detail",
+                secondaryDetail: "Secondary",
+                footer: "Footer",
+                symbolName: "bolt.fill",
+                fileName: "one.png",
+                createdAt: "2026-04-10T00:00:00.000Z"
+            ),
+            AtlasMascotArchivedRecapRecord(
+                id: "r2",
+                selection: .aetherion,
+                stage: .stage1,
+                kind: AtlasMascotRecapCardKind.latestMoment.rawValue,
+                audience: .personal,
+                privacyMode: .fullDetail,
+                displayName: "Cindlet",
+                currentFormName: "Cindlet",
+                eyebrow: "Latest moment",
+                headline: "Two",
+                detail: "Detail",
+                secondaryDetail: "Secondary",
+                footer: "Footer",
+                symbolName: "bolt.fill",
+                fileName: "two.png",
+                createdAt: "2026-04-11T00:00:00.000Z"
+            ),
+            AtlasMascotArchivedRecapRecord(
+                id: "r3",
+                selection: .aetherion,
+                stage: .stage1,
+                kind: AtlasMascotRecapCardKind.evolutionMilestone.rawValue,
+                audience: .personal,
+                privacyMode: .fullDetail,
+                displayName: "Cindlet",
+                currentFormName: "Cindlet",
+                eyebrow: "Milestone",
+                headline: "Three",
+                detail: "Detail",
+                secondaryDetail: "Secondary",
+                footer: "Footer",
+                symbolName: "sparkles",
+                fileName: "three.png",
+                createdAt: "2026-04-12T00:00:00.000Z"
+            )
+        ]
+
+        let moments = atlasMascotAutomaticMomentCandidates(
+            selection: .aetherion,
+            nickname: "Nova",
+            rewardsSnapshot: snapshot,
+            evolutionHistory: [],
+            archivedRecaps: recaps,
+            existingMoments: [],
+            recordedAt: Date(timeIntervalSince1970: 1_773_950_400)
+        )
+
+        XCTAssertTrue(moments.contains(where: { $0.kind == AtlasMascotMomentKind.nearEvolution }))
+        XCTAssertTrue(moments.contains(where: { $0.kind == AtlasMascotMomentKind.archiveMilestone }))
+        XCTAssertTrue(moments.contains(where: { $0.kind == AtlasMascotMomentKind.quietConsistency }))
     }
 
     func testMascotRecapDescriptorUsesLatestMomentContentWhenAvailable() {
@@ -428,6 +533,34 @@ final class AtlasPhaseOneTests: XCTestCase {
         XCTAssertEqual(descriptor.detail, "Glisshare mirrors your momentum with quiet focus.")
         XCTAssertEqual(descriptor.symbolName, "wind")
         XCTAssertTrue(descriptor.footer.contains("points"))
+    }
+
+    func testMascotArchivedRecapDescriptorPreservesSourceMomentContinuity() {
+        let record = AtlasMascotArchivedRecapRecord(
+            id: "continuity",
+            selection: .aurielle,
+            stage: .stage2,
+            kind: AtlasMascotRecapCardKind.latestMoment.rawValue,
+            audience: .personal,
+            privacyMode: .fullDetail,
+            displayName: "Nova",
+            currentFormName: "Glisshare",
+            eyebrow: "Latest moment",
+            headline: "Nova glides closer",
+            detail: "Glisshare mirrors your momentum with quiet focus.",
+            secondaryDetail: "Recorded recently.",
+            footer: "30 points to Aurielle.",
+            symbolName: "wind",
+            fileName: "continuity.png",
+            createdAt: "2026-04-12T00:00:00.000Z",
+            sourceMomentEventKey: "moment-1",
+            sourceMomentTitle: "Nova glides closer"
+        )
+
+        let descriptor = atlasMascotArchivedRecapDescriptor(record)
+
+        XCTAssertEqual(descriptor.sourceMomentEventKey, "moment-1")
+        XCTAssertEqual(descriptor.sourceMomentTitle, "Nova glides closer")
     }
 
     func testMascotSharedPoseResolvesRecoveryAndEvolutionReadyStates() {

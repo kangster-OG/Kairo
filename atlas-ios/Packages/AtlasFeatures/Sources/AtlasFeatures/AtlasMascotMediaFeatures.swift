@@ -51,6 +51,42 @@ public struct AtlasMascotRecapDescriptor: Equatable, Identifiable, Sendable {
     public let secondaryDetail: String
     public let footer: String
     public let symbolName: String
+    public let sourceMomentEventKey: String?
+    public let sourceMomentTitle: String?
+
+    public init(
+        kind: AtlasMascotRecapCardKind,
+        audience: AtlasMascotRecapAudience,
+        privacyMode: AtlasMascotRecapPrivacyMode,
+        selection: AtlasMascotSelection,
+        stage: AtlasMascotStage,
+        displayName: String,
+        currentFormName: String,
+        eyebrow: String,
+        headline: String,
+        detail: String,
+        secondaryDetail: String,
+        footer: String,
+        symbolName: String,
+        sourceMomentEventKey: String? = nil,
+        sourceMomentTitle: String? = nil
+    ) {
+        self.kind = kind
+        self.audience = audience
+        self.privacyMode = privacyMode
+        self.selection = selection
+        self.stage = stage
+        self.displayName = displayName
+        self.currentFormName = currentFormName
+        self.eyebrow = eyebrow
+        self.headline = headline
+        self.detail = detail
+        self.secondaryDetail = secondaryDetail
+        self.footer = footer
+        self.symbolName = symbolName
+        self.sourceMomentEventKey = sourceMomentEventKey
+        self.sourceMomentTitle = sourceMomentTitle
+    }
 }
 
 public struct AtlasMascotExportArtifact: Identifiable, Sendable {
@@ -135,7 +171,9 @@ public func atlasMascotRecapDescriptor(
                 privacySafeDetail: "Next form progress is still moving forward inside Atlas."
             ),
             footer: evolution.progressLabel,
-            symbolName: selection == .aetherion ? "bolt.fill" : "moon.stars.fill"
+            symbolName: selection == .aetherion ? "bolt.fill" : "moon.stars.fill",
+            sourceMomentEventKey: latestMoment?.eventKey,
+            sourceMomentTitle: latestMoment?.title
         )
     case .evolutionMilestone:
         if let latestEvolution {
@@ -171,7 +209,9 @@ public func atlasMascotRecapDescriptor(
                         privacySafeDetail: "The next guardian milestone is still ahead."
                     ),
                 footer: latestEvolution.stage == stage ? evolution.progressLabel : "Current form: \(currentFormName)",
-                symbolName: "sparkles"
+                symbolName: "sparkles",
+                sourceMomentEventKey: latestMoment?.eventKey,
+                sourceMomentTitle: latestMoment?.title
             )
         }
 
@@ -195,7 +235,9 @@ public func atlasMascotRecapDescriptor(
                 privacySafeDetail: "The next guardian milestone is still ahead."
             ),
             footer: evolution.progressLabel,
-            symbolName: "sparkles"
+            symbolName: "sparkles",
+            sourceMomentEventKey: latestMoment?.eventKey,
+            sourceMomentTitle: latestMoment?.title
         )
     case .latestMoment:
         if let latestMoment {
@@ -219,7 +261,9 @@ public func atlasMascotRecapDescriptor(
                     ? "Recorded \(recordedLabel)."
                     : "Recorded recently in Atlas.",
                 footer: evolution.progressLabel,
-                symbolName: latestMoment.symbolName
+                symbolName: latestMoment.symbolName,
+                sourceMomentEventKey: latestMoment.eventKey,
+                sourceMomentTitle: latestMoment.title
             )
         }
 
@@ -250,7 +294,9 @@ public func atlasMascotRecapDescriptor(
                 ),
             secondaryDetail: "No stored mascot moment yet. Atlas will capture one after the next interaction or milestone.",
             footer: evolution.progressLabel,
-            symbolName: reaction?.symbolName ?? "sparkles"
+            symbolName: reaction?.symbolName ?? "sparkles",
+            sourceMomentEventKey: nil,
+            sourceMomentTitle: nil
         )
     }
 }
@@ -293,7 +339,9 @@ func atlasExportMascotRecapCard(
         footer: descriptor.footer,
         symbolName: descriptor.symbolName,
         fileName: fileName,
-        createdAt: ISO8601DateFormatter.atlas.string(from: exportedAt)
+        createdAt: ISO8601DateFormatter.atlas.string(from: exportedAt),
+        sourceMomentEventKey: descriptor.sourceMomentEventKey,
+        sourceMomentTitle: descriptor.sourceMomentTitle
     )
 
     return AtlasMascotExportArtifact(
@@ -319,7 +367,9 @@ func atlasMascotArchivedRecapDescriptor(
         detail: record.detail,
         secondaryDetail: record.secondaryDetail,
         footer: record.footer,
-        symbolName: record.symbolName
+        symbolName: record.symbolName,
+        sourceMomentEventKey: record.sourceMomentEventKey,
+        sourceMomentTitle: record.sourceMomentTitle
     )
 }
 

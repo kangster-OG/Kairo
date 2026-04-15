@@ -878,7 +878,7 @@ private struct AtlasMascotMomentsJournalCard: View {
                         Text("Moments journal")
                             .atlasTextRole(.cardTitle)
                             .foregroundStyle(AtlasPalette.textPrimary)
-                        Text("A collectible record of mascot reactions, milestone notes, and companion check-ins.")
+                        Text(atlasMascotJournalSubtitle(selection: selection))
                             .atlasTextRole(.supporting)
                             .foregroundStyle(AtlasPalette.textSecondary)
                     }
@@ -926,6 +926,11 @@ private struct AtlasMascotMomentsJournalCard: View {
                                 Text(moment.detail)
                                     .atlasTextRole(.supporting)
                                     .foregroundStyle(AtlasPalette.textSecondary)
+                                if let continuity = atlasMascotMomentContinuityLine(moment) {
+                                    Text(continuity)
+                                        .atlasTextRole(.metricLabel)
+                                        .foregroundStyle(presentation.tint)
+                                }
                                 Text(atlasMascotMomentDateLabel(moment.recordedAt))
                                     .atlasTextRole(.metricLabel)
                                     .foregroundStyle(AtlasPalette.textSecondary)
@@ -950,7 +955,7 @@ private struct AtlasMascotMomentsJournalCard: View {
 
     private var journalMetrics: [AtlasMetricItem] {
         let collectibleCount = displayedMoments.filter {
-            $0.kind == .levelUp || $0.kind == .weeklyCloseout || $0.kind == .recapExport || $0.kind == .evolution
+            atlasMascotCollectibleKinds.contains($0.kind)
         }.count
         return [
             AtlasMetricItem(id: "saved", title: "Saved", value: "\(displayedMoments.count)", tint: atlasMascotLineTint(for: selection)),
@@ -959,7 +964,7 @@ private struct AtlasMascotMomentsJournalCard: View {
                 id: "latest",
                 title: "Latest kind",
                 value: displayedMoments.first.map { atlasMascotMomentPresentation($0).badge } ?? "None",
-                tint: AtlasPalette.secondaryText
+                tint: displayedMoments.first.map { atlasMascotMomentPresentation($0).tint } ?? AtlasPalette.secondaryText
             )
         ]
     }
@@ -1241,14 +1246,7 @@ private struct AtlasMascotEvolutionPathCard: View {
     }
 
     private func stageCopy(for stage: AtlasMascotStage) -> String {
-        switch stage {
-        case .stage1:
-            return "Starting form with clear potential and a compact identity."
-        case .stage2:
-            return "Mid-journey evolution that appears once rewards cross the second milestone."
-        case .stage3:
-            return "Final guardian form with the full premium portrait treatment and permanent unlock."
-        }
+        atlasMascotStagePathCopy(selection: selection, stage: stage)
     }
 }
 
@@ -1815,6 +1813,11 @@ public struct AtlasMascotDetailScreen: View {
                                             )
                                             .atlasTextRole(.supporting)
                                             .foregroundStyle(AtlasPalette.textSecondary)
+                                            if let sourceMomentTitle = archivedRecap.sourceMomentTitle {
+                                                Text("Built from journal moment: \(sourceMomentTitle)")
+                                                    .atlasTextRole(.metricLabel)
+                                                    .foregroundStyle(atlasMascotLineTint(for: archivedRecap.selection))
+                                            }
                                         }
 
                                         Spacer(minLength: 8)
@@ -2127,6 +2130,16 @@ private func atlasMascotMomentPresentation(_ moment: AtlasMascotMomentRecord) ->
         return AtlasMascotMomentPresentation(badge: "Goal", tint: AtlasPalette.primary)
     case .streak:
         return AtlasMascotMomentPresentation(badge: "Streak", tint: AtlasPalette.success)
+    case .streakRescue:
+        return AtlasMascotMomentPresentation(badge: "Recovery", tint: AtlasPalette.success)
+    case .nearEvolution:
+        return AtlasMascotMomentPresentation(badge: "Near unlock", tint: AtlasPalette.reward)
+    case .archiveMilestone:
+        return AtlasMascotMomentPresentation(badge: "Archive", tint: atlasMascotLineHighlight(for: moment.selection))
+    case .focusCarryForward:
+        return AtlasMascotMomentPresentation(badge: "Carry forward", tint: AtlasPalette.primary)
+    case .quietConsistency:
+        return AtlasMascotMomentPresentation(badge: "Consistency", tint: atlasMascotLineTint(for: moment.selection))
     case .shortcut:
         return AtlasMascotMomentPresentation(badge: "Shortcut", tint: AtlasPalette.secondaryText)
     case .levelUp:
@@ -2145,13 +2158,14 @@ private func atlasMascotProgressionSummary(
     latestMoment: AtlasMascotMomentRecord?,
     archivedRecapCount: Int
 ) -> AtlasMascotProgressionSummary {
+    let stageVoice = atlasMascotStageProgressVoice(selection: selection, stage: evolution.stage)
     guard let nextFormName = evolution.nextFormName,
           let nextThresholdPoints = evolution.nextThresholdPoints else {
         return AtlasMascotProgressionSummary(
-            title: "The full guardian line is unlocked",
+            title: stageVoice.finalFormTitle,
             detail: archivedRecapCount == 0
-                ? "The next layer of payoff is archival: capture fresh mascot moments and turn them into collectible recap cards."
-                : "New moments now feed the recap gallery and keep the fully evolved guardian feeling alive instead of static.",
+                ? stageVoice.finalFormNoArchiveDetail
+                : stageVoice.finalFormArchiveDetail,
             badge: "Final form",
             symbolName: "crown.fill",
             tint: AtlasPalette.success
@@ -2161,8 +2175,8 @@ private func atlasMascotProgressionSummary(
     let remainingPoints = max(nextThresholdPoints - rewardsSnapshot.totalPoints, 0)
     if remainingPoints == 0 || (evolution.progressFraction ?? 0) >= 0.86 {
         return AtlasMascotProgressionSummary(
-            title: "\(nextFormName) is close enough to tease",
-            detail: "Only \(remainingPoints) points remain. The right goal completion, streak extension, or weekly closure can turn this line into its next silhouette.",
+            title: stageVoice.nearUnlockTitle(nextFormName: nextFormName),
+            detail: "\(stageVoice.nearUnlockDetail) Only \(remainingPoints) points remain.",
             badge: "Near unlock",
             symbolName: "sparkles",
             tint: atlasMascotLineTint(for: selection)
@@ -2171,8 +2185,8 @@ private func atlasMascotProgressionSummary(
 
     if let latestMoment {
         return AtlasMascotProgressionSummary(
-            title: "Momentum is visible between unlocks",
-            detail: "\(latestMoment.title) is already in the journal. Atlas can use moments like this to make the journey feel alive before the next stage lands.",
+            title: stageVoice.liveJourneyTitle,
+            detail: "\(latestMoment.title) is already in the journal. \(stageVoice.liveJourneyDetail)",
             badge: "Live journey",
             symbolName: latestMoment.symbolName,
             tint: atlasMascotLineTint(for: selection)
@@ -2180,8 +2194,8 @@ private func atlasMascotProgressionSummary(
     }
 
     return AtlasMascotProgressionSummary(
-        title: "\(nextFormName) is still the next major leap",
-        detail: "There are \(remainingPoints) points left before the next form. In the meantime, small mascot moments and recap exports keep the line feeling present.",
+        title: stageVoice.inMotionTitle(nextFormName: nextFormName),
+        detail: "\(stageVoice.inMotionDetail) There are \(remainingPoints) points left before the next form.",
         badge: "In motion",
         symbolName: atlasMascotLineSymbol(for: selection),
         tint: atlasMascotLineTint(for: selection)
@@ -2199,7 +2213,7 @@ private func atlasMascotRecapRecommendation(
         return AtlasMascotRecapRecommendation(
             kind: .latestMoment,
             title: "Latest moment is the strongest export right now",
-            detail: "\(latestMoment.title) already gives the poster a clear emotional beat, so this export will feel more specific than a generic summary card.",
+            detail: "\(latestMoment.title) already gives the poster a clear emotional beat, and it will carry cleanly back into the journal once archived.",
             readinessDetail: archivedRecapCount == 0
                 ? "Start the gallery with a moment-driven card."
                 : "Moment cards add personality between milestone posters.",
@@ -2227,6 +2241,147 @@ private func atlasMascotRecapRecommendation(
         readinessValue: max(evolution.progressFraction ?? 0.22, 0.22),
         tint: atlasMascotLineTint(for: selection)
     )
+}
+
+private let atlasMascotCollectibleKinds: Set<AtlasMascotMomentKind> = [
+    .evolution,
+    .levelUp,
+    .nearEvolution,
+    .archiveMilestone,
+    .focusCarryForward,
+    .weeklyCloseout,
+    .recapExport
+]
+
+private func atlasMascotJournalSubtitle(selection: AtlasMascotSelection) -> String {
+    switch selection {
+    case .aetherion:
+        return "A collectible storm ledger of recoveries, unlock teases, archive posters, and guardian checkpoints."
+    case .aurielle:
+        return "A collectible sky journal of quiet streaks, carry-forward focus, archive keepsakes, and guardian check-ins."
+    }
+}
+
+private func atlasMascotMomentContinuityLine(_ moment: AtlasMascotMomentRecord) -> String? {
+    if let recapHeadline = moment.recapHeadline {
+        return "Archived as: \(recapHeadline)"
+    }
+    switch moment.kind {
+    case .archiveMilestone:
+        return "The poster gallery just deepened."
+    case .focusCarryForward:
+        return "This moment continues into the next weekly operating loop."
+    case .nearEvolution:
+        return "This tease should pay off in the next milestone reveal."
+    default:
+        return nil
+    }
+}
+
+private func atlasMascotStagePathCopy(
+    selection: AtlasMascotSelection,
+    stage: AtlasMascotStage
+) -> String {
+    switch (selection, stage) {
+    case (.aetherion, .stage1):
+        return "Scrappy starting form with compressed storm energy and oversized intent."
+    case (.aetherion, .stage2):
+        return "Kinetic mid-form where the line learns to turn charge into disciplined motion."
+    case (.aetherion, .stage3):
+        return "Ceremonial guardian form with atlas-ring presence and permanent unlock status."
+    case (.aurielle, .stage1):
+        return "Bright starting form with soft reassurance and immediate charm."
+    case (.aurielle, .stage2):
+        return "Skybound middle form where the line grows more graceful, longer, and calmer."
+    case (.aurielle, .stage3):
+        return "Serene celestial guardian form with full halo presence and permanent unlock status."
+    }
+}
+
+private struct AtlasMascotStageProgressVoice {
+    let finalFormTitle: String
+    let finalFormNoArchiveDetail: String
+    let finalFormArchiveDetail: String
+    let liveJourneyTitle: String
+    let liveJourneyDetail: String
+    let nearUnlockDetail: String
+    let inMotionDetail: String
+
+    func nearUnlockTitle(nextFormName: String) -> String {
+        "\(nextFormName) is close enough to feel real"
+    }
+
+    func inMotionTitle(nextFormName: String) -> String {
+        "\(nextFormName) is still the next major leap"
+    }
+}
+
+private func atlasMascotStageProgressVoice(
+    selection: AtlasMascotSelection,
+    stage: AtlasMascotStage
+) -> AtlasMascotStageProgressVoice {
+    switch (selection, stage) {
+    case (.aetherion, .stage1):
+        return AtlasMascotStageProgressVoice(
+            finalFormTitle: "The full guardian line is unlocked",
+            finalFormNoArchiveDetail: "The next payoff is archival: turn fresh storm moments into collectible posters instead of leaving them transient.",
+            finalFormArchiveDetail: "New storm moments now feed the recap gallery and keep the guardian line feeling ceremonial instead of static.",
+            liveJourneyTitle: "The line already feels alive between unlocks",
+            liveJourneyDetail: "Atlas can turn compact storm notes into visible progression before Voltflare lands.",
+            nearUnlockDetail: "The next silhouette is already pushing through the stormglass around the current form.",
+            inMotionDetail: "Cindlet is still storing charge, and small mascot moments keep that pressure visible."
+        )
+    case (.aetherion, .stage2):
+        return AtlasMascotStageProgressVoice(
+            finalFormTitle: "The full guardian line is unlocked",
+            finalFormNoArchiveDetail: "The next payoff is archival: treat each finished guardian beat like a collectible record.",
+            finalFormArchiveDetail: "The gallery now keeps the fully evolved guardian active between major product milestones.",
+            liveJourneyTitle: "Momentum is sharpening between unlocks",
+            liveJourneyDetail: "Atlas can use moments like this to make Voltflare feel kinetic before Aetherion lands.",
+            nearUnlockDetail: "Aetherion is already beginning to read through the current posture and halo.",
+            inMotionDetail: "Voltflare is still building ceremonial force, and recap exports keep that approach visible."
+        )
+    case (.aetherion, .stage3):
+        return AtlasMascotStageProgressVoice(
+            finalFormTitle: "The guardian line now lives through collectible history",
+            finalFormNoArchiveDetail: "The next layer of payoff is archival: capture fresh guardian moments and turn them into collector-grade posters.",
+            finalFormArchiveDetail: "New moments now deepen the line's ceremonial record instead of chasing another form.",
+            liveJourneyTitle: "Final-form momentum is still very alive",
+            liveJourneyDetail: "Atlas can keep the fully evolved guardian feeling active through journal moments and archive posters.",
+            nearUnlockDetail: "Final form is already secured, so the tease shifts from unlock pressure to collectible presence.",
+            inMotionDetail: "Aetherion is fully present now, and the gallery keeps that presence from going static."
+        )
+    case (.aurielle, .stage1):
+        return AtlasMascotStageProgressVoice(
+            finalFormTitle: "The full guardian line is unlocked",
+            finalFormNoArchiveDetail: "The next payoff is archival: turn bright little mascot beats into keepsakes.",
+            finalFormArchiveDetail: "New moments now feed the recap gallery and keep the guardian line glowing instead of flattening out.",
+            liveJourneyTitle: "The line already feels alive between unlocks",
+            liveJourneyDetail: "Atlas can use gentle journal moments to make Moppet feel present before Glisshare arrives.",
+            nearUnlockDetail: "The next form is already showing through the lift and brightness of the line.",
+            inMotionDetail: "Moppet is still gathering light, and small mascot moments keep that rise visible."
+        )
+    case (.aurielle, .stage2):
+        return AtlasMascotStageProgressVoice(
+            finalFormTitle: "The full guardian line is unlocked",
+            finalFormNoArchiveDetail: "The next payoff is archival: let each guardian beat become part of the sky journal.",
+            finalFormArchiveDetail: "The gallery now preserves the line's calm ascent instead of letting it vanish after each week.",
+            liveJourneyTitle: "Momentum is visible in the glide path",
+            liveJourneyDetail: "Atlas can turn quiet, specific moments into a clearer arc before Aurielle settles in.",
+            nearUnlockDetail: "Aurielle is already visible in the halo, the calm posture, and the longer silhouette.",
+            inMotionDetail: "Glisshare is still rising, and recap exports keep that ascent feeling graceful instead of vague."
+        )
+    case (.aurielle, .stage3):
+        return AtlasMascotStageProgressVoice(
+            finalFormTitle: "The guardian line now lives through keepsakes",
+            finalFormNoArchiveDetail: "The next payoff is archival: preserve serene guardian moments as proper celestial posters.",
+            finalFormArchiveDetail: "New moments now deepen the line's constellation of keepsakes instead of chasing another form.",
+            liveJourneyTitle: "Final-form calm is still active",
+            liveJourneyDetail: "Atlas can keep Aurielle feeling luminous through journal continuity and collectible recap posters.",
+            nearUnlockDetail: "Final form is already secured, so anticipation becomes preservation and memory.",
+            inMotionDetail: "Aurielle is fully present now, and the archive keeps that serenity from turning inert."
+        )
+    }
 }
 
 func atlasShouldPromptForMascotConfirmation(

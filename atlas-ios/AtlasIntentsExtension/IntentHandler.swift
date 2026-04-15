@@ -495,15 +495,6 @@ struct AtlasShortcutsProvider: AppShortcutsProvider {
                 systemImageName: "sparkles"
             ),
             AppShortcut(
-                intent: AtlasOpenWatchCompanionIntent(),
-                phrases: [
-                    "Open Apple Watch companion in \(.applicationName)",
-                    "Show \(.applicationName) watch companion"
-                ],
-                shortTitle: "Watch Companion",
-                systemImageName: "applewatch"
-            ),
-            AppShortcut(
                 intent: AtlasOpenQuickCaptureIntent(),
                 phrases: [
                     "Open quick capture in \(.applicationName)",
@@ -511,15 +502,6 @@ struct AtlasShortcutsProvider: AppShortcutsProvider {
                 ],
                 shortTitle: "Quick Capture",
                 systemImageName: "bolt.badge.clock"
-            ),
-            AppShortcut(
-                intent: AtlasOpenProgressEvidenceIntent(),
-                phrases: [
-                    "Open progress evidence in \(.applicationName)",
-                    "Show photo compare in \(.applicationName)"
-                ],
-                shortTitle: "Progress Evidence",
-                systemImageName: "camera.metering.partial"
             ),
             AppShortcut(
                 intent: AtlasOpenRewardsIntent(),
@@ -574,24 +556,6 @@ struct AtlasShortcutsProvider: AppShortcutsProvider {
                 ],
                 shortTitle: "Skip Next Due",
                 systemImageName: "forward.fill"
-            ),
-            AppShortcut(
-                intent: AtlasLogWatchContextIntent(signal: .hydration),
-                phrases: [
-                    "Log hydration in \(.applicationName)",
-                    "Capture hydration with \(.applicationName)"
-                ],
-                shortTitle: "Log Hydration",
-                systemImageName: "drop.fill"
-            ),
-            AppShortcut(
-                intent: AtlasLogWatchContextIntent(signal: .lowAppetite),
-                phrases: [
-                    "Log low appetite in \(.applicationName)",
-                    "Capture low appetite with \(.applicationName)"
-                ],
-                shortTitle: "Log Low Appetite",
-                systemImageName: "fork.knife"
             ),
             AppShortcut(
                 intent: AtlasLogWeightIntent(),

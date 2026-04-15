@@ -842,14 +842,58 @@ public final class AtlasAppModel {
         )
         if settingsSnapshot.mascotSelectionConfirmed,
            rewardsSnapshot.settings.enabled {
-            let recapMoment = atlasMascotManualMoment(
+            var recapMoment = atlasMascotManualMoment(
                 selection: settingsSnapshot.mascotSelection,
                 nickname: settingsSnapshot.mascotNickname,
                 stage: atlasRewardsMascotStage(for: rewardsSnapshot),
                 kind: .recapExport,
                 recordedAt: now
             )
+            let sourceDetail = artifact.archiveRecord.sourceMomentTitle.map { " It was pulled from \"\($0)\" in the journal." } ?? ""
+            recapMoment = AtlasMascotMomentRecord(
+                selection: recapMoment.selection,
+                stage: recapMoment.stage,
+                kind: recapMoment.kind,
+                title: recapMoment.title,
+                detail: "\(recapMoment.detail)\(sourceDetail)",
+                symbolName: recapMoment.symbolName,
+                recordedAt: recapMoment.recordedAt,
+                eventKey: "recap-export-\(artifact.archiveRecord.id)",
+                relatedRecapID: artifact.archiveRecord.id,
+                relatedRecapKind: descriptor.kind.rawValue,
+                recapHeadline: descriptor.headline
+            )
             settingsSnapshot = try await dependencies.persistence.settings.recordMascotMoment(recapMoment, now: now)
+
+            let archiveCount = settingsSnapshot.mascotArchivedRecaps.filter {
+                $0.selection == settingsSnapshot.mascotSelection
+            }.count
+            if [1, 3, 5, 10].contains(archiveCount) {
+                var archiveMoment = atlasMascotManualMoment(
+                    selection: settingsSnapshot.mascotSelection,
+                    nickname: settingsSnapshot.mascotNickname,
+                    stage: atlasRewardsMascotStage(for: rewardsSnapshot),
+                    kind: .archiveMilestone,
+                    recordedAt: now
+                )
+                archiveMoment = AtlasMascotMomentRecord(
+                    selection: archiveMoment.selection,
+                    stage: archiveMoment.stage,
+                    kind: archiveMoment.kind,
+                    title: archiveMoment.title,
+                    detail: "\(archiveMoment.detail) Atlas has \(archiveCount) collectible poster\(archiveCount == 1 ? "" : "s") in the gallery.",
+                    symbolName: archiveMoment.symbolName,
+                    recordedAt: archiveMoment.recordedAt,
+                    eventKey: "archive-\(settingsSnapshot.mascotSelection.rawValue)-\(archiveCount)",
+                    relatedRecapID: artifact.archiveRecord.id,
+                    relatedRecapKind: descriptor.kind.rawValue,
+                    recapHeadline: descriptor.headline
+                )
+                settingsSnapshot = try await dependencies.persistence.settings.recordMascotMoment(
+                    archiveMoment,
+                    now: now
+                )
+            }
         }
         syncShellViewStates()
         return artifact
@@ -1094,17 +1138,47 @@ public final class AtlasAppModel {
 
     public func markWeeklyReviewComplete() async {
         do {
-            retentionSnapshot = try await dependencies.persistence.retention.markWeeklyReviewComplete(now: currentDate())
+            let momentDate = currentDate()
+            retentionSnapshot = try await dependencies.persistence.retention.markWeeklyReviewComplete(now: momentDate)
             if settingsSnapshot.mascotSelectionConfirmed,
                rewardsSnapshot.settings.enabled {
+                let selection = settingsSnapshot.mascotSelection
+                let nickname = settingsSnapshot.mascotNickname
+                let stage = atlasRewardsMascotStage(for: rewardsSnapshot)
                 let moment = atlasMascotManualMoment(
                     selection: settingsSnapshot.mascotSelection,
                     nickname: settingsSnapshot.mascotNickname,
-                    stage: atlasRewardsMascotStage(for: rewardsSnapshot),
+                    stage: stage,
                     kind: .weeklyCloseout,
-                    recordedAt: currentDate()
+                    recordedAt: momentDate
                 )
-                settingsSnapshot = try await dependencies.persistence.settings.recordMascotMoment(moment, now: currentDate())
+                settingsSnapshot = try await dependencies.persistence.settings.recordMascotMoment(moment, now: momentDate)
+
+                if let carriedFocus = settingsSnapshot.weeklyReviewActionPlans.first(where: {
+                    $0.isPinnedForNextWeek && $0.isCompleted == false
+                }) {
+                    var focusMoment = atlasMascotManualMoment(
+                        selection: selection,
+                        nickname: nickname,
+                        stage: stage,
+                        kind: .focusCarryForward,
+                        recordedAt: momentDate
+                    )
+                    focusMoment = AtlasMascotMomentRecord(
+                        selection: focusMoment.selection,
+                        stage: focusMoment.stage,
+                        kind: focusMoment.kind,
+                        title: focusMoment.title,
+                        detail: "\(focusMoment.detail) Atlas kept \"\(carriedFocus.title)\" pinned into the new week.",
+                        symbolName: focusMoment.symbolName,
+                        recordedAt: focusMoment.recordedAt,
+                        eventKey: "focus-carry-forward-\(selection.rawValue)-\(carriedFocus.id)"
+                    )
+                    settingsSnapshot = try await dependencies.persistence.settings.recordMascotMoment(
+                        focusMoment,
+                        now: momentDate
+                    )
+                }
             }
             await refreshShellData()
         } catch {
@@ -2105,6 +2179,7 @@ public final class AtlasAppModel {
             nickname: settingsSnapshot.mascotNickname,
             rewardsSnapshot: rewardsSnapshot,
             evolutionHistory: settingsSnapshot.mascotEvolutionHistory,
+            archivedRecaps: settingsSnapshot.mascotArchivedRecaps,
             existingMoments: settingsSnapshot.mascotMoments,
             recordedAt: referenceDate
         )

@@ -821,6 +821,11 @@ public enum AtlasMascotMomentKind: String, Codable, CaseIterable, Sendable {
     case badge
     case goal
     case streak
+    case streakRescue = "streak_rescue"
+    case nearEvolution = "near_evolution"
+    case archiveMilestone = "archive_milestone"
+    case focusCarryForward = "focus_carry_forward"
+    case quietConsistency = "quiet_consistency"
     case shortcut
     case levelUp = "level_up"
     case weeklyCloseout = "weekly_closeout"
@@ -888,6 +893,8 @@ public struct AtlasMascotArchivedRecapRecord: Codable, Equatable, Sendable, Iden
     public var symbolName: String
     public var fileName: String
     public var createdAt: String
+    public var sourceMomentEventKey: String?
+    public var sourceMomentTitle: String?
 
     public init(
         id: String,
@@ -905,7 +912,9 @@ public struct AtlasMascotArchivedRecapRecord: Codable, Equatable, Sendable, Iden
         footer: String,
         symbolName: String,
         fileName: String,
-        createdAt: String
+        createdAt: String,
+        sourceMomentEventKey: String? = nil,
+        sourceMomentTitle: String? = nil
     ) {
         self.id = id
         self.selection = selection
@@ -923,6 +932,8 @@ public struct AtlasMascotArchivedRecapRecord: Codable, Equatable, Sendable, Iden
         self.symbolName = symbolName
         self.fileName = fileName
         self.createdAt = createdAt
+        self.sourceMomentEventKey = sourceMomentEventKey
+        self.sourceMomentTitle = sourceMomentTitle
     }
 }
 
@@ -935,6 +946,9 @@ public struct AtlasMascotMomentRecord: Codable, Equatable, Sendable, Identifiabl
     public var symbolName: String
     public var recordedAt: String
     public var eventKey: String?
+    public var relatedRecapID: String?
+    public var relatedRecapKind: String?
+    public var recapHeadline: String?
 
     public var id: String {
         if let eventKey, eventKey.isEmpty == false {
@@ -951,7 +965,10 @@ public struct AtlasMascotMomentRecord: Codable, Equatable, Sendable, Identifiabl
         detail: String,
         symbolName: String,
         recordedAt: String,
-        eventKey: String? = nil
+        eventKey: String? = nil,
+        relatedRecapID: String? = nil,
+        relatedRecapKind: String? = nil,
+        recapHeadline: String? = nil
     ) {
         self.selection = selection
         self.stage = stage
@@ -961,6 +978,9 @@ public struct AtlasMascotMomentRecord: Codable, Equatable, Sendable, Identifiabl
         self.symbolName = symbolName
         self.recordedAt = recordedAt
         self.eventKey = eventKey
+        self.relatedRecapID = relatedRecapID
+        self.relatedRecapKind = relatedRecapKind
+        self.recapHeadline = recapHeadline
     }
 }
 
