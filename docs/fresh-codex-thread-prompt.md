@@ -25,6 +25,7 @@ If this thread touches UI, UX, design, widgets, SwiftUI presentation, mascot, re
 10. `docs/ios-redesign-context-2026-04-14.md`
 11. `docs/ios-ambient-mascot-system-handoff-2026-04-16.md` if mascot/rewards/motion/polish are involved
 12. `docs/mascot-concepts/atlas-mascot-asset-matrix.md` if mascot/rewards/media/widgets are involved
+13. `docs/ios-onboarding-paywall-handoff-2026-04-16.md` if onboarding, trial paywalls, premium conversion, or protocol setup ordering are involved
 
 Important context:
 
@@ -38,6 +39,7 @@ Important context:
   - sticker art = medium in-app cards
   - pixel art = widgets and compact live-state surfaces
 - Ambient mascot behavior should be anchored, optional, event-based, and calm. Do not turn it into free-roaming or always-on clutter.
+- Onboarding is intentionally long and proof-led. The free-trial paywall belongs before full protocol creation, after Atlas has shown enough premium differentiation to make the trial feel earned.
 
 Working style:
 

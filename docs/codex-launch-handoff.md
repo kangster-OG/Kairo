@@ -1,6 +1,6 @@
 # Codex Launch Handoff
 
-Last updated: 2026-04-16 (UX + security + ambient mascot handoff)
+Last updated: 2026-04-16 (UX + security + onboarding/paywall + ambient mascot handoff)
 
 ## Current status
 
@@ -30,7 +30,22 @@ Fresh Codex threads should treat the following repo files as the current high-va
 - `docs/ios-ui-mascot-rewards-changelog-2026-04-14.md`
 - `docs/ios-ambient-mascot-system-handoff-2026-04-16.md` for ambient mascot placement, motion policy, suppression, and QA rules
 - `docs/mascot-concepts/atlas-mascot-asset-matrix.md` for mascot/rewards/media/widget work
+- `docs/ios-onboarding-paywall-handoff-2026-04-16.md` for the proof-led onboarding, free-trial paywall, and premium conversion strategy
 - `docs/fresh-codex-thread-prompt.md` for a copy/paste fresh-thread starter prompt
+
+## 2026-04-16 onboarding + paywall context
+
+The current native onboarding flow is intentionally long and proof-led.
+
+Preserve these decisions unless the user explicitly changes product strategy:
+
+- show enough premium differentiation before the paywall to make the trial feel earned
+- keep the free-trial paywall before full protocol creation
+- use the flow to prove Today command, Trust Vault, system surfaces, companion continuity, protocol change history, review output, and messy-start migration
+- keep monthly/yearly auto-renewing subscription options behind a clear free-trial timeline
+- avoid peptide marketplace, sourcing, medical advice, generic AI coach, or noisy gamification framing
+
+Use `docs/ios-onboarding-paywall-handoff-2026-04-16.md` before editing onboarding or the paywall.
 
 ## Live backend
 

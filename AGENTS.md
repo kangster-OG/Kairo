@@ -25,6 +25,7 @@ If the user asks about UI, UX, design, polish, motion, typography, layout, inter
 6. `docs/ios-ui-mascot-rewards-changelog-2026-04-14.md`
 7. `docs/ios-ambient-mascot-system-handoff-2026-04-16.md` when the work touches mascot/rewards/motion/polish
 8. `docs/mascot-concepts/atlas-mascot-asset-matrix.md` when the work touches mascot/rewards/media/widgets
+9. `docs/ios-onboarding-paywall-handoff-2026-04-16.md` when the work touches onboarding, free trials, paywalls, or premium conversion
 
 Treat those files as the standing Atlas UI design system brief for future Codex threads.
 
