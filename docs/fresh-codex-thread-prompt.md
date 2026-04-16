@@ -23,9 +23,10 @@ If this thread touches UI, UX, design, widgets, SwiftUI presentation, mascot, re
 8. `docs/ios-ui-skill-stack.md`
 9. `docs/ios-ux-execution-playbook-2026-04-15.md`
 10. `docs/ios-redesign-context-2026-04-14.md`
-11. `docs/ios-ambient-mascot-system-handoff-2026-04-16.md` if mascot/rewards/motion/polish are involved
-12. `docs/mascot-concepts/atlas-mascot-asset-matrix.md` if mascot/rewards/media/widgets are involved
-13. `docs/ios-onboarding-paywall-handoff-2026-04-16.md` if onboarding, trial paywalls, premium conversion, or protocol setup ordering are involved
+11. `docs/ios-ui-polish-thread-handoff-2026-04-16.md`
+12. `docs/ios-ambient-mascot-system-handoff-2026-04-16.md` if mascot/rewards/motion/polish are involved
+13. `docs/mascot-concepts/atlas-mascot-asset-matrix.md` if mascot/rewards/media/widgets are involved
+14. `docs/ios-onboarding-paywall-handoff-2026-04-16.md` if onboarding, trial paywalls, premium conversion, or protocol setup ordering are involved
 
 Important context:
 
@@ -54,6 +55,7 @@ Additional UX / copy rules:
 - Avoid root tabs becoming endless feature stacks.
 - Prefer progressive disclosure over showing every subsystem at the root.
 - Do not add fake-sounding `Atlas ...` helper narration or other LLM-ish filler copy.
+- For broad UI cleanup, use `docs/ios-ui-polish-thread-handoff-2026-04-16.md` for the standing rules on stat tiles, keyboard exits, quick actions, recap clutter, and copy pruning.
 - The current docked bottom tab shelf is the baseline; do not default to transparent tab-bar experiments unless explicitly asked.
 - For mascot work, prefer event-based reactions over adding more permanent mascot homes.
 

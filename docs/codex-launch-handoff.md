@@ -27,6 +27,7 @@ Fresh Codex threads should treat the following repo files as the current high-va
 - `docs/ios-ui-skill-stack.md`
 - `docs/ios-ux-execution-playbook-2026-04-15.md`
 - `docs/ios-redesign-context-2026-04-14.md`
+- `docs/ios-ui-polish-thread-handoff-2026-04-16.md` for the April 16 practical cleanup rules around copy density, stat tiles, keyboard exits, quick actions, Account & Sync, recap clutter, and mascot restraint
 - `docs/ios-ui-mascot-rewards-changelog-2026-04-14.md`
 - `docs/ios-ambient-mascot-system-handoff-2026-04-16.md` for ambient mascot placement, motion policy, suppression, and QA rules
 - `docs/mascot-concepts/atlas-mascot-asset-matrix.md` for mascot/rewards/media/widget work
@@ -96,6 +97,7 @@ Use:
 
 - `docs/ios-ui-skill-stack.md` for the standing UI skill stack
 - `docs/ios-ux-execution-playbook-2026-04-15.md` for the combined navigation / scroll / interaction / accessibility lens
+- `docs/ios-ui-polish-thread-handoff-2026-04-16.md` before broad UI cleanup, form-entry, copy pruning, quick-action, or mascot/rewards polish work
 
 ## 2026-04-16 ambient mascot context
 
