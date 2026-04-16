@@ -515,7 +515,7 @@ private struct AtlasSummaryInsightSection: View {
 
     var body: some View {
         if featureFlags.boundedSummaries {
-            Section("Plain-language recaps") {
+            Group {
                 if summarySettings.onDeviceEnabled == false {
                     AtlasSectionCard {
                         Text("Enable on-device summaries in Settings.")

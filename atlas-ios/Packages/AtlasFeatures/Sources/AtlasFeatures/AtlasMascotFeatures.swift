@@ -2853,7 +2853,7 @@ public struct AtlasMascotDetailScreen: View {
             LazyVStack(alignment: .leading, spacing: 20) {
                 AtlasTabHeader(
                     title: profile.displayName,
-                    subtitle: "Live form, recap posters, and archive."
+                    subtitle: nil
                 )
 
                 if let recapHandoffState {

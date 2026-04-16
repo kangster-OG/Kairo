@@ -5771,7 +5771,7 @@ public struct AtlasTimelineScreen: View {
                         title: "No history yet",
                         message: "Quick logs, imports, and protocol edits will appear here with immutable timestamps.",
                         systemImage: "clock.badge.questionmark",
-                        note: "Immutable from the first event"
+                        note: nil
                     ) {
                         Button("Create protocol") {
                             model.open(.protocolCreate)
@@ -7155,6 +7155,48 @@ private struct AtlasSettingsHubLink: View {
     }
 }
 
+private struct AtlasSettingsMetricSummaryRow: View {
+    let metrics: [AtlasMetricItem]
+
+    var body: some View {
+        HStack(spacing: AtlasSpacing.small) {
+            ForEach(metrics) { metric in
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(metric.title)
+                        .atlasTextRole(.metricLabel)
+                        .foregroundStyle(metric.tint)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.68)
+
+                    Text(metric.value)
+                        .atlasTextRole(.metricValue)
+                        .foregroundStyle(AtlasPalette.textPrimary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
+                .frame(maxWidth: .infinity, minHeight: 76, alignment: .leading)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 12)
+                .background(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [AtlasPalette.surfaceTop.opacity(0.95), metric.tint.opacity(0.08)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .strokeBorder(metric.tint.opacity(0.22), lineWidth: 1)
+                )
+            }
+        }
+        .padding(.vertical, 2)
+    }
+}
+
 private struct AtlasSettingsAccountScreen: View {
     let model: AtlasAppModel
     let state: AtlasSettingsViewState
@@ -7164,7 +7206,7 @@ private struct AtlasSettingsAccountScreen: View {
     var body: some View {
         AtlasScreen {
             AtlasSectionCard(style: .task, title: "Account & sync") {
-                AtlasMetricStrip(metrics: [
+                AtlasSettingsMetricSummaryRow(metrics: [
                     AtlasMetricItem(id: "account_mode", title: "Mode", value: state.settingsSnapshot.accountMode.rawValue.capitalized),
                     AtlasMetricItem(
                         id: "sync_state",
@@ -7291,7 +7333,7 @@ private struct AtlasSettingsAccountScreen: View {
                 .buttonStyle(AtlasWarningButtonStyle())
             }
 
-            AtlasSectionCard(title: "Plain-language summaries") {
+            AtlasSectionCard {
                 AtlasSettingsToggleRow(
                     title: "Enable on-device summaries",
                     subtitle: "Generate on-device recaps.",
