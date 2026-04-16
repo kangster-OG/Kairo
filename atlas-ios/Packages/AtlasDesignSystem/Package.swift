@@ -15,7 +15,10 @@ let package = Package(
     ],
     targets: [
         .target(
-            name: "AtlasDesignSystem"
+            name: "AtlasDesignSystem",
+            resources: [
+                .process("Resources")
+            ]
         )
     ]
 )

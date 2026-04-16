@@ -249,7 +249,7 @@ private struct AtlasOnboardingHeader: View {
                         Spacer()
 
                         Text("Atlas")
-                            .font(.system(size: 25, weight: .bold, design: .rounded))
+                            .font(AtlasTypography.brandFont(size: 25, weight: .bold, relativeTo: .title3))
                             .foregroundStyle(.white)
 
                         Spacer()
@@ -326,7 +326,7 @@ private struct AtlasOnboardingSplash: View {
             AtlasStatusBadge("Private by default", tint: .white)
 
             Text("Atlas")
-                .font(.system(size: dynamicTypeSize.isAccessibilitySize ? 36 : 46, weight: .bold, design: .rounded))
+                .font(AtlasTypography.brandFont(size: dynamicTypeSize.isAccessibilitySize ? 36 : 46, weight: .bold, relativeTo: .largeTitle))
                 .foregroundStyle(.white)
 
             Text("Protocol tracking for injections, reminders, inventory, and review.")

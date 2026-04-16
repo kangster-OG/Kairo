@@ -2,6 +2,85 @@ import SwiftUI
 #if canImport(UIKit)
 import UIKit
 #endif
+#if canImport(CoreText)
+import CoreText
+#endif
+
+public enum AtlasTypographyCandidate: String, CaseIterable, Sendable {
+    case system
+    case avenir
+    case plex
+
+    static var current: AtlasTypographyCandidate {
+        let environmentValue = ProcessInfo.processInfo.environment["ATLAS_TYPOGRAPHY_CANDIDATE"]
+        let argumentValue = ProcessInfo.processInfo.arguments.adjacentValue(after: "-AtlasTypographyCandidate")
+        return AtlasTypographyCandidate(rawValue: argumentValue ?? environmentValue ?? "") ?? .avenir
+    }
+}
+
+public enum AtlasTypography {
+    public static var currentCandidate: AtlasTypographyCandidate {
+        AtlasTypographyCandidate.current
+    }
+
+    @MainActor
+    public static func registerCustomFonts() {
+        guard AtlasTypographyCandidate.current == .plex else {
+            return
+        }
+        AtlasPlexFontRegistrar.registerIfNeeded()
+    }
+
+    public static func font(for role: AtlasTextRole) -> Font {
+        switch AtlasTypographyCandidate.current {
+        case .system:
+            return role.systemFont
+        case .avenir:
+            return role.avenirFont
+        case .plex:
+            return role.plexFont
+        }
+    }
+
+    public static func brandFont(
+        size: CGFloat,
+        weight: Font.Weight,
+        relativeTo textStyle: Font.TextStyle = .title
+    ) -> Font {
+        switch AtlasTypographyCandidate.current {
+        case .system:
+            return .system(size: size, weight: weight, design: .rounded)
+        case .avenir:
+            return Font.custom(avenirName(for: weight), size: size, relativeTo: textStyle)
+        case .plex:
+            return Font.custom(plexName(for: weight), size: size, relativeTo: textStyle)
+        }
+    }
+
+    fileprivate static func avenirName(for weight: Font.Weight) -> String {
+        switch weight {
+        case .bold, .heavy, .black:
+            return "AvenirNext-Bold"
+        case .medium:
+            return "AvenirNext-Medium"
+        default:
+            return "AvenirNext-DemiBold"
+        }
+    }
+
+    fileprivate static func plexName(for weight: Font.Weight) -> String {
+        switch weight {
+        case .bold, .heavy, .black:
+            return "IBMPlexSans-Bold"
+        case .medium:
+            return "IBMPlexSans-Medm"
+        case .semibold:
+            return "IBMPlexSans-SmBld"
+        default:
+            return "IBMPlexSans"
+        }
+    }
+}
 
 public enum AtlasTextRole {
     case screenTitle
@@ -13,7 +92,7 @@ public enum AtlasTextRole {
     case metricValue
     case metricLabel
 
-    fileprivate var font: Font {
+    fileprivate var systemFont: Font {
         switch self {
         case .screenTitle:
             return .system(size: 34, weight: .bold, design: .rounded)
@@ -31,6 +110,48 @@ public enum AtlasTextRole {
             return .title3.weight(.bold)
         case .metricLabel:
             return .caption2.weight(.semibold)
+        }
+    }
+
+    fileprivate var avenirFont: Font {
+        switch self {
+        case .screenTitle:
+            return Font.custom("AvenirNext-Bold", size: 34, relativeTo: .largeTitle)
+        case .screenSubtitle:
+            return .body.weight(.medium)
+        case .deckEyebrow:
+            return Font.custom("AvenirNext-DemiBold", size: 12, relativeTo: .caption)
+        case .cardTitle:
+            return Font.custom("AvenirNext-Bold", size: 20, relativeTo: .title3)
+        case .cardBody:
+            return .body.weight(.semibold)
+        case .supporting:
+            return .caption
+        case .metricValue:
+            return Font.custom("AvenirNext-Bold", size: 20, relativeTo: .title3)
+        case .metricLabel:
+            return Font.custom("AvenirNext-DemiBold", size: 11, relativeTo: .caption2)
+        }
+    }
+
+    fileprivate var plexFont: Font {
+        switch self {
+        case .screenTitle:
+            return Font.custom("IBMPlexSans-Bold", size: 34, relativeTo: .largeTitle)
+        case .screenSubtitle:
+            return Font.custom("IBMPlexSans-Medm", size: 17, relativeTo: .body)
+        case .deckEyebrow:
+            return Font.custom("IBMPlexSans-SmBld", size: 12, relativeTo: .caption)
+        case .cardTitle:
+            return Font.custom("IBMPlexSans-Bold", size: 20, relativeTo: .title3)
+        case .cardBody:
+            return Font.custom("IBMPlexSans-SmBld", size: 17, relativeTo: .body)
+        case .supporting:
+            return Font.custom("IBMPlexSans", size: 12, relativeTo: .caption)
+        case .metricValue:
+            return Font.custom("IBMPlexSans-Bold", size: 20, relativeTo: .title3)
+        case .metricLabel:
+            return Font.custom("IBMPlexSans-SmBld", size: 11, relativeTo: .caption2)
         }
     }
 
@@ -58,9 +179,53 @@ public enum AtlasTextRole {
 public extension View {
     func atlasTextRole(_ role: AtlasTextRole) -> some View {
         self
-            .font(role.font)
+            .font(AtlasTypography.font(for: role))
             .tracking(role.tracking)
             .textCase(role.textCase)
+    }
+}
+
+private extension [String] {
+    func adjacentValue(after flag: String) -> String? {
+        guard let index = firstIndex(of: flag) else {
+            return nil
+        }
+        let valueIndex = self.index(after: index)
+        guard indices.contains(valueIndex) else {
+            return nil
+        }
+        return self[valueIndex]
+    }
+}
+
+@MainActor
+private enum AtlasPlexFontRegistrar {
+    private static let fontResources = [
+        "IBMPlexSans-Regular",
+        "IBMPlexSans-Medium",
+        "IBMPlexSans-SemiBold",
+        "IBMPlexSans-Bold"
+    ]
+    private static var didRegister = false
+
+    static func registerIfNeeded() {
+        guard !didRegister else {
+            return
+        }
+        didRegister = true
+
+        #if canImport(CoreText)
+        fontResources.forEach { resource in
+            guard let url = Bundle.module.url(
+                forResource: resource,
+                withExtension: "ttf",
+                subdirectory: "Fonts/IBMPlexSans"
+            ) else {
+                return
+            }
+            CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
+        }
+        #endif
     }
 }
 
