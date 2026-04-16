@@ -37,6 +37,91 @@ public enum AtlasTrackType: String, Codable, CaseIterable, Sendable {
     }
 }
 
+public enum AtlasOnboardingJourneyStatus: String, Codable, CaseIterable, Sendable {
+    case active
+    case startingSoon
+    case changingPlan
+    case trackingHistory
+    case exploring
+
+    public var title: String {
+        switch self {
+        case .active:
+            "Already using"
+        case .startingSoon:
+            "Starting soon"
+        case .changingPlan:
+            "Changing plan"
+        case .trackingHistory:
+            "Tracking history"
+        case .exploring:
+            "Just exploring"
+        }
+    }
+}
+
+public enum AtlasOnboardingFocus: String, Codable, CaseIterable, Sendable {
+    case neverMiss
+    case understandPatterns
+    case inventoryRunway
+    case providerReview
+    case manageStack
+    case privateRecords
+
+    public var title: String {
+        switch self {
+        case .neverMiss:
+            "Never miss a dose"
+        case .understandPatterns:
+            "Understand patterns"
+        case .inventoryRunway:
+            "Track inventory"
+        case .providerReview:
+            "Prepare review summaries"
+        case .manageStack:
+            "Manage multiple protocols"
+        case .privateRecords:
+            "Keep private records"
+        }
+    }
+}
+
+public enum AtlasOnboardingPrivacyPreset: String, Codable, CaseIterable, Sendable {
+    case standard
+    case discreet
+    case alias
+
+    public var title: String {
+        switch self {
+        case .standard:
+            "Standard"
+        case .discreet:
+            "Discreet"
+        case .alias:
+            "Alias"
+        }
+    }
+}
+
+public enum AtlasOnboardingPremiumPlan: String, Codable, CaseIterable, Sendable {
+    case annual
+    case monthly
+
+    public var title: String {
+        switch self {
+        case .annual:
+            "Annual"
+        case .monthly:
+            "Monthly"
+        }
+    }
+}
+
+public enum AtlasOnboardingPaywallChoice: String, Codable, Equatable, Sendable {
+    case trialStarted
+    case basic
+}
+
 public enum AtlasHeightUnit: String, Codable, CaseIterable, Sendable {
     case cm
     case ftIn = "ft_in"
@@ -44,14 +129,23 @@ public enum AtlasHeightUnit: String, Codable, CaseIterable, Sendable {
 
 public enum AtlasOnboardingStep: String, Codable, CaseIterable, Identifiable, Sendable {
     case splash
-    case intro
-    case accountMode
-    case privacyMode
     case trackType
-    case profile
-    case mascot
-    case glpSetup
-    case peptideSetup
+    case journeyStatus
+    case protocolPreview
+    case focus
+    case privacyPreset
+    case premiumPreview
+    case trustVaultReveal
+    case companionPreview
+    case readinessLoop
+    case systemSurfaces
+    case personalizedUnlock
+    case todayCommandPreview
+    case protocolChangeHistory
+    case reviewOutputPreview
+    case migrationPreview
+    case trialTimeline
+    case premiumPaywall
     case connectApps
     case planReady
 
@@ -168,15 +262,40 @@ public struct AtlasOnboardingDraft: Codable, Equatable, Sendable {
     public var accountMode: AtlasOnboardingAccountMode?
     public var privacy: AtlasOnboardingPrivacy
     public var trackType: AtlasTrackType?
+    public var journeyStatus: AtlasOnboardingJourneyStatus?
+    public var focus: AtlasOnboardingFocus?
+    public var privacyPreset: AtlasOnboardingPrivacyPreset?
+    public var premiumPlan: AtlasOnboardingPremiumPlan
+    public var paywallChoice: AtlasOnboardingPaywallChoice?
     public var profile: AtlasOnboardingProfile
     public var glp: AtlasOnboardingGlpSetup
     public var peptide: AtlasOnboardingPeptideSetup
     public var healthConnectionPromptSeen: Bool
 
+    enum CodingKeys: String, CodingKey {
+        case accountMode
+        case privacy
+        case trackType
+        case journeyStatus
+        case focus
+        case privacyPreset
+        case premiumPlan
+        case paywallChoice
+        case profile
+        case glp
+        case peptide
+        case healthConnectionPromptSeen
+    }
+
     public init(
-        accountMode: AtlasOnboardingAccountMode? = nil,
+        accountMode: AtlasOnboardingAccountMode? = .guest,
         privacy: AtlasOnboardingPrivacy = .init(),
         trackType: AtlasTrackType? = nil,
+        journeyStatus: AtlasOnboardingJourneyStatus? = nil,
+        focus: AtlasOnboardingFocus? = nil,
+        privacyPreset: AtlasOnboardingPrivacyPreset? = nil,
+        premiumPlan: AtlasOnboardingPremiumPlan = .annual,
+        paywallChoice: AtlasOnboardingPaywallChoice? = nil,
         profile: AtlasOnboardingProfile = .init(),
         glp: AtlasOnboardingGlpSetup = .init(),
         peptide: AtlasOnboardingPeptideSetup = .init(),
@@ -185,10 +304,47 @@ public struct AtlasOnboardingDraft: Codable, Equatable, Sendable {
         self.accountMode = accountMode
         self.privacy = privacy
         self.trackType = trackType
+        self.journeyStatus = journeyStatus
+        self.focus = focus
+        self.privacyPreset = privacyPreset
+        self.premiumPlan = premiumPlan
+        self.paywallChoice = paywallChoice
         self.profile = profile
         self.glp = glp
         self.peptide = peptide
         self.healthConnectionPromptSeen = healthConnectionPromptSeen
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.accountMode = try container.decodeIfPresent(AtlasOnboardingAccountMode.self, forKey: .accountMode) ?? .guest
+        self.privacy = try container.decodeIfPresent(AtlasOnboardingPrivacy.self, forKey: .privacy) ?? .init()
+        self.trackType = try container.decodeIfPresent(AtlasTrackType.self, forKey: .trackType)
+        self.journeyStatus = try container.decodeIfPresent(AtlasOnboardingJourneyStatus.self, forKey: .journeyStatus)
+        self.focus = try container.decodeIfPresent(AtlasOnboardingFocus.self, forKey: .focus)
+        self.privacyPreset = try container.decodeIfPresent(AtlasOnboardingPrivacyPreset.self, forKey: .privacyPreset)
+        self.premiumPlan = try container.decodeIfPresent(AtlasOnboardingPremiumPlan.self, forKey: .premiumPlan) ?? .annual
+        self.paywallChoice = try container.decodeIfPresent(AtlasOnboardingPaywallChoice.self, forKey: .paywallChoice)
+        self.profile = try container.decodeIfPresent(AtlasOnboardingProfile.self, forKey: .profile) ?? .init()
+        self.glp = try container.decodeIfPresent(AtlasOnboardingGlpSetup.self, forKey: .glp) ?? .init()
+        self.peptide = try container.decodeIfPresent(AtlasOnboardingPeptideSetup.self, forKey: .peptide) ?? .init()
+        self.healthConnectionPromptSeen = try container.decodeIfPresent(Bool.self, forKey: .healthConnectionPromptSeen) ?? false
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(accountMode, forKey: .accountMode)
+        try container.encode(privacy, forKey: .privacy)
+        try container.encodeIfPresent(trackType, forKey: .trackType)
+        try container.encodeIfPresent(journeyStatus, forKey: .journeyStatus)
+        try container.encodeIfPresent(focus, forKey: .focus)
+        try container.encodeIfPresent(privacyPreset, forKey: .privacyPreset)
+        try container.encode(premiumPlan, forKey: .premiumPlan)
+        try container.encodeIfPresent(paywallChoice, forKey: .paywallChoice)
+        try container.encode(profile, forKey: .profile)
+        try container.encode(glp, forKey: .glp)
+        try container.encode(peptide, forKey: .peptide)
+        try container.encode(healthConnectionPromptSeen, forKey: .healthConnectionPromptSeen)
     }
 
     public static func empty() -> Self {
@@ -198,11 +354,20 @@ public struct AtlasOnboardingDraft: Codable, Equatable, Sendable {
     public func requiredMissingFields() -> [String] {
         var missing: [String] = []
 
-        if accountMode == nil {
-            missing.append("accountMode")
-        }
         if trackType == nil {
             missing.append("trackType")
+        }
+        if journeyStatus == nil {
+            missing.append("journeyStatus")
+        }
+        if focus == nil {
+            missing.append("focus")
+        }
+        if privacyPreset == nil {
+            missing.append("privacyPreset")
+        }
+        if paywallChoice == nil {
+            missing.append("paywallChoice")
         }
         if healthConnectionPromptSeen == false {
             missing.append("healthConnectionPromptSeen")
@@ -224,24 +389,28 @@ public struct AtlasOnboardingDraft: Codable, Equatable, Sendable {
     }
 
     public func sequence() -> [AtlasOnboardingStep] {
-        var steps: [AtlasOnboardingStep] = [
+        [
             .splash,
-            .intro,
-            .accountMode,
-            .privacyMode,
             .trackType,
-            .profile,
-            .mascot
+            .journeyStatus,
+            .protocolPreview,
+            .focus,
+            .privacyPreset,
+            .premiumPreview,
+            .trustVaultReveal,
+            .companionPreview,
+            .readinessLoop,
+            .systemSurfaces,
+            .personalizedUnlock,
+            .todayCommandPreview,
+            .protocolChangeHistory,
+            .reviewOutputPreview,
+            .migrationPreview,
+            .trialTimeline,
+            .premiumPaywall,
+            .connectApps,
+            .planReady
         ]
-        if needsGlpSetup {
-            steps.append(.glpSetup)
-        }
-        if needsPeptideSetup {
-            steps.append(.peptideSetup)
-        }
-        steps.append(.connectApps)
-        steps.append(.planReady)
-        return steps
     }
 }
 

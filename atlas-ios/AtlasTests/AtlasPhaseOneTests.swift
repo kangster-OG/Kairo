@@ -230,11 +230,34 @@ final class AtlasPhaseOneTests: XCTestCase {
         XCTAssertEqual(snapshot.lowStock.items.first?.detail, "Procurement review now.")
     }
 
-    func testOnboardingSequenceIncludesDedicatedMascotStepAfterProfile() {
+    func testOnboardingSequencePlacesTrialPaywallBeforeAppHandoff() {
         let sequence = AtlasOnboardingDraft.empty().sequence()
 
-        XCTAssertTrue(sequence.contains(.mascot))
-        XCTAssertEqual(sequence.firstIndex(of: .profile).map { sequence.index(after: $0) }.flatMap { sequence.indices.contains($0) ? sequence[$0] : nil }, .mascot)
+        XCTAssertEqual(
+            sequence,
+            [
+                .splash,
+                .trackType,
+                .journeyStatus,
+                .protocolPreview,
+                .focus,
+                .privacyPreset,
+                .premiumPreview,
+                .trustVaultReveal,
+                .companionPreview,
+                .readinessLoop,
+                .systemSurfaces,
+                .personalizedUnlock,
+                .todayCommandPreview,
+                .protocolChangeHistory,
+                .reviewOutputPreview,
+                .migrationPreview,
+                .trialTimeline,
+                .premiumPaywall,
+                .connectApps,
+                .planReady
+            ]
+        )
     }
 
     func testMascotMilestoneThresholdsResolveExpectedStages() {
@@ -7579,6 +7602,11 @@ final class AtlasPhaseOneTests: XCTestCase {
             accountMode: accountMode,
             privacy: AtlasOnboardingPrivacy(),
             trackType: trackType,
+            journeyStatus: .active,
+            focus: .neverMiss,
+            privacyPreset: .standard,
+            premiumPlan: .annual,
+            paywallChoice: .trialStarted,
             profile: AtlasOnboardingProfile(
                 gender: "Other",
                 age: 34,
