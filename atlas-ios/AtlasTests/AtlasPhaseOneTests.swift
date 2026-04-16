@@ -1491,7 +1491,7 @@ final class AtlasPhaseOneTests: XCTestCase {
         XCTAssertTrue(weeklyReview.periodTitle.contains("-"))
         XCTAssertFalse(weeklyReview.summarySettingEnabled)
         XCTAssertNil(weeklyReview.plainLanguageSummary)
-        XCTAssertTrue(weeklyReview.fallbackSummary.contains("last 7 days"))
+        XCTAssertTrue(weeklyReview.fallbackSummary.contains("Last 7 days"))
         XCTAssertTrue(weeklyReview.sourceSections.contains(where: { $0.id == "weekly_activity" }))
         XCTAssertTrue(weeklyReview.sourceSections.contains(where: { $0.id == "weekly_supporting_records" }))
         XCTAssertFalse(snapshot.weeklyReviewHistory.isEmpty)
@@ -4685,7 +4685,7 @@ final class AtlasPhaseOneTests: XCTestCase {
         )
 
         XCTAssertEqual(explanation.title, "Nausea near fasted context")
-        XCTAssertTrue(explanation.summary.contains("Atlas noticed recent nausea entries"))
+        XCTAssertTrue(explanation.summary.contains("Recent nausea entries showed up near fasted context"))
         XCTAssertEqual(
             explanation.facts.map(\.label),
             ["Observed", "Window", "Records", "Why this appears"]
@@ -5153,7 +5153,7 @@ final class AtlasPhaseOneTests: XCTestCase {
 
         XCTAssertEqual(
             snapshot.amountInSystemDisclaimer,
-            "Estimate only. Atlas uses logged quantities with known half-life profiles when available, and falls back to the saved schedule window when it does not. These are planning estimates, not serum measurements."
+            "Estimate only. Logged quantities use known half-life profiles when available and otherwise fall back to the saved schedule window. These are planning estimates, not serum measurements."
         )
         XCTAssertTrue(snapshot.adherenceTrend.completedCount > 0)
         XCTAssertFalse(snapshot.amountInSystem.isEmpty)

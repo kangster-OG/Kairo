@@ -159,7 +159,7 @@ public struct AtlasEpisodeInsightsSnapshot: Equatable, Sendable {
     public var hasAnyEpisodeData: Bool
 
     public init(
-        disclaimer: String = "Restates nearby timing and logged patterns from local records. No medical guidance or treatment recommendations.",
+        disclaimer: String = "Restates nearby timing and logged patterns from local records; descriptive only, with no medical guidance or dosing advice.",
         recentEpisodes: [AtlasDoseEpisodeSummary] = [],
         compareWindows: [AtlasEpisodeWindowCompareRow] = [],
         patternCards: [AtlasEpisodePatternCard] = [],

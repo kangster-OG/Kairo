@@ -51,7 +51,7 @@ public struct AtlasDeterministicSummaryEngine: AtlasSummaryEngine {
             symptoms > 0 ? countPhrase(symptoms, singular: "symptom entry", plural: "symptom entries") : nil
         ].compactMap { $0 }
         if supportPhrases.isEmpty {
-            parts.append("No context or symptom entries were logged in the same window.")
+            parts.append("No additional context or symptom entries were logged in the same window.")
         } else {
             parts.append("Supporting records: \(naturalList(supportPhrases)).")
         }
@@ -73,7 +73,7 @@ public struct AtlasDeterministicSummaryEngine: AtlasSummaryEngine {
         let patternCount = intValue("pattern_count", in: request) ?? 0
         let pattern = latestValue("leading_pattern", in: request)
 
-        var parts = ["Recent episodes reviewed: \(countPhrase(episodeCount, singular: "dose episode"))."]
+        var parts = ["Atlas currently shows \(countPhrase(episodeCount, singular: "recent dose episode"))."]
         if leadingSignalCount > 0 {
             parts.append("Most active window: \(leadingWindow) with \(countPhrase(leadingSignalCount, singular: "supporting entry", plural: "supporting entries")) across \(countPhrase(leadingWindowEpisodeCount, singular: "episode")).")
         } else if leadingWindowEpisodeCount > 0 {

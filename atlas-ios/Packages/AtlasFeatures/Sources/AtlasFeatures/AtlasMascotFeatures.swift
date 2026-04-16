@@ -265,8 +265,8 @@ struct AtlasMascotEvolutionProgress {
             return "Final form unlocked."
         }
 
-        _ = nextThresholdPoints
-        return "Next form: \(nextFormName)."
+        let remainingPoints = max(nextThresholdPoints - totalPoints, 0)
+        return "\(atlasMascotPointLabel(remainingPoints)) to \(nextFormName)."
     }
 
     var stageBadge: String {
