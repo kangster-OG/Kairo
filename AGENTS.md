@@ -20,9 +20,11 @@ If the user asks about UI, UX, design, polish, motion, typography, layout, inter
 1. `docs/ios-premium-ui-rubric.md`
 2. `docs/ios-ui-audit-2026-04-10.md`
 3. `docs/ios-ui-skill-stack.md`
-4. `docs/ios-redesign-context-2026-04-14.md`
-5. `docs/ios-ui-mascot-rewards-changelog-2026-04-14.md`
-6. `docs/mascot-concepts/atlas-mascot-asset-matrix.md` when the work touches mascot/rewards/media/widgets
+4. `docs/ios-ux-execution-playbook-2026-04-15.md`
+5. `docs/ios-redesign-context-2026-04-14.md`
+6. `docs/ios-ui-mascot-rewards-changelog-2026-04-14.md`
+7. `docs/ios-ambient-mascot-system-handoff-2026-04-16.md` when the work touches mascot/rewards/motion/polish
+8. `docs/mascot-concepts/atlas-mascot-asset-matrix.md` when the work touches mascot/rewards/media/widgets
 
 Treat those files as the standing Atlas UI design system brief for future Codex threads.
 
@@ -95,7 +97,8 @@ For tasks spanning multiple feature areas or broad architecture/doc changes, upd
 
 ## UI execution rule
 For UI-related work:
-- prefer the Build iOS Apps skill stack documented in `docs/ios-ui-skill-stack.md`
+- explicitly use the Build iOS Apps UI skill medley documented in `docs/ios-ui-skill-stack.md` when the skills are available
+- use the combined UX execution lens documented in `docs/ios-ux-execution-playbook-2026-04-15.md`
 - keep Atlas aligned with the redesign context in `docs/ios-redesign-context-2026-04-14.md`
 - preserve the product direction: calm, tactile, premium, local-first, trust-heavy, and non-gimmicky
 - avoid generic health-app UI, flat interchangeable card stacks, and noisy gamification
@@ -103,6 +106,7 @@ For UI-related work:
   - portrait art for in-app hero/detail/export surfaces
   - sticker art for medium cards
   - pixel art for widgets and compact live-state surfaces
+- preserve the ambient mascot handoff in `docs/ios-ambient-mascot-system-handoff-2026-04-16.md`: anchored companion behavior, not free-roaming or always-on clutter
 - default to simulator QA for UI changes, then note any remaining manual/device checks explicitly
 
 ## Done when

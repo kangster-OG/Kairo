@@ -30,11 +30,14 @@ The native app now includes:
 - onboarding and guest/account boundary
 - Today, Timeline, Library, Insights, and Settings
 - one-thumb Quick Capture for shot, weight, symptom, hydration/protein/context, and progress-photo entry
+- customizable Today and Insights landing-card layouts with persisted command-surface preferences
+- premium undo for fresh context, weight, symptom, and custom-metric entries
 - protocol creation/edit plus Protocol Change Studio
 - native reminders and quick logging
-- inventory, vials, calculator profiles, and site tracking
+- inventory, vials, calculator profiles, site tracking, and batch vial/supply actions
 - Trust Vault, selective sharing, raw exports, provider handoff, and Review Mode
-- metrics/insights, Apple Health weight/workout sync, optional rewards, and deterministic Episode Intelligence
+- metrics/insights, Apple Health weight/workout sync, optional rewards, deterministic Episode Intelligence, and optional biometrics/lab overlays
+- optional stack dashboard and stack-aware weekly review surfaces for multi-protocol users
 - widgets, Shortcuts, and App Intents for next-due access, quick capture, and progress evidence
 - progress evidence with guided recapture, same-angle compare, milestone timeline browsing, and richer private summary export
 - lightweight nutrition tracking with meal context, quick capture, common foods, hydration/protein/fiber targets, and weekly coaching

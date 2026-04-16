@@ -2,9 +2,9 @@
 
 Atlas is a privacy-first, local-first protocol tracker for injectables and adjacent routines.
 
-The current product is a native iPhone app under `atlas-ios/`. It is no longer just a dose logger. The shipped native product combines protocol execution, immutable history, inventory, calculators, site tracking, bounded sharing, review outputs, progress evidence, weekly review, deterministic insights, optional nutrition context, optional labs, and optional cloud/account layers that remain additive to local-first use.
+The current product is a native iPhone app under `atlas-ios/`. It is no longer just a dose logger. The shipped native product combines protocol execution, immutable history, inventory, calculators, site tracking, bounded sharing, review outputs, progress evidence, weekly review, deterministic insights, optional nutrition context, optional labs, optional stack-level command surfaces, and optional cloud/account layers that remain additive to local-first use.
 
-Recent native refinements also include photo-assisted meal capture, broader Apple Health nutrition import, a fuller month-style adherence surface, and richer vial media capture for inventory workflows.
+Recent native refinements also include photo-assisted meal capture, broader Apple Health nutrition import, a fuller month-style adherence surface, richer vial media capture for inventory workflows, customizable Today and Insights landing cards, optional stack dashboard/review surfaces, biometrics and lab trend overlays, global undo for fresh metric captures, and batch inventory actions.
 
 ## Read This First
 
@@ -103,6 +103,8 @@ Current Today capabilities:
 - deterministic "Why this is due" explanations
 - recovery handling for drift, missed events, and plan resets
 - quick context access from the operational surface
+- customizable landing cards for Today priorities
+- reversible undo banner for fresh context, weight, symptom, and metric captures
 - freeform meal parsing from typed or dictated meal text
 - photo-assisted meal capture that reads a meal image and prefills a structured nutrition/context suggestion
 - route handoff into protocol detail and Protocol Change Studio
@@ -134,6 +136,7 @@ Current Insights capabilities:
 - symptom logging
 - workout-aware insights
 - custom metrics
+- quick reuse for the most recent context, weight, symptom, and custom-metric entries
 - bounded plain-language recap cards
 - deterministic explainability cards
 - adherence trend summaries
@@ -143,6 +146,9 @@ Current Insights capabilities:
 - nutrition targets, weekly nutrition signals, and coaching cards
 - progress evidence entry point
 - Weekly Review entry point
+- optional stack dashboard for multi-protocol users
+- optional stack-aware weekly review summary block
+- grouped biometrics and lab trend overlays with optional protocol-change markers
 - optional rewards and mascot continuity surfaces
 
 ### Settings
@@ -154,6 +160,8 @@ Current Settings capabilities:
 - Trust Vault controls
 - privacy render mode
 - biometrics and privacy gating
+- command-surface controls for Today and Insights card visibility/order
+- stack dashboard and biometrics overlay feature toggles
 - reminder controls and notification privacy modes
 - Health connection state
 - Apple Health import for workouts, weight, water, calories, and protein
@@ -216,6 +224,8 @@ Current capabilities:
 - vial tracking
 - consumable/supply tracking
 - low-stock watch
+- batch vial archive actions
+- batch supply archive/restore actions
 - projected depletion support
 - manual corrections
 - procurement history for supplies
@@ -259,6 +269,7 @@ Current capabilities:
 - next-action generation
 - action plans
 - reminder settings
+- optional stack review summary when a user has a real active stack
 - export pack generation for weekly review
 - weekly review history/comparison support in the domain layer
 
@@ -283,6 +294,8 @@ Current capabilities:
 - optional labs mode
 - starter lab panels
 - custom lab marker creation through custom metrics
+- grouped biometrics/lab overlays for metabolic, recovery, cardio, hormone, lipid, and liver-adjacent trends when matching numeric metrics exist
+- protocol-change overlay markers on biometrics charts when the user enables them
 - medication level studio
 - provider-facing orientation in product language
 

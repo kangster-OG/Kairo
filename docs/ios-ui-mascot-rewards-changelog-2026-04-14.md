@@ -1,6 +1,6 @@
 # Atlas UI / Mascot / Rewards Changelog
 
-Last updated: 2026-04-14
+Last updated: 2026-04-16
 
 ## Purpose
 
@@ -10,6 +10,7 @@ Fresh Codex threads should use this file as the high-level "what changed and why
 
 - `docs/ios-ui-skill-stack.md`
 - `docs/ios-redesign-context-2026-04-14.md`
+- `docs/ios-ambient-mascot-system-handoff-2026-04-16.md`
 - `docs/mascot-concepts/atlas-mascot-asset-matrix.md`
 
 ## Product direction locked in
@@ -159,6 +160,19 @@ Key collectible moment additions included:
 
 This is the main phase that made the mascot system feel more emotionally authored and less generic.
 
+### 11. Ambient mascot productionization pass
+
+The mascot was extended into a restrained ambient companion system:
+
+- calm perches on selected cards and the bottom shelf
+- settle, idle, rest, courtesy, peek, noticed-content, milestone, and welcome-back reactions
+- Today -> Library and Today -> Insights follow-then-perch transitions
+- user-controlled ambient presence: Off, Subtle, More alive
+- shared serious-mode suppression for sheets, exports, dense entry, and trust-sensitive flows
+- Reduce Motion and Dynamic Type QA expectations for mascot surfaces
+
+The locked product rule is that this remains anchored and event-based. Do not turn it into free roaming, constant motion, or a mascot on every surface.
+
 ## QA pattern that should continue
 
 For UI, mascot, rewards, or widget work, the standing expectation is:
@@ -190,5 +204,6 @@ When future threads touch this area, preserve:
 
 - `docs/ios-ui-skill-stack.md` for which skills and references to use
 - `docs/ios-redesign-context-2026-04-14.md` for product/design intent
+- `docs/ios-ambient-mascot-system-handoff-2026-04-16.md` for ambient mascot placement, policy, suppression, and QA rules
 - `docs/mascot-concepts/atlas-mascot-asset-matrix.md` for mascot asset deployment rules
 - `docs/fresh-codex-thread-prompt.md` for a ready-to-paste fresh-thread starter

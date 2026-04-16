@@ -1,6 +1,6 @@
 # Atlas iOS UI Skill Stack
 
-Last updated: 2026-04-14
+Last updated: 2026-04-16
 
 ## Purpose
 
@@ -8,9 +8,22 @@ This file captures the UI skill stack and design references that proved most use
 
 Future Codex threads should load this file whenever the user asks for UI, UX, design, interaction, motion, typography, layout, widget polish, or SwiftUI presentation work.
 
+Also load `docs/ios-ux-execution-playbook-2026-04-15.md` for the combined navigation / scroll / interaction / accessibility lens that guided the redesign and UX pass.
+
+This skill stack is now permanent repo context through `AGENTS.md`. Treat it as the default workflow for Atlas UI work, not as optional background reading.
+
 ## Default Atlas UI stack
 
-Use these skills first when they are available in the environment.
+Use these skills first when they are available in the environment. If the current Codex environment exposes different names, use the closest equivalent SwiftUI composition, SwiftUI refactor, simulator QA, and performance-audit workflows.
+
+The right default is a medley, not one skill:
+
+1. structure the screen with `swiftui-ui-patterns`
+2. simplify the view tree with `swiftui-view-refactor`
+3. verify the real app in simulator with `ios-debugger-agent`
+4. add `swiftui-performance-audit` when density or render quality is part of the UX problem
+
+For UI tasks, future Codex threads should say which of these they are using and why. Skip one only when the task is clearly too small or the skill is unavailable.
 
 ### Core implementation skills
 
@@ -40,12 +53,29 @@ These are not repo-native executable skills, but they were valuable references d
    - strong checklist-heavy correctness reference for modern SwiftUI review
 3. `PasqualeVittoriosi/swift-accessibility-skill`
    - preferred accessibility reference for premium-quality Dynamic Type, VoiceOver, and App Store accessibility thinking
-4. `Iron-Ham/XcodePreviews`
+4. `dpearson2699/swift-ios-skills`
+   - useful because it splits navigation, gestures, accessibility, performance, and SwiftUI patterns into focused units
+5. `yusufkaran/swiftui-autotest-skill`
+   - useful when visual QA, route verification, truncation checks, and interaction coverage matter more than code generation
+6. `Iron-Ham/XcodePreviews`
    - useful preview-oriented workflow reference for visual SwiftUI iteration
-5. `conorluddy/ios-simulator-skill`
+7. `conorluddy/ios-simulator-skill`
    - useful simulator-interaction reference, especially for UI verification and accessibility-style flows
-6. `Dimillian/Skills`
+8. `Dimillian/Skills`
    - useful confirmation that the SwiftUI skill family above is a strong baseline
+
+## UX evaluation stack
+
+When the user is really talking about app feel rather than raw component styling, use this stack:
+
+1. root-screen hierarchy and stopping points
+2. top-level tab discipline
+3. progressive disclosure
+4. one-handed ergonomics
+5. accessibility and motion settings
+6. simulator-driven flow QA
+
+See `docs/ios-ux-execution-playbook-2026-04-15.md` for the detailed rules.
 
 ## Atlas design principles
 
@@ -115,6 +145,8 @@ Asset deployment rules:
 
 See `docs/mascot-concepts/atlas-mascot-asset-matrix.md` for the authoritative asset matrix.
 
+When the work touches ambient mascot motion or placement, also read `docs/ios-ambient-mascot-system-handoff-2026-04-16.md`. The current direction is anchored, event-based companion behavior, not free roaming or always-on animation.
+
 ## QA expectations for UI work
 
 Default QA flow:
@@ -131,10 +163,14 @@ When possible, also do:
 - accessibility hierarchy review
 - widget verification
 - deep-link verification for changed routes
+- end-of-screen verification for root tabs
+- tab re-entry / scroll-to-top verification when shell behavior is touched
 
 ## Use this with
 
 - `docs/ios-premium-ui-rubric.md`
 - `docs/ios-ui-audit-2026-04-10.md`
+- `docs/ios-ux-execution-playbook-2026-04-15.md`
 - `docs/ios-redesign-context-2026-04-14.md`
+- `docs/ios-ambient-mascot-system-handoff-2026-04-16.md`
 - `docs/mascot-concepts/atlas-mascot-asset-matrix.md`

@@ -462,6 +462,54 @@ Files touched in Wave 7:
   - `Show calm continuity` and `Show companion accent` controls render with the expected new copy
   - the companion preview explains that the accent stays hidden until Atlas has a meaningful continuity update
 
+### Wave 8 now completed locally
+
+Wave 8 is now in a strong state locally:
+
+- operational polish is materially stronger across the shell:
+  - new context, weight, symptom, and custom-metric captures now surface a premium undo banner
+  - vial archive and supply archive/restore actions also register immediate undo affordances
+  - Today and Insights landing surfaces are now user-configurable with persisted visibility and ordering
+- Insights is now a stronger command center:
+  - recent context, weight, symptom, and metric entries can be reopened as fast reuse/edit starting points
+  - optional stack dashboard surfaces multi-protocol burden, timing load, and inventory risk without forcing stack framing on single-protocol users
+  - optional biometrics/lab overlays group numeric trends into reusable panels and can show recent protocol-change markers
+- weekly review now gets an additive stack review layer when appropriate:
+  - stack summary appears only when the user has multiple active protocols and has enabled the stack dashboard surface
+  - rewards, mascot, and calm-retention sections continue to compose into weekly review as before
+- inventory operations are faster at scale:
+  - vials can be batch-selected and archived
+  - supplies can be batch-selected and archived or restored
+
+Files touched in Wave 8:
+
+- `atlas-ios/Packages/AtlasDomain/Sources/AtlasDomain/AtlasDomain.swift`
+- `atlas-ios/Packages/AtlasDomain/Sources/AtlasDomain/AtlasInsights.swift`
+- `atlas-ios/Packages/AtlasDomain/Sources/AtlasDomain/AtlasWeeklyReview.swift`
+- `atlas-ios/Packages/AtlasFeatures/Sources/AtlasFeatures/AtlasFeatures.swift`
+- `atlas-ios/Packages/AtlasFeatures/Sources/AtlasFeatures/AtlasInsightsFeatures.swift`
+- `atlas-ios/Packages/AtlasFeatures/Sources/AtlasFeatures/AtlasInventoryFeatures.swift`
+- `atlas-ios/Packages/AtlasFeatures/Sources/AtlasFeatures/AtlasWeeklyReviewFeatures.swift`
+- `atlas-ios/Packages/AtlasPersistence/Sources/AtlasPersistence/AtlasInventoryRepositories.swift`
+- `atlas-ios/Packages/AtlasPersistence/Sources/AtlasPersistence/AtlasMetricsRepositories.swift`
+- `atlas-ios/Packages/AtlasPersistence/Sources/AtlasPersistence/AtlasOnboardingRepository.swift`
+- `atlas-ios/Packages/AtlasPersistence/Sources/AtlasPersistence/AtlasPersistence.swift`
+- `atlas-ios/Packages/AtlasPersistence/Sources/AtlasPersistence/AtlasRepositories.swift`
+
+## Verification completed for Wave 8
+
+- full native test suite passed:
+  - `193` passed
+  - `0` failed
+- full simulator app build succeeded
+- simulator build-and-run succeeded on booted `iPhone 17`
+- live simulator QA verified:
+  - Today renders with configurable landing-card ordering intact
+  - Settings persists command-surface toggles for stack dashboard and biometrics overlays
+  - Insights renders the new stack dashboard and biometrics/lab panels when enabled
+  - Weekly Review still composes rewards, mascot, and calm-retention sections alongside the new stack review block
+  - inventory batch actions render and complete without breaking the shell
+
 ## Repo-state note
 
 There may be unrelated local dirtiness in launch docs and generated Xcode/SPM metadata.
