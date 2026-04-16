@@ -215,7 +215,7 @@ public struct AtlasReviewModeHomeScreen: View {
         AtlasScreen {
             reviewHeader(
                 "Review Mode",
-                subtitle: "Create a bounded read-only snapshot for review without opening a social or messaging surface."
+                subtitle: "Create a read-only review snapshot."
             )
 
             if let error = model.loadErrorMessage {
@@ -237,7 +237,7 @@ public struct AtlasReviewModeHomeScreen: View {
                 }
 
                 Text(selectedPreset.subtitle)
-                    .font(.caption)
+                    .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
 
                 HStack(spacing: AtlasSpacing.small) {
@@ -277,7 +277,7 @@ public struct AtlasReviewModeHomeScreen: View {
                 if needsMultipleProtocolSelection {
                     VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
                         Text("Protocols")
-                            .font(.caption.weight(.semibold))
+                            .atlasTextRole(.deckEyebrow)
                             .foregroundStyle(AtlasPalette.primary)
 
                         ForEach(model.libraryProtocols) { summary in
@@ -302,9 +302,9 @@ public struct AtlasReviewModeHomeScreen: View {
                 }
                 if deliveryKind == .liveSession {
                     Text(model.canCreateLiveReviewSession
-                        ? "Live sessions stay read-only for reviewers, are backed by Atlas cloud, and can be revoked later from Atlas."
+                        ? "Live sessions are cloud-backed and revocable."
                         : "Sign in to Atlas cloud sync before creating a live review session.")
-                        .font(.caption)
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
 
@@ -324,8 +324,8 @@ public struct AtlasReviewModeHomeScreen: View {
                 .buttonStyle(AtlasPrimaryButtonStyle())
                 .disabled(deliveryKind == .liveSession && model.canCreateLiveReviewSession == false)
 
-                Text("Preset templates stay bounded and static. Static snapshots are labeled read-only and non-revocable after delivery.")
-                    .font(.caption)
+                Text("Static review packs cannot be revoked after delivery.")
+                    .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
             }
 
@@ -335,19 +335,19 @@ public struct AtlasReviewModeHomeScreen: View {
                         .foregroundStyle(AtlasPalette.textSecondary)
                     if latestResult.session.deliveryKind == .liveSession {
                         Text("Session link ready")
-                            .font(.caption.weight(.semibold))
+                            .atlasTextRole(.deckEyebrow)
                             .foregroundStyle(AtlasPalette.primary)
                         Text(latestResult.packURL.absoluteString)
-                            .font(.caption)
+                            .atlasTextRole(.supporting)
                             .foregroundStyle(AtlasPalette.textSecondary)
                             .textSelection(.enabled)
                     } else {
                         Text("Pack: \(latestResult.packURL.lastPathComponent)")
-                            .font(.caption.weight(.semibold))
+                            .atlasTextRole(.deckEyebrow)
                             .foregroundStyle(AtlasPalette.primary)
                     }
                     Text("Summary: \(latestResult.summaryURL.lastPathComponent)")
-                        .font(.caption)
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
             }
@@ -361,21 +361,22 @@ public struct AtlasReviewModeHomeScreen: View {
                         VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
                             HStack {
                                 Text(session.title)
-                                    .font(.body.weight(.semibold))
+                                    .atlasTextRole(.cardBody)
                                     .foregroundStyle(AtlasPalette.textPrimary)
                                 Spacer()
                                 Text(session.status.rawValue.capitalized)
-                                    .font(.caption.weight(.semibold))
+                                    .atlasTextRole(.deckEyebrow)
                                     .foregroundStyle(session.status == .active ? AtlasPalette.primary : .orange)
                             }
                             Text(session.summary)
+                                .atlasTextRole(.supporting)
                                 .foregroundStyle(AtlasPalette.textSecondary)
                             Text("Created \(session.createdAt.formatted(date: .abbreviated, time: .shortened))")
-                                .font(.caption)
+                                .atlasTextRole(.supporting)
                                 .foregroundStyle(AtlasPalette.textSecondary)
                             if let expiresAt = session.expiresAt {
                                 Text("Expires \(expiresAt.formatted(date: .abbreviated, time: .shortened))")
-                                    .font(.caption)
+                                    .atlasTextRole(.supporting)
                                     .foregroundStyle(AtlasPalette.textSecondary)
                             }
                             if let packURL = session.packURL {
@@ -384,7 +385,7 @@ public struct AtlasReviewModeHomeScreen: View {
                                         ? "Session link ready"
                                         : "Pack: \(packURL.lastPathComponent)"
                                 )
-                                .font(.caption)
+                                .atlasTextRole(.supporting)
                                 .foregroundStyle(AtlasPalette.textSecondary)
                             }
                             if session.canRevoke {
@@ -397,12 +398,12 @@ public struct AtlasReviewModeHomeScreen: View {
                                     .buttonStyle(AtlasTertiaryButtonStyle())
                                 } else {
                                     Text("This live session has been revoked or expired.")
-                                        .font(.caption)
+                                        .atlasTextRole(.supporting)
                                         .foregroundStyle(AtlasPalette.textSecondary)
                                 }
                             } else {
                                 Text("Static review packs cannot be revoked after delivery.")
-                                    .font(.caption)
+                                    .atlasTextRole(.supporting)
                                     .foregroundStyle(AtlasPalette.textSecondary)
                             }
                         }
@@ -426,7 +427,7 @@ public struct AtlasReviewModeHomeScreen: View {
                 .buttonStyle(AtlasPrimaryButtonStyle())
 
                 Text("Review workspaces are read-only. There is no owner-data mutation path here.")
-                    .font(.caption)
+                    .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
             }
 
@@ -437,21 +438,22 @@ public struct AtlasReviewModeHomeScreen: View {
 
                     HStack {
                         Text(workspace.readOnly ? "Read-only" : "Editable")
-                            .font(.caption.weight(.semibold))
+                            .atlasTextRole(.deckEyebrow)
                             .foregroundStyle(workspace.readOnly ? AtlasPalette.primary : .orange)
                         Spacer()
                         Text(workspace.renderMode.rawValue.capitalized)
-                            .font(.caption.weight(.semibold))
+                            .atlasTextRole(.deckEyebrow)
                             .foregroundStyle(AtlasPalette.textSecondary)
                     }
 
                     ForEach(workspace.sections) { section in
                         VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
                             Text(section.title)
-                                .font(.caption.weight(.semibold))
+                                .atlasTextRole(.deckEyebrow)
                                 .foregroundStyle(AtlasPalette.primary)
                             ForEach(section.lines, id: \.self) { line in
                                 Text(line)
+                                    .atlasTextRole(.supporting)
                                     .foregroundStyle(AtlasPalette.textSecondary)
                             }
                         }
@@ -550,10 +552,10 @@ private func reviewHeader(_ title: String, subtitle: String) -> some View {
     VStack(alignment: .leading, spacing: AtlasSpacing.small) {
         AtlasStatusBadge("Read-only handoffs", tint: AtlasPalette.secondaryText)
         Text(title)
-            .font(.system(size: 34, weight: .bold, design: .rounded))
+            .atlasTextRole(.screenTitle)
             .foregroundStyle(AtlasPalette.textPrimary)
         Text(subtitle)
-            .font(.body)
+            .atlasTextRole(.screenSubtitle)
             .foregroundStyle(AtlasPalette.textSecondary)
             .fixedSize(horizontal: false, vertical: true)
     }

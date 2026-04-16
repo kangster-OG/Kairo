@@ -164,7 +164,7 @@ public struct AtlasRewardsSnapshot: Sendable, Equatable {
         streaks: [AtlasRewardStreakSnapshot] = [],
         goals: [AtlasRewardGoalSnapshot] = [],
         badges: [AtlasRewardBadgeSnapshot] = [],
-        note: String = "Rewards stay local to Atlas and update from your logged consistency, workouts, self-defined goals, and descriptive milestones."
+        note: String = "Rewards stay local and update from consistency, workouts, self-defined goals, and milestones."
     ) {
         self.settings = settings
         self.totalPoints = totalPoints

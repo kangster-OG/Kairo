@@ -103,7 +103,7 @@ enum AtlasMascotExportError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .renderFailed:
-            return "Atlas could not render this mascot recap card right now."
+            return "Could not render this mascot recap card right now."
         }
     }
 }
@@ -194,12 +194,12 @@ public func atlasMascotRecapDescriptor(
                 ),
                 detail: privacyMode == .fullDetail
                     ? "Evolution recorded \(atlasMascotReadableTimestamp(latestEvolution.earnedAt))."
-                    : "\(unlockedFormName) was unlocked in Atlas and added to the guardian line.",
+                    : "\(unlockedFormName) was unlocked and added to the guardian line.",
                 secondaryDetail: latestEvolution.stage == .stage3
                     ? atlasMascotSecondaryDetail(
                         audience: audience,
                         privacyMode: privacyMode,
-                        fullDetail: "\(unlockedFormName) is the final guardian form for this Atlas line.",
+                        fullDetail: "\(unlockedFormName) is the final guardian form for this line.",
                         privacySafeDetail: "\(unlockedFormName) is now the top guardian form in this line."
                     )
                     : atlasMascotSecondaryDetail(
@@ -227,7 +227,7 @@ public func atlasMascotRecapDescriptor(
             headline: evolution.celebrationHeadline,
             detail: privacyMode == .fullDetail
                 ? evolution.celebrationBody
-                : "Atlas is still building toward the next evolution milestone.",
+                : "The next evolution milestone is still ahead.",
             secondaryDetail: atlasMascotSecondaryDetail(
                 audience: audience,
                 privacyMode: privacyMode,
@@ -292,7 +292,7 @@ public func atlasMascotRecapDescriptor(
                     fullDetail: reaction?.detail ?? evolution.milestoneHeadline,
                     privacySafeDetail: "The mascot is ready for the next meaningful update."
                 ),
-            secondaryDetail: "No stored mascot moment yet. Atlas will capture one after the next interaction or milestone.",
+            secondaryDetail: "No stored mascot moment yet. One will appear after the next interaction or milestone.",
             footer: evolution.progressLabel,
             symbolName: reaction?.symbolName ?? "sparkles",
             sourceMomentEventKey: nil,
@@ -1007,7 +1007,7 @@ private func atlasMascotWeeklyHeadline(
     case .coach:
         return "\(currentFormName) logged \(pointLabel) and is ready for review."
     case .share:
-        return "\(displayName) is holding a strong Atlas rhythm right now."
+        return "\(displayName) is holding a strong rhythm right now."
     }
 }
 
@@ -1024,12 +1024,12 @@ private func atlasMascotWeeklyDetail(
         return "\(currentFormName) tracked \(completedGoals) completed goals, \(earnedBadges) earned badges, and a \(streakDetail)."
     case .coach:
         if privacyMode == .privacySafe {
-            return "Atlas captured progress across goals, consistency, and reward milestones without exposing private labels."
+            return "Progress across goals, consistency, and reward milestones without private labels."
         }
         return "\(completedGoals) goals closed, \(earnedBadges) badges earned, and \(streakDetail) maintained."
     case .share:
         if privacyMode == .privacySafe {
-            return "Atlas captured a steady rhythm across momentum, consistency, and guardian progress."
+            return "A steady rhythm across momentum, consistency, and guardian progress."
         }
         return "\(currentFormName) reflected progress across goals, badges, and steady consistency."
     }
@@ -1044,7 +1044,7 @@ private func atlasMascotEvolutionHeadline(
     case .personal:
         return "\(displayName) unlocked \(unlockedFormName)."
     case .coach:
-        return "\(unlockedFormName) is now active in Atlas."
+        return "\(unlockedFormName) is now active."
     case .share:
         return "\(displayName) reached a new guardian form."
     }
@@ -1071,11 +1071,11 @@ private func atlasMascotPrivacySafeMomentDetail(
 ) -> String {
     switch audience {
     case .personal:
-        return "\(stageName) reacted to a recent Atlas milestone."
+        return "\(stageName) reacted to a recent milestone."
     case .coach:
-        return "Atlas recorded a recent mascot reaction tied to meaningful progress."
+        return "A recent mascot reaction tied to meaningful progress."
     case .share:
-        return "Atlas captured a recent mascot moment."
+        return "A recent mascot moment."
     }
 }
 

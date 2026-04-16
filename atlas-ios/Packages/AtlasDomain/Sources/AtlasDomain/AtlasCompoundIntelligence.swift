@@ -104,7 +104,7 @@ public enum AtlasCompoundKnowledgeCatalog {
             kineticsProfile: .init(
                 halfLifeHours: 168,
                 sourceLabel: "Catalog half-life profile",
-                notes: "Atlas uses a semaglutide half-life profile to shape a deterministic planning estimate from logged doses."
+                notes: "Uses a semaglutide half-life profile to estimate relative levels from logged doses."
             ),
             operationalTags: [.appetiteControl, .giLoad, .bloodSugarShift, .weeklyCadence],
             protocolSummary: "Weekly GLP-1 option often used when appetite control and steady weekly adherence matter most.",
@@ -128,7 +128,7 @@ public enum AtlasCompoundKnowledgeCatalog {
             kineticsProfile: .init(
                 halfLifeHours: 120,
                 sourceLabel: "Catalog half-life profile",
-                notes: "Atlas uses a tirzepatide half-life profile to shape a deterministic planning estimate from logged doses."
+                notes: "Uses a tirzepatide half-life profile to estimate relative levels from logged doses."
             ),
             operationalTags: [.appetiteControl, .giLoad, .bloodSugarShift, .weeklyCadence],
             protocolSummary: "Weekly dual-pathway option commonly treated as a stronger step up when appetite control and scale response both matter.",
@@ -152,7 +152,7 @@ public enum AtlasCompoundKnowledgeCatalog {
             operationalTags: [.appetiteControl, .giLoad, .bloodSugarShift, .weeklyCadence],
             protocolSummary: "Triple-pathway GLP candidate usually treated as a higher-uncertainty protocol with tighter monitoring needs.",
             compareCandidateSlugs: ["tirzepatide", "semaglutide"],
-            swapGuidance: "Atlas should treat this as a more experimental swap, with extra caution around tolerance and source quality.",
+            swapGuidance: "Treat this as a more experimental swap, with extra caution around tolerance and source quality.",
             operationalCautions: [
                 "Availability and sourcing are less stable than the established GLP options.",
                 "Operationally this usually deserves tighter check-ins than a routine weekly maintenance protocol."
@@ -171,7 +171,7 @@ public enum AtlasCompoundKnowledgeCatalog {
             kineticsProfile: .init(
                 halfLifeHours: 13,
                 sourceLabel: "Catalog half-life profile",
-                notes: "Atlas uses a liraglutide half-life profile to shape a deterministic planning estimate from logged doses."
+                notes: "Uses a liraglutide half-life profile to estimate relative levels from logged doses."
             ),
             operationalTags: [.appetiteControl, .giLoad, .bloodSugarShift, .dailyCadence],
             protocolSummary: "Daily GLP plan that trades a lighter single-dose load for a much higher reminder and adherence burden.",
@@ -196,7 +196,7 @@ public enum AtlasCompoundKnowledgeCatalog {
             compareCandidateSlugs: ["tb-500", "ghk-cu", "mots-c"],
             swapGuidance: "Swaps are usually about recovery focus and injection burden, not about replacing a metabolic weekly anchor.",
             operationalCautions: [
-                "If the protocol is site-targeted, Atlas should preserve site context instead of treating this like a generic daily injection."
+                "If the protocol is site-targeted, preserve site context instead of treating this like a generic daily injection."
             ]
         ),
         AtlasCompoundKnowledge(
@@ -250,7 +250,7 @@ public enum AtlasCompoundKnowledgeCatalog {
             compareCandidateSlugs: ["ipamorelin", "tesamorelin", "sermorelin"],
             swapGuidance: "The real swap question is usually schedule burden and whether the user is intentionally stacking GH-axis signals.",
             operationalCautions: [
-                "Atlas should assume GH-axis compounds need extra clarity when they are stacked, even if each dose looks routine."
+                "GH-axis stacks need extra clarity even if each dose looks routine."
             ]
         ),
         AtlasCompoundKnowledge(
@@ -268,7 +268,7 @@ public enum AtlasCompoundKnowledgeCatalog {
             compareCandidateSlugs: ["sermorelin", "ipamorelin", "cjc-1295"],
             swapGuidance: "Compared with looser peptide stacks, this usually benefits from clearer sourcing, schedule discipline, and provider continuity.",
             operationalCautions: [
-                "Daily GH-axis protocols can quietly become adherence problems if Atlas only treats them as simple recurring injections."
+                "Daily GH-axis protocols can become adherence problems if treated as simple recurring injections."
             ]
         ),
         AtlasCompoundKnowledge(
@@ -286,7 +286,7 @@ public enum AtlasCompoundKnowledgeCatalog {
             compareCandidateSlugs: ["tesamorelin", "ipamorelin", "cjc-1295"],
             swapGuidance: "Swap guidance should focus on daily adherence and whether the user is narrowing or broadening GH-axis exposure.",
             operationalCautions: [
-                "When multiple GH-axis compounds are present, Atlas should assume the user needs stronger transition guidance."
+                "Multiple GH-axis compounds usually need stronger transition guidance."
             ]
         ),
         AtlasCompoundKnowledge(
@@ -338,7 +338,7 @@ public enum AtlasCompoundKnowledgeCatalog {
             operationalTags: [.recoverySupport, .skinHair, .siteSensitive, .dailyCadence],
             protocolSummary: "Support peptide often used when skin, tissue, or cosmetic intent matters alongside recovery tracking.",
             compareCandidateSlugs: ["bpc-157", "tb-500"],
-            swapGuidance: "Atlas should treat this as a support protocol with real site and adherence implications, not just a cosmetic add-on.",
+            swapGuidance: "Treat this as a support protocol with real site and adherence implications, not just a cosmetic add-on.",
             operationalCautions: [
                 "Skin and cosmetic goals still create meaningful protocol load when paired with repair stacks."
             ]
@@ -356,7 +356,7 @@ public enum AtlasCompoundKnowledgeCatalog {
             operationalTags: [.sexualFunction],
             protocolSummary: "Situational peptide that benefits from better event-based planning than a rigid recurring schedule.",
             compareCandidateSlugs: ["ghk-cu"],
-            swapGuidance: "Atlas should support event-oriented guidance here instead of forcing it into a weekly maintenance mental model.",
+            swapGuidance: "Support event-oriented guidance here instead of forcing it into a weekly maintenance model.",
             operationalCautions: [
                 "Situational protocols need different reminder logic than maintenance compounds."
             ]
@@ -374,7 +374,7 @@ public enum AtlasCompoundKnowledgeCatalog {
             kineticsProfile: .init(
                 halfLifeHours: 192,
                 sourceLabel: "Catalog half-life profile",
-                notes: "Atlas uses a testosterone cypionate half-life profile to shape a deterministic planning estimate from logged doses."
+                notes: "Uses a testosterone cypionate half-life profile to estimate relative levels from logged doses."
             ),
             operationalTags: [.androgenicLoad, .waterRetention, .estrogenicSpillover, .weeklyCadence],
             protocolSummary: "Core TRT-style protocol where cadence consistency, labs, and inventory continuity tend to matter more than novelty.",
@@ -397,7 +397,7 @@ public enum AtlasCompoundKnowledgeCatalog {
             kineticsProfile: .init(
                 halfLifeHours: 108,
                 sourceLabel: "Catalog half-life profile",
-                notes: "Atlas uses a testosterone enanthate half-life profile to shape a deterministic planning estimate from logged doses."
+                notes: "Uses a testosterone enanthate half-life profile to estimate relative levels from logged doses."
             ),
             operationalTags: [.androgenicLoad, .waterRetention, .estrogenicSpillover, .weeklyCadence],
             protocolSummary: "Very similar operationally to testosterone cypionate, with most differences showing up in schedule preference and sourcing.",
@@ -418,11 +418,11 @@ public enum AtlasCompoundKnowledgeCatalog {
             availabilityLabel: "Prescription or underground / non-standard sourcing depending on context",
             commonDoseUnits: ["mg", "mL"],
             operationalTags: [.androgenicLoad, .waterRetention, .weeklyCadence],
-            protocolSummary: "Secondary anabolic layer where Atlas should assume the protocol load is meaningfully higher than simple TRT maintenance.",
+            protocolSummary: "Secondary anabolic layer where protocol load is meaningfully higher than simple TRT maintenance.",
             compareCandidateSlugs: ["testosterone-cypionate", "testosterone-enanthate"],
             swapGuidance: "This is less of a one-for-one swap and more of a stack decision that changes monitoring burden.",
             operationalCautions: [
-                "Atlas should treat companion androgen use as a real interaction burden, not as a neutral adjacent protocol."
+                "Treat companion androgen use as a real interaction burden, not as a neutral adjacent protocol."
             ]
         ),
         AtlasCompoundKnowledge(
@@ -438,9 +438,9 @@ public enum AtlasCompoundKnowledgeCatalog {
             operationalTags: [.estrogenicSpillover],
             protocolSummary: "Support protocol usually used alongside TRT-style plans, where unit clarity and inventory tracking matter a lot.",
             compareCandidateSlugs: ["testosterone-cypionate", "testosterone-enanthate"],
-            swapGuidance: "This is usually a companion decision rather than a direct replacement, so Atlas should frame it around stack burden.",
+            swapGuidance: "This is usually a companion decision rather than a direct replacement, so frame it around stack burden.",
             operationalCautions: [
-                "Unit ambiguity is common here, so Atlas should be extra careful when saved units do not match the usual protocol."
+                "Unit ambiguity is common here, so be extra careful when saved units do not match the usual protocol."
             ]
         )
     ]
@@ -518,7 +518,7 @@ public enum AtlasCompoundKnowledgeCatalog {
         }
 
         if Set(current.commonDoseUnits) != Set(next.commonDoseUnits) {
-            notes.append("Dose conventions change here, so Atlas should make the unit transition explicit before the protocol is edited.")
+            notes.append("Dose conventions change here, so make the unit transition explicit before editing the protocol.")
         }
 
         let sharedTags = Set(current.operationalTags).intersection(next.operationalTags)

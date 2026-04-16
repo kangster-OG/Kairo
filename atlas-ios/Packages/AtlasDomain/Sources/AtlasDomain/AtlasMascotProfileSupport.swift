@@ -34,29 +34,29 @@ public func atlasMascotStatusLine(
     rewardsSnapshot: AtlasRewardsSnapshot
 ) -> String {
     let stage = AtlasMascotMilestone.stage(for: rewardsSnapshot.totalPoints)
-    let displayName = atlasMascotDisplayName(selection: selection, stage: stage, nickname: nickname)
 
     if stage == .stage3 {
-        return "\(displayName) is settled into the final guardian form."
+        return "Final form active."
     }
 
     if let nextThreshold = AtlasMascotMilestone.nextThreshold(after: stage) {
         let remaining = max(nextThreshold - rewardsSnapshot.totalPoints, 0)
         if remaining <= 120 {
-            let nextForm = stage == .stage1 ? selection.stage2Title : selection.stage3Title
-            return "\(displayName) can feel \(nextForm) getting close."
+            return "Next form is close."
         }
     }
 
     if let unmetGoal = rewardsSnapshot.goals.first(where: { $0.isMet == false }) {
-        return "\(displayName) is growing with every step toward \(unmetGoal.title.lowercased())."
+        _ = unmetGoal
+        return "Reward goal active."
     }
 
     if let activeStreak = rewardsSnapshot.streaks.first(where: { $0.isActive }) {
-        return "\(displayName) is keeping pace with your \(activeStreak.title.lowercased()) streak."
+        _ = activeStreak
+        return "Streak active."
     }
 
-    return "\(displayName) is growing quietly with every rewards milestone."
+    return "Rewards active."
 }
 
 public func atlasMascotReactionSummary(

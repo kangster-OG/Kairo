@@ -839,7 +839,7 @@ public func atlasCalculateReconstitution(_ draft: AtlasCalculatorProfileDraft) -
         explanation: [
             "1. Divide \(formatAtlasValue(draft.powderAmount)) \(draft.powderUnit) by \(formatAtlasValue(draft.diluentVolume)) \(draft.diluentUnit) to get concentration.",
             "2. Multiply that concentration by \(formatAtlasValue(draft.drawVolume)) \(draft.drawUnit).",
-            "This is a neutral math helper only. Atlas does not recommend what to take."
+            "This is a neutral math helper only. It does not recommend what to take."
         ]
     )
 }

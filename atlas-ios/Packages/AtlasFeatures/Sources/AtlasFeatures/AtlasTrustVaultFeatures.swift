@@ -124,31 +124,84 @@ public struct AtlasTrustVaultHomeScreen: View {
 
     public var body: some View {
         AtlasScreen {
-            header("Trust Vault", subtitle: "Privacy mode, bounded sharing, raw exports, and sensitive-action history now live natively.")
+            AtlasCommandDeck(
+                eyebrow: "PRIVACY CONTROL",
+                title: trustVaultDeckTitle,
+                detail: trustVaultDeckDetail,
+                metrics: trustVaultMetrics,
+                style: .hero
+            ) {
+                VStack(spacing: AtlasSpacing.small) {
+                    Button("Preview selective share") {
+                        AtlasFeedback.selection()
+                        previewSelectiveShare()
+                    }
+                        .buttonStyle(AtlasPrimaryButtonStyle())
+
+                    HStack(spacing: AtlasSpacing.small) {
+                        Button("Create encrypted snapshot") {
+                            AtlasFeedback.selection()
+                            createSelectiveShare()
+                        }
+                            .buttonStyle(AtlasSecondaryButtonStyle())
+                        Button("Open Review Mode") {
+                            AtlasFeedback.selection()
+                            model.open(.reviewMode)
+                        }
+                        .buttonStyle(AtlasSecondaryButtonStyle())
+                    }
+                }
+            } footer: {
+                AtlasCalloutRow(
+                    systemImage: model.trustVaultSnapshot.privacyProfile.biometricLockEnabled ? "lock.shield.fill" : "eye.slash",
+                    title: model.trustVaultSnapshot.privacyProfile.biometricLockEnabled ? "Biometric gate is active" : "Biometric gate is optional",
+                    detail: model.dependencies.privacyFormatter.summary(mode: model.trustVaultSnapshot.privacyProfile.renderMode ?? .full),
+                    tint: model.trustVaultSnapshot.privacyProfile.biometricLockEnabled ? AtlasPalette.success : AtlasPalette.secondaryText,
+                    badge: model.trustVaultSnapshot.privacyProfile.biometricLockEnabled ? "Protected" : "Visible"
+                )
+            }
 
             if let error = model.loadErrorMessage {
-                AtlasSectionCard {
+                AtlasSectionCard(style: .utility, title: "Attention") {
                     Text(error)
                         .foregroundStyle(.red)
                 }
             }
 
-            AtlasSectionCard(style: .elevated, title: "Privacy state") {
-                HStack(spacing: AtlasSpacing.small) {
-                    AtlasStatusBadge((model.trustVaultSnapshot.privacyProfile.renderMode ?? .full).rawValue.capitalized)
-                    AtlasStatusBadge(
-                        model.trustVaultSnapshot.privacyProfile.shareAliasByDefault ? "Alias sharing" : "Canonical sharing",
+            AtlasSectionCard(style: .task, title: "Privacy state") {
+                AtlasMetricStrip(metrics: [
+                    AtlasMetricItem(
+                        id: "render_mode",
+                        title: "Display",
+                        value: (model.trustVaultSnapshot.privacyProfile.renderMode ?? .full).rawValue.capitalized
+                    ),
+                    AtlasMetricItem(
+                        id: "sharing_mode",
+                        title: "Shares",
+                        value: model.trustVaultSnapshot.privacyProfile.shareAliasByDefault ? "Alias" : "Canonical",
+                        tint: AtlasPalette.secondaryText
+                    ),
+                    AtlasMetricItem(
+                        id: "export_mode",
+                        title: "Exports",
+                        value: model.trustVaultSnapshot.privacyProfile.exportAliasByDefault ? "Alias" : "Full",
                         tint: AtlasPalette.secondaryText
                     )
-                }
-                Text(model.dependencies.privacyFormatter.summary(mode: model.trustVaultSnapshot.privacyProfile.renderMode ?? .full))
-                    .foregroundStyle(AtlasPalette.textSecondary)
+                ])
+
+                AtlasCalloutRow(
+                    systemImage: "eye.slash",
+                    title: "On-screen privacy",
+                    detail: model.dependencies.privacyFormatter.summary(mode: model.trustVaultSnapshot.privacyProfile.renderMode ?? .full),
+                    tint: AtlasPalette.primary
+                )
 
                 Picker(
                     "Render mode",
                     selection: Binding(
                         get: { model.trustVaultSnapshot.privacyProfile.renderMode ?? .full },
                         set: { value in
+                            AtlasFeedback.selection()
                             Task {
                                 await model.updateTrustVaultProfile(
                                     AtlasTrustVaultProfileUpdate(renderMode: value)
@@ -167,6 +220,7 @@ public struct AtlasTrustVaultHomeScreen: View {
                     isOn: Binding(
                         get: { model.trustVaultSnapshot.privacyProfile.shareAliasByDefault },
                         set: { value in
+                            AtlasFeedback.selection()
                             Task {
                                 await model.updateTrustVaultProfile(
                                     AtlasTrustVaultProfileUpdate(shareAliasByDefault: value)
@@ -181,6 +235,7 @@ public struct AtlasTrustVaultHomeScreen: View {
                     isOn: Binding(
                         get: { model.trustVaultSnapshot.privacyProfile.exportAliasByDefault },
                         set: { value in
+                            AtlasFeedback.selection()
                             Task {
                                 await model.updateTrustVaultProfile(
                                     AtlasTrustVaultProfileUpdate(exportAliasByDefault: value)
@@ -191,9 +246,26 @@ public struct AtlasTrustVaultHomeScreen: View {
                 )
             }
 
-            AtlasSectionCard(style: .elevated, title: "Biometric gate") {
-                AtlasStatusBadge(
-                    model.trustVaultSnapshot.privacyProfile.biometricLockEnabled ? "Biometric gate on" : "Biometric gate off",
+            AtlasSectionCard(style: .task, title: "Biometric gate") {
+                AtlasMetricStrip(metrics: [
+                    AtlasMetricItem(
+                        id: "biometric_status",
+                        title: "Gate",
+                        value: model.trustVaultSnapshot.privacyProfile.biometricLockEnabled ? "On" : "Off",
+                        tint: model.trustVaultSnapshot.privacyProfile.biometricLockEnabled ? AtlasPalette.success : AtlasPalette.secondaryText
+                    ),
+                    AtlasMetricItem(
+                        id: "gate_mode",
+                        title: "Mode",
+                        value: biometricGateModeLabel(model.trustVaultSnapshot.privacyProfile.biometricGateMode),
+                        tint: AtlasPalette.secondaryText
+                    )
+                ])
+
+                AtlasCalloutRow(
+                    systemImage: "lock.shield",
+                    title: model.trustVaultSnapshot.privacyProfile.biometricLockEnabled ? "Sensitive actions require confirmation" : "Sensitive actions are ungated",
+                    detail: "Exports, previews, and review actions use this device setting.",
                     tint: model.trustVaultSnapshot.privacyProfile.biometricLockEnabled ? AtlasPalette.success : AtlasPalette.secondaryText
                 )
                 Toggle(
@@ -201,6 +273,7 @@ public struct AtlasTrustVaultHomeScreen: View {
                     isOn: Binding(
                         get: { model.trustVaultSnapshot.privacyProfile.biometricLockEnabled },
                         set: { value in
+                            AtlasFeedback.selection()
                             Task {
                                 await model.updateTrustVaultProfile(
                                     AtlasTrustVaultProfileUpdate(
@@ -218,6 +291,7 @@ public struct AtlasTrustVaultHomeScreen: View {
                     selection: Binding(
                         get: { model.trustVaultSnapshot.privacyProfile.biometricGateMode },
                         set: { value in
+                            AtlasFeedback.selection()
                             Task {
                                 await model.updateTrustVaultProfile(
                                     AtlasTrustVaultProfileUpdate(biometricGateMode: value)
@@ -232,22 +306,31 @@ public struct AtlasTrustVaultHomeScreen: View {
                 }
             }
 
-            AtlasSectionCard(title: "Aliases") {
+            AtlasSectionCard(style: .utility, title: "Aliases") {
+                AtlasCalloutRow(
+                    systemImage: "person.text.rectangle",
+                    title: "Alias language is presentation-only",
+                    detail: "Canonical labels stay local. Aliases only change what shared views and exports show.",
+                    tint: AtlasPalette.secondaryText
+                )
+
                 if model.trustVaultSnapshot.aliases.isEmpty {
                     Text("No protocols are available for alias management yet.")
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 } else {
                     ForEach(model.trustVaultSnapshot.aliases) { item in
                         Button {
+                            AtlasFeedback.selection()
                             selectedAliasItem = item
                         } label: {
                             HStack {
                                 VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
                                     Text(model.renderedTitle(canonical: item.canonicalTitle, alias: item.aliasLabel))
-                                        .font(.body.weight(.semibold))
+                                        .atlasTextRole(.cardBody)
                                         .foregroundStyle(AtlasPalette.textPrimary)
                                     Text(item.aliasLabel?.isEmpty == false ? "Codename: \(item.aliasLabel!)" : "No alias set")
-                                        .font(.caption)
+                                        .atlasTextRole(.supporting)
                                         .foregroundStyle(AtlasPalette.textSecondary)
                                 }
                                 Spacer()
@@ -260,7 +343,14 @@ public struct AtlasTrustVaultHomeScreen: View {
                 }
             }
 
-            AtlasSectionCard(style: .elevated, title: "Selective sharing") {
+            AtlasSectionCard(style: .task, title: "Selective sharing") {
+                AtlasCalloutRow(
+                    systemImage: "square.and.arrow.up.on.square",
+                    title: "Bounded read-only sharing",
+                    detail: "Preview the scoped snapshot before creating an encrypted handoff.",
+                    tint: AtlasPalette.primary
+                )
+
                 Picker("Scope", selection: $scopeKind) {
                     Text("Current protocol").tag(AtlasSelectiveShareScopeKind.currentProtocolOnly)
                     Text("Protocol + timeline").tag(AtlasSelectiveShareScopeKind.protocolWithRecentTimeline)
@@ -293,30 +383,33 @@ public struct AtlasTrustVaultHomeScreen: View {
                 }
 
                 Button("Preview share") {
-                    Task {
-                        preview = await model.previewSelectiveShare(selectiveShareRequest)
-                    }
+                    AtlasFeedback.selection()
+                    previewSelectiveShare()
                 }
                 .buttonStyle(AtlasPrimaryButtonStyle())
 
                 Button("Create encrypted snapshot") {
-                    Task {
-                        latestShare = await model.createSelectiveShare(selectiveShareRequest)
-                    }
+                    AtlasFeedback.selection()
+                    createSelectiveShare()
                 }
                 .buttonStyle(AtlasSecondaryButtonStyle())
 
                 if let preview {
                     VStack(alignment: .leading, spacing: AtlasSpacing.small) {
-                        Text(preview.summary)
-                            .foregroundStyle(AtlasPalette.textSecondary)
+                        AtlasCalloutRow(
+                            systemImage: "doc.text.magnifyingglass",
+                            title: "Preview ready",
+                            detail: preview.summary,
+                            tint: AtlasPalette.success
+                        )
                         ForEach(preview.sections) { section in
                             VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
                                 Text(section.title)
-                                    .font(.caption.weight(.semibold))
+                                    .atlasTextRole(.deckEyebrow)
                                     .foregroundStyle(AtlasPalette.primary)
                                 ForEach(section.lines, id: \.self) { line in
                                     Text(line)
+                                        .atlasTextRole(.supporting)
                                         .foregroundStyle(AtlasPalette.textSecondary)
                                 }
                             }
@@ -325,16 +418,26 @@ public struct AtlasTrustVaultHomeScreen: View {
                 }
 
                 if let latestShare {
-                    Text("Encrypted snapshot ready at \(latestShare.fileURL.lastPathComponent)")
-                        .foregroundStyle(AtlasPalette.textSecondary)
-                    Text("Share code: \(latestShare.shareCode)")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(AtlasPalette.primary)
+                    AtlasCalloutRow(
+                        systemImage: "lock.doc",
+                        title: "Encrypted snapshot ready",
+                        detail: "\(latestShare.fileURL.lastPathComponent) • Share code \(latestShare.shareCode)",
+                        tint: AtlasPalette.success,
+                        badge: "Ready"
+                    )
                 }
             }
 
-            AtlasSectionCard(style: .elevated, title: "Raw exports") {
+            AtlasSectionCard(style: .utility, title: "Raw exports") {
+                AtlasCalloutRow(
+                    systemImage: "arrow.down.doc",
+                    title: "Export full source data when you need it",
+                    detail: "JSON and CSV exports still respect your default Trust Vault export mode so raw access never breaks the privacy posture you set.",
+                    tint: AtlasPalette.secondaryText
+                )
+
                 Button("Create JSON export") {
+                    AtlasFeedback.selection()
                     Task {
                         latestExport = await model.createRawExport(
                             AtlasRawExportRequest(
@@ -347,6 +450,7 @@ public struct AtlasTrustVaultHomeScreen: View {
                 .buttonStyle(AtlasPrimaryButtonStyle())
 
                 Button("Create CSV export") {
+                    AtlasFeedback.selection()
                     Task {
                         latestExport = await model.createRawExport(
                             AtlasRawExportRequest(
@@ -359,39 +463,49 @@ public struct AtlasTrustVaultHomeScreen: View {
                 .buttonStyle(AtlasSecondaryButtonStyle())
 
                 if let latestExport {
+                    AtlasMetricStrip(metrics: [
+                        AtlasMetricItem(id: "export_rows", title: "Rows", value: "\(latestExport.rowCount)"),
+                        AtlasMetricItem(id: "export_mode", title: "Mode", value: latestExport.renderMode.rawValue.capitalized, tint: AtlasPalette.secondaryText)
+                    ])
+
                     Text("Latest \(latestExport.format.rawValue.uppercased()) export: \(latestExport.fileURL.lastPathComponent)")
-                        .foregroundStyle(AtlasPalette.textSecondary)
-                    Text("Rows: \(latestExport.rowCount) • mode: \(latestExport.renderMode.rawValue)")
-                        .font(.caption)
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
             }
 
             AtlasProviderHandoffCard(model: model)
 
-            AtlasSectionCard(style: .utility, title: "Review workspace") {
-                Text("Create bounded read-only review packs without opening a social or chat surface.")
-                    .foregroundStyle(AtlasPalette.textSecondary)
+            AtlasSectionCard(style: .task, title: "Review workspace") {
+                AtlasCalloutRow(
+                    systemImage: "rectangle.on.rectangle.angled",
+                    title: "Bounded review workspace",
+                    detail: "Create read-only review packs.",
+                    tint: AtlasPalette.primary
+                )
                 Button("Open Review Mode") {
+                    AtlasFeedback.selection()
                     model.open(.reviewMode)
                 }
                 .buttonStyle(AtlasPrimaryButtonStyle())
             }
 
-            AtlasSectionCard(title: "Sensitive action audit") {
+            AtlasSectionCard(style: .utility, title: "Sensitive action audit") {
                 if model.trustVaultSnapshot.audits.isEmpty {
-                    Text("Sensitive actions will appear here as you change privacy settings, export, or share.")
-                        .foregroundStyle(AtlasPalette.textSecondary)
+                    AtlasCalloutRow(
+                        systemImage: "clock.badge.shield.checkmark",
+                        title: "Audit trail starts when actions happen",
+                        detail: "Sensitive actions will appear here as you change privacy settings, preview shares, export, or hand off data.",
+                        tint: AtlasPalette.secondaryText
+                    )
                 } else {
                     ForEach(model.trustVaultSnapshot.audits.prefix(12)) { item in
-                        VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
-                            Text(item.summary)
-                                .font(.body.weight(.semibold))
-                                .foregroundStyle(AtlasPalette.textPrimary)
-                            Text(item.createdAt.formatted(date: .abbreviated, time: .shortened))
-                                .font(.caption)
-                                .foregroundStyle(AtlasPalette.textSecondary)
-                        }
+                        AtlasCalloutRow(
+                            systemImage: "shield.lefthalf.filled",
+                            title: item.summary,
+                            detail: item.createdAt.formatted(date: .abbreviated, time: .shortened),
+                            tint: AtlasPalette.secondaryText
+                        )
                     }
                 }
             }
@@ -428,6 +542,70 @@ public struct AtlasTrustVaultHomeScreen: View {
             return false
         }
     }
+
+    private var trustVaultMetrics: [AtlasMetricItem] {
+        [
+            AtlasMetricItem(
+                id: "aliases",
+                title: "Aliases",
+                value: "\(model.trustVaultSnapshot.aliases.count)"
+            ),
+            AtlasMetricItem(
+                id: "audits",
+                title: "Audit trail",
+                value: "\(model.trustVaultSnapshot.audits.count)",
+                tint: AtlasPalette.secondaryText
+            ),
+            AtlasMetricItem(
+                id: "gate",
+                title: "Gate",
+                value: model.trustVaultSnapshot.privacyProfile.biometricLockEnabled ? "On" : "Off",
+                tint: model.trustVaultSnapshot.privacyProfile.biometricLockEnabled ? AtlasPalette.success : AtlasPalette.secondaryText
+            )
+        ]
+    }
+
+    private var trustVaultDeckTitle: String {
+        if preview != nil || latestShare != nil {
+            return "Review every boundary before anything leaves the device."
+        }
+        return "Trust Vault keeps privacy visible and deliberate."
+    }
+
+    private var trustVaultDeckDetail: String {
+        if latestShare != nil {
+            return "An encrypted snapshot is ready. Share code and audit trail are visible."
+        }
+        if preview != nil {
+            return "The current preview uses the selected scope, render mode, and date range."
+        }
+        return "Manage privacy mode, aliases, biometric gating, selective sharing, exports, and audit history."
+    }
+
+    private func previewSelectiveShare() {
+        AtlasFeedback.selection()
+        Task {
+            preview = await model.previewSelectiveShare(selectiveShareRequest)
+        }
+    }
+
+    private func createSelectiveShare() {
+        AtlasFeedback.impact(.medium)
+        Task {
+            latestShare = await model.createSelectiveShare(selectiveShareRequest)
+        }
+    }
+
+    private func biometricGateModeLabel(_ mode: AtlasBiometricGateMode) -> String {
+        switch mode {
+        case .off:
+            return "Off"
+        case .bestEffort:
+            return "Best effort"
+        case .requiredWhenAvailable:
+            return "Required"
+        }
+    }
 }
 
 private struct AtlasAliasEditorSheet: View {
@@ -446,27 +624,65 @@ private struct AtlasAliasEditorSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("Protocol") {
-                    Text(model.renderedTitle(canonical: item.canonicalTitle, alias: item.aliasLabel))
+            AtlasScreen {
+                AtlasCommandDeck(
+                    eyebrow: "Alias editor",
+                    title: model.renderedTitle(canonical: item.canonicalTitle, alias: item.aliasLabel),
+                    detail: "Aliases only change presentation. Canonical labels stay stored locally.",
+                    metrics: [
+                        AtlasMetricItem(id: "display", title: "Display", value: item.aliasLabel == nil ? "Canonical" : "Aliased", tint: AtlasPalette.secondaryText)
+                    ],
+                    tint: AtlasPalette.secondaryText,
+                    style: .hero
+                ) { } footer: { }
+
+                AtlasSectionCard(style: .utility, title: "Protocol") {
                     Text("Codename is presentation only. Canonical labels remain stored locally.")
-                        .font(.caption)
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
 
-                Section("Alias") {
+                AtlasSectionCard(title: "Alias") {
                     TextField("Codename", text: $aliasLabel)
+                        .atlasStandaloneInputSurface()
                     TextField("Compound codename", text: $aliasCompoundLabel)
+                        .atlasStandaloneInputSurface()
+                }
+
+                AtlasSectionCard(style: .utility, title: "Commit") {
+                    Button("Save") {
+                        AtlasFeedback.selection()
+                        Task {
+                            await model.saveProtocolAlias(
+                                AtlasProtocolAliasDraft(
+                                    protocolID: item.protocolID,
+                                    aliasLabel: aliasLabel,
+                                    aliasCompoundLabel: aliasCompoundLabel.isEmpty ? nil : aliasCompoundLabel
+                                )
+                            )
+                            dismiss()
+                        }
+                    }
+                    .buttonStyle(AtlasPrimaryButtonStyle())
+
+                    Button("Cancel") {
+                        AtlasFeedback.selection()
+                        dismiss()
+                    }
+                    .buttonStyle(AtlasSecondaryButtonStyle())
                 }
             }
-            .atlasFormSurface()
             .navigationTitle("Alias")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button("Cancel") {
+                        AtlasFeedback.selection()
+                        dismiss()
+                    }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
+                        AtlasFeedback.selection()
                         Task {
                             await model.saveProtocolAlias(
                                 AtlasProtocolAliasDraft(
@@ -500,10 +716,10 @@ private func header(_ title: String, subtitle: String) -> some View {
     VStack(alignment: .leading, spacing: AtlasSpacing.small) {
         AtlasStatusBadge("Private controls", tint: AtlasPalette.secondaryText)
         Text(title)
-            .font(.system(size: 34, weight: .bold, design: .rounded))
+            .atlasTextRole(.screenTitle)
             .foregroundStyle(AtlasPalette.textPrimary)
         Text(subtitle)
-            .font(.body)
+            .atlasTextRole(.screenSubtitle)
             .foregroundStyle(AtlasPalette.textSecondary)
             .fixedSize(horizontal: false, vertical: true)
     }

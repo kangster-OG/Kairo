@@ -214,6 +214,22 @@ public struct GRDBSettingsRepository: SettingsRepository, Sendable {
         }
     }
 
+    public func updateAmbientMascotPresence(_ presence: AtlasAmbientMascotPresence, now: Date) async throws -> AtlasSettingsSnapshot {
+        try await stack.canonical.write { db in
+            try writeAppSetting(
+                db: db,
+                key: "ambient_mascot_presence",
+                value: presence.rawValue,
+                now: now
+            )
+            return try buildSettingsSnapshot(
+                db: db,
+                healthKit: healthKit,
+                featureFlags: featureFlags
+            )
+        }
+    }
+
     public func recordMascotEvolution(
         selection: AtlasMascotSelection,
         stage: AtlasMascotStage,
@@ -943,14 +959,14 @@ private func buildWatchCompanionProjectionSnapshot(
 
     if overdueCount > 0 {
         headline = "Recovery comes first on wrist."
-        summary = "Atlas keeps the next recovery move visible so you can clear drift before touching later plans."
+        summary = "The next recovery move stays visible so later plans can wait."
         recoverySummary = "\(overdueCount) overdue item\(overdueCount == 1 ? "" : "s") still need attention."
     } else if let nextDue {
         headline = "One next due action is ready."
         summary = "\(nextDue.displayTitle) is the current anchor, with later items intentionally pushed into the background."
         recoverySummary = nil
     } else {
-        headline = "Atlas is quiet right now."
+        headline = "Nothing is due right now."
         summary = "There is nothing due at the moment, so the watch companion stays focused on quick context capture and recovery readiness."
         recoverySummary = nil
     }
@@ -1023,10 +1039,11 @@ private func buildMascotProjection(
     let milestoneHeadline: String
     let progressLabel: String
     if let nextThresholdPoints, let nextFormName {
-        milestoneHeadline = "\(currentFormName) evolves into \(nextFormName) at \(mascotPointLabel(nextThresholdPoints))."
-        progressLabel = "\(max(nextThresholdPoints - rewardsSnapshot.totalPoints, 0)) points to \(nextFormName)."
+        _ = nextThresholdPoints
+        milestoneHeadline = "Next form: \(nextFormName)."
+        progressLabel = "Next form: \(nextFormName)."
     } else {
-        milestoneHeadline = "\(currentFormName) has reached its final evolution."
+        milestoneHeadline = "Final form unlocked."
         progressLabel = "Final form unlocked."
     }
 

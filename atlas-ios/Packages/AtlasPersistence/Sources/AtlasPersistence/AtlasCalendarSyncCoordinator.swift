@@ -370,13 +370,13 @@ private func atlasCalendarPermissionMessage(
 ) -> String {
     switch status {
     case .notDetermined:
-        return "Allow full calendar access so Atlas can mirror upcoming occurrences."
+        return "Allow full calendar access to mirror upcoming occurrences."
     case .denied:
         return "Calendar access is denied for Atlas on this device."
     case .restricted:
         return "Calendar access is restricted on this device."
     case .writeOnly:
-        return "Atlas needs full calendar access to keep synced events up to date."
+        return "Full calendar access is required to keep synced events up to date."
     case .fullAccess:
         return ""
     case .unavailable:

@@ -89,6 +89,24 @@ public enum AtlasFeedback {
         #endif
     }
 
+    public static func navigation() {
+        #if canImport(UIKit)
+        impact(.soft)
+        #endif
+    }
+
+    public static func toggleChanged(isOn: Bool) {
+        #if canImport(UIKit)
+        impact(isOn ? .light : .soft)
+        #endif
+    }
+
+    public static func caution() {
+        #if canImport(UIKit)
+        notify(.warning)
+        #endif
+    }
+
     public static func milestoneReveal() {
         #if canImport(UIKit)
         impact(.soft)
@@ -207,7 +225,9 @@ public struct AtlasMetricItem: Identifiable, Equatable {
 }
 
 public struct AtlasMetricStrip: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     private let metrics: [AtlasMetricItem]
+    private let fittedMetricLimit = 3
 
     public init(metrics: [AtlasMetricItem]) {
         self.metrics = metrics
@@ -215,41 +235,65 @@ public struct AtlasMetricStrip: View {
 
     public var body: some View {
         if metrics.isEmpty == false {
-            ScrollView(.horizontal, showsIndicators: false) {
+            if metrics.count <= fittedMetricLimit {
                 HStack(spacing: AtlasSpacing.small) {
-                    ForEach(metrics) { metric in
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(metric.title)
-                                .atlasTextRole(.metricLabel)
-                                .foregroundStyle(metric.tint)
-
-                            AtlasAnimatedMetricValueText(
-                                value: metric.value,
-                                role: .metricValue,
-                                foregroundStyle: AtlasPalette.textPrimary
-                            )
-                        }
-                        .frame(minWidth: 88, alignment: .leading)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 12)
-                        .background(
-                            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                .fill(
-                                    LinearGradient(
-                                        colors: [AtlasPalette.surfaceTop.opacity(0.95), metric.tint.opacity(0.08)],
-                                        startPoint: .top,
-                                        endPoint: .bottom
-                                    )
-                                )
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                .stroke(metric.tint.opacity(0.14), lineWidth: 1)
-                        )
-                    }
+                    metricCards(fitted: true)
                 }
                 .padding(.vertical, 2)
+            } else if dynamicTypeSize.isAccessibilitySize {
+                VStack(spacing: AtlasSpacing.small) {
+                    metricCards(fitted: false)
+                }
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: AtlasSpacing.small) {
+                        metricCards(fitted: false)
+                    }
+                    .padding(.vertical, 2)
+                }
             }
+        }
+    }
+
+    @ViewBuilder
+    private func metricCards(fitted: Bool) -> some View {
+        ForEach(metrics) { metric in
+            VStack(alignment: .leading, spacing: 4) {
+                Text(metric.title)
+                    .atlasTextRole(.metricLabel)
+                    .foregroundStyle(metric.tint)
+                    .lineLimit(1)
+                    .minimumScaleFactor(fitted ? 0.68 : 1)
+
+                AtlasAnimatedMetricValueText(
+                    value: metric.value,
+                    role: .metricValue,
+                    foregroundStyle: AtlasPalette.textPrimary
+                )
+                .lineLimit(1)
+                .minimumScaleFactor(fitted ? 0.76 : 1)
+            }
+            .frame(
+                minWidth: fitted ? 0 : 88,
+                maxWidth: fitted || dynamicTypeSize.isAccessibilitySize ? .infinity : nil,
+                alignment: .leading
+            )
+            .padding(.horizontal, fitted ? 10 : 14)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [AtlasPalette.surfaceTop.opacity(0.95), metric.tint.opacity(0.08)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(metric.tint.opacity(0.14), lineWidth: 1)
+            )
         }
     }
 }
@@ -321,7 +365,7 @@ public struct AtlasProgressMeter: View {
 public struct AtlasMilestoneRevealBanner: View {
     private let eyebrow: String
     private let title: String
-    private let detail: String
+    private let detail: String?
     private let tint: Color
     private let badge: String?
     private let symbolName: String
@@ -331,7 +375,7 @@ public struct AtlasMilestoneRevealBanner: View {
     public init(
         eyebrow: String,
         title: String,
-        detail: String,
+        detail: String? = nil,
         tint: Color = AtlasPalette.reward,
         badge: String? = nil,
         symbolName: String = "sparkles"
@@ -381,9 +425,11 @@ public struct AtlasMilestoneRevealBanner: View {
                     .atlasTextRole(.cardBody)
                     .foregroundStyle(AtlasPalette.textPrimary)
 
-                Text(detail)
-                    .atlasTextRole(.supporting)
-                    .foregroundStyle(AtlasPalette.textSecondary)
+                if let detail, detail.isEmpty == false {
+                    Text(detail)
+                        .atlasTextRole(.supporting)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                }
             }
         }
         .padding(.horizontal, 16)
@@ -415,64 +461,88 @@ public struct AtlasMilestoneRevealBanner: View {
 }
 
 public struct AtlasCalloutRow: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     private let systemImage: String
     private let title: String
-    private let detail: String
+    private let detail: String?
     private let tint: Color
     private let badge: String?
+    private let titleLineLimit: Int?
 
     public init(
         systemImage: String,
         title: String,
-        detail: String,
+        detail: String? = nil,
         tint: Color = AtlasPalette.primary,
-        badge: String? = nil
+        badge: String? = nil,
+        titleLineLimit: Int? = nil
     ) {
         self.systemImage = systemImage
         self.title = title
         self.detail = detail
         self.tint = tint
         self.badge = badge
+        self.titleLineLimit = titleLineLimit
     }
 
     public var body: some View {
-        HStack(alignment: .top, spacing: AtlasSpacing.small) {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [AtlasPalette.surfaceTop, tint.opacity(0.12)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .frame(width: 42, height: 42)
-                .overlay(
-                    Image(systemName: systemImage)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(tint)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(AtlasPalette.chromeStroke, lineWidth: 1)
-                )
-
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: AtlasSpacing.small) {
-                    Text(title)
-                        .atlasTextRole(.cardBody)
-                        .foregroundStyle(AtlasPalette.textPrimary)
-
-                    if let badge {
-                        AtlasStatusBadge(badge, tint: tint)
-                    }
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+                    iconBadge
+                    textBlock
                 }
+            } else {
+                HStack(alignment: .top, spacing: AtlasSpacing.small) {
+                    iconBadge
+                    textBlock
+                    Spacer(minLength: 0)
+                }
+            }
+        }
+    }
 
+    private var iconBadge: some View {
+        RoundedRectangle(cornerRadius: 14, style: .continuous)
+            .fill(
+                LinearGradient(
+                    colors: [AtlasPalette.surfaceTop, tint.opacity(0.12)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            .frame(width: 42, height: 42)
+            .overlay(
+                Image(systemName: systemImage)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(tint)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(AtlasPalette.chromeStroke, lineWidth: 1)
+            )
+    }
+
+    private var textBlock: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: AtlasSpacing.small) {
+                Text(title)
+                    .atlasTextRole(.cardBody)
+                    .foregroundStyle(AtlasPalette.textPrimary)
+                    .lineLimit(titleLineLimit)
+                    .minimumScaleFactor(titleLineLimit == nil ? 1 : 0.82)
+
+                if let badge {
+                    AtlasStatusBadge(badge, tint: tint)
+                }
+            }
+
+            if let detail, detail.isEmpty == false {
                 Text(detail)
                     .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-
-            Spacer(minLength: 0)
         }
     }
 }
@@ -480,7 +550,7 @@ public struct AtlasCalloutRow: View {
 public struct AtlasCommandDeck<Actions: View, Footer: View>: View {
     private let eyebrow: String?
     private let title: String
-    private let detail: String
+    private let detail: String?
     private let metrics: [AtlasMetricItem]
     private let tint: Color
     private let style: AtlasSurfaceStyle
@@ -490,7 +560,7 @@ public struct AtlasCommandDeck<Actions: View, Footer: View>: View {
     public init(
         eyebrow: String? = nil,
         title: String,
-        detail: String,
+        detail: String? = nil,
         metrics: [AtlasMetricItem] = [],
         tint: Color = AtlasPalette.primary,
         style: AtlasSurfaceStyle = .hero,
@@ -509,7 +579,7 @@ public struct AtlasCommandDeck<Actions: View, Footer: View>: View {
 
     public var body: some View {
         AtlasSectionCard(style: style) {
-            VStack(alignment: .leading, spacing: AtlasSpacing.medium) {
+            VStack(alignment: .leading, spacing: 14) {
                 VStack(alignment: .leading, spacing: AtlasSpacing.small) {
                     if let eyebrow {
                         Text(eyebrow)
@@ -521,9 +591,11 @@ public struct AtlasCommandDeck<Actions: View, Footer: View>: View {
                         .atlasTextRole(style == .hero ? .screenTitle : .cardTitle)
                         .foregroundStyle(AtlasPalette.textPrimary)
 
-                    Text(detail)
-                        .atlasTextRole(style == .hero ? .screenSubtitle : .supporting)
-                        .foregroundStyle(AtlasPalette.textSecondary)
+                    if let detail, detail.isEmpty == false {
+                        Text(detail)
+                            .atlasTextRole(style == .hero ? .screenSubtitle : .supporting)
+                            .foregroundStyle(AtlasPalette.textSecondary)
+                    }
                 }
 
                 AtlasMetricStrip(metrics: metrics)

@@ -49,6 +49,13 @@ public enum AtlasRoute: Hashable, Sendable {
     case progressEvidence
     case quickCapture(AtlasQuickCaptureKind)
     case watchCompanion
+    case insightsLogs
+    case insightsAnalysis
+    case settingsAccount
+    case settingsPrivacy
+    case settingsNotifications
+    case settingsServices
+    case settingsPersonalization
 }
 
 public enum AtlasQuickCaptureKind: String, Codable, CaseIterable, Hashable, Sendable, Identifiable {
@@ -96,6 +103,36 @@ public enum AtlasPrivacyRenderMode: String, Codable, CaseIterable, Sendable {
     case full
     case discreet
     case alias
+}
+
+public enum AtlasAmbientMascotPresence: String, Codable, CaseIterable, Hashable, Sendable, Identifiable {
+    case off
+    case subtle
+    case moreAlive = "more_alive"
+
+    public var id: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .off:
+            return "Off"
+        case .subtle:
+            return "Subtle"
+        case .moreAlive:
+            return "More alive"
+        }
+    }
+
+    public var detail: String {
+        switch self {
+        case .off:
+            return "Hide ambient mascot perches and motion around the app."
+        case .subtle:
+            return "Keep mascot presence calm, sparse, and anchored."
+        case .moreAlive:
+            return "Allow richer mascot reactions and more frequent ambient motion."
+        }
+    }
 }
 
 public enum AtlasFeatureFlag: String, CaseIterable, Sendable {
@@ -256,7 +293,7 @@ public enum AtlasReminderChannel: String, Codable, CaseIterable, Sendable {
     case localNotification = "local_notification"
 }
 
-public enum AtlasReminderPrivacyMode: String, Codable, CaseIterable, Sendable {
+public enum AtlasReminderPrivacyMode: String, Codable, CaseIterable, Hashable, Sendable {
     case fullDetail = "full_detail"
     case generic
     case silent
@@ -997,6 +1034,7 @@ public struct AtlasSettingsSnapshot: Sendable, Equatable {
     public var mascotSelection: AtlasMascotSelection
     public var mascotNickname: String?
     public var mascotSelectionConfirmed: Bool
+    public var ambientMascotPresence: AtlasAmbientMascotPresence
     public var mascotUnlocks: [AtlasMascotUnlockSnapshot]
     public var mascotEvolutionHistory: [AtlasMascotEvolutionRecord]
     public var mascotMoments: [AtlasMascotMomentRecord]
@@ -1021,6 +1059,7 @@ public struct AtlasSettingsSnapshot: Sendable, Equatable {
         mascotSelection: AtlasMascotSelection = .aetherion,
         mascotNickname: String? = nil,
         mascotSelectionConfirmed: Bool = false,
+        ambientMascotPresence: AtlasAmbientMascotPresence = .subtle,
         mascotUnlocks: [AtlasMascotUnlockSnapshot] = AtlasMascotSelection.allCases.map {
             AtlasMascotUnlockSnapshot(selection: $0, highestUnlockedStage: .stage1)
         },
@@ -1046,6 +1085,7 @@ public struct AtlasSettingsSnapshot: Sendable, Equatable {
         self.mascotSelection = mascotSelection
         self.mascotNickname = mascotNickname
         self.mascotSelectionConfirmed = mascotSelectionConfirmed
+        self.ambientMascotPresence = ambientMascotPresence
         self.mascotUnlocks = mascotUnlocks
         self.mascotEvolutionHistory = mascotEvolutionHistory
         self.mascotMoments = mascotMoments
@@ -1119,10 +1159,32 @@ public struct AtlasSurfacePreferences: Codable, Equatable, Sendable {
     public var biometricsOverlayShowsProtocolChanges: Bool
 
     public init(
-        todayCardOrder: [AtlasTodayLandingCard] = AtlasTodayLandingCard.allCases,
-        hiddenTodayCards: [AtlasTodayLandingCard] = [],
-        insightsCardOrder: [AtlasInsightsLandingCard] = AtlasInsightsLandingCard.allCases,
-        hiddenInsightsCards: [AtlasInsightsLandingCard] = [],
+        todayCardOrder: [AtlasTodayLandingCard] = [
+            .guidance,
+            .recovery,
+            .quickCapture,
+            .quickContext,
+            .weeklyFocus,
+            .mascot,
+            .rewards,
+            .calmContinuity,
+            .watchCompanion
+        ],
+        hiddenTodayCards: [AtlasTodayLandingCard] = [
+            .watchCompanion,
+            .rewards,
+            .calmContinuity
+        ],
+        insightsCardOrder: [AtlasInsightsLandingCard] = [
+            .weeklyReview,
+            .progressEvidence,
+            .stackDashboard,
+            .biometricsOverlay
+        ],
+        hiddenInsightsCards: [AtlasInsightsLandingCard] = [
+            .stackDashboard,
+            .biometricsOverlay
+        ],
         stackDashboardEnabled: Bool = false,
         biometricsOverlayEnabled: Bool = true,
         biometricsOverlayShowsProtocolChanges: Bool = true

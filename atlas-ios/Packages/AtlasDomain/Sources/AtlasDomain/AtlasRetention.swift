@@ -110,7 +110,7 @@ public struct AtlasRetentionSnapshot: Sendable, Equatable {
         milestones: [AtlasRetentionMilestoneSnapshot] = [],
         earnedMilestoneCount: Int = 0,
         companion: AtlasRetentionCompanionSnapshot? = nil,
-        note: String = "Calm continuity is optional, local only, and never changes Atlas history."
+        note: String = "Continuity is optional, local only, and never changes history."
     ) {
         self.settings = settings
         self.milestones = milestones

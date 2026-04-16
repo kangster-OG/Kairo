@@ -121,7 +121,7 @@ public struct GRDBInventoryRepository: InventoryRepository, Sendable {
                     occurrenceID: nil,
                     kind: .created,
                     deltaQuantity: record.quantityOnHand,
-                    note: "Atlas started tracking this supply locally.",
+                    note: "Supply tracking started locally.",
                     vendorLabel: record.vendorLabel,
                     sourceDetail: record.purchaseNotes,
                     recordedAt: timestamp
@@ -846,7 +846,7 @@ private func buildInventoryMovementHistory(
             id: "created:\(vial.id)",
             kind: .created,
             title: "Vial saved",
-            detail: "Atlas started tracking this vial locally.",
+            detail: "Vial tracking started locally.",
             recordedAt: atlasDate(from: vial.createdAt)
         )
     ]
@@ -1504,7 +1504,7 @@ private func consumableAdjustmentTitle(for kind: AtlasConsumableAdjustmentKind) 
 private func consumableAdjustmentFallbackDetail(for kind: AtlasConsumableAdjustmentKind) -> String {
     switch kind {
     case .created:
-        return "Atlas started tracking this supply locally."
+        return "Supply tracking started locally."
     case .manualAdjustment:
         return "Supply count was corrected manually."
     case .procurement:

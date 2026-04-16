@@ -159,7 +159,7 @@ public struct AtlasEpisodeInsightsSnapshot: Equatable, Sendable {
     public var hasAnyEpisodeData: Bool
 
     public init(
-        disclaimer: String = "Episode patterns are descriptive only. Atlas groups logged context, symptom, weight, and metric data around dose windows to help you review timing and changes over time. It does not provide medical guidance or tell you how to change a protocol.",
+        disclaimer: String = "Restates nearby timing and logged patterns from local records. No medical guidance or treatment recommendations.",
         recentEpisodes: [AtlasDoseEpisodeSummary] = [],
         compareWindows: [AtlasEpisodeWindowCompareRow] = [],
         patternCards: [AtlasEpisodePatternCard] = [],

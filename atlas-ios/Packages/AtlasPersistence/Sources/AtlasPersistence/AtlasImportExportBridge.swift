@@ -17,7 +17,7 @@ public enum AtlasImportError: Error, LocalizedError, Sendable {
     public var errorDescription: String? {
         switch self {
         case .invalidPayload:
-            "Atlas could not validate the export bundle."
+            "Could not validate the export bundle."
         case let .unsupportedFormat(format):
             "Atlas Export format '\(format)' is not supported."
         case let .unsupportedVersion(version):
@@ -438,7 +438,7 @@ public actor GRDBImportExportBridge: ImportExportBridging {
     }
 
     nonisolated public func exportStatusDescription() -> String {
-        "Native Atlas can create deterministic JSON and CSV exports plus encrypted selective-share snapshots."
+        "Creates deterministic JSON and CSV exports plus encrypted selective-share snapshots."
     }
 
     nonisolated public func importStatusDescription() -> String {

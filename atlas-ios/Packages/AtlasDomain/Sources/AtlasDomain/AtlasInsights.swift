@@ -818,7 +818,7 @@ public func atlasNutritionPackageCodeSuggestion(
     return match.makeSuggestion(
         loggedAt: loggedAt,
         source: .packageCode,
-        helperText: "Atlas matched this local package code to a common food profile."
+        helperText: "Matched this package code to a common food profile."
     )
 }
 
@@ -837,7 +837,7 @@ public func atlasNutritionQuickCaptureSuggestion(
             id: "freeform-\(bestMatch.id)",
             title: bestMatch.title,
             subtitle: bestMatch.subtitle,
-            helperText: "Atlas matched this typed or dictated meal to a local food profile.",
+            helperText: "Matched this typed or dictated meal to a local food profile.",
             symbolName: bestMatch.symbolName,
             source: .freeform,
             draft: bestMatch.makeDraft(
@@ -916,7 +916,7 @@ public func atlasNutritionQuickCaptureSuggestion(
     return AtlasNutritionQuickCaptureSuggestion(
         id: "freeform-\(normalizedText)",
         title: summaryParts.isEmpty ? "Quick meal capture" : summaryParts.joined(separator: " • "),
-        subtitle: "Atlas parsed this from typed or dictated text.",
+        subtitle: "Parsed from typed or dictated text.",
         helperText: "Review the prefilled meal context before saving if you want to refine the details.",
         symbolName: hydration == .high ? "drop.fill" : "text.badge.checkmark",
         source: .freeform,
@@ -1026,7 +1026,7 @@ public struct AtlasNutritionSnapshot: Equatable, Sendable {
         latestMealLabel: String? = nil,
         weeklySignals: [AtlasNutritionWeeklySignalSnapshot] = [],
         coachingCards: [AtlasNutritionCoachingCard] = [],
-        note: String = "Atlas keeps nutrition lightweight here: quick meals, repeated favorites, and simple daily targets."
+        note: String = "Quick meals, repeated favorites, and simple daily targets."
     ) {
         self.dailyTargets = dailyTargets
         self.favoriteMealCount = favoriteMealCount
@@ -1398,7 +1398,7 @@ public struct AtlasInsightsSnapshot: Equatable, Sendable {
         savedContextPresets: [AtlasContextPresetSummary] = [],
         inventoryBurnDown: [AtlasInventoryBurnDownInsight] = [],
         adherenceTrend: AtlasAdherenceTrendSummary = .init(),
-        amountInSystemDisclaimer: String = "Estimate only. Atlas uses logged quantities with known half-life profiles when available, and falls back to the saved schedule window when it does not. These are planning estimates, not serum measurements.",
+        amountInSystemDisclaimer: String = "Estimate only. Logged quantities use known half-life profiles when available and otherwise fall back to the saved schedule window. These are planning estimates, not serum measurements.",
         amountInSystem: [AtlasAmountEstimateItem] = [],
         episodeIntelligence: AtlasEpisodeInsightsSnapshot = .init(),
         customMetricDefinitions: [AtlasMetricDefinitionSummary] = [],

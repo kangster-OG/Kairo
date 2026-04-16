@@ -49,17 +49,17 @@ func atlasMascotStageFlavor(
 ) -> String {
     switch (selection, stage) {
     case (.aetherion, .stage1):
-        return "Compressed storm energy, oversized forearms, and a scrappy guardian spark."
+        return ""
     case (.aetherion, .stage2):
-        return "Faster wings, sharper lines, and a more disciplined kinetic stance."
+        return ""
     case (.aetherion, .stage3):
-        return "Ceremonial wings, halo framing, and the full guardian silhouette."
+        return ""
     case (.aurielle, .stage1):
-        return "Soft proportions, bright charm, and a first-light companion presence."
+        return ""
     case (.aurielle, .stage2):
-        return "Longer rhythm, ribbon-like ears, and visible skybound motion."
+        return ""
     case (.aurielle, .stage3):
-        return "Regal posture, celestial flow, and the complete sky guardian silhouette."
+        return ""
     }
 }
 
@@ -91,8 +91,8 @@ func atlasMascotArtDirection(
             lineTitle: "Aetherion line",
             lineMotto: "Storm-forged drake guardian",
             stageLabel: "Stage I",
-            stageHeadline: "Compressed potential",
-            portraitNote: "Keep the portrait tight, low, and powerful so Cindlet reads as compact stored energy rather than a tiny pet.",
+            stageHeadline: "",
+            portraitNote: "",
             posterKicker: "Low-angle starter silhouette with a bright chest core and compact storm aura.",
             ornamentSymbol: "bolt.badge.clock",
             portraitSize: 212,
@@ -109,8 +109,8 @@ func atlasMascotArtDirection(
             lineTitle: "Aetherion line",
             lineMotto: "Storm-forged drake guardian",
             stageLabel: "Stage II",
-            stageHeadline: "Kinetic discipline",
-            portraitNote: "Let the wings and tail carve a strong diagonal so Voltflare feels athletic, faster, and more deliberate.",
+            stageHeadline: "",
+            portraitNote: "",
             posterKicker: "Diagonal wing rhythm with a cleaner stride and brighter cobalt seam lighting.",
             ornamentSymbol: "bolt.horizontal.circle",
             portraitSize: 234,
@@ -127,8 +127,8 @@ func atlasMascotArtDirection(
             lineTitle: "Aetherion line",
             lineMotto: "Storm-forged drake guardian",
             stageLabel: "Stage III",
-            stageHeadline: "Ceremonial authority",
-            portraitNote: "Give the final guardian extra air above the horns and ring so the silhouette reads as mythic rather than merely large.",
+            stageHeadline: "",
+            portraitNote: "",
             posterKicker: "Ceremonial wing spread, halo framing, and anchored guardian posture.",
             ornamentSymbol: "sparkles.rectangle.stack",
             portraitSize: 248,
@@ -145,8 +145,8 @@ func atlasMascotArtDirection(
             lineTitle: "Aurielle line",
             lineMotto: "Aurora hare guardian",
             stageLabel: "Stage I",
-            stageHeadline: "Bright first light",
-            portraitNote: "Keep Moppet centered and upright with lots of breathing room so the softness feels premium instead of overly cute.",
+            stageHeadline: "",
+            portraitNote: "",
             posterKicker: "Rounded silhouette, pearl chest mark, and airy crescent framing.",
             ornamentSymbol: "moonphase.waning.crescent",
             portraitSize: 204,
@@ -163,8 +163,8 @@ func atlasMascotArtDirection(
             lineTitle: "Aurielle line",
             lineMotto: "Aurora hare guardian",
             stageLabel: "Stage II",
-            stageHeadline: "Skybound grace",
-            portraitNote: "Keep the body tall and elegant while letting the ears and tail describe motion around the torso.",
+            stageHeadline: "",
+            portraitNote: "",
             posterKicker: "Graceful vertical posture with ribbon-ear flow and visible tail sweep.",
             ornamentSymbol: "wind",
             portraitSize: 230,
@@ -181,8 +181,8 @@ func atlasMascotArtDirection(
             lineTitle: "Aurielle line",
             lineMotto: "Aurora hare guardian",
             stageLabel: "Stage III",
-            stageHeadline: "Celestial serenity",
-            portraitNote: "Protect the long-ear arc and tail crescent with more vertical room so the final form feels regal and calm.",
+            stageHeadline: "",
+            portraitNote: "",
             posterKicker: "Long-ear arc, crescent-tail sweep, and serene celestial posture.",
             ornamentSymbol: "moon.stars.circle",
             portraitSize: 244,
@@ -254,9 +254,10 @@ struct AtlasMascotEvolutionProgress {
 
     var milestoneHeadline: String {
         guard let nextFormName, let nextThresholdPoints else {
-            return "\(currentFormName) has reached its final evolution."
+            return "Final form unlocked."
         }
-        return "\(currentFormName) evolves into \(nextFormName) at \(atlasMascotPointLabel(nextThresholdPoints))."
+        _ = nextThresholdPoints
+        return "Next form: \(nextFormName)."
     }
 
     var progressLabel: String {
@@ -264,8 +265,8 @@ struct AtlasMascotEvolutionProgress {
             return "Final form unlocked."
         }
 
-        let remainingPoints = max(nextThresholdPoints - totalPoints, 0)
-        return "\(remainingPoints) points to \(nextFormName)."
+        _ = nextThresholdPoints
+        return "Next form: \(nextFormName)."
     }
 
     var stageBadge: String {
@@ -303,7 +304,7 @@ struct AtlasMascotEvolutionProgress {
     var celebrationBody: String {
         switch stage {
         case .stage1:
-            return "\(currentFormName) now reflects your Atlas journey and will evolve as rewards milestones are reached."
+            return "\(currentFormName) is now active and will evolve as rewards milestones are reached."
         case .stage2:
             return "Rewards crossed \(atlasMascotPointLabel(AtlasMascotMilestone.stage2Points)), unlocking the second form."
         case .stage3:
@@ -552,6 +553,1565 @@ struct AtlasMascotSticker: View {
     }
 }
 
+enum AtlasAmbientMascotPerchPlacement {
+    case cardCorner
+    case tabShelf
+}
+
+enum AtlasAmbientMascotReactionKind: String, Sendable {
+    case logSuccess
+    case reviewComplete
+    case openedMascot
+    case openedRewards
+    case openedSurface
+    case capturedMoment
+    case noticedContent
+    case inspectReveal
+    case welcomeBack
+    case milestone
+    case artifactReady
+}
+
+struct AtlasAmbientMascotReactionSignal: Equatable, Sendable {
+    let token: Int
+    let kind: AtlasAmbientMascotReactionKind
+}
+
+enum AtlasAmbientMascotSuppression: Equatable, Sendable {
+    case none
+    case nearbyChrome
+    case serious
+
+    var hasNearbyChrome: Bool {
+        self != .none
+    }
+
+    var suppressesAutonomousMotion: Bool {
+        self != .none
+    }
+
+    var suppressesReactions: Bool {
+        self == .serious
+    }
+
+    var hidesPerch: Bool {
+        self == .serious
+    }
+}
+
+func atlasAmbientMascotSuppression(
+    hasNearbyChrome: Bool = false,
+    presentingSheet: Bool = false,
+    presentingExport: Bool = false,
+    denseEntryActive: Bool = false,
+    trustSensitiveFlow: Bool = false
+) -> AtlasAmbientMascotSuppression {
+    if presentingSheet || presentingExport || denseEntryActive || trustSensitiveFlow {
+        return .serious
+    }
+
+    if hasNearbyChrome {
+        return .nearbyChrome
+    }
+
+    return .none
+}
+
+func atlasAmbientMascotSelection(settingsSnapshot: AtlasSettingsSnapshot) -> AtlasMascotSelection? {
+    guard settingsSnapshot.ambientMascotPresence != .off else {
+        return nil
+    }
+    return settingsSnapshot.mascotSelection
+}
+
+func atlasAmbientMascotStage(
+    settingsSnapshot: AtlasSettingsSnapshot,
+    rewardsSnapshot: AtlasRewardsSnapshot
+) -> AtlasMascotStage? {
+    guard atlasAmbientMascotSelection(settingsSnapshot: settingsSnapshot) != nil else {
+        return nil
+    }
+    return atlasRewardsMascotStage(for: rewardsSnapshot)
+}
+
+func atlasAmbientMascotMilestoneNearby(
+    settingsSnapshot: AtlasSettingsSnapshot,
+    rewardsSnapshot: AtlasRewardsSnapshot,
+    pendingCelebration: AtlasMascotCelebrationState?
+) -> Bool {
+    guard let selection = atlasAmbientMascotSelection(settingsSnapshot: settingsSnapshot) else {
+        return false
+    }
+
+    if pendingCelebration != nil {
+        return true
+    }
+
+    guard rewardsSnapshot.settings.enabled else {
+        return false
+    }
+
+    return (atlasRewardsEvolutionProgress(for: rewardsSnapshot, selection: selection).progressFraction ?? 0) >= 0.86
+}
+
+private struct AtlasAmbientMascotPolicy {
+    let presence: AtlasAmbientMascotPresence
+    let context: AtlasAmbientMascotPerchContext
+    let suppression: AtlasAmbientMascotSuppression
+    let idleLoopDelay: Duration
+    let restDelay: Duration
+    let milestoneLoopDelay: Duration?
+    let notableCooldown: Duration
+    let motionWindow: Duration
+    let maxNotableMomentsPerWindow: Int
+
+    var allowsAmbientPerch: Bool {
+        presence != .off && suppression.hidesPerch == false
+    }
+
+    var allowsWakeBlink: Bool {
+        allowsAmbientPerch && suppression.suppressesAutonomousMotion == false
+    }
+
+    var allowsAutonomousMotion: Bool {
+        allowsAmbientPerch && suppression.suppressesAutonomousMotion == false
+    }
+
+    func allowsReaction(_ kind: AtlasAmbientMascotReactionKind) -> Bool {
+        guard suppression.suppressesReactions == false else {
+            return false
+        }
+
+        switch presence {
+        case .off:
+            return false
+        case .subtle:
+            switch kind {
+            case .logSuccess,
+                 .reviewComplete,
+                 .openedMascot,
+                 .openedRewards,
+                 .capturedMoment,
+                 .noticedContent,
+                 .inspectReveal,
+                 .welcomeBack,
+                 .milestone,
+                 .artifactReady:
+                return true
+            case .openedSurface:
+                return false
+            }
+        case .moreAlive:
+            return true
+        }
+    }
+
+    func isNotable(_ kind: AtlasAmbientMascotReactionKind) -> Bool {
+        switch kind {
+        case .noticedContent, .inspectReveal, .openedSurface:
+            return false
+        case .logSuccess,
+             .reviewComplete,
+             .openedMascot,
+             .openedRewards,
+             .capturedMoment,
+             .welcomeBack,
+             .milestone,
+             .artifactReady:
+            return true
+        }
+    }
+}
+
+private func atlasAmbientMascotPolicy(
+    presence: AtlasAmbientMascotPresence,
+    context: AtlasAmbientMascotPerchContext,
+    suppression: AtlasAmbientMascotSuppression
+) -> AtlasAmbientMascotPolicy {
+    let basePolicy: AtlasAmbientMascotPolicy
+
+    switch presence {
+    case .off:
+        basePolicy = AtlasAmbientMascotPolicy(
+            presence: presence,
+            context: context,
+            suppression: suppression,
+            idleLoopDelay: .seconds(60),
+            restDelay: .seconds(60),
+            milestoneLoopDelay: nil,
+            notableCooldown: .seconds(60),
+            motionWindow: .seconds(60),
+            maxNotableMomentsPerWindow: 0
+        )
+    case .subtle:
+        let idleLoopDelay: Duration
+        let restDelay: Duration
+        let milestoneLoopDelay: Duration
+
+        switch context {
+        case .todayCommandDeck:
+            idleLoopDelay = .seconds(6.3)
+            restDelay = .seconds(12.2)
+            milestoneLoopDelay = .seconds(15.4)
+        case .weeklyReviewPayoff, .rewardsHero:
+            idleLoopDelay = .seconds(6.7)
+            restDelay = .seconds(12.8)
+            milestoneLoopDelay = .seconds(14.8)
+        case .progressEvidence, .insightsReviewLanes, .neutralCard, .mascotStudio:
+            idleLoopDelay = .seconds(6.9)
+            restDelay = .seconds(12.6)
+            milestoneLoopDelay = .seconds(15.8)
+        case .tabShelf(.library):
+            idleLoopDelay = .seconds(7.4)
+            restDelay = .seconds(13.2)
+            milestoneLoopDelay = .seconds(16.2)
+        case .tabShelf(.timeline):
+            idleLoopDelay = .seconds(8.1)
+            restDelay = .seconds(13.8)
+            milestoneLoopDelay = .seconds(16.8)
+        case .tabShelf(.settings):
+            idleLoopDelay = .seconds(8.8)
+            restDelay = .seconds(14.4)
+            milestoneLoopDelay = .seconds(17.4)
+        case .tabShelf(.today), .tabShelf(.insights):
+            idleLoopDelay = .seconds(7.8)
+            restDelay = .seconds(13.4)
+            milestoneLoopDelay = .seconds(16.6)
+        }
+
+        basePolicy = AtlasAmbientMascotPolicy(
+            presence: presence,
+            context: context,
+            suppression: suppression,
+            idleLoopDelay: idleLoopDelay,
+            restDelay: restDelay,
+            milestoneLoopDelay: milestoneLoopDelay,
+            notableCooldown: .seconds(11.5),
+            motionWindow: .seconds(24),
+            maxNotableMomentsPerWindow: 1
+        )
+    case .moreAlive:
+        let idleLoopDelay: Duration
+        let restDelay: Duration
+        let maxNotableMomentsPerWindow: Int
+
+        switch context {
+        case .weeklyReviewPayoff, .rewardsHero, .mascotStudio:
+            idleLoopDelay = .seconds(4.4)
+            restDelay = .seconds(12.4)
+            maxNotableMomentsPerWindow = 2
+        case .tabShelf(.library):
+            idleLoopDelay = .seconds(5)
+            restDelay = .seconds(13)
+            maxNotableMomentsPerWindow = 2
+        case .todayCommandDeck:
+            idleLoopDelay = .seconds(4.7)
+            restDelay = .seconds(12.6)
+            maxNotableMomentsPerWindow = 2
+        case .progressEvidence, .insightsReviewLanes, .neutralCard:
+            idleLoopDelay = .seconds(5.1)
+            restDelay = .seconds(13)
+            maxNotableMomentsPerWindow = 1
+        case .tabShelf(.timeline):
+            idleLoopDelay = .seconds(5.8)
+            restDelay = .seconds(13.4)
+            maxNotableMomentsPerWindow = 1
+        case .tabShelf(.settings):
+            idleLoopDelay = .seconds(6.4)
+            restDelay = .seconds(14.2)
+            maxNotableMomentsPerWindow = 1
+        case .tabShelf(.today), .tabShelf(.insights):
+            idleLoopDelay = .seconds(5.6)
+            restDelay = .seconds(13.6)
+            maxNotableMomentsPerWindow = 1
+        }
+
+        basePolicy = AtlasAmbientMascotPolicy(
+            presence: presence,
+            context: context,
+            suppression: suppression,
+            idleLoopDelay: idleLoopDelay,
+            restDelay: restDelay,
+            milestoneLoopDelay: .seconds(9.2),
+            notableCooldown: .seconds(5.6),
+            motionWindow: .seconds(18),
+            maxNotableMomentsPerWindow: maxNotableMomentsPerWindow
+        )
+    }
+
+    switch suppression {
+    case .none:
+        return basePolicy
+    case .nearbyChrome:
+        return AtlasAmbientMascotPolicy(
+            presence: presence,
+            context: context,
+            suppression: suppression,
+            idleLoopDelay: basePolicy.idleLoopDelay + .seconds(2.8),
+            restDelay: basePolicy.restDelay + .seconds(1.8),
+            milestoneLoopDelay: nil,
+            notableCooldown: basePolicy.notableCooldown + .seconds(2.4),
+            motionWindow: basePolicy.motionWindow + .seconds(8),
+            maxNotableMomentsPerWindow: min(basePolicy.maxNotableMomentsPerWindow, 1)
+        )
+    case .serious:
+        return AtlasAmbientMascotPolicy(
+            presence: presence,
+            context: context,
+            suppression: suppression,
+            idleLoopDelay: .seconds(60),
+            restDelay: .seconds(60),
+            milestoneLoopDelay: nil,
+            notableCooldown: .seconds(60),
+            motionWindow: .seconds(60),
+            maxNotableMomentsPerWindow: 0
+        )
+    }
+}
+
+private extension Duration {
+    var timeInterval: TimeInterval {
+        let parts = self.components
+        return TimeInterval(parts.seconds) + (TimeInterval(parts.attoseconds) / 1_000_000_000_000_000_000)
+    }
+}
+
+struct AtlasAmbientMascotFlightState: Equatable {
+    let selection: AtlasMascotSelection
+    let stage: AtlasMascotStage
+    let startPoint: CGPoint
+    let endPoint: CGPoint
+    let destinationPlacement: AtlasAmbientMascotPerchPlacement
+}
+
+enum AtlasAmbientMascotPerchContext: Equatable {
+    case neutralCard
+    case todayCommandDeck
+    case insightsReviewLanes
+    case weeklyReviewPayoff
+    case progressEvidence
+    case rewardsHero
+    case mascotStudio
+    case tabShelf(AtlasTab)
+
+    var baseLift: CGFloat {
+        switch self {
+        case .todayCommandDeck:
+            return -1.2
+        case .insightsReviewLanes:
+            return -0.4
+        case .weeklyReviewPayoff:
+            return -0.8
+        case .progressEvidence:
+            return -0.2
+        case .rewardsHero:
+            return -0.6
+        case .mascotStudio:
+            return -0.3
+        case .neutralCard, .tabShelf:
+            return 0
+        }
+    }
+
+    var baseHorizontalOffset: CGFloat {
+        switch self {
+        case .todayCommandDeck:
+            return -1
+        case .insightsReviewLanes:
+            return 1
+        case .weeklyReviewPayoff:
+            return -0.5
+        case .progressEvidence:
+            return 1.2
+        case .rewardsHero:
+            return -0.4
+        case .mascotStudio:
+            return 0.8
+        case .neutralCard, .tabShelf:
+            return 0
+        }
+    }
+
+    var baseRotationOffset: Double {
+        switch self {
+        case .todayCommandDeck:
+            return -1.8
+        case .insightsReviewLanes:
+            return 1.4
+        case .weeklyReviewPayoff:
+            return 0.8
+        case .progressEvidence:
+            return 2.1
+        case .rewardsHero:
+            return -0.7
+        case .mascotStudio:
+            return 1.1
+        case .neutralCard, .tabShelf:
+            return 0
+        }
+    }
+
+    var settleLift: CGFloat {
+        switch self {
+        case .todayCommandDeck:
+            return -6.8
+        case .insightsReviewLanes:
+            return -5.2
+        case .weeklyReviewPayoff:
+            return -7.2
+        case .progressEvidence:
+            return -5.4
+        case .rewardsHero:
+            return -6.2
+        case .mascotStudio:
+            return -5.8
+        case .neutralCard:
+            return -5.6
+        case .tabShelf(.timeline):
+            return -3.2
+        case .tabShelf(.library):
+            return -4.4
+        case .tabShelf(.settings):
+            return -2.8
+        case .tabShelf(.today), .tabShelf(.insights):
+            return -3.4
+        }
+    }
+
+    var settleScale: CGFloat {
+        switch self {
+        case .weeklyReviewPayoff, .rewardsHero:
+            return 1.045
+        case .tabShelf(.library):
+            return 1.04
+        case .tabShelf:
+            return 1.025
+        case .neutralCard,
+             .todayCommandDeck,
+             .insightsReviewLanes,
+             .progressEvidence,
+             .mascotStudio:
+            return 1.03
+        }
+    }
+
+    var idleLiftAmplitude: CGFloat {
+        switch self {
+        case .todayCommandDeck:
+            return -1.6
+        case .insightsReviewLanes:
+            return -1.2
+        case .weeklyReviewPayoff:
+            return -1.5
+        case .progressEvidence:
+            return -1.1
+        case .rewardsHero:
+            return -1.3
+        case .mascotStudio:
+            return -1.25
+        case .neutralCard:
+            return -1.2
+        case .tabShelf(.library):
+            return -1
+        case .tabShelf(.timeline):
+            return -0.7
+        case .tabShelf(.settings):
+            return -0.45
+        case .tabShelf(.today), .tabShelf(.insights):
+            return -0.8
+        }
+    }
+
+    var idleRotationAmplitude: Double {
+        switch self {
+        case .todayCommandDeck:
+            return 2.7
+        case .insightsReviewLanes:
+            return 1.8
+        case .weeklyReviewPayoff:
+            return 2.4
+        case .progressEvidence:
+            return 2
+        case .rewardsHero:
+            return 2.2
+        case .mascotStudio:
+            return 2.1
+        case .neutralCard:
+            return 2.2
+        case .tabShelf(.library):
+            return 1.35
+        case .tabShelf(.timeline):
+            return 0.9
+        case .tabShelf(.settings):
+            return 0.65
+        case .tabShelf(.today), .tabShelf(.insights):
+            return 1.1
+        }
+    }
+
+    var restLift: CGFloat {
+        switch self {
+        case .todayCommandDeck:
+            return 2
+        case .insightsReviewLanes:
+            return 1.5
+        case .weeklyReviewPayoff:
+            return 1.9
+        case .progressEvidence:
+            return 1.6
+        case .rewardsHero:
+            return 1.75
+        case .mascotStudio:
+            return 1.7
+        case .neutralCard:
+            return 1.6
+        case .tabShelf(.settings):
+            return 1.05
+        case .tabShelf:
+            return 0.75
+        }
+    }
+
+    var restRotation: Double {
+        switch self {
+        case .todayCommandDeck:
+            return -4.4
+        case .insightsReviewLanes:
+            return -3.2
+        case .weeklyReviewPayoff:
+            return -4
+        case .progressEvidence:
+            return -3.6
+        case .rewardsHero:
+            return -3.8
+        case .mascotStudio:
+            return -3.5
+        case .neutralCard:
+            return -3.7
+        case .tabShelf(.settings):
+            return -2.5
+        case .tabShelf:
+            return -1.8
+        }
+    }
+
+    var restOffsetX: CGFloat {
+        switch self {
+        case .todayCommandDeck:
+            return -1.8
+        case .insightsReviewLanes:
+            return -0.9
+        case .weeklyReviewPayoff:
+            return -1.4
+        case .progressEvidence:
+            return -1.1
+        case .rewardsHero:
+            return -1.2
+        case .mascotStudio:
+            return -1
+        case .neutralCard:
+            return -1.1
+        case .tabShelf:
+            return 0
+        }
+    }
+
+    var restScale: CGFloat {
+        switch self {
+        case .weeklyReviewPayoff, .rewardsHero:
+            return 0.97
+        case .tabShelf:
+            return 0.98
+        case .neutralCard,
+             .todayCommandDeck,
+             .insightsReviewLanes,
+             .progressEvidence,
+             .mascotStudio:
+            return 0.965
+        }
+    }
+
+    var contentNoticeLift: CGFloat {
+        switch self {
+        case .tabShelf:
+            return -1.4
+        case .todayCommandDeck:
+            return -3.8
+        case .weeklyReviewPayoff, .rewardsHero:
+            return -3.5
+        case .insightsReviewLanes, .progressEvidence, .mascotStudio, .neutralCard:
+            return -3
+        }
+    }
+
+    var contentNoticeRotation: Double {
+        switch self {
+        case .tabShelf(.timeline):
+            return -2.4
+        case .tabShelf(.settings):
+            return -1.6
+        case .tabShelf:
+            return 2.4
+        case .todayCommandDeck:
+            return 5.8
+        case .insightsReviewLanes:
+            return 4.6
+        case .weeklyReviewPayoff:
+            return 5.2
+        case .progressEvidence:
+            return 4.9
+        case .rewardsHero:
+            return 5.4
+        case .mascotStudio:
+            return 4.8
+        case .neutralCard:
+            return 4.5
+        }
+    }
+
+    var peekLift: CGFloat {
+        switch self {
+        case .tabShelf:
+            return -1.2
+        case .todayCommandDeck, .weeklyReviewPayoff, .rewardsHero:
+            return -3.6
+        case .insightsReviewLanes, .progressEvidence, .mascotStudio, .neutralCard:
+            return -3
+        }
+    }
+
+    var peekOffsetX: CGFloat {
+        switch self {
+        case .tabShelf(.timeline):
+            return -2
+        case .tabShelf(.library):
+            return 1.5
+        case .tabShelf(.settings):
+            return -1.5
+        case .tabShelf(.today), .tabShelf(.insights):
+            return 1
+        case .neutralCard,
+             .todayCommandDeck,
+             .insightsReviewLanes,
+             .weeklyReviewPayoff,
+             .progressEvidence,
+             .rewardsHero,
+             .mascotStudio:
+            return 6
+        }
+    }
+
+    var peekRotation: Double {
+        switch self {
+        case .tabShelf(.timeline):
+            return -4
+        case .tabShelf(.settings):
+            return -3
+        case .tabShelf:
+            return 4
+        case .neutralCard,
+             .todayCommandDeck,
+             .insightsReviewLanes,
+             .weeklyReviewPayoff,
+             .progressEvidence,
+             .rewardsHero,
+             .mascotStudio:
+            return 7
+        }
+    }
+
+    var proudHoldLift: CGFloat {
+        switch self {
+        case .tabShelf:
+            return -1.8
+        case .weeklyReviewPayoff, .rewardsHero:
+            return -3.2
+        case .todayCommandDeck, .insightsReviewLanes, .progressEvidence, .mascotStudio, .neutralCard:
+            return -2.6
+        }
+    }
+
+    var proudHoldScale: CGFloat {
+        switch self {
+        case .tabShelf:
+            return 1.015
+        case .weeklyReviewPayoff, .rewardsHero:
+            return 1.03
+        case .neutralCard,
+             .todayCommandDeck,
+             .insightsReviewLanes,
+             .progressEvidence,
+             .mascotStudio:
+            return 1.022
+        }
+    }
+
+    var proudHoldRotation: Double {
+        switch self {
+        case .tabShelf(.timeline):
+            return 1.4
+        case .tabShelf(.settings):
+            return -0.8
+        case .tabShelf:
+            return 1
+        case .neutralCard,
+             .todayCommandDeck,
+             .insightsReviewLanes,
+             .weeklyReviewPayoff,
+             .progressEvidence,
+             .rewardsHero,
+             .mascotStudio:
+            return 2.8
+        }
+    }
+
+    var shelfPose: AtlasMascotPose {
+        switch self {
+        case .tabShelf(.timeline):
+            return .recovery
+        case .tabShelf(.library):
+            return .happy
+        case .tabShelf(.settings):
+            return .rest
+        case .neutralCard,
+             .todayCommandDeck,
+             .insightsReviewLanes,
+             .weeklyReviewPayoff,
+             .progressEvidence,
+             .rewardsHero,
+             .mascotStudio,
+             .tabShelf(.today),
+             .tabShelf(.insights):
+            return .idle
+        }
+    }
+
+    var constrainedChromeOffset: CGSize {
+        switch self {
+        case .tabShelf(.timeline):
+            return CGSize(width: 8, height: -4)
+        case .tabShelf(.library):
+            return CGSize(width: 0, height: -5)
+        case .tabShelf(.settings):
+            return CGSize(width: -8, height: -4)
+        case .todayCommandDeck,
+             .weeklyReviewPayoff,
+             .progressEvidence,
+             .rewardsHero,
+             .mascotStudio,
+             .insightsReviewLanes,
+             .neutralCard,
+             .tabShelf(.today),
+             .tabShelf(.insights):
+            return CGSize(width: -6, height: -4)
+        }
+    }
+}
+
+struct AtlasAmbientMascotPerch: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    let selection: AtlasMascotSelection
+    let stage: AtlasMascotStage
+    let presence: AtlasAmbientMascotPresence
+    let placement: AtlasAmbientMascotPerchPlacement
+    let context: AtlasAmbientMascotPerchContext
+    let size: CGFloat
+    let settleTrigger: Int
+    let courtesySignal: Int
+    let contentNoticeTrigger: Int
+    let peekTrigger: Int
+    let suppression: AtlasAmbientMascotSuppression
+    let reactionSignal: AtlasAmbientMascotReactionSignal?
+    let milestoneNearby: Bool
+
+    @State private var isSettled = false
+    @State private var hasAppearedOnce = false
+    @State private var lastDisappearAt: Date?
+    @State private var idleLift: CGFloat = 0
+    @State private var idleRotation: Double = 0
+    @State private var courtesyLift: CGFloat = 0
+    @State private var courtesyRotation: Double = 0
+    @State private var courtesyOffsetX: CGFloat = 0
+    @State private var reactionLift: CGFloat = 0
+    @State private var reactionScale: CGFloat = 1
+    @State private var reactionRotation: Double = 0
+    @State private var proudHoldLift: CGFloat = 0
+    @State private var proudHoldScale: CGFloat = 1
+    @State private var proudHoldRotation: Double = 0
+    @State private var peekLift: CGFloat = 0
+    @State private var peekRotation: Double = 0
+    @State private var peekOffsetX: CGFloat = 0
+    @State private var restLift: CGFloat = 0
+    @State private var restRotation: Double = 0
+    @State private var restOffsetX: CGFloat = 0
+    @State private var restScale: CGFloat = 1
+    @State private var isResting = false
+    @State private var chromeLift: CGFloat = 0
+    @State private var chromeOffsetX: CGFloat = 0
+    @State private var blinkScaleY: CGFloat = 1
+    @State private var motionWindowStartedAt: Date?
+    @State private var notableMomentsInWindow = 0
+    @State private var lastNotableMomentAt: Date?
+    @State private var idleTask: Task<Void, Never>?
+    @State private var courtesyTask: Task<Void, Never>?
+    @State private var milestoneTask: Task<Void, Never>?
+    @State private var restTask: Task<Void, Never>?
+    @State private var blinkTask: Task<Void, Never>?
+    @State private var peekTask: Task<Void, Never>?
+    @State private var reactionTask: Task<Void, Never>?
+
+    init(
+        selection: AtlasMascotSelection,
+        stage: AtlasMascotStage,
+        presence: AtlasAmbientMascotPresence = .subtle,
+        placement: AtlasAmbientMascotPerchPlacement = .cardCorner,
+        context: AtlasAmbientMascotPerchContext = .neutralCard,
+        size: CGFloat = 62,
+        settleTrigger: Int = 0,
+        courtesySignal: Int = 0,
+        contentNoticeTrigger: Int = 0,
+        peekTrigger: Int = 0,
+        suppression: AtlasAmbientMascotSuppression = .none,
+        reactionSignal: AtlasAmbientMascotReactionSignal? = nil,
+        milestoneNearby: Bool = false
+    ) {
+        self.selection = selection
+        self.stage = stage
+        self.presence = presence
+        self.placement = placement
+        self.context = context
+        self.size = size
+        self.settleTrigger = settleTrigger
+        self.courtesySignal = courtesySignal
+        self.contentNoticeTrigger = contentNoticeTrigger
+        self.peekTrigger = peekTrigger
+        self.suppression = suppression
+        self.reactionSignal = reactionSignal
+        self.milestoneNearby = milestoneNearby
+    }
+
+    private var policy: AtlasAmbientMascotPolicy {
+        atlasAmbientMascotPolicy(presence: presence, context: context, suppression: suppression)
+    }
+
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            Ellipse()
+                .fill(shadowTint.opacity(placement == .tabShelf ? 0.24 : 0.18))
+                .frame(
+                    width: placement == .tabShelf ? size * 0.7 : size * 0.82,
+                    height: placement == .tabShelf ? 7 : 9
+                )
+                .blur(radius: placement == .tabShelf ? 1.6 : 2)
+                .offset(y: placement == .tabShelf ? 3 : 5)
+
+            mascotArt
+                .rotationEffect(.degrees(rotationDegrees))
+                .offset(x: horizontalOffset, y: verticalOffset)
+                .scaleEffect(
+                    x: reactionScale * proudHoldScale * restScale,
+                    y: blinkScaleY * reactionScale * proudHoldScale * restScale
+                )
+        }
+        .frame(
+            width: placement == .tabShelf ? size * 1.2 : size * 1.34,
+            height: placement == .tabShelf ? size * 0.92 : size * 1.18,
+            alignment: .bottom
+        )
+        .opacity(policy.allowsAmbientPerch ? 1 : 0)
+        .accessibilityHidden(true)
+        .allowsHitTesting(false)
+        .onAppear {
+            guard policy.allowsAmbientPerch else {
+                resetAnimationState()
+                return
+            }
+            let shouldWakeBlink = hasAppearedOnce
+                && (lastDisappearAt.map { Date().timeIntervalSince($0) > 1.6 } ?? false)
+            resetAnimationState()
+            if shouldWakeBlink, policy.allowsWakeBlink {
+                isSettled = true
+                runWakeBlinkAnimation()
+            } else {
+                runSettleAnimation()
+            }
+            runChromeConstraintAnimation()
+            configureIdleLoop()
+            configureMilestoneLoop()
+            scheduleRestLoop()
+            hasAppearedOnce = true
+        }
+        .onDisappear {
+            idleTask?.cancel()
+            courtesyTask?.cancel()
+            milestoneTask?.cancel()
+            restTask?.cancel()
+            blinkTask?.cancel()
+            peekTask?.cancel()
+            reactionTask?.cancel()
+            lastDisappearAt = Date()
+            resetAnimationState()
+        }
+        .onChange(of: settleTrigger) { _, _ in
+            guard policy.allowsAmbientPerch else {
+                return
+            }
+            runSettleAnimation()
+        }
+        .onChange(of: courtesySignal) { _, _ in
+            guard policy.allowsAmbientPerch else {
+                return
+            }
+            runCourtesyAnimation()
+        }
+        .onChange(of: contentNoticeTrigger) { _, _ in
+            guard policy.allowsAmbientPerch else {
+                return
+            }
+            runReactionAnimation(.noticedContent, includeHaptics: false)
+        }
+        .onChange(of: peekTrigger) { _, _ in
+            guard policy.allowsAmbientPerch else {
+                return
+            }
+            runPeekAnimation()
+        }
+        .onChange(of: reactionSignal?.token) { _, _ in
+            guard let reactionSignal else {
+                return
+            }
+            runReactionAnimation(reactionSignal.kind)
+        }
+        .onChange(of: milestoneNearby) { _, _ in
+            guard policy.allowsAmbientPerch else {
+                return
+            }
+            configureMilestoneLoop()
+        }
+        .onChange(of: presence) { _, _ in
+            guard policy.allowsAmbientPerch else {
+                resetAnimationState()
+                return
+            }
+            refreshPolicyDrivenAnimationState()
+        }
+        .onChange(of: suppression) { _, _ in
+            guard policy.allowsAmbientPerch else {
+                resetAnimationState()
+                return
+            }
+            refreshPolicyDrivenAnimationState()
+        }
+    }
+
+    @ViewBuilder
+    private var mascotArt: some View {
+        switch placement {
+        case .cardCorner:
+            AtlasMascotSticker(
+                line: atlasMascotLine(for: selection),
+                stage: stage,
+                size: size
+            )
+        case .tabShelf:
+            AtlasMascotSprite(
+                line: atlasMascotLine(for: selection),
+                stage: stage,
+                pose: context.shelfPose,
+                size: size
+            )
+        }
+    }
+
+    private var rotationDegrees: Double {
+        baseRotation + idleRotation + courtesyRotation + reactionRotation + proudHoldRotation + peekRotation + restRotation
+    }
+
+    private var verticalOffset: CGFloat {
+        let settleOffset: CGFloat = isSettled ? 0 : 12
+        return settleOffset
+            + context.baseLift
+            + idleLift
+            + courtesyLift
+            + reactionLift
+            + proudHoldLift
+            + peekLift
+            + restLift
+            + chromeLift
+    }
+
+    private var horizontalOffset: CGFloat {
+        context.baseHorizontalOffset + courtesyOffsetX + peekOffsetX + restOffsetX + chromeOffsetX
+    }
+
+    private var shadowTint: Color {
+        atlasMascotLineTint(for: selection)
+    }
+
+    private var baseRotation: Double {
+        switch placement {
+        case .cardCorner:
+            return (reduceMotion ? -3 : -4) + context.baseRotationOffset
+        case .tabShelf:
+            return context.baseRotationOffset * 0.35
+        }
+    }
+
+    private func resetAnimationState() {
+        isSettled = reduceMotion
+        idleLift = 0
+        idleRotation = 0
+        courtesyLift = 0
+        courtesyRotation = 0
+        courtesyOffsetX = 0
+        reactionLift = 0
+        reactionScale = 1
+        reactionRotation = 0
+        proudHoldLift = 0
+        proudHoldScale = 1
+        proudHoldRotation = 0
+        peekLift = 0
+        peekRotation = 0
+        peekOffsetX = 0
+        restLift = 0
+        restRotation = 0
+        restOffsetX = 0
+        restScale = 1
+        isResting = false
+        chromeLift = 0
+        chromeOffsetX = 0
+        blinkScaleY = 1
+    }
+
+    private func runSettleAnimation() {
+        guard policy.allowsAmbientPerch else {
+            isSettled = true
+            return
+        }
+        guard policy.allowsAutonomousMotion, reduceMotion == false else {
+            isSettled = true
+            reactionLift = 0
+            reactionScale = 1
+            return
+        }
+
+        idleTask?.cancel()
+        courtesyTask?.cancel()
+        milestoneTask?.cancel()
+        restTask?.cancel()
+        wakeFromRest(animated: false)
+        isSettled = false
+
+        withAnimation(.spring(response: 0.36, dampingFraction: 0.72)) {
+            isSettled = true
+            reactionLift = context.settleLift
+            reactionScale = context.settleScale
+        }
+
+        Task {
+            try? await Task.sleep(for: .milliseconds(180))
+            await MainActor.run {
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.84)) {
+                    reactionLift = 0
+                    reactionScale = 1
+                }
+                configureIdleLoop()
+                configureMilestoneLoop()
+                scheduleRestLoop()
+            }
+        }
+    }
+
+    private func configureIdleLoop() {
+        idleTask?.cancel()
+        guard policy.allowsAutonomousMotion, reduceMotion == false else {
+            idleLift = 0
+            idleRotation = 0
+            return
+        }
+
+        idleTask = Task {
+            while Task.isCancelled == false {
+                try? await Task.sleep(for: policy.idleLoopDelay)
+                guard Task.isCancelled == false else {
+                    return
+                }
+                guard isResting == false else {
+                    continue
+                }
+                await MainActor.run {
+                    withAnimation(.easeInOut(duration: 0.42)) {
+                        idleLift = context.idleLiftAmplitude
+                        idleRotation = context.idleRotationAmplitude
+                    }
+                }
+
+                try? await Task.sleep(for: .milliseconds(520))
+                guard Task.isCancelled == false else {
+                    return
+                }
+                await MainActor.run {
+                    withAnimation(.easeInOut(duration: 0.36)) {
+                        idleLift = 0
+                        idleRotation = 0
+                    }
+                }
+            }
+        }
+    }
+
+    private func configureMilestoneLoop() {
+        milestoneTask?.cancel()
+        guard policy.allowsAutonomousMotion,
+              reduceMotion == false,
+              milestoneNearby,
+              let loopDelay = policy.milestoneLoopDelay else {
+            return
+        }
+
+        milestoneTask = Task {
+            while Task.isCancelled == false {
+                try? await Task.sleep(for: loopDelay)
+                guard Task.isCancelled == false else {
+                    return
+                }
+                await MainActor.run {
+                    runReactionAnimation(.milestone, includeHaptics: false)
+                }
+            }
+        }
+    }
+
+    private func runCourtesyAnimation() {
+        guard policy.allowsAmbientPerch, reduceMotion == false else {
+            return
+        }
+
+        wakeFromRest()
+        courtesyTask?.cancel()
+        let xOffset: CGFloat = placement == .tabShelf ? 0 : 4
+        let lift: CGFloat = placement == .tabShelf ? -1 : 1.5
+        let rotation: Double = placement == .tabShelf ? -3 : 5
+
+        withAnimation(.easeInOut(duration: 0.18)) {
+            courtesyLift = lift
+            courtesyRotation = rotation
+            courtesyOffsetX = xOffset
+        }
+
+        courtesyTask = Task {
+            try? await Task.sleep(for: .milliseconds(420))
+            guard Task.isCancelled == false else {
+                return
+            }
+            await MainActor.run {
+                withAnimation(.easeInOut(duration: 0.24)) {
+                    courtesyLift = 0
+                    courtesyRotation = 0
+                    courtesyOffsetX = 0
+                }
+                scheduleRestLoop()
+            }
+        }
+    }
+
+    private func scheduleRestLoop() {
+        restTask?.cancel()
+        guard policy.allowsAutonomousMotion, reduceMotion == false else {
+            return
+        }
+
+        restTask = Task {
+            try? await Task.sleep(for: policy.restDelay)
+            guard Task.isCancelled == false else {
+                return
+            }
+            await MainActor.run {
+                guard isResting == false else {
+                    return
+                }
+                isResting = true
+                withAnimation(.easeInOut(duration: 0.42)) {
+                    restLift = context.restLift
+                    restRotation = context.restRotation
+                    restOffsetX = context.restOffsetX
+                    restScale = context.restScale
+                }
+            }
+        }
+    }
+
+    private func wakeFromRest(animated: Bool = true) {
+        restTask?.cancel()
+        guard isResting else {
+            if animated {
+                scheduleRestLoop()
+            }
+            return
+        }
+
+        isResting = false
+        let reset = {
+            restLift = 0
+            restRotation = 0
+            restOffsetX = 0
+            restScale = 1
+        }
+        if animated {
+            withAnimation(.easeInOut(duration: 0.24)) {
+                reset()
+            }
+        } else {
+            reset()
+        }
+        if animated {
+            scheduleRestLoop()
+        }
+    }
+
+    private func runReactionAnimation(
+        _ kind: AtlasAmbientMascotReactionKind,
+        includeHaptics: Bool = true
+    ) {
+        guard policy.allowsAmbientPerch,
+              policy.allowsReaction(kind),
+              reduceMotion == false else {
+            return
+        }
+        guard canRunReaction(kind) else {
+            return
+        }
+
+        wakeFromRest()
+        reactionTask?.cancel()
+        let spec = reactionSpec(for: kind)
+        if includeHaptics {
+            switch kind {
+            case .reviewComplete, .milestone:
+                AtlasFeedback.mascotMoment()
+            case .artifactReady:
+                AtlasFeedback.levelUp()
+            case .capturedMoment:
+                AtlasFeedback.mascotMoment()
+            case .noticedContent, .inspectReveal:
+                break
+            case .logSuccess, .openedMascot, .openedRewards, .openedSurface, .welcomeBack:
+                AtlasFeedback.selection()
+            }
+        }
+
+        withAnimation(.spring(response: spec.response, dampingFraction: spec.damping)) {
+            proudHoldLift = 0
+            proudHoldScale = 1
+            proudHoldRotation = 0
+            reactionLift = spec.lift
+            reactionScale = spec.scale
+            reactionRotation = spec.rotation
+        }
+
+        reactionTask = Task {
+            try? await Task.sleep(for: .milliseconds(spec.holdMilliseconds))
+            guard Task.isCancelled == false else {
+                return
+            }
+            await MainActor.run {
+                withAnimation(.spring(response: 0.26, dampingFraction: 0.88)) {
+                    reactionLift = 0
+                    reactionScale = 1
+                    reactionRotation = 0
+                }
+            }
+
+            if let hold = proudHoldSpec(for: kind) {
+                try? await Task.sleep(for: .milliseconds(90))
+                guard Task.isCancelled == false else {
+                    return
+                }
+                await MainActor.run {
+                    withAnimation(.easeInOut(duration: 0.18)) {
+                        proudHoldLift = hold.lift
+                        proudHoldScale = hold.scale
+                        proudHoldRotation = hold.rotation
+                    }
+                }
+
+                try? await Task.sleep(for: .milliseconds(460))
+                guard Task.isCancelled == false else {
+                    return
+                }
+                await MainActor.run {
+                    withAnimation(.easeInOut(duration: 0.24)) {
+                        proudHoldLift = 0
+                        proudHoldScale = 1
+                        proudHoldRotation = 0
+                    }
+                    scheduleRestLoop()
+                }
+            } else {
+                await MainActor.run {
+                    scheduleRestLoop()
+                }
+            }
+        }
+    }
+
+    private func reactionSpec(for kind: AtlasAmbientMascotReactionKind) -> (
+        lift: CGFloat,
+        scale: CGFloat,
+        rotation: Double,
+        response: Double,
+        damping: Double,
+        holdMilliseconds: UInt64
+    ) {
+        switch kind {
+        case .logSuccess:
+            return (placement == .tabShelf ? -5 : -7, 1.05, placement == .tabShelf ? 2 : 3.5, 0.22, 0.62, 220)
+        case .reviewComplete:
+            return (-9, 1.08, 4, 0.24, 0.6, 260)
+        case .openedMascot:
+            return (placement == .tabShelf ? -4 : -5, 1.04, -4, 0.24, 0.68, 180)
+        case .openedRewards:
+            return (placement == .tabShelf ? -4 : -5, 1.04, 4, 0.24, 0.68, 180)
+        case .openedSurface:
+            return (placement == .tabShelf ? -3.5 : -4.5, 1.03, placement == .tabShelf ? 1.5 : 2.5, 0.22, 0.7, 170)
+        case .capturedMoment:
+            return (-8, 1.08, -3.5, 0.22, 0.58, 240)
+        case .noticedContent:
+            return (context.contentNoticeLift, 1.02, context.contentNoticeRotation, 0.22, 0.72, 180)
+        case .inspectReveal:
+            return (placement == .tabShelf ? -1.8 : -2.8, 1.015, placement == .tabShelf ? 5 : 7, 0.2, 0.78, 170)
+        case .welcomeBack:
+            return (placement == .tabShelf ? -4 : -5.5, 1.04, placement == .tabShelf ? 1.5 : 3, 0.24, 0.7, 220)
+        case .milestone:
+            return (-8, 1.08, 3, 0.22, 0.58, 220)
+        case .artifactReady:
+            return (-10, 1.1, placement == .tabShelf ? 2.5 : 5, 0.24, 0.56, 280)
+        }
+    }
+
+    private func proudHoldSpec(for kind: AtlasAmbientMascotReactionKind) -> (
+        lift: CGFloat,
+        scale: CGFloat,
+        rotation: Double
+    )? {
+        switch kind {
+        case .reviewComplete, .artifactReady:
+            return (context.proudHoldLift, context.proudHoldScale, context.proudHoldRotation)
+        case .logSuccess,
+             .openedMascot,
+             .openedRewards,
+             .openedSurface,
+             .capturedMoment,
+             .noticedContent,
+             .inspectReveal,
+             .welcomeBack,
+             .milestone:
+            return nil
+        }
+    }
+
+    private func canRunReaction(_ kind: AtlasAmbientMascotReactionKind) -> Bool {
+        guard policy.isNotable(kind) else {
+            return true
+        }
+
+        let now = Date()
+        if let lastNotableMomentAt,
+           now.timeIntervalSince(lastNotableMomentAt) < policy.notableCooldown.timeInterval {
+            return false
+        }
+
+        if let motionWindowStartedAt,
+           now.timeIntervalSince(motionWindowStartedAt) < policy.motionWindow.timeInterval {
+            guard notableMomentsInWindow < policy.maxNotableMomentsPerWindow else {
+                return false
+            }
+        } else {
+            self.motionWindowStartedAt = now
+            self.notableMomentsInWindow = 0
+        }
+
+        lastNotableMomentAt = now
+        notableMomentsInWindow += 1
+        return true
+    }
+
+    private func runWakeBlinkAnimation() {
+        guard policy.allowsAmbientPerch,
+              policy.allowsWakeBlink,
+              reduceMotion == false else {
+            return
+        }
+
+        blinkTask?.cancel()
+        blinkTask = Task {
+            try? await Task.sleep(for: .milliseconds(120))
+            guard Task.isCancelled == false else {
+                return
+            }
+            await MainActor.run {
+                withAnimation(.easeInOut(duration: 0.08)) {
+                    blinkScaleY = 0.16
+                }
+            }
+
+            try? await Task.sleep(for: .milliseconds(90))
+            guard Task.isCancelled == false else {
+                return
+            }
+            await MainActor.run {
+                withAnimation(.easeInOut(duration: 0.1)) {
+                    blinkScaleY = 1
+                }
+            }
+        }
+    }
+
+    private func runPeekAnimation() {
+        guard policy.allowsAutonomousMotion, reduceMotion == false else {
+            return
+        }
+
+        wakeFromRest()
+        peekTask?.cancel()
+
+        withAnimation(.easeOut(duration: 0.16)) {
+            peekLift = context.peekLift
+            peekOffsetX = context.peekOffsetX
+            peekRotation = context.peekRotation
+        }
+
+        peekTask = Task {
+            try? await Task.sleep(for: .milliseconds(210))
+            guard Task.isCancelled == false else {
+                return
+            }
+            await MainActor.run {
+                withAnimation(.spring(response: 0.26, dampingFraction: 0.82)) {
+                    peekLift = 0
+                    peekOffsetX = 0
+                    peekRotation = 0
+                }
+                scheduleRestLoop()
+            }
+        }
+    }
+
+    private func runChromeConstraintAnimation() {
+        let offset = suppression.hasNearbyChrome ? context.constrainedChromeOffset : .zero
+
+        guard reduceMotion == false else {
+            chromeOffsetX = offset.width
+            chromeLift = offset.height
+            return
+        }
+
+        withAnimation(.spring(response: 0.24, dampingFraction: 0.82)) {
+            chromeOffsetX = offset.width
+            chromeLift = offset.height
+        }
+    }
+
+    private func refreshPolicyDrivenAnimationState() {
+        runChromeConstraintAnimation()
+        if policy.allowsAutonomousMotion {
+            configureIdleLoop()
+            configureMilestoneLoop()
+            scheduleRestLoop()
+        } else {
+            idleTask?.cancel()
+            milestoneTask?.cancel()
+            restTask?.cancel()
+            wakeFromRest(animated: false)
+            idleLift = 0
+            idleRotation = 0
+        }
+    }
+}
+
+private struct AtlasAmbientMascotOpenReactionModifier: ViewModifier {
+    let model: AtlasAppModel
+    let kind: AtlasAmbientMascotReactionKind
+
+    @State private var hasTriggeredOpenReaction = false
+
+    func body(content: Content) -> some View {
+        content
+            .onAppear {
+                guard hasTriggeredOpenReaction == false else {
+                    return
+                }
+                hasTriggeredOpenReaction = true
+                model.triggerAmbientMascotReaction(kind)
+            }
+            .onDisappear {
+                hasTriggeredOpenReaction = false
+            }
+    }
+}
+
+extension View {
+    func atlasAmbientMascotOpenReaction(
+        model: AtlasAppModel,
+        kind: AtlasAmbientMascotReactionKind
+    ) -> some View {
+        modifier(AtlasAmbientMascotOpenReactionModifier(model: model, kind: kind))
+    }
+}
+
+struct AtlasAmbientMascotFlightOverlay: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    let flight: AtlasAmbientMascotFlightState
+    let onFinished: () -> Void
+
+    @State private var progress: CGFloat = 0
+
+    var body: some View {
+        AtlasMascotSticker(
+            line: atlasMascotLine(for: flight.selection),
+            stage: flight.stage,
+            size: currentSize
+        )
+        .rotationEffect(.degrees(-6 + Double(progress * 8)))
+        .position(currentPoint)
+        .shadow(color: atlasMascotLineTint(for: flight.selection).opacity(0.16), radius: 12, y: 8)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+        .onAppear {
+            guard reduceMotion == false else {
+                onFinished()
+                return
+            }
+
+            withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
+                progress = 1
+            }
+
+            Task {
+                try? await Task.sleep(for: .milliseconds(520))
+                await MainActor.run {
+                    onFinished()
+                }
+            }
+        }
+    }
+
+    private var currentPoint: CGPoint {
+        let x = flight.startPoint.x + ((flight.endPoint.x - flight.startPoint.x) * progress)
+        let baseY = flight.startPoint.y + ((flight.endPoint.y - flight.startPoint.y) * progress)
+        let arc = sin(progress * .pi) * (flight.destinationPlacement == .tabShelf ? 38 : 52)
+        return CGPoint(x: x, y: baseY - arc)
+    }
+
+    private var currentSize: CGFloat {
+        let start: CGFloat = 58
+        let end: CGFloat = flight.destinationPlacement == .tabShelf ? 40 : 54
+        return start + ((end - start) * progress)
+    }
+}
+
 private struct AtlasInteractiveMascotIllustration: View {
     let selection: AtlasMascotSelection
     let nickname: String?
@@ -664,56 +2224,46 @@ struct AtlasMascotHomeCard: View {
                             .foregroundStyle(AtlasPalette.primary)
                     }
 
-                    Text(profile.statusLine)
-                        .atlasTextRole(.supporting)
-                        .foregroundStyle(AtlasPalette.textSecondary)
+                    if profile.nickname != nil {
+                        Text(selection.title)
+                            .atlasTextRole(.supporting)
+                            .foregroundStyle(AtlasPalette.textSecondary)
+                    }
+                }
 
-                    Text(evolution.milestoneHeadline)
-                        .atlasTextRole(.deckEyebrow)
-                        .foregroundStyle(AtlasPalette.primary)
+                if compact == false {
+                    Spacer(minLength: 0)
 
-                    Text(evolution.progressLabel)
+                    homeIllustration(
+                        selection: selection,
+                        line: line,
+                        stage: evolution.stage
+                    )
+                }
+            }
+
+            if compact == false {
+                AtlasMetricStrip(
+                    metrics: atlasMascotMetrics(
+                        rewardsSnapshot: rewardsSnapshot,
+                        historyCount: filteredHistory.count,
+                        momentsCount: moments.filter { $0.selection == selection }.count,
+                        stageBadge: evolution.stageBadge
+                    )
+                )
+
+                if let progressFraction = evolution.progressFraction {
+                    AtlasProgressMeter(
+                        title: "Evolution",
+                        detail: nil,
+                        value: progressFraction,
+                        tint: AtlasPalette.reward
+                    )
+                } else {
+                    Text("Final form unlocked.")
                         .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
-
-                Spacer(minLength: 0)
-
-                homeIllustration(
-                    selection: selection,
-                    line: line,
-                    stage: evolution.stage
-                )
-            }
-
-            AtlasMetricStrip(
-                metrics: atlasMascotMetrics(
-                    rewardsSnapshot: rewardsSnapshot,
-                    historyCount: filteredHistory.count,
-                    momentsCount: moments.filter { $0.selection == selection }.count,
-                    stageBadge: evolution.stageBadge
-                )
-            )
-
-            if compact == false, let reaction = profile.reaction {
-                AtlasMascotReactionStrip(reaction: reaction)
-            }
-
-            if compact == false, let latestMoment {
-                AtlasMascotMomentHighlight(moment: latestMoment)
-            }
-
-            if let progressFraction = evolution.progressFraction {
-                AtlasProgressMeter(
-                    title: "Evolution",
-                    detail: "\(rewardsSnapshot.totalPoints) total points • \(evolution.progressLabel)",
-                    value: progressFraction,
-                    tint: AtlasPalette.reward
-                )
-            } else {
-                Text("All mascot evolution milestones are now unlocked for this line.")
-                    .atlasTextRole(.supporting)
-                    .foregroundStyle(AtlasPalette.textSecondary)
             }
 
             if compact {
@@ -878,9 +2428,6 @@ private struct AtlasMascotMomentsJournalCard: View {
                         Text("Moments journal")
                             .atlasTextRole(.cardTitle)
                             .foregroundStyle(AtlasPalette.textPrimary)
-                        Text(atlasMascotJournalSubtitle(selection: selection))
-                            .atlasTextRole(.supporting)
-                            .foregroundStyle(AtlasPalette.textSecondary)
                     }
 
                     Spacer(minLength: 0)
@@ -892,7 +2439,7 @@ private struct AtlasMascotMomentsJournalCard: View {
                 }
 
                 if displayedMoments.isEmpty {
-                    Text("No mascot moments yet. Tap the mascot, close goals, or use the new shortcut check-ins to start filling the journal.")
+                    Text("No saved moments yet.")
                         .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 } else {
@@ -922,14 +2469,6 @@ private struct AtlasMascotMomentsJournalCard: View {
                                         .atlasTextRole(.deckEyebrow)
                                         .foregroundStyle(AtlasPalette.textPrimary)
                                     AtlasStatusBadge(presentation.badge, tint: presentation.tint)
-                                }
-                                Text(moment.detail)
-                                    .atlasTextRole(.supporting)
-                                    .foregroundStyle(AtlasPalette.textSecondary)
-                                if let continuity = atlasMascotMomentContinuityLine(moment) {
-                                    Text(continuity)
-                                        .atlasTextRole(.metricLabel)
-                                        .foregroundStyle(presentation.tint)
                                 }
                                 Text(atlasMascotMomentDateLabel(moment.recordedAt))
                                     .atlasTextRole(.metricLabel)
@@ -1103,11 +2642,11 @@ struct AtlasMascotConfirmationCard: View {
     private var detailText: String {
         switch bootstrapReason {
         case .importedLocalUser:
-            return "Atlas found imported local history and picked a starting line so the companion layer can begin in context. Keep it or switch it now."
+            return "Imported local history was found, so a starting line was chosen automatically. Keep it or switch it now."
         case .existingLocalUser:
-            return "Atlas found an existing local setup and picked a starting line so the mascot layer has a calm default. Confirm it once or switch it now."
+            return "An existing local setup was found, so a starting line was chosen automatically. Confirm it or switch it now."
         default:
-            return "Pick the mascot line you want Atlas to carry across rewards, calm continuity, and companion previews."
+            return "Pick the mascot line to use across rewards, continuity, and companion previews."
         }
     }
 
@@ -1172,7 +2711,7 @@ private struct AtlasMascotEvolutionPathCard: View {
                         Text("Evolution path")
                             .atlasTextRole(.cardTitle)
                             .foregroundStyle(AtlasPalette.textPrimary)
-                        Text("Rewards milestones permanently unlock each form, while Atlas keeps the same guardian identity across the entire line.")
+                        Text("Each form unlocks permanently.")
                             .atlasTextRole(.supporting)
                             .foregroundStyle(AtlasPalette.textSecondary)
                     }
@@ -1259,8 +2798,7 @@ private func atlasMascotMetrics(
     [
         .init(id: "stage", title: "Stage", value: stageBadge, tint: AtlasPalette.reward),
         .init(id: "points", title: "Points", value: "\(rewardsSnapshot.totalPoints)", tint: AtlasPalette.primary),
-        .init(id: "history", title: "Unlocks", value: "\(historyCount)", tint: AtlasPalette.success),
-        .init(id: "moments", title: "Moments", value: "\(momentsCount)", tint: AtlasPalette.secondaryText)
+        .init(id: "history", title: "Unlocks", value: "\(historyCount)", tint: AtlasPalette.success)
     ]
 }
 
@@ -1271,6 +2809,7 @@ public struct AtlasMascotDetailScreen: View {
     @State private var recapAudience: AtlasMascotRecapAudience = .personal
     @State private var recapPrivacyMode: AtlasMascotRecapPrivacyMode = .fullDetail
     @State private var recapHandoffState: AtlasMascotRecapHandoffState?
+    @State private var recapCourtesySignal = 0
 
     public init(model: AtlasAppModel) {
         self.model = model
@@ -1293,13 +2832,6 @@ public struct AtlasMascotDetailScreen: View {
             history: history
         )
         let latestMoment = moments.first { $0.selection == selection }
-        let progressionSummary = atlasMascotProgressionSummary(
-            selection: selection,
-            rewardsSnapshot: rewardsSnapshot,
-            evolution: evolution,
-            latestMoment: latestMoment,
-            archivedRecapCount: archivedRecaps.count
-        )
         let weeklyDescriptor = recapDescriptor(
             kind: .weeklyRecap,
             selection: selection,
@@ -1321,7 +2853,7 @@ public struct AtlasMascotDetailScreen: View {
             LazyVStack(alignment: .leading, spacing: 20) {
                 AtlasTabHeader(
                     title: profile.displayName,
-                    subtitle: "See the live guardian form, share editorial recap cards, and follow the full momentum line without dropping back into utility UI."
+                    subtitle: "Live form, recap posters, and archive."
                 )
 
                 if let recapHandoffState {
@@ -1368,21 +2900,9 @@ public struct AtlasMascotDetailScreen: View {
                                 .atlasTextRole(.screenSubtitle)
                                 .foregroundStyle(atlasMascotLineTint(for: selection))
 
-                            Text(profile.statusLine)
-                                .atlasTextRole(.screenSubtitle)
-                                .foregroundStyle(AtlasPalette.textSecondary)
-
                             Text(evolution.milestoneHeadline)
                                 .atlasTextRole(.deckEyebrow)
                                 .foregroundStyle(atlasMascotLineTint(for: selection))
-
-                            Text(artDirection.stageHeadline)
-                                .atlasTextRole(.cardTitle)
-                                .foregroundStyle(AtlasPalette.textPrimary)
-
-                            Text(atlasMascotStageFlavor(for: selection, stage: evolution.stage))
-                                .atlasTextRole(.supporting)
-                                .foregroundStyle(AtlasPalette.textSecondary)
                         }
 
                         VStack(alignment: .center, spacing: AtlasSpacing.small) {
@@ -1429,51 +2949,8 @@ public struct AtlasMascotDetailScreen: View {
                                     size: artDirection.portraitSize
                                 )
                                 .offset(y: artDirection.portraitOffsetY)
-
-                                HStack(spacing: 10) {
-                                    AtlasMascotSprite(
-                                        line: atlasMascotLine(for: selection),
-                                        stage: evolution.stage,
-                                        pose: atlasRewardsMascotPose(for: rewardsSnapshot),
-                                        size: 64
-                                    )
-
-                                    VStack(alignment: .leading, spacing: 3) {
-                                        Text("Live sprite")
-                                            .atlasTextRole(.deckEyebrow)
-                                            .foregroundStyle(atlasMascotLineTint(for: selection))
-                                        Text("Widgets and compact surfaces stay synced to this state.")
-                                            .atlasTextRole(.supporting)
-                                            .foregroundStyle(AtlasPalette.textSecondary)
-                                            .fixedSize(horizontal: false, vertical: true)
-                                    }
-                                }
-                                .padding(12)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                                        .fill(AtlasPalette.surfaceTop.opacity(0.96))
-                                )
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                                        .stroke(AtlasPalette.chromeStroke, lineWidth: 1)
-                                )
-                                .offset(
-                                    x: artDirection.portraitChipOffset.width,
-                                    y: artDirection.portraitChipOffset.height
-                                )
                             }
                             .frame(maxWidth: .infinity)
-
-                            VStack(spacing: 4) {
-                                Label(selection.title, systemImage: atlasMascotLineSymbol(for: selection))
-                                    .atlasTextRole(.deckEyebrow)
-                                    .foregroundStyle(atlasMascotLineTint(for: selection))
-
-                                Text(artDirection.portraitNote)
-                                    .atlasTextRole(.supporting)
-                                    .foregroundStyle(AtlasPalette.textSecondary)
-                                    .multilineTextAlignment(.center)
-                            }
                         }
 
                         AtlasMetricStrip(
@@ -1485,27 +2962,10 @@ public struct AtlasMascotDetailScreen: View {
                             )
                         )
 
-                        AtlasMilestoneRevealBanner(
-                            eyebrow: progressionSummary.badge,
-                            title: progressionSummary.title,
-                            detail: progressionSummary.detail,
-                            tint: progressionSummary.tint,
-                            badge: evolution.stageBadge,
-                            symbolName: progressionSummary.symbolName
-                        )
-
-                        AtlasCalloutRow(
-                            systemImage: artDirection.ornamentSymbol,
-                            title: "Art direction",
-                            detail: artDirection.posterKicker,
-                            tint: atlasMascotLineTint(for: selection),
-                            badge: artDirection.stageLabel
-                        )
-
                         if let progressFraction = evolution.progressFraction {
                             AtlasProgressMeter(
                                 title: "Evolution progress",
-                                detail: evolution.progressLabel,
+                                detail: nil,
                                 value: progressFraction,
                                 tint: atlasMascotLineTint(for: selection)
                             )
@@ -1516,22 +2976,6 @@ public struct AtlasMascotDetailScreen: View {
                                 detail: "\(evolution.currentFormName) is the highest unlocked form in this line.",
                                 tint: AtlasPalette.success
                             )
-                        }
-
-                        AtlasMascotUnlockReadinessRow(
-                            selection: selection,
-                            rewardsSnapshot: rewardsSnapshot,
-                            evolution: evolution,
-                            archivedRecapCount: archivedRecaps.count,
-                            latestMoment: latestMoment
-                        )
-
-                        if let reaction = profile.reaction {
-                            AtlasMascotReactionStrip(reaction: reaction)
-                        }
-
-                        if let latestMoment {
-                            AtlasMascotMomentHighlight(moment: latestMoment)
                         }
 
                         HStack(spacing: AtlasSpacing.small) {
@@ -1561,9 +3005,9 @@ public struct AtlasMascotDetailScreen: View {
                 }
 
                 AtlasCommandDeck(
-                    eyebrow: "Momentum loop",
-                    title: "Keep the guardian line feeling alive",
-                    detail: "Atlas should always make the next rewarding action obvious: capture a moment, export a recap, or push the next evolution threshold.",
+                    eyebrow: "Archive",
+                    title: "Mascot keepsakes",
+                    detail: nil,
                     metrics: [
                         .init(id: "points", title: "Points", value: "\(rewardsSnapshot.totalPoints)", tint: AtlasPalette.reward),
                         .init(
@@ -1630,33 +3074,10 @@ public struct AtlasMascotDetailScreen: View {
                         }
                         .buttonStyle(AtlasTactileTileButtonStyle(tint: atlasMascotLineHighlight(for: selection)))
                     }
-                } footer: {
-                    if let latestMoment {
-                        AtlasCalloutRow(
-                            systemImage: latestMoment.symbolName,
-                            title: "Most recent mascot moment",
-                            detail: "\(latestMoment.title) • \(latestMoment.detail)",
-                            tint: atlasMascotLineTint(for: selection),
-                            badge: atlasMascotMomentDateLabel(latestMoment.recordedAt)
-                        )
-                    } else {
-                        AtlasCalloutRow(
-                            systemImage: "sparkles",
-                            title: "Next unlock focus",
-                            detail: evolution.nextFormName == nil
-                                ? "This guardian line is fully evolved, so every new moment now builds the archive and recap gallery."
-                                : "\(evolution.nextFormName ?? "Next form") is still ahead. Small milestones and check-ins keep the line feeling alive.",
-                            tint: atlasMascotLineTint(for: selection)
-                        )
-                    }
-                }
+                } footer: { EmptyView() }
 
                 AtlasSectionCard(style: .elevated, title: "Recap studio") {
                     VStack(alignment: .leading, spacing: AtlasSpacing.medium) {
-                        Text("Choose the audience and privacy mode first, then export one of the editorial recap layouts below. These cards now use the portrait art family for large surfaces and keep the pixel layer only where compact readability matters.")
-                            .atlasTextRole(.screenSubtitle)
-                            .foregroundStyle(AtlasPalette.textSecondary)
-
                         VStack(alignment: .leading, spacing: AtlasSpacing.small) {
                             Text("Audience")
                                 .atlasTextRole(.deckEyebrow)
@@ -1665,6 +3086,7 @@ public struct AtlasMascotDetailScreen: View {
                             HStack(spacing: AtlasSpacing.small) {
                                 ForEach(AtlasMascotRecapAudience.allCases, id: \.self) { audience in
                                     Button {
+                                        recapCourtesySignal &+= 1
                                         AtlasFeedback.selection()
                                         recapAudience = audience
                                     } label: {
@@ -1672,11 +3094,8 @@ public struct AtlasMascotDetailScreen: View {
                                             Text(audience.title)
                                                 .atlasTextRole(.cardBody)
                                                 .foregroundStyle(AtlasPalette.textPrimary)
-                                            Text(audience == recapAudience ? "Current share lens" : "Switch audience lens")
-                                                .atlasTextRole(.supporting)
-                                                .foregroundStyle(AtlasPalette.textSecondary)
                                         }
-                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
                                         .padding(14)
                                     }
                                     .buttonStyle(
@@ -1698,6 +3117,7 @@ public struct AtlasMascotDetailScreen: View {
                             HStack(spacing: AtlasSpacing.small) {
                                 ForEach(AtlasMascotRecapPrivacyMode.allCases, id: \.self) { privacyMode in
                                     Button {
+                                        recapCourtesySignal &+= 1
                                         AtlasFeedback.selection()
                                         recapPrivacyMode = privacyMode
                                     } label: {
@@ -1705,11 +3125,8 @@ public struct AtlasMascotDetailScreen: View {
                                             Text(privacyMode.title)
                                                 .atlasTextRole(.cardBody)
                                                 .foregroundStyle(AtlasPalette.textPrimary)
-                                            Text(privacyMode == recapPrivacyMode ? "Current privacy mode" : "Switch privacy mode")
-                                                .atlasTextRole(.supporting)
-                                                .foregroundStyle(AtlasPalette.textSecondary)
                                         }
-                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
                                         .padding(14)
                                     }
                                     .buttonStyle(
@@ -1745,15 +3162,9 @@ public struct AtlasMascotDetailScreen: View {
 
                             AtlasSectionCard(style: .task) {
                                 VStack(alignment: .leading, spacing: AtlasSpacing.small) {
-                                    HStack(spacing: AtlasSpacing.small) {
-                                        AtlasStatusBadge(kind.title, tint: atlasMascotLineTint(for: selection))
-                                        AtlasStatusBadge(recapAudience.title, tint: AtlasPalette.reward)
-                                        AtlasStatusBadge(recapPrivacyMode.title, tint: AtlasPalette.secondaryText)
-                                    }
-
-                                    Text(kind.subtitle)
-                                        .atlasTextRole(.supporting)
-                                        .foregroundStyle(AtlasPalette.textSecondary)
+                                    Text(kind.title)
+                                        .atlasTextRole(.cardBody)
+                                        .foregroundStyle(AtlasPalette.textPrimary)
 
                                     AtlasMascotRecapPreviewCard(descriptor: descriptor)
 
@@ -1772,6 +3183,7 @@ public struct AtlasMascotDetailScreen: View {
                                         Spacer(minLength: 8)
 
                                         Button("Share PNG") {
+                                            recapCourtesySignal &+= 1
                                             AtlasFeedback.selection()
                                             Task {
                                                 await createMascotRecapExport(descriptor)
@@ -1788,7 +3200,7 @@ public struct AtlasMascotDetailScreen: View {
 
                 AtlasSectionCard(style: .elevated, title: "Archive gallery") {
                     VStack(alignment: .leading, spacing: AtlasSpacing.medium) {
-                        Text("Every exported mascot recap stays collectible in Atlas so milestone posters and weekly cards can be re-shared later.")
+                        Text("Exported mascot recap cards are saved here.")
                             .atlasTextRole(.screenSubtitle)
                             .foregroundStyle(AtlasPalette.textSecondary)
 
@@ -1855,6 +3267,14 @@ public struct AtlasMascotDetailScreen: View {
         .background(AtlasAppBackground())
         .navigationTitle(profile.displayName)
         .navigationBarTitleDisplayMode(NavigationBarItem.TitleDisplayMode.inline)
+        .atlasAmbientMascotOpenReaction(model: model, kind: .openedMascot)
+        .onChange(of: shareArtifact?.archiveRecord.id) { oldValue, newValue in
+            guard oldValue != newValue,
+                  newValue != nil else {
+                return
+            }
+            model.triggerAmbientMascotReaction(.inspectReveal)
+        }
         .sheet(item: $shareArtifact) { artifact in
             AtlasMascotShareSheet(fileURL: artifact.fileURL)
         }
@@ -1882,8 +3302,8 @@ public struct AtlasMascotDetailScreen: View {
     private func createMascotRecapExport(_ descriptor: AtlasMascotRecapDescriptor) async {
         recapHandoffState = AtlasMascotRecapHandoffState(
             eyebrow: "Export staging",
-            title: "Atlas is building the \(descriptor.kind.title.lowercased()) poster.",
-            detail: "The recap is being rendered with the current guardian art, privacy mode, and audience treatment before it hands off to share.",
+            title: "Preparing the \(descriptor.kind.title.lowercased()).",
+            detail: "Rendering the current recap card.",
             tint: atlasMascotLineTint(for: descriptor.selection),
             badge: descriptor.audience.title,
             symbolName: descriptor.symbolName
@@ -1894,7 +3314,7 @@ public struct AtlasMascotDetailScreen: View {
             recapHandoffState = AtlasMascotRecapHandoffState(
                 eyebrow: "Poster ready",
                 title: "\(descriptor.kind.title) is staged and ready to share.",
-                detail: "Atlas archived the export and turned this milestone into a collectible handoff instead of a raw file dump.",
+                detail: "Saved and ready to share.",
                 tint: atlasMascotLineHighlight(for: descriptor.selection),
                 badge: descriptor.privacyMode.title,
                 symbolName: "square.and.arrow.up.fill"
@@ -1917,11 +3337,12 @@ public struct AtlasMascotDetailScreen: View {
             recapHandoffState = AtlasMascotRecapHandoffState(
                 eyebrow: "Archive reopen",
                 title: "A saved recap poster is back in hand.",
-                detail: "Atlas reopened this collectible straight from the archive so it can be shared again without rebuilding it.",
+                detail: "Reopened from the archive and ready to share again.",
                 tint: atlasMascotLineTint(for: recap.selection),
                 badge: recap.audience.title,
                 symbolName: "photo.stack.fill"
             )
+            model.triggerAmbientMascotReaction(.artifactReady)
             AtlasFeedback.milestoneReveal()
         } catch {
             exportErrorMessage = error.localizedDescription
@@ -2036,27 +3457,15 @@ private struct AtlasMascotRecapRecommendationRow: View {
 
         AtlasSectionCard(style: .reward) {
             VStack(alignment: .leading, spacing: AtlasSpacing.small) {
-                HStack(spacing: AtlasSpacing.small) {
-                    AtlasStatusBadge("Recommended export", tint: atlasMascotLineTint(for: selection))
-                    AtlasStatusBadge(recommendation.kind.title, tint: AtlasPalette.reward)
-                    AtlasStatusBadge(audience.title, tint: atlasMascotLineHighlight(for: selection))
-                    AtlasStatusBadge(privacyMode.title, tint: AtlasPalette.secondaryText)
-                }
-
                 Text(recommendation.title)
                     .atlasTextRole(.cardTitle)
                     .foregroundStyle(AtlasPalette.textPrimary)
 
-                Text(recommendation.detail)
-                    .atlasTextRole(.supporting)
-                    .foregroundStyle(AtlasPalette.textSecondary)
-
-                AtlasProgressMeter(
-                    title: "Export payoff",
-                    detail: recommendation.readinessDetail,
-                    value: recommendation.readinessValue,
-                    tint: recommendation.tint
-                )
+                if recommendation.detail.isEmpty == false {
+                    Text(recommendation.detail)
+                        .atlasTextRole(.supporting)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                }
             }
         }
     }
@@ -2163,9 +3572,7 @@ private func atlasMascotProgressionSummary(
           let nextThresholdPoints = evolution.nextThresholdPoints else {
         return AtlasMascotProgressionSummary(
             title: stageVoice.finalFormTitle,
-            detail: archivedRecapCount == 0
-                ? stageVoice.finalFormNoArchiveDetail
-                : stageVoice.finalFormArchiveDetail,
+            detail: archivedRecapCount == 0 ? "Archive ready." : "Archive updated.",
             badge: "Final form",
             symbolName: "crown.fill",
             tint: AtlasPalette.success
@@ -2176,7 +3583,7 @@ private func atlasMascotProgressionSummary(
     if remainingPoints == 0 || (evolution.progressFraction ?? 0) >= 0.86 {
         return AtlasMascotProgressionSummary(
             title: stageVoice.nearUnlockTitle(nextFormName: nextFormName),
-            detail: "\(stageVoice.nearUnlockDetail) Only \(remainingPoints) points remain.",
+            detail: stageVoice.nearUnlockDetail,
             badge: "Near unlock",
             symbolName: "sparkles",
             tint: atlasMascotLineTint(for: selection)
@@ -2185,9 +3592,9 @@ private func atlasMascotProgressionSummary(
 
     if let latestMoment {
         return AtlasMascotProgressionSummary(
-            title: stageVoice.liveJourneyTitle,
-            detail: "\(latestMoment.title) is already in the journal. \(stageVoice.liveJourneyDetail)",
-            badge: "Live journey",
+            title: latestMoment.title,
+            detail: stageVoice.liveJourneyDetail,
+            badge: "Latest moment",
             symbolName: latestMoment.symbolName,
             tint: atlasMascotLineTint(for: selection)
         )
@@ -2195,7 +3602,7 @@ private func atlasMascotProgressionSummary(
 
     return AtlasMascotProgressionSummary(
         title: stageVoice.inMotionTitle(nextFormName: nextFormName),
-        detail: "\(stageVoice.inMotionDetail) There are \(remainingPoints) points left before the next form.",
+        detail: stageVoice.inMotionDetail,
         badge: "In motion",
         symbolName: atlasMascotLineSymbol(for: selection),
         tint: atlasMascotLineTint(for: selection)
@@ -2213,10 +3620,8 @@ private func atlasMascotRecapRecommendation(
         return AtlasMascotRecapRecommendation(
             kind: .latestMoment,
             title: "Latest moment is the strongest export right now",
-            detail: "\(latestMoment.title) already gives the poster a clear emotional beat, and it will carry cleanly back into the journal once archived.",
-            readinessDetail: archivedRecapCount == 0
-                ? "Start the gallery with a moment-driven card."
-                : "Moment cards add personality between milestone posters.",
+            detail: latestMoment.title,
+            readinessDetail: "",
             readinessValue: 0.88,
             tint: atlasMascotLineHighlight(for: selection)
         )
@@ -2226,8 +3631,8 @@ private func atlasMascotRecapRecommendation(
         return AtlasMascotRecapRecommendation(
             kind: .evolutionMilestone,
             title: "Milestone export is now a proper final-form poster",
-            detail: "Because the line is fully evolved, the milestone layout reads like a finished collector card instead of a progress placeholder.",
-            readinessDetail: "The full line is unlocked, so this export is ready to read like a capstone artifact.",
+            detail: "",
+            readinessDetail: "",
             readinessValue: 1,
             tint: AtlasPalette.success
         )
@@ -2235,9 +3640,9 @@ private func atlasMascotRecapRecommendation(
 
     return AtlasMascotRecapRecommendation(
         kind: .weeklyRecap,
-        title: "Weekly poster is the best way to make progress feel earned",
-        detail: "There is still another form ahead, so the weekly export does the best job of showing movement and anticipation at the same time.",
-        readinessDetail: "\(evolution.currentFormName) is moving toward \(evolution.nextFormName ?? "the next form").",
+        title: "Weekly poster is the best export right now",
+        detail: "",
+        readinessDetail: "",
         readinessValue: max(evolution.progressFraction ?? 0.22, 0.22),
         tint: atlasMascotLineTint(for: selection)
     )
@@ -2256,9 +3661,9 @@ private let atlasMascotCollectibleKinds: Set<AtlasMascotMomentKind> = [
 private func atlasMascotJournalSubtitle(selection: AtlasMascotSelection) -> String {
     switch selection {
     case .aetherion:
-        return "A collectible storm ledger of recoveries, unlock teases, archive posters, and guardian checkpoints."
+        return "Saved moments."
     case .aurielle:
-        return "A collectible sky journal of quiet streaks, carry-forward focus, archive keepsakes, and guardian check-ins."
+        return "Saved moments."
     }
 }
 
@@ -2268,11 +3673,11 @@ private func atlasMascotMomentContinuityLine(_ moment: AtlasMascotMomentRecord) 
     }
     switch moment.kind {
     case .archiveMilestone:
-        return "The poster gallery just deepened."
+        return "The poster gallery just grew."
     case .focusCarryForward:
-        return "This moment continues into the next weekly operating loop."
+        return "This carries forward into next week's focus."
     case .nearEvolution:
-        return "This tease should pay off in the next milestone reveal."
+        return "This is the clearest tease before the next unlock."
     default:
         return nil
     }
@@ -2324,62 +3729,62 @@ private func atlasMascotStageProgressVoice(
     case (.aetherion, .stage1):
         return AtlasMascotStageProgressVoice(
             finalFormTitle: "The full guardian line is unlocked",
-            finalFormNoArchiveDetail: "The next payoff is archival: turn fresh storm moments into collectible posters instead of leaving them transient.",
-            finalFormArchiveDetail: "New storm moments now feed the recap gallery and keep the guardian line feeling ceremonial instead of static.",
-            liveJourneyTitle: "The line already feels alive between unlocks",
-            liveJourneyDetail: "Atlas can turn compact storm notes into visible progression before Voltflare lands.",
-            nearUnlockDetail: "The next silhouette is already pushing through the stormglass around the current form.",
-            inMotionDetail: "Cindlet is still storing charge, and small mascot moments keep that pressure visible."
+            finalFormNoArchiveDetail: "Archive ready.",
+            finalFormArchiveDetail: "Archive updated.",
+            liveJourneyTitle: "Latest moment",
+            liveJourneyDetail: "Saved in the journal.",
+            nearUnlockDetail: "The next form is almost unlocked.",
+            inMotionDetail: "Progress is tracked quietly."
         )
     case (.aetherion, .stage2):
         return AtlasMascotStageProgressVoice(
             finalFormTitle: "The full guardian line is unlocked",
-            finalFormNoArchiveDetail: "The next payoff is archival: treat each finished guardian beat like a collectible record.",
-            finalFormArchiveDetail: "The gallery now keeps the fully evolved guardian active between major product milestones.",
-            liveJourneyTitle: "Momentum is sharpening between unlocks",
-            liveJourneyDetail: "Atlas can use moments like this to make Voltflare feel kinetic before Aetherion lands.",
-            nearUnlockDetail: "Aetherion is already beginning to read through the current posture and halo.",
-            inMotionDetail: "Voltflare is still building ceremonial force, and recap exports keep that approach visible."
+            finalFormNoArchiveDetail: "Archive ready.",
+            finalFormArchiveDetail: "Archive updated.",
+            liveJourneyTitle: "Latest moment",
+            liveJourneyDetail: "Saved in the journal.",
+            nearUnlockDetail: "The next form is almost unlocked.",
+            inMotionDetail: "Progress is tracked quietly."
         )
     case (.aetherion, .stage3):
         return AtlasMascotStageProgressVoice(
             finalFormTitle: "The guardian line now lives through collectible history",
-            finalFormNoArchiveDetail: "The next layer of payoff is archival: capture fresh guardian moments and turn them into collector-grade posters.",
-            finalFormArchiveDetail: "New moments now deepen the line's ceremonial record instead of chasing another form.",
-            liveJourneyTitle: "Final-form momentum is still very alive",
-            liveJourneyDetail: "Atlas can keep the fully evolved guardian feeling active through journal moments and archive posters.",
-            nearUnlockDetail: "Final form is already secured, so the tease shifts from unlock pressure to collectible presence.",
-            inMotionDetail: "Aetherion is fully present now, and the gallery keeps that presence from going static."
+            finalFormNoArchiveDetail: "Archive ready.",
+            finalFormArchiveDetail: "Archive updated.",
+            liveJourneyTitle: "Latest moment",
+            liveJourneyDetail: "Saved in the journal.",
+            nearUnlockDetail: "This line is fully evolved.",
+            inMotionDetail: "Progress is tracked quietly."
         )
     case (.aurielle, .stage1):
         return AtlasMascotStageProgressVoice(
             finalFormTitle: "The full guardian line is unlocked",
-            finalFormNoArchiveDetail: "The next payoff is archival: turn bright little mascot beats into keepsakes.",
-            finalFormArchiveDetail: "New moments now feed the recap gallery and keep the guardian line glowing instead of flattening out.",
-            liveJourneyTitle: "The line already feels alive between unlocks",
-            liveJourneyDetail: "Atlas can use gentle journal moments to make Moppet feel present before Glisshare arrives.",
-            nearUnlockDetail: "The next form is already showing through the lift and brightness of the line.",
-            inMotionDetail: "Moppet is still gathering light, and small mascot moments keep that rise visible."
+            finalFormNoArchiveDetail: "Archive ready.",
+            finalFormArchiveDetail: "Archive updated.",
+            liveJourneyTitle: "Latest moment",
+            liveJourneyDetail: "Saved in the journal.",
+            nearUnlockDetail: "The next form is almost unlocked.",
+            inMotionDetail: "Progress is tracked quietly."
         )
     case (.aurielle, .stage2):
         return AtlasMascotStageProgressVoice(
             finalFormTitle: "The full guardian line is unlocked",
-            finalFormNoArchiveDetail: "The next payoff is archival: let each guardian beat become part of the sky journal.",
-            finalFormArchiveDetail: "The gallery now preserves the line's calm ascent instead of letting it vanish after each week.",
-            liveJourneyTitle: "Momentum is visible in the glide path",
-            liveJourneyDetail: "Atlas can turn quiet, specific moments into a clearer arc before Aurielle settles in.",
-            nearUnlockDetail: "Aurielle is already visible in the halo, the calm posture, and the longer silhouette.",
-            inMotionDetail: "Glisshare is still rising, and recap exports keep that ascent feeling graceful instead of vague."
+            finalFormNoArchiveDetail: "Archive ready.",
+            finalFormArchiveDetail: "Archive updated.",
+            liveJourneyTitle: "Latest moment",
+            liveJourneyDetail: "Saved in the journal.",
+            nearUnlockDetail: "The next form is almost unlocked.",
+            inMotionDetail: "Progress is tracked quietly."
         )
     case (.aurielle, .stage3):
         return AtlasMascotStageProgressVoice(
             finalFormTitle: "The guardian line now lives through keepsakes",
-            finalFormNoArchiveDetail: "The next payoff is archival: preserve serene guardian moments as proper celestial posters.",
-            finalFormArchiveDetail: "New moments now deepen the line's constellation of keepsakes instead of chasing another form.",
-            liveJourneyTitle: "Final-form calm is still active",
-            liveJourneyDetail: "Atlas can keep Aurielle feeling luminous through journal continuity and collectible recap posters.",
-            nearUnlockDetail: "Final form is already secured, so anticipation becomes preservation and memory.",
-            inMotionDetail: "Aurielle is fully present now, and the archive keeps that serenity from turning inert."
+            finalFormNoArchiveDetail: "Archive ready.",
+            finalFormArchiveDetail: "Archive updated.",
+            liveJourneyTitle: "Latest moment",
+            liveJourneyDetail: "Saved in the journal.",
+            nearUnlockDetail: "This line is fully evolved.",
+            inMotionDetail: "Progress is tracked quietly."
         )
     }
 }

@@ -32,6 +32,7 @@ public protocol SettingsRepository: Sendable {
     func updateTrustVaultRenderMode(_ renderMode: AtlasPrivacyRenderMode, now: Date) async throws -> AtlasSettingsSnapshot
     func updateMascotSelection(_ mascotSelection: AtlasMascotSelection, now: Date) async throws -> AtlasSettingsSnapshot
     func updateMascotNickname(_ nickname: String?, now: Date) async throws -> AtlasSettingsSnapshot
+    func updateAmbientMascotPresence(_ presence: AtlasAmbientMascotPresence, now: Date) async throws -> AtlasSettingsSnapshot
     func recordMascotEvolution(
         selection: AtlasMascotSelection,
         stage: AtlasMascotStage,

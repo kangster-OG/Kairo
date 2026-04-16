@@ -22,22 +22,22 @@ struct AtlasMedicationLevelCard: View {
                                 renderMode: renderMode ?? model.settingsSnapshot.trustVaultStatus.renderMode
                             )
                         )
-                        .font(.body.weight(.semibold))
+                        .atlasTextRole(.cardBody)
                         .foregroundStyle(AtlasPalette.textPrimary)
 
                         Text(item.estimateLabel)
-                            .font(.headline.weight(.semibold))
+                            .atlasTextRole(.cardTitle)
                             .foregroundStyle(AtlasPalette.textPrimary)
 
                         Text(item.cadenceLabel)
-                            .font(.caption)
+                            .atlasTextRole(.supporting)
                             .foregroundStyle(AtlasPalette.textSecondary)
                     }
 
                     Spacer()
 
                     Text(item.modelKind == .halfLifeEstimate ? "Half-life" : "Schedule")
-                        .font(.caption.weight(.semibold))
+                        .atlasTextRole(.deckEyebrow)
                         .foregroundStyle(AtlasPalette.primary)
                         .padding(.horizontal, AtlasSpacing.small)
                         .padding(.vertical, AtlasSpacing.xSmall)
@@ -46,7 +46,7 @@ struct AtlasMedicationLevelCard: View {
 
                 if let compareLabel = item.compareLabel {
                     Text(compareLabel)
-                        .font(.caption.weight(.semibold))
+                        .atlasTextRole(.deckEyebrow)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
 
@@ -102,13 +102,12 @@ struct AtlasMedicationLevelCard: View {
                     let recentDoseEvents = Array(item.doseEvents.suffix(3).reversed())
                     VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
                         Text("Recent logged doses")
-                            .font(.caption.weight(.semibold))
+                            .atlasTextRole(.deckEyebrow)
                             .foregroundStyle(AtlasPalette.textSecondary)
-                            .textCase(.uppercase)
 
                         ForEach(recentDoseEvents) { event in
                             Text("\(event.quantityLabel) • \(event.loggedAt.formatted(date: .abbreviated, time: .shortened))")
-                                .font(.caption)
+                                .atlasTextRole(.supporting)
                                 .foregroundStyle(AtlasPalette.textSecondary)
                         }
                     }
@@ -116,18 +115,18 @@ struct AtlasMedicationLevelCard: View {
 
                 if let halfLifeLabel = item.halfLifeLabel {
                     Text(halfLifeLabel)
-                        .font(.caption)
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
 
                 if let peakWindowLabel = item.peakWindowLabel {
                     Text(peakWindowLabel)
-                        .font(.caption)
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
 
                 Text(item.notesLabel)
-                    .font(.caption)
+                    .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
 
                 if item.sourceFacts.isEmpty == false {
@@ -135,18 +134,17 @@ struct AtlasMedicationLevelCard: View {
 
                     VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
                         Text("Source facts")
-                            .font(.caption.weight(.semibold))
+                            .atlasTextRole(.deckEyebrow)
                             .foregroundStyle(AtlasPalette.textSecondary)
-                            .textCase(.uppercase)
 
                         ForEach(item.sourceFacts) { fact in
                             HStack(alignment: .top, spacing: AtlasSpacing.small) {
                                 Text(fact.label)
-                                    .font(.caption.weight(.semibold))
+                                    .atlasTextRole(.deckEyebrow)
                                     .foregroundStyle(AtlasPalette.textPrimary)
                                     .frame(width: 96, alignment: .leading)
                                 Text(fact.value)
-                                    .font(.caption)
+                                    .atlasTextRole(.supporting)
                                     .foregroundStyle(AtlasPalette.textSecondary)
                                 Spacer(minLength: 0)
                             }

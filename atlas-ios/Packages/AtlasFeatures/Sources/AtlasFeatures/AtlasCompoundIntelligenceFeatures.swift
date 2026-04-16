@@ -26,128 +26,96 @@ public struct AtlasCompoundIntelligenceScreen: View {
     }
 
     public var body: some View {
-        List {
+        AtlasScreen {
             if let knowledge {
-                Section {
-                    AtlasSectionCard(style: .elevated) {
-                        VStack(alignment: .leading, spacing: AtlasSpacing.medium) {
-                            HStack(alignment: .top) {
-                                VStack(alignment: .leading, spacing: AtlasSpacing.small) {
-                                    Text(knowledge.displayName)
-                                        .font(.title2.weight(.bold))
-                                        .foregroundStyle(AtlasPalette.textPrimary)
-
-                                    Text(knowledge.protocolSummary)
-                                        .foregroundStyle(AtlasPalette.textSecondary)
-                                }
-                                Spacer()
-                            }
-
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: AtlasSpacing.xSmall) {
-                                    AtlasCompoundIntelligenceChip(label: knowledge.categoryLabel)
-                                    AtlasCompoundIntelligenceChip(label: knowledge.routeLabel)
-                                    AtlasCompoundIntelligenceChip(label: knowledge.typicalCadenceLabel)
-                                }
-                            }
-
-                            Text("Atlas uses compound intelligence to explain what a protocol is generally for, how the saved schedule behaves, and what operational tradeoffs usually matter.")
-                                .font(.caption)
-                                .foregroundStyle(AtlasPalette.textSecondary)
+                AtlasCommandDeck(
+                    eyebrow: "Compound intelligence",
+                    title: knowledge.displayName,
+                    detail: knowledge.protocolSummary,
+                    metrics: [
+                        AtlasMetricItem(id: "category", title: "Category", value: knowledge.categoryLabel, tint: AtlasPalette.primary),
+                        AtlasMetricItem(id: "route", title: "Route", value: knowledge.routeLabel, tint: AtlasPalette.secondaryText),
+                        AtlasMetricItem(id: "cadence", title: "Cadence", value: knowledge.typicalCadenceLabel, tint: AtlasPalette.success)
+                    ],
+                    tint: AtlasPalette.primary,
+                    style: .hero
+                ) {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: AtlasSpacing.xSmall) {
+                            AtlasCompoundIntelligenceChip(label: knowledge.categoryLabel)
+                            AtlasCompoundIntelligenceChip(label: knowledge.routeLabel)
+                            AtlasCompoundIntelligenceChip(label: knowledge.typicalCadenceLabel)
                         }
                     }
-                    .listRowInsets(EdgeInsets())
-                    .listRowBackground(Color.clear)
+                } footer: {
+                    EmptyView()
                 }
 
-                Section {
-                    AtlasSectionCard(title: "General role") {
-                        ForEach(atlasCompoundUseCases(for: knowledge), id: \.self) { line in
-                            AtlasCompoundBulletLine(text: line)
-                        }
+                AtlasCompoundSectionHeader(title: "General Role")
+                AtlasSectionCard(title: "General role") {
+                    ForEach(atlasCompoundUseCases(for: knowledge), id: \.self) { line in
+                        AtlasCompoundBulletLine(text: line)
                     }
-                    .listRowInsets(EdgeInsets())
-                    .listRowBackground(Color.clear)
                 }
 
-                Section {
-                    AtlasSectionCard(title: "How Atlas reads it") {
-                        ForEach(atlasCompoundModelFacts(for: knowledge), id: \.label) { fact in
-                            AtlasCompoundFactRow(label: fact.label, value: fact.value)
-                        }
+                AtlasCompoundSectionHeader(title: "Model Facts")
+                AtlasSectionCard(title: "Model facts") {
+                    ForEach(atlasCompoundModelFacts(for: knowledge), id: \.label) { fact in
+                        AtlasCompoundFactRow(label: fact.label, value: fact.value)
+                    }
 
-                        if knowledge.operationalTags.isEmpty == false {
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: AtlasSpacing.xSmall) {
-                                    ForEach(knowledge.operationalTags, id: \.self) { tag in
-                                        AtlasCompoundIntelligenceChip(label: tag.title)
-                                    }
+                    if knowledge.operationalTags.isEmpty == false {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: AtlasSpacing.xSmall) {
+                                ForEach(knowledge.operationalTags, id: \.self) { tag in
+                                    AtlasCompoundIntelligenceChip(label: tag.title)
                                 }
                             }
                         }
                     }
-                    .listRowInsets(EdgeInsets())
-                    .listRowBackground(Color.clear)
                 }
 
                 if knowledge.operationalCautions.isEmpty == false {
-                    Section {
-                        AtlasSectionCard(title: "Operational watchouts") {
-                            ForEach(knowledge.operationalCautions, id: \.self) { caution in
-                                AtlasCompoundBulletLine(text: caution)
-                            }
+                    AtlasCompoundSectionHeader(title: "Operational Watchouts")
+                    AtlasSectionCard(title: "Operational watchouts") {
+                        ForEach(knowledge.operationalCautions, id: \.self) { caution in
+                            AtlasCompoundBulletLine(text: caution)
                         }
-                        .listRowInsets(EdgeInsets())
-                        .listRowBackground(Color.clear)
                     }
                 }
 
                 if activeProtocols.isEmpty == false {
-                    Section {
-                        AtlasSectionCard(title: "Your protocols") {
-                            ForEach(activeProtocols) { summary in
-                                AtlasCompoundProtocolRow(model: model, summary: summary)
-                            }
+                    AtlasCompoundSectionHeader(title: "Your Protocols")
+                    AtlasSectionCard(title: "Your protocols") {
+                        ForEach(activeProtocols) { summary in
+                            AtlasCompoundProtocolRow(model: model, summary: summary)
                         }
-                        .listRowInsets(EdgeInsets())
-                        .listRowBackground(Color.clear)
                     }
                 }
 
                 if compareCandidates.isEmpty == false {
-                    Section {
-                        AtlasSectionCard(title: "Compare nearby") {
-                            ForEach(compareCandidates.prefix(4)) { candidate in
-                                AtlasCompoundCandidateRow(model: model, knowledge: candidate)
-                            }
+                    AtlasCompoundSectionHeader(title: "Compare Nearby")
+                    AtlasSectionCard(title: "Compare nearby") {
+                        ForEach(compareCandidates.prefix(4)) { candidate in
+                            AtlasCompoundCandidateRow(model: model, knowledge: candidate)
                         }
-                        .listRowInsets(EdgeInsets())
-                        .listRowBackground(Color.clear)
                     }
                 }
 
-                Section {
-                    AtlasSectionCard(style: .utility, title: "Trust note") {
-                        Text("Atlas keeps this descriptive. Compound intelligence can explain general usage patterns, timing, and tracking burden from Atlas records, but it does not tell you what to take or replace provider guidance.")
-                            .foregroundStyle(AtlasPalette.textSecondary)
-                    }
-                    .listRowInsets(EdgeInsets())
-                    .listRowBackground(Color.clear)
+                AtlasCompoundSectionHeader(title: "Trust Note")
+                AtlasSectionCard(style: .utility, title: "Trust note") {
+                    Text("Descriptive reference only. No treatment guidance.")
+                        .atlasTextRole(.supporting)
+                        .foregroundStyle(AtlasPalette.textSecondary)
                 }
             } else {
-                Section {
-                    AtlasSectionCard(style: .utility, title: "Compound not found") {
-                        Text("Atlas does not have a strong catalog match for this compound yet. Protocol detail and Change Studio will still stay source-backed, but the dedicated intelligence view is only available for catalog matches.")
-                            .foregroundStyle(AtlasPalette.textSecondary)
-                    }
-                    .listRowInsets(EdgeInsets())
-                    .listRowBackground(Color.clear)
+                AtlasSectionCard(style: .utility, title: "Compound not found") {
+                    Text("No strong catalog match yet. Protocol detail and Change Studio are still available.")
+                        .atlasTextRole(.supporting)
+                        .foregroundStyle(AtlasPalette.textSecondary)
                 }
             }
         }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
-        .background(AtlasPalette.canvas)
         .navigationTitle("Compound intelligence")
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -167,12 +135,24 @@ private struct AtlasCompoundFactRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
             Text(label)
-                .font(.caption.weight(.semibold))
+                .atlasTextRole(.deckEyebrow)
                 .foregroundStyle(AtlasPalette.primary)
             Text(value)
-                .font(.caption)
+                .atlasTextRole(.supporting)
                 .foregroundStyle(AtlasPalette.textSecondary)
         }
+    }
+}
+
+private struct AtlasCompoundSectionHeader: View {
+    let title: String
+
+    var body: some View {
+        Text(title)
+            .atlasTextRole(.deckEyebrow)
+            .foregroundStyle(AtlasPalette.primary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, AtlasSpacing.small)
     }
 }
 
@@ -186,7 +166,7 @@ private struct AtlasCompoundBulletLine: View {
                 .frame(width: 6, height: 6)
                 .padding(.top, 6)
             Text(text)
-                .font(.caption)
+                .atlasTextRole(.supporting)
                 .foregroundStyle(AtlasPalette.textSecondary)
         }
     }
@@ -199,16 +179,16 @@ private struct AtlasCompoundProtocolRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: AtlasSpacing.small) {
             Text(model.renderedTitle(canonical: summary.canonicalTitle, alias: summary.aliasTitle))
-                .font(.body.weight(.semibold))
+                .atlasTextRole(.cardBody)
                 .foregroundStyle(AtlasPalette.textPrimary)
 
             Text("\(summary.kindLabel) • \(summary.cadenceLabel)")
-                .font(.caption)
+                .atlasTextRole(.supporting)
                 .foregroundStyle(AtlasPalette.textSecondary)
 
             if let doseLabel = summary.doseLabel {
                 Text("Dose \(doseLabel)")
-                    .font(.caption)
+                    .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
             }
 
@@ -235,11 +215,11 @@ private struct AtlasCompoundCandidateRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: AtlasSpacing.small) {
             Text(knowledge.displayName)
-                .font(.body.weight(.semibold))
+                .atlasTextRole(.cardBody)
                 .foregroundStyle(AtlasPalette.textPrimary)
 
             Text(knowledge.protocolSummary)
-                .font(.caption)
+                .atlasTextRole(.supporting)
                 .foregroundStyle(AtlasPalette.textSecondary)
 
             HStack(spacing: AtlasSpacing.small) {
@@ -261,7 +241,7 @@ private struct AtlasCompoundIntelligenceChip: View {
 
     var body: some View {
         Text(label)
-            .font(.caption.weight(.semibold))
+            .atlasTextRole(.deckEyebrow)
             .foregroundStyle(AtlasPalette.primary)
             .padding(.horizontal, AtlasSpacing.small)
             .padding(.vertical, 6)
@@ -296,7 +276,7 @@ private func atlasCompoundUseCases(for knowledge: AtlasCompoundKnowledge) -> [St
         case .skinHair:
             useCases.append("Often associated with skin, hair, or cosmetic-support routines that still benefit from structured tracking.")
         case .siteSensitive:
-            useCases.append("Site planning can matter here, so Atlas treats placement and injection burden as part of the protocol shape.")
+            useCases.append("Site placement and injection burden can matter here.")
         case .dailyCadence, .weeklyCadence, .giLoad, .waterRetention:
             continue
         }
@@ -307,11 +287,11 @@ private func atlasCompoundUseCases(for knowledge: AtlasCompoundKnowledge) -> [St
     }
 
     if knowledge.operationalTags.contains(.waterRetention) {
-        useCases.append("Body-composition context can feel noisy here, so Atlas treats water or scale movement as descriptive rather than definitive.")
+        useCases.append("Water or scale movement can be noisy here.")
     }
 
     if useCases.isEmpty {
-        useCases.append("Atlas treats this as a structured protocol where route, cadence, and tracking burden matter more than the name alone.")
+        useCases.append("Route, cadence, and tracking burden often matter more than the name alone.")
     }
 
     return Array(useCases.prefix(3))
@@ -328,10 +308,10 @@ private func atlasCompoundModelFacts(for knowledge: AtlasCompoundKnowledge) -> [
 
     if let kineticsProfile = knowledge.kineticsProfile {
         facts.append(
-            .init(
-                label: "Level modeling",
-                value: "Atlas can shape a deterministic relative level curve here using a \(atlasCompoundHalfLifeLabel(hours: kineticsProfile.halfLifeHours)) half-life profile from saved schedules and logged doses."
-            )
+                .init(
+                    label: "Level modeling",
+                    value: "A deterministic relative level curve is available using a \(atlasCompoundHalfLifeLabel(hours: kineticsProfile.halfLifeHours)) half-life profile."
+                )
         )
         facts.append(
             .init(
@@ -341,10 +321,10 @@ private func atlasCompoundModelFacts(for knowledge: AtlasCompoundKnowledge) -> [
         )
     } else {
         facts.append(
-            .init(
-                label: "Level modeling",
-                value: "Atlas does not show a half-life visualization for this compound yet, so it stays descriptive about cadence and burden instead of implying a modeled curve."
-            )
+                .init(
+                    label: "Level modeling",
+                    value: "No modeled half-life curve is available for this compound yet."
+                )
         )
     }
 

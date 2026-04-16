@@ -4,6 +4,7 @@ import AuthenticationServices
 import CryptoKit
 #endif
 import Foundation
+import Security
 #if canImport(UIKit)
 import UIKit
 #elseif canImport(AppKit)
@@ -146,7 +147,8 @@ public final class AtlasSupabaseCloudSyncManager: CloudSyncManaging, @unchecked 
     private let configuration: AtlasCloudConfiguration?
     private let urlSession: URLSession
     private let defaults: UserDefaults
-    private let storageKey = "atlas.cloud.session"
+    private let sessionStore: AtlasCloudCredentialStore
+    private let legacyStorageKey = "atlas.cloud.session"
     private let deviceStorageKey = "atlas.cloud.device-id"
 
     public init(
@@ -157,6 +159,7 @@ public final class AtlasSupabaseCloudSyncManager: CloudSyncManaging, @unchecked 
         self.configuration = configuration
         self.urlSession = urlSession
         self.defaults = defaults
+        self.sessionStore = AtlasCloudCredentialStore()
     }
 
     public func isConfigured() -> Bool {
@@ -660,20 +663,31 @@ public final class AtlasSupabaseCloudSyncManager: CloudSyncManaging, @unchecked 
     }
 
     private func storedSession() -> StoredSession? {
-        guard let data = defaults.data(forKey: storageKey) else {
+        if let data = try? sessionStore.read(),
+           let session = try? JSONDecoder().decode(StoredSession.self, from: data) {
+            return session
+        }
+
+        guard let legacyData = defaults.data(forKey: legacyStorageKey),
+              let session = try? JSONDecoder().decode(StoredSession.self, from: legacyData) else {
             return nil
         }
-        return try? JSONDecoder().decode(StoredSession.self, from: data)
+
+        persist(session)
+        defaults.removeObject(forKey: legacyStorageKey)
+        return session
     }
 
     private func persist(_ session: StoredSession) {
         if let data = try? JSONEncoder().encode(session) {
-            defaults.set(data, forKey: storageKey)
+            try? sessionStore.write(data)
+            defaults.removeObject(forKey: legacyStorageKey)
         }
     }
 
     private func clearStoredSession() {
-        defaults.removeObject(forKey: storageKey)
+        try? sessionStore.delete()
+        defaults.removeObject(forKey: legacyStorageKey)
     }
 
     private func persistedDeviceID() -> String {
@@ -791,6 +805,81 @@ private struct AtlasCloudBackupMetadataResponse: Codable, Sendable {
         case manifestGeneratedAt = "manifest_generated_at"
         case deviceID = "device_id"
         case updatedAt = "updated_at"
+    }
+}
+
+struct AtlasCloudCredentialStore: Sendable {
+    private let service: String
+    private let account: String
+
+    init(
+        service: String = "com.dkang2000.Atlas.cloud-session",
+        account: String = "default"
+    ) {
+        self.service = service
+        self.account = account
+    }
+
+    func read() throws -> Data? {
+        var query = baseQuery()
+        query[kSecReturnData as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+
+        var item: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &item)
+        switch status {
+        case errSecSuccess:
+            return item as? Data
+        case errSecItemNotFound:
+            return nil
+        default:
+            throw AtlasCloudCredentialStoreError(status: status)
+        }
+    }
+
+    func write(_ data: Data) throws {
+        let attributes: [String: Any] = [
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        ]
+
+        let updateStatus = SecItemUpdate(baseQuery() as CFDictionary, attributes as CFDictionary)
+        switch updateStatus {
+        case errSecSuccess:
+            return
+        case errSecItemNotFound:
+            var addQuery = baseQuery()
+            attributes.forEach { addQuery[$0.key] = $0.value }
+            let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
+            guard addStatus == errSecSuccess else {
+                throw AtlasCloudCredentialStoreError(status: addStatus)
+            }
+        default:
+            throw AtlasCloudCredentialStoreError(status: updateStatus)
+        }
+    }
+
+    func delete() throws {
+        let status = SecItemDelete(baseQuery() as CFDictionary)
+        guard status == errSecSuccess || status == errSecItemNotFound else {
+            throw AtlasCloudCredentialStoreError(status: status)
+        }
+    }
+
+    private func baseQuery() -> [String: Any] {
+        [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account
+        ]
+    }
+}
+
+private struct AtlasCloudCredentialStoreError: LocalizedError {
+    let status: OSStatus
+
+    var errorDescription: String? {
+        SecCopyErrorMessageString(status, nil) as String? ?? "Keychain request failed."
     }
 }
 

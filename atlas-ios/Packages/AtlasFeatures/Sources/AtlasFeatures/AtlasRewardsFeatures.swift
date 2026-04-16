@@ -10,12 +10,6 @@ struct AtlasRewardsTodayCard: View {
 
     var body: some View {
         let evolution = atlasRewardsEvolutionProgress(for: snapshot, selection: mascotSelection)
-        let profile = atlasMascotProfileSummary(
-            selection: mascotSelection,
-            nickname: mascotNickname,
-            rewardsSnapshot: snapshot,
-            history: mascotHistory
-        )
 
         AtlasSectionCard(style: .reward) {
             HStack(alignment: .top, spacing: AtlasSpacing.medium) {
@@ -25,8 +19,6 @@ struct AtlasRewardsTodayCard: View {
                             Text("Rewards board")
                                 .atlasTextRole(.cardBody)
                                 .foregroundStyle(AtlasPalette.textPrimary)
-                            Text("Level \(snapshot.level) with \(snapshot.totalPoints) points.")
-                                .foregroundStyle(AtlasPalette.textSecondary)
                         }
 
                         Spacer()
@@ -36,45 +28,20 @@ struct AtlasRewardsTodayCard: View {
                             tint: earnedBadgeCount > 0 ? AtlasPalette.success : AtlasPalette.primary
                         )
                     }
-
-                    Text(evolution.milestoneHeadline)
-                        .atlasTextRole(.deckEyebrow)
-                        .foregroundStyle(AtlasPalette.primary)
-
-                    Text(evolution.progressLabel)
-                        .atlasTextRole(.supporting)
-                        .foregroundStyle(AtlasPalette.textSecondary)
-
-                    Text(profile.statusLine)
-                        .atlasTextRole(.supporting)
-                        .foregroundStyle(AtlasPalette.textSecondary)
                 }
 
-                VStack(spacing: AtlasSpacing.small) {
-                    AtlasMascotSticker(
-                        line: atlasMascotLine(for: mascotSelection),
-                        stage: evolution.stage,
-                        size: 96
-                    )
-
-                    AtlasStatusBadge("Live guardian", tint: atlasMascotLineTint(for: mascotSelection))
-                }
+                AtlasMascotSticker(
+                    line: atlasMascotLine(for: mascotSelection),
+                    stage: evolution.stage,
+                    size: 96
+                )
             }
 
             AtlasMetricStrip(metrics: atlasRewardsMetrics(snapshot: snapshot, earnedBadgeCount: earnedBadgeCount))
 
-            AtlasMilestoneRevealBanner(
-                eyebrow: milestoneReveal.eyebrow,
-                title: milestoneReveal.title,
-                detail: milestoneReveal.detail,
-                tint: milestoneReveal.tint,
-                badge: milestoneReveal.badge,
-                symbolName: milestoneReveal.symbolName
-            )
-
             AtlasProgressMeter(
                 title: "Next unlock",
-                detail: evolution.progressLabel,
+                detail: nil,
                 value: atlasRewardsProgressValue(snapshot),
                 tint: AtlasPalette.reward
             )
@@ -100,15 +67,6 @@ struct AtlasRewardsTodayCard: View {
                 AtlasRewardGoalRow(goal: headlineGoal)
             }
 
-            if let reaction = profile.reaction {
-                AtlasCalloutRow(
-                    systemImage: reaction.symbolName,
-                    title: reaction.title,
-                    detail: reaction.detail,
-                    tint: AtlasPalette.reward
-                )
-            }
-
             if let headlineBadge {
                 AtlasCalloutRow(
                     systemImage: "star.circle.fill",
@@ -117,10 +75,6 @@ struct AtlasRewardsTodayCard: View {
                     tint: AtlasPalette.reward
                 )
             }
-
-            Text(snapshot.note)
-                .atlasTextRole(.supporting)
-                .foregroundStyle(AtlasPalette.textSecondary)
         }
     }
 
@@ -157,12 +111,6 @@ struct AtlasRewardsInsightSection: View {
     var body: some View {
         if snapshot.settings.enabled {
             let evolution = atlasRewardsEvolutionProgress(for: snapshot, selection: mascotSelection)
-            let profile = atlasMascotProfileSummary(
-                selection: mascotSelection,
-                nickname: mascotNickname,
-                rewardsSnapshot: snapshot,
-                history: mascotHistory
-            )
 
             Section("Rewards") {
                 AtlasSectionCard(style: .reward) {
@@ -173,39 +121,10 @@ struct AtlasRewardsInsightSection: View {
                                     Text("Level \(snapshot.level)")
                                         .atlasTextRole(.cardTitle)
                                         .foregroundStyle(AtlasPalette.textPrimary)
-                                    Text("\(snapshot.totalPoints) total points • \(snapshot.nextLevelPoints - snapshot.totalPoints) to next level")
-                                        .foregroundStyle(AtlasPalette.textSecondary)
                                 }
 
                                 Spacer()
-
-                                AtlasStatusBadge(
-                                    evolution.currentFormName,
-                                    tint: snapshot.badges.filter(\.isEarned).isEmpty ? AtlasPalette.primary : AtlasPalette.success
-                                )
                             }
-
-                            Text(evolution.milestoneHeadline)
-                                .atlasTextRole(.deckEyebrow)
-                                .foregroundStyle(AtlasPalette.primary)
-
-                            Text(evolution.progressLabel)
-                                .atlasTextRole(.supporting)
-                                .foregroundStyle(AtlasPalette.textSecondary)
-
-                            Text(profile.statusLine)
-                                .atlasTextRole(.supporting)
-                                .foregroundStyle(AtlasPalette.textSecondary)
-                        }
-
-                        VStack(spacing: AtlasSpacing.small) {
-                            AtlasMascotSticker(
-                                line: atlasMascotLine(for: mascotSelection),
-                                stage: evolution.stage,
-                                size: 104
-                            )
-
-                            AtlasStatusBadge("Live guardian", tint: atlasMascotLineTint(for: mascotSelection))
                         }
                     }
 
@@ -216,18 +135,9 @@ struct AtlasRewardsInsightSection: View {
                         )
                     )
 
-                    AtlasMilestoneRevealBanner(
-                        eyebrow: atlasRewardMilestoneReveal(snapshot: snapshot, evolution: evolution, selection: mascotSelection).eyebrow,
-                        title: atlasRewardMilestoneReveal(snapshot: snapshot, evolution: evolution, selection: mascotSelection).title,
-                        detail: atlasRewardMilestoneReveal(snapshot: snapshot, evolution: evolution, selection: mascotSelection).detail,
-                        tint: atlasRewardMilestoneReveal(snapshot: snapshot, evolution: evolution, selection: mascotSelection).tint,
-                        badge: atlasRewardMilestoneReveal(snapshot: snapshot, evolution: evolution, selection: mascotSelection).badge,
-                        symbolName: atlasRewardMilestoneReveal(snapshot: snapshot, evolution: evolution, selection: mascotSelection).symbolName
-                    )
-
                     AtlasProgressMeter(
                         title: "Next unlock",
-                        detail: evolution.progressLabel,
+                        detail: nil,
                         value: atlasRewardsProgressValue(snapshot),
                         tint: AtlasPalette.reward
                     )
@@ -250,18 +160,6 @@ struct AtlasRewardsInsightSection: View {
                         }
                     }
 
-                    if let reaction = profile.reaction {
-                        AtlasCalloutRow(
-                            systemImage: reaction.symbolName,
-                            title: reaction.title,
-                            detail: reaction.detail,
-                            tint: AtlasPalette.reward
-                        )
-                    }
-
-                    Text(snapshot.note)
-                        .atlasTextRole(.supporting)
-                        .foregroundStyle(AtlasPalette.textSecondary)
                 }
             }
         }
@@ -346,21 +244,6 @@ private struct AtlasRewardUnlockReadinessRow: View {
         )
 
         VStack(alignment: .leading, spacing: AtlasSpacing.small) {
-            HStack(spacing: AtlasSpacing.small) {
-                AtlasRewardSignalTile(
-                    title: "Mascot",
-                    value: evolution.nextFormName ?? "Archive",
-                    detail: evolution.nextFormName == nil ? "All forms unlocked" : evolution.progressLabel,
-                    tint: summary.tint
-                )
-                AtlasRewardSignalTile(
-                    title: "Level",
-                    value: max(snapshot.nextLevelPoints - snapshot.totalPoints, 0) == 0 ? "Ready" : "\(max(snapshot.nextLevelPoints - snapshot.totalPoints, 0))",
-                    detail: max(snapshot.nextLevelPoints - snapshot.totalPoints, 0) == 0 ? "Next level queued" : "points to next level",
-                    tint: AtlasPalette.primary
-                )
-            }
-
             AtlasCalloutRow(
                 systemImage: summary.symbolName,
                 title: summary.title,
@@ -370,13 +253,7 @@ private struct AtlasRewardUnlockReadinessRow: View {
             )
 
             if let streak = snapshot.streaks.first(where: \.isActive) {
-                AtlasCalloutRow(
-                    systemImage: streak.symbolName,
-                    title: "Momentum is compounding",
-                    detail: "\(streak.title) is active at \(streak.valueLabel.lowercased()). Keeping the chain alive is the fastest path to the next unlock.",
-                    tint: AtlasPalette.success,
-                    badge: "Active streak"
-                )
+                AtlasStatusBadge("Active streak: \(streak.valueLabel)", tint: AtlasPalette.success)
             }
         }
     }
@@ -442,8 +319,8 @@ private func atlasRewardMilestoneReveal(
     if remainingLevelPoints == 0 {
         return AtlasRewardMilestoneReveal(
             eyebrow: "Level ready",
-            title: "A fresh level reveal is queued right now.",
-            detail: "Atlas has enough points for the next rewards tier, so the next honest action can tip today into a visible level-up moment.",
+            title: "Next level is ready.",
+            detail: "Ready when you are.",
             tint: AtlasPalette.reward,
             badge: "Queued",
             symbolName: "bolt.fill"
@@ -456,8 +333,8 @@ private func atlasRewardMilestoneReveal(
         if remainingFormPoints == 0 || (evolution.progressFraction ?? 0) >= 0.82 {
             return AtlasRewardMilestoneReveal(
                 eyebrow: "Near unlock",
-                title: "\(nextFormName) is close enough to stage now.",
-                detail: "\(remainingFormPoints) points remain, and Atlas is already treating the next mascot form like an imminent reveal instead of distant math.",
+                title: "\(nextFormName) is close.",
+                detail: "Almost ready.",
                 tint: atlasMascotLineTint(for: selection),
                 badge: evolution.stageBadge,
                 symbolName: "sparkles"
@@ -468,8 +345,8 @@ private func atlasRewardMilestoneReveal(
     if let activeStreak = snapshot.streaks.first(where: \.isActive) {
         return AtlasRewardMilestoneReveal(
             eyebrow: "Momentum",
-            title: "\(activeStreak.title) is doing real unlock work.",
-            detail: "That streak is compounding behind the scenes, which is why the next mascot and level milestones feel like a living system instead of a static badge wall.",
+            title: "\(activeStreak.title) is building momentum.",
+            detail: "Current streak: \(activeStreak.valueLabel).",
             tint: AtlasPalette.success,
             badge: activeStreak.valueLabel,
             symbolName: activeStreak.symbolName
@@ -478,10 +355,8 @@ private func atlasRewardMilestoneReveal(
 
     return AtlasRewardMilestoneReveal(
         eyebrow: "Rewards loop",
-        title: "The next unlock is already mapped and visible.",
-        detail: evolution.nextFormName == nil
-            ? "The guardian line is fully evolved, so the rewards loop is now feeding archive strength, badges, and collectible mascot memory."
-            : evolution.progressLabel,
+        title: "Next unlock is visible.",
+        detail: evolution.nextFormName == nil ? "The full line is unlocked." : "Progress is tracked quietly.",
         tint: AtlasPalette.reward,
         badge: evolution.stageBadge,
         symbolName: "star.circle.fill"
@@ -527,12 +402,9 @@ private func atlasRewardsMetrics(
     snapshot: AtlasRewardsSnapshot,
     earnedBadgeCount: Int
 ) -> [AtlasMetricItem] {
-    let activeStreak = snapshot.streaks.filter(\.isActive).map(\.count).max() ?? 0
-
     return [
         .init(id: "level", title: "Level", value: "\(snapshot.level)", tint: AtlasPalette.reward),
         .init(id: "points", title: "Points", value: "\(snapshot.totalPoints)", tint: AtlasPalette.primary),
-        .init(id: "streak", title: "Best streak", value: activeStreak == 0 ? "None" : "\(activeStreak)", tint: AtlasPalette.success),
         .init(id: "badges", title: "Badges", value: "\(earnedBadgeCount)", tint: earnedBadgeCount == 0 ? AtlasPalette.secondaryText : AtlasPalette.reward)
     ]
 }
@@ -554,8 +426,8 @@ private func atlasRewardUnlockSummary(
     guard let nextFormName = evolution.nextFormName,
           let nextThresholdPoints = evolution.nextThresholdPoints else {
         return AtlasRewardUnlockSummary(
-            title: "Final guardian momentum is now archival",
-            detail: "Every new point now deepens recap cards, streak presence, and the mascot gallery because the full line is already unlocked.",
+            title: "Full line unlocked",
+            detail: "Recaps and badges are available.",
             badge: "Final form",
             symbolName: "crown.fill",
             tint: AtlasPalette.success
@@ -567,8 +439,8 @@ private func atlasRewardUnlockSummary(
 
     if remainingFormPoints == 0 || progressFraction >= 0.86 {
         return AtlasRewardUnlockSummary(
-            title: "\(nextFormName) is close enough to feel real",
-            detail: "Only \(remainingFormPoints) points remain. One more finished goal, honest check-in, or completed week can tip the line into its next form.",
+            title: "\(nextFormName) is close",
+            detail: "Almost ready.",
             badge: "Near unlock",
             symbolName: "sparkles",
             tint: atlasMascotLineTint(for: selection)
@@ -577,8 +449,8 @@ private func atlasRewardUnlockSummary(
 
     if remainingLevelPoints == 0 {
         return AtlasRewardUnlockSummary(
-            title: "The next level is already loaded",
-            detail: "\(nextFormName) still needs \(remainingFormPoints) more points, but Atlas is ready to count the next level-up immediately.",
+            title: "Next level is ready",
+            detail: "\(nextFormName) is next.",
             badge: "Level ready",
             symbolName: "arrow.up.circle.fill",
             tint: AtlasPalette.reward
@@ -586,8 +458,8 @@ private func atlasRewardUnlockSummary(
     }
 
     return AtlasRewardUnlockSummary(
-        title: "Atlas can already show the path to \(nextFormName)",
-        detail: "\(remainingLevelPoints) points to the next level and \(remainingFormPoints) points to the next mascot evolution. The line is advancing even when the jump is still ahead.",
+        title: "Next unlock",
+        detail: "\(nextFormName) is ahead.",
         badge: "In motion",
         symbolName: atlasMascotLineSymbol(for: selection),
         tint: atlasMascotLineTint(for: selection)

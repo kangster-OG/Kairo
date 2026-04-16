@@ -1148,7 +1148,7 @@ private func buildStackDashboardSnapshot(
 
     return AtlasStackDashboardSnapshot(
         activeProtocolCount: activeProtocols.count,
-        summary: "Atlas is coordinating \(countPhrase(activeProtocols.count, singular: "active protocol")) with \(countPhrase(actionableTodayCount, singular: "scheduled anchor")) visible today. \(lowStockCount == 0 ? "Inventory is clear for the current stack." : "\(countPhrase(lowStockCount, singular: "inventory item")) needs attention before the stack gets noisier.")",
+        summary: "\(countPhrase(activeProtocols.count, singular: "active protocol")) and \(countPhrase(actionableTodayCount, singular: "scheduled anchor")) are visible today. \(lowStockCount == 0 ? "Inventory is clear." : "\(countPhrase(lowStockCount, singular: "inventory item")) needs attention.")",
         burdenFacts: burdenFacts,
         activeProtocols: activeProtocolItems,
         scheduleLoads: scheduleLoads
@@ -1300,8 +1300,8 @@ private func buildBiometricsOverlaySnapshot(
 
     return AtlasBiometricsOverlaySnapshot(
         summary: includeProtocolChanges
-            ? "Atlas is overlaying biometrics with recent protocol changes so the timing stays visible without claiming cause."
-            : "Atlas is grouping numeric biometrics and labs into reusable trend panels for review.",
+            ? "Biometrics are shown alongside recent protocol changes."
+            : "Numeric biometrics and labs are grouped into reusable trend panels.",
         groups: orderedGroups
     )
 }
@@ -1648,7 +1648,7 @@ private func buildWeeklyReviewFallbackSummary(
     protocolChangeSummary: AtlasWeeklyReviewProtocolChangeSummary?
 ) -> String {
     var parts = [
-        "Atlas recorded \(countPhrase(completedCount, singular: "completed log")) across \(countPhrase(activeProtocolCount, singular: "active protocol")) in the last 7 days."
+        "Last 7 days: \(countPhrase(completedCount, singular: "completed log")) across \(countPhrase(activeProtocolCount, singular: "active protocol"))."
     ]
 
     let schedulePhrases = [
@@ -1666,16 +1666,16 @@ private func buildWeeklyReviewFallbackSummary(
         workoutEntryCount > 0 ? countPhrase(workoutEntryCount, singular: "workout log") : nil
     ].compactMap { $0 }
     if supportingPhrases.isEmpty {
-        parts.append("Supporting context was light this week, so Atlas is leaning more on schedule facts than on surrounding signals.")
+        parts.append("Supporting context was light this week.")
     } else {
-        parts.append("Supporting records included \(naturalList(supportingPhrases)).")
+        parts.append("Supporting records: \(naturalList(supportingPhrases)).")
     }
 
     if let latestWeightLabel {
-        parts.append("The latest weight on file is \(latestWeightLabel).")
+        parts.append("Latest weight: \(latestWeightLabel).")
     }
     if let nextDueTitle {
-        parts.append("The next visible schedule anchor is \(nextDueTitle).")
+        parts.append("Next due: \(nextDueTitle).")
     }
     if let protocolChangeSummary {
         var protocolChangeLine = "\(countPhrase(protocolChangeSummary.changeCount, singular: "protocol update")) landed during the review window."
@@ -2009,7 +2009,7 @@ private func buildContextExplanationCandidates(
         }
 
         let descriptorTitle = accumulator.title.lowercased()
-        let summary = "Atlas noticed recent \(symptomDisplay.lowercased()) entries showing up near \(descriptorTitle) context."
+        let summary = "Recent \(symptomDisplay.lowercased()) entries showed up near \(descriptorTitle) context."
         let facts = [
             AtlasExplainerFact(
                 label: "Observed",
@@ -2080,7 +2080,7 @@ private func buildWeightExplanationCandidates(
         return []
     }
 
-    let summary = "Atlas noticed recent \(symptomDisplay.lowercased()) entries showing up within 24 hours of weight check-ins."
+    let summary = "Recent \(symptomDisplay.lowercased()) entries showed up within 24 hours of weight check-ins."
     let facts = [
         AtlasExplainerFact(
             label: "Observed",
@@ -2165,7 +2165,7 @@ private func buildMetricExplanationCandidates(
         }
 
         let metricTitle = accumulator.title.lowercased()
-        let summary = "Atlas noticed recent \(symptomDisplay.lowercased()) entries showing up within 24 hours of \(metricTitle) check-ins."
+        let summary = "Recent \(symptomDisplay.lowercased()) entries showed up within 24 hours of \(metricTitle) check-ins."
         let facts = [
             AtlasExplainerFact(
                 label: "Observed",
@@ -2240,7 +2240,7 @@ private func buildWorkoutExplanationCandidates(
         }
 
         let activityTitle = accumulator.title.lowercased()
-        let summary = "Atlas noticed recent \(symptomDisplay.lowercased()) entries showing up within 24 hours after \(activityTitle) workouts."
+        let summary = "Recent \(symptomDisplay.lowercased()) entries showed up within 24 hours after \(activityTitle) workouts."
         let facts = [
             AtlasExplainerFact(
                 label: "Observed",
@@ -2533,7 +2533,7 @@ private func buildNutritionSnapshot(
             kind: .proteinDays,
             title: "Protein days",
             valueLabel: "\(weeklyProteinDays) of \(atlasNutritionWeeklyWindowDays) days",
-            helperText: "Atlas counts a protein day when two protein-heavy meals are logged.",
+            helperText: "A protein day counts when two protein-heavy meals are logged.",
             symbolName: "fork.knife.circle.fill",
             isOnTrack: weeklyProteinDays >= 4
         ),
@@ -2558,7 +2558,7 @@ private func buildNutritionSnapshot(
             kind: .workoutFueling,
             title: "Workout fueling",
             valueLabel: "\(fueledWorkoutCount) of \(recentWorkouts.count) workouts",
-            helperText: "A workout counts when Atlas sees meal context within six hours of the session.",
+            helperText: "A workout counts when meal context is logged within six hours of the session.",
             symbolName: "figure.run.circle.fill",
             isOnTrack: recentWorkouts.isEmpty ? false : fueledWorkoutCount * 2 >= recentWorkouts.count
         )
@@ -2580,7 +2580,7 @@ private func buildNutritionSnapshot(
         latestMealLabel: latestMeal.map(atlasNutritionLatestMealLabel(record:)),
         weeklySignals: weeklySignals,
         coachingCards: coachingCards,
-        note: "Atlas keeps nutrition lightweight here: quick meals, repeated favorites, local food lookup, and deterministic coaching."
+        note: "Quick meals, repeated favorites, local food lookup, and simple coaching."
     )
 }
 
@@ -2671,7 +2671,7 @@ private func buildNutritionCoachingCards(
                 kind: .workoutFueling,
                 title: "Fuel workouts more consistently",
                 summary: "\(fueledWorkoutCount) of \(recentWorkoutCount) recent workouts had nearby meal logs.",
-                helperText: "Try logging a meal or shake before or after training so Atlas can tie nutrition context to the session.",
+                helperText: "Log a meal or shake before or after training to keep the session paired with nutrition context.",
                 symbolName: "figure.run.circle.fill"
             )
         )
@@ -2701,7 +2701,7 @@ private func buildNutritionCoachingCards(
                 kind: .hydration,
                 title: "Hydration rhythm can still tighten up",
                 summary: "Hydration targets cleared on \(weeklyHydrationDays) of the last \(atlasNutritionWeeklyWindowDays) days.",
-                helperText: "Two hydrated check-ins in the same day are enough to count. Atlas uses that lightweight threshold to keep the habit easy to repeat.",
+                helperText: "Two hydrated check-ins in the same day count as a hydrated day.",
                 symbolName: "drop.fill"
             )
         )
@@ -2714,7 +2714,7 @@ private func buildNutritionCoachingCards(
                 kind: .consistency,
                 title: "Nutrition rhythm looks steady",
                 summary: "Protein, fiber, hydration, and workout fueling are all showing usable coverage.",
-                helperText: "Keep using fast capture so Atlas can keep learning from the same patterns instead of asking for heavier logging.",
+                helperText: "Keep using fast capture to preserve this signal without heavier logging.",
                 symbolName: "checkmark.circle.fill"
             )
         )
@@ -2725,7 +2725,7 @@ private func buildNutritionCoachingCards(
                 kind: .consistency,
                 title: "Protein consistency still has room",
                 summary: "Protein targets cleared on \(weeklyProteinDays) of the last \(atlasNutritionWeeklyWindowDays) days.",
-                helperText: "Atlas marks a protein day only when two protein-heavy meals are logged, so repeated breakfasts and shakes help this move quickly.",
+                helperText: "A protein day needs two protein-heavy meals, so repeated breakfasts and shakes move this quickly.",
                 symbolName: "fork.knife.circle.fill"
             ),
             at: 0
@@ -2764,7 +2764,7 @@ private func atlasNutritionWeightCoachingCard(
             kind: .weight,
             title: "Weight trend is sitting inside your goal range",
             summary: "Latest logged weight is within about half a \(unit.rawValue) of your stored goal.",
-            helperText: "Atlas keeps this descriptive. The goal here is pattern awareness, not rewarding every fluctuation.",
+            helperText: "This is a pattern check, not a judgment on every fluctuation.",
             symbolName: "target"
         )
     }
@@ -2781,8 +2781,8 @@ private func atlasNutritionWeightCoachingCard(
         id: "nutrition-weight-progress",
         kind: .weight,
         title: "Recent nutrition rhythm is lining up with weight progress",
-        summary: "Atlas is seeing \(improvementLabel) \(unit.rawValue) less distance to your stored goal than where this run of logs started.",
-        helperText: "That does not prove causality, but it is a useful checkpoint when the meal and workout signals are also staying consistent.",
+        summary: "You are \(improvementLabel) \(unit.rawValue) closer to your stored goal than where this run of logs started.",
+        helperText: "This does not prove causality, but it is a useful checkpoint when meal and workout signals are also staying consistent.",
         symbolName: "chart.line.uptrend.xyaxis"
     )
 }

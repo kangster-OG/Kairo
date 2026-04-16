@@ -24,35 +24,32 @@ struct AtlasGeneratedSummaryCard: View {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(summary.title)
-                        .font(.headline)
+                        .atlasTextRole(.cardBody)
                         .foregroundStyle(AtlasPalette.textPrimary)
                     Text(summary.generatedAt.formatted(date: .abbreviated, time: .shortened))
-                        .font(.caption)
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
                 Spacer(minLength: 12)
                 Text(summary.executionMode.label)
-                    .font(.caption.weight(.semibold))
+                    .atlasTextRole(.deckEyebrow)
                     .foregroundStyle(AtlasPalette.primary)
             }
 
             Text(summary.summary)
+                .atlasTextRole(.supporting)
                 .foregroundStyle(AtlasPalette.textPrimary)
-
-            Text(summary.disclaimer)
-                .font(.caption)
-                .foregroundStyle(AtlasPalette.textSecondary)
 
             ForEach(summary.sourceSections) { section in
                 if section.facts.isEmpty == false {
                     Divider()
                     VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
                         Text(section.title)
-                            .font(.caption.weight(.semibold))
+                            .atlasTextRole(.deckEyebrow)
                             .foregroundStyle(AtlasPalette.textSecondary)
                         ForEach(section.facts) { fact in
                             Text("\(fact.label): \(fact.value)")
-                                .font(.caption)
+                                .atlasTextRole(.supporting)
                                 .foregroundStyle(AtlasPalette.textSecondary)
                         }
                     }

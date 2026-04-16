@@ -58,12 +58,11 @@ public struct AtlasMedicationLevelsScreen: View {
                             }
 
                             Text("Estimated relative amount in system")
-                                .font(.caption.weight(.semibold))
+                                .atlasTextRole(.deckEyebrow)
                                 .foregroundStyle(AtlasPalette.primary)
-                                .textCase(.uppercase)
 
                             Text(item.estimateLabel)
-                                .font(.system(size: 30, weight: .bold, design: .rounded))
+                                .atlasTextRole(.metricValue)
                                 .foregroundStyle(AtlasPalette.textPrimary)
 
                             if let compareLabel = item.compareLabel {
@@ -118,8 +117,8 @@ public struct AtlasMedicationLevelsScreen: View {
                     if contextLines.isEmpty == false {
                         AtlasSectionCard(title: "Nearby anchors") {
                             VStack(alignment: .leading, spacing: AtlasSpacing.small) {
-                                Text("Nearby logs are shown for timing context only. Atlas is not claiming causation or serum-level precision.")
-                                    .font(.caption)
+                                Text("Nearby logs are shown for timing context only. No causation or serum-level precision claims.")
+                                    .atlasTextRole(.supporting)
                                     .foregroundStyle(AtlasPalette.textSecondary)
 
                                 ForEach(contextLines, id: \.self) { line in
@@ -167,7 +166,7 @@ public struct AtlasLabsScreen: View {
         AtlasScreen {
             AtlasTabHeader(
                 title: "Labs",
-                subtitle: "Optional, clinician-friendly tracking for people who want more than casual peptide logging."
+                subtitle: "Optional lab tracking when you need it."
             )
 
             AtlasSectionCard(style: .hero) {
@@ -180,7 +179,7 @@ public struct AtlasLabsScreen: View {
                         AtlasStatusBadge("Local-first", tint: AtlasPalette.primary)
                     }
 
-                    Text("Labs stay out of the way unless you want them. Atlas can keep them alongside protocols, weekly review, and provider-facing exports without turning the whole app into a clinical dashboard.")
+                    Text("Keep labs alongside protocols, weekly review, and provider-facing exports only when you need them.")
                         .foregroundStyle(AtlasPalette.textSecondary)
 
                     Toggle(
@@ -213,13 +212,13 @@ public struct AtlasLabsScreen: View {
                         Text(
                             recentEntries.first.map {
                                 "Latest lab entry: \($0.loggedAt.formatted(date: .abbreviated, time: .shortened))."
-                            } ?? "No lab values logged yet. Start with a panel and Atlas will keep the recent entries here."
+                            } ?? "No lab values logged yet. Start with a panel to populate recent entries."
                         )
-                        .font(.caption)
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
 
                         Text("Starter markers include lightweight reference ranges so recent values read more like a review-ready report than a raw log list.")
-                            .font(.caption)
+                            .atlasTextRole(.supporting)
                             .foregroundStyle(AtlasPalette.textSecondary)
 
                         ViewThatFits(in: .horizontal) {
@@ -259,23 +258,23 @@ public struct AtlasLabsScreen: View {
                         ForEach(groupedTemplates, id: \.key) { groupTitle, templates in
                             VStack(alignment: .leading, spacing: AtlasSpacing.small) {
                                 Text(groupTitle)
-                                    .font(.body.weight(.semibold))
+                                    .atlasTextRole(.cardBody)
                                     .foregroundStyle(AtlasPalette.textPrimary)
 
                                 if let subtitle = templates.first?.groupSubtitle {
                                     Text(subtitle)
-                                        .font(.caption)
+                                        .atlasTextRole(.supporting)
                                         .foregroundStyle(AtlasPalette.textSecondary)
                                 }
 
                                 Text(templates.map(\.label).joined(separator: " • "))
-                                    .font(.caption)
+                                    .atlasTextRole(.supporting)
                                     .foregroundStyle(AtlasPalette.textSecondary)
 
                                 let rangeLabels = templates.compactMap(\.referenceRangeLabel)
                                 if rangeLabels.isEmpty == false {
                                     Text("Reference ranges: \(rangeLabels.joined(separator: " • "))")
-                                        .font(.caption)
+                                        .atlasTextRole(.supporting)
                                         .foregroundStyle(AtlasPalette.textSecondary)
                                 }
 
@@ -303,7 +302,7 @@ public struct AtlasLabsScreen: View {
                                 HStack(alignment: .top) {
                                     VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
                                         Text(metric.label)
-                                            .font(.body.weight(.semibold))
+                                            .atlasTextRole(.cardBody)
                                             .foregroundStyle(AtlasPalette.textPrimary)
 
                                         if let template = atlasLabTemplate(for: metric.label) {
@@ -322,19 +321,19 @@ public struct AtlasLabsScreen: View {
                                                 )
                                                 if let rangeLabel = template.referenceRangeLabel {
                                                     Text(rangeLabel)
-                                                        .font(.caption)
+                                                        .atlasTextRole(.supporting)
                                                         .foregroundStyle(AtlasPalette.textSecondary)
                                                 }
                                             }
                                         } else {
                                             Text(metric.unit ?? "Numeric marker")
-                                                .font(.caption)
+                                                .atlasTextRole(.supporting)
                                                 .foregroundStyle(AtlasPalette.textSecondary)
                                         }
 
                                         if let latest = metric.latestEntryLabel {
                                             Text("Latest: \(latest)")
-                                                .font(.caption)
+                                                .atlasTextRole(.supporting)
                                                 .foregroundStyle(AtlasPalette.textSecondary)
                                         }
                                     }
@@ -364,12 +363,12 @@ public struct AtlasLabsScreen: View {
                                 HStack(alignment: .top, spacing: AtlasSpacing.small) {
                                     VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
                                         Text("\(entry.label): \(entry.valueLabel)")
-                                            .font(.body.weight(.semibold))
+                                            .atlasTextRole(.cardBody)
                                             .foregroundStyle(AtlasPalette.textPrimary)
                                         if let template,
                                            let rangeLabel = template.referenceRangeLabel {
                                             Text("Reference range: \(rangeLabel)")
-                                                .font(.caption)
+                                                .atlasTextRole(.supporting)
                                                 .foregroundStyle(AtlasPalette.textSecondary)
                                         }
                                     }
@@ -379,7 +378,7 @@ public struct AtlasLabsScreen: View {
                                     }
                                 }
                                 Text(entry.loggedAt.formatted(date: .abbreviated, time: .shortened))
-                                    .font(.caption)
+                                    .atlasTextRole(.supporting)
                                     .foregroundStyle(AtlasPalette.textSecondary)
                             }
                         }
@@ -456,18 +455,65 @@ private struct AtlasLabMetricDefinitionSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                TextField("Marker label", text: $label)
-                TextField("Unit", text: $unit)
+            AtlasScreen {
+                AtlasCommandDeck(
+                    eyebrow: "New lab marker",
+                    title: label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Define a lab marker" : label,
+                    detail: "Keep the name and unit stable so future lab entries stay easy to compare across time.",
+                    metrics: [
+                        AtlasMetricItem(id: "label", title: "Label", value: label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Pending" : "Ready", tint: label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? AtlasPalette.warning : AtlasPalette.success),
+                        AtlasMetricItem(id: "unit", title: "Unit", value: unit.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Optional" : unit, tint: AtlasPalette.primary)
+                    ],
+                    tint: AtlasPalette.primary,
+                    style: .hero
+                ) { } footer: {
+                    Text("Use the same label language you expect to see on future lab result entries and overlays.")
+                        .atlasTextRole(.supporting)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                }
+
+                AtlasSectionCard(style: .task, title: "Definition") {
+                    TextField("Marker label", text: $label)
+                        .atlasStandaloneInputSurface()
+                    TextField("Unit", text: $unit)
+                        .atlasStandaloneInputSurface()
+                }
+
+                AtlasSectionCard(style: .utility, title: "Commit") {
+                    Button("Save") {
+                        AtlasFeedback.selection()
+                        Task {
+                            await model.saveMetricDefinition(
+                                AtlasMetricDefinitionDraft(
+                                    label: atlasLabMetricLabel(from: label),
+                                    valueType: .number,
+                                    unit: unit.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+                                )
+                            )
+                            dismiss()
+                        }
+                    }
+                    .buttonStyle(AtlasPrimaryButtonStyle())
+                    .disabled(label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                    Button("Cancel") {
+                        AtlasFeedback.selection()
+                        dismiss()
+                    }
+                    .buttonStyle(AtlasSecondaryButtonStyle())
+                }
             }
-            .atlasFormSurface()
             .navigationTitle("New lab marker")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button("Cancel") {
+                        AtlasFeedback.selection()
+                        dismiss()
+                    }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
+                        AtlasFeedback.selection()
                         Task {
                             await model.saveMetricDefinition(
                                 AtlasMetricDefinitionDraft(
@@ -495,19 +541,65 @@ private struct AtlasLabMetricEntrySheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                DatePicker("Logged at", selection: $loggedAt)
-                TextField(metric.unit.map { "Value (\($0))" } ?? "Value", text: $value)
-                    .keyboardType(.decimalPad)
+            AtlasScreen {
+                AtlasCommandDeck(
+                    eyebrow: "Log lab entry",
+                    title: metric.label,
+                    detail: "Keep lab entries numeric and source-backed so overlays and trend views stay descriptive.",
+                    metrics: [
+                        AtlasMetricItem(id: "unit", title: "Unit", value: metric.unit ?? "None", tint: AtlasPalette.primary),
+                        AtlasMetricItem(id: "value", title: "Value", value: Double(value) == nil ? "Pending" : value, tint: Double(value) == nil ? AtlasPalette.warning : AtlasPalette.success)
+                    ],
+                    tint: AtlasPalette.primary,
+                    style: .hero
+                ) { } footer: {
+                    Text("Use the same unit every time if you want the lab trend line and overlays to remain comparable.")
+                        .atlasTextRole(.supporting)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                }
+
+                AtlasSectionCard(style: .task, title: "Entry") {
+                    DatePicker("Logged at", selection: $loggedAt)
+                    TextField(metric.unit.map { "Value (\($0))" } ?? "Value", text: $value)
+                        .keyboardType(.decimalPad)
+                        .atlasStandaloneInputSurface()
+                }
+
+                AtlasSectionCard(style: .utility, title: "Commit") {
+                    Button("Save") {
+                        AtlasFeedback.selection()
+                        Task {
+                            await model.saveMetricValueEntry(
+                                AtlasMetricValueEntryDraft(
+                                    metricID: metric.id,
+                                    loggedAt: loggedAt,
+                                    numberValue: Double(value)
+                                )
+                            )
+                            dismiss()
+                        }
+                    }
+                    .buttonStyle(AtlasPrimaryButtonStyle())
+                    .disabled(Double(value) == nil)
+
+                    Button("Cancel") {
+                        AtlasFeedback.selection()
+                        dismiss()
+                    }
+                    .buttonStyle(AtlasSecondaryButtonStyle())
+                }
             }
-            .atlasFormSurface()
             .navigationTitle(metric.label)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button("Cancel") {
+                        AtlasFeedback.selection()
+                        dismiss()
+                    }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
+                        AtlasFeedback.selection()
                         Task {
                             await model.saveMetricValueEntry(
                                 AtlasMetricValueEntryDraft(
@@ -665,14 +757,16 @@ private func atlasMedicationContextLines(
     return Array(lines.prefix(4))
 }
 
+@MainActor
 private func atlasFactStack(_ facts: [AtlasExplainerFact]) -> some View {
     VStack(alignment: .leading, spacing: AtlasSpacing.small) {
         ForEach(facts) { fact in
             VStack(alignment: .leading, spacing: 2) {
                 Text(fact.label)
-                    .font(.caption.weight(.semibold))
+                    .atlasTextRole(.deckEyebrow)
                     .foregroundStyle(AtlasPalette.primary)
                 Text(fact.value)
+                    .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
             }
         }
@@ -699,11 +793,10 @@ private struct AtlasClinicalSnapshotGrid: View {
             ForEach(items) { item in
                 VStack(alignment: .leading, spacing: 4) {
                     Text(item.title)
-                        .font(.caption.weight(.semibold))
+                        .atlasTextRole(.deckEyebrow)
                         .foregroundStyle(AtlasPalette.primary)
-                        .textCase(.uppercase)
                     Text(item.value)
-                        .font(.body.weight(.semibold))
+                        .atlasTextRole(.cardBody)
                         .foregroundStyle(AtlasPalette.textPrimary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)

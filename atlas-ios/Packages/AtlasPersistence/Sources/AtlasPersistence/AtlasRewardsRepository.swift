@@ -133,8 +133,8 @@ private func buildRewardStreaks(
             title: "Daily streak",
             valueLabel: "\(activityStreak) day\(activityStreak == 1 ? "" : "s")",
             helperText: activityStreak > 0
-                ? "Any Atlas check-in, context entry, symptom, metric, workout, or weight log keeps this daily streak alive."
-                : "Log something in Atlas today to start your daily streak.",
+                ? "Any check-in, context entry, symptom, metric, workout, or weight log keeps this daily streak alive."
+                : "Log something today to start your daily streak.",
             symbolName: "flame.fill",
             count: activityStreak,
             isActive: activityDays.contains(today)
@@ -273,7 +273,7 @@ private func buildSelfDefinedRewardGoal(
 
     var helperParts: [String] = []
     if let focusText {
-        helperParts.append("Atlas goal focus: \(focusText).")
+        helperParts.append("Goal focus: \(focusText).")
     }
     if completedCount >= target {
         helperParts.append("You already cleared this week's self-defined goal target.")
@@ -334,10 +334,10 @@ private func buildWeightRewardGoal(
         title: "Weight progress",
         progressLabel: movementLabel,
         helperText: isMet
-            ? "Latest logged weight is sitting inside your Atlas goal range."
+            ? "Latest logged weight is inside your stored goal range."
             : improvement > 0
-                ? "Atlas is showing a smaller distance to your stored goal weight than where this trend started."
-                : "Atlas keeps this descriptive: it tracks distance to your stored goal weight without scoring every change.",
+                ? "You are closer to your stored goal weight than where this trend started."
+                : "Tracks distance to your stored goal weight without scoring each change.",
         symbolName: "target",
         currentValue: improvement,
         targetValue: targetDistance,
@@ -363,7 +363,7 @@ private func buildRewardBadges(
         AtlasRewardBadgeSnapshot(
             kind: .activityStreak7,
             title: "7-day streak",
-            subtitle: "Keep Atlas active for a full week.",
+            subtitle: "Stay active for a full week.",
             symbolName: "7.circle.fill",
             isEarned: activityStreak >= 7
         ),
@@ -391,7 +391,7 @@ private func buildRewardBadges(
         AtlasRewardBadgeSnapshot(
             kind: .weightCheckpoint,
             title: "Weight checkpoint",
-            subtitle: "Atlas noticed measurable progress toward the stored goal weight.",
+            subtitle: "Measurable progress toward the stored goal weight.",
             symbolName: "chart.line.uptrend.xyaxis.circle.fill",
             isEarned: weightCheckpoint
         ),

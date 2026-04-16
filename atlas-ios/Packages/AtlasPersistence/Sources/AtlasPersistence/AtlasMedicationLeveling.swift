@@ -101,9 +101,9 @@ func buildMedicationLevelEstimateItem(
         if abs(difference) < 0.05 {
             compareLabel = "Shape is roughly steady vs yesterday."
         } else if let doseUnit {
-            compareLabel = "\(atlasMedicationLevelSignedNumber(difference)) \(doseUnit) vs yesterday in the Atlas model."
+            compareLabel = "\(atlasMedicationLevelSignedNumber(difference)) \(doseUnit) vs yesterday in the model."
         } else {
-            compareLabel = "\(atlasMedicationLevelSignedNumber(difference)) vs yesterday in the Atlas model."
+            compareLabel = "\(atlasMedicationLevelSignedNumber(difference)) vs yesterday in the model."
         }
     }
 
@@ -118,11 +118,11 @@ func buildMedicationLevelEstimateItem(
 
     let notesLabel: String
     if completedLogs.isEmpty {
-        notesLabel = "Atlas needs completed logs with saved quantities before it can shape a level view."
+        notesLabel = "Completed logs with saved quantities are required before this level view can appear."
     } else if let kineticsProfile {
-        notesLabel = "\(kineticsProfile.notes) Atlas still treats this as a planning estimate, not a serum measurement."
+        notesLabel = "\(kineticsProfile.notes) This remains a planning estimate, not a serum measurement."
     } else {
-        notesLabel = "Atlas does not have a half-life profile for this compound yet, so this view falls back to the saved schedule window."
+        notesLabel = "No half-life profile is available for this compound yet, so this view falls back to the saved schedule window."
     }
 
     var facts = [

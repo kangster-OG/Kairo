@@ -16,9 +16,10 @@ struct AtlasRetentionTodayCard: View {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
                     Text("Optional local continuity")
-                        .font(.body.weight(.semibold))
+                        .atlasTextRole(.cardBody)
                         .foregroundStyle(AtlasPalette.textPrimary)
                     Text("\(snapshot.earnedMilestoneCount) of \(snapshot.milestones.count) calm signals are active.")
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
 
@@ -40,7 +41,7 @@ struct AtlasRetentionTodayCard: View {
             }
 
             Text(snapshot.note)
-                .font(.caption)
+                .atlasTextRole(.supporting)
                 .foregroundStyle(AtlasPalette.textSecondary)
         }
     }
@@ -59,9 +60,6 @@ struct AtlasRetentionInsightSection: View {
                         AtlasRetentionCompanionView(companion: companion, mascotSelection: mascotSelection, emphasis: .inline)
                     }
 
-                    Text("These signals stay descriptive, local, and low-pressure. They describe continuity rather than score it, and they never ask you to fill in logs that did not happen.")
-                        .foregroundStyle(AtlasPalette.textSecondary)
-
                     ForEach(snapshot.milestones) { milestone in
                         AtlasRetentionMilestoneRow(milestone: milestone)
                     }
@@ -72,10 +70,6 @@ struct AtlasRetentionInsightSection: View {
                         }
                         .buttonStyle(AtlasPrimaryButtonStyle())
                     }
-
-                    Text(snapshot.note)
-                        .font(.caption)
-                        .foregroundStyle(AtlasPalette.textSecondary)
                 }
             }
         }
@@ -95,14 +89,13 @@ struct AtlasRetentionCompanionPreview: View {
     var body: some View {
         VStack(alignment: .leading, spacing: AtlasSpacing.small) {
             Text(title)
-                .font(.caption.weight(.semibold))
+                .atlasTextRole(.deckEyebrow)
                 .foregroundStyle(AtlasPalette.primary)
-                .textCase(.uppercase)
 
             AtlasRetentionCompanionView(companion: companion, mascotSelection: mascotSelection, emphasis: .featured)
 
             Text(caption)
-                .font(.caption)
+                .atlasTextRole(.supporting)
                 .foregroundStyle(AtlasPalette.textSecondary)
         }
     }
@@ -141,7 +134,9 @@ private struct AtlasRetentionCompanionView: View {
                         .frame(width: emphasis == .featured ? 28 : 24, height: emphasis == .featured ? 28 : 24)
                         .overlay(
                             Image(systemName: companion.systemImage)
-                                .font(.system(size: emphasis == .featured ? 11 : 10, weight: .semibold))
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: emphasis == .featured ? 11 : 10, height: emphasis == .featured ? 11 : 10)
                                 .foregroundStyle(companionTint)
                         )
                         .overlay(
@@ -153,14 +148,13 @@ private struct AtlasRetentionCompanionView: View {
 
             VStack(alignment: .leading, spacing: emphasis == .featured ? 6 : 4) {
                 Text("Companion")
-                    .font(.caption.weight(.semibold))
+                    .atlasTextRole(.deckEyebrow)
                     .foregroundStyle(companionTint)
-                    .textCase(.uppercase)
                 Text(companion.title)
-                    .font((emphasis == .featured ? Font.title3 : Font.body).weight(.semibold))
+                    .atlasTextRole(emphasis == .featured ? .cardTitle : .cardBody)
                     .foregroundStyle(AtlasPalette.textPrimary)
                 Text(companion.subtitle)
-                    .font(emphasis == .featured ? .body : .callout)
+                    .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
             }
 
@@ -221,7 +215,7 @@ private struct AtlasRetentionMilestoneChip: View {
                 Text(continuityLabel)
             }
         }
-        .font(.caption.weight(.semibold))
+        .atlasTextRole(.deckEyebrow)
         .foregroundStyle(tint)
         .padding(.horizontal, 12)
         .padding(.vertical, 9)
@@ -253,9 +247,10 @@ private struct AtlasRetentionMilestoneRow: View {
                     .foregroundStyle(tint)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(milestone.title)
-                        .font(.body.weight(.semibold))
+                        .atlasTextRole(.cardBody)
                         .foregroundStyle(AtlasPalette.textPrimary)
                     Text(milestone.subtitle)
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
                 Spacer()
@@ -273,7 +268,7 @@ private struct AtlasRetentionMilestoneRow: View {
             }
 
             Text(milestone.helperText)
-                .font(.caption)
+                .atlasTextRole(.supporting)
                 .foregroundStyle(AtlasPalette.textSecondary)
         }
         .padding(.vertical, 2)

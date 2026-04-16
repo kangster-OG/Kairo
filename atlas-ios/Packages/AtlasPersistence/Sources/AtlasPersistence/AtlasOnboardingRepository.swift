@@ -70,7 +70,12 @@ public struct GRDBOnboardingRepository: OnboardingRepository, Sendable {
             try writeAppSetting(db: db, key: "onboarding_draft_json", value: encodeDraft(draft), now: now)
             try writeAppSetting(db: db, key: "onboarding_completed", value: "1", now: now)
             try writeAppSetting(db: db, key: "onboarding_completed_at", value: atlasTimestamp(from: now), now: now)
-            try writeAppSetting(db: db, key: "account_start_mode", value: draft.accountMode?.rawValue, now: now)
+            let accountMode = draft.accountMode ?? .guest
+            try writeAppSetting(db: db, key: "account_start_mode", value: accountMode.rawValue, now: now)
+            try writeAppSetting(db: db, key: "onboarding_paywall_choice", value: draft.paywallChoice?.rawValue, now: now)
+            try writeAppSetting(db: db, key: "onboarding_premium_plan", value: draft.premiumPlan.rawValue, now: now)
+            try writeAppSetting(db: db, key: "onboarding_primary_focus", value: draft.focus?.rawValue, now: now)
+            try writeAppSetting(db: db, key: "onboarding_journey_status", value: draft.journeyStatus?.rawValue, now: now)
             try writeAppSetting(
                 db: db,
                 key: "mascot_selection",
@@ -87,7 +92,7 @@ public struct GRDBOnboardingRepository: OnboardingRepository, Sendable {
             try writeAppSetting(
                 db: db,
                 key: "account_mode",
-                value: draft.accountMode == .guest ? AtlasAccountMode.guest.rawValue : AtlasAccountMode.account.rawValue,
+                value: accountMode == .guest ? AtlasAccountMode.guest.rawValue : AtlasAccountMode.account.rawValue,
                 now: now
             )
             try writeAppSetting(
@@ -98,9 +103,18 @@ public struct GRDBOnboardingRepository: OnboardingRepository, Sendable {
             )
 
             var profile = try AtlasPrivacyProfileDBRecord.fetchOne(db)?.domain ?? .default()
-            let shouldUseDiscreet = draft.privacy.discreetNotifications || draft.privacy.hideSensitiveLabels
-            profile.renderMode = shouldUseDiscreet ? .discreet : .full
-            profile.aliasModeEnabled = false
+            switch draft.privacyPreset {
+            case .alias:
+                profile.renderMode = .alias
+                profile.aliasModeEnabled = true
+            case .discreet:
+                profile.renderMode = .discreet
+                profile.aliasModeEnabled = false
+            case .standard, .none:
+                let shouldUseDiscreet = draft.privacy.discreetNotifications || draft.privacy.hideSensitiveLabels
+                profile.renderMode = shouldUseDiscreet ? .discreet : .full
+                profile.aliasModeEnabled = false
+            }
             profile.biometricLockEnabled = false
             profile.biometricGateMode = draft.privacy.biometricLater ? .bestEffort : .off
             profile.updatedAt = atlasTimestamp(from: now)
@@ -142,6 +156,10 @@ public struct GRDBOnboardingRepository: OnboardingRepository, Sendable {
             try writeAppSetting(db: db, key: "onboarding_completed", value: "0", now: now)
             try writeAppSetting(db: db, key: "onboarding_completed_at", value: nil, now: now)
             try writeAppSetting(db: db, key: "account_start_mode", value: nil, now: now)
+            try writeAppSetting(db: db, key: "onboarding_paywall_choice", value: nil, now: now)
+            try writeAppSetting(db: db, key: "onboarding_premium_plan", value: nil, now: now)
+            try writeAppSetting(db: db, key: "onboarding_primary_focus", value: nil, now: now)
+            try writeAppSetting(db: db, key: "onboarding_journey_status", value: nil, now: now)
             try writeAppSetting(db: db, key: "mascot_selection", value: nil, now: now)
             try writeAppSetting(db: db, key: "mascot_nickname", value: nil, now: now)
             try writeAppSetting(db: db, key: "mascot_selection_confirmed", value: nil, now: now)
@@ -173,7 +191,12 @@ func buildBootstrapSnapshot(
     } else if isImportedLocalUser {
         reason = .importedLocalUser
         destination = .app
-    } else if draft.accountMode != nil || draft.trackType != nil || draft.healthConnectionPromptSeen {
+    } else if draft.trackType != nil
+        || draft.journeyStatus != nil
+        || draft.focus != nil
+        || draft.privacyPreset != nil
+        || draft.paywallChoice != nil
+        || draft.healthConnectionPromptSeen {
         reason = .resumedOnboarding
         destination = .onboarding
     } else if hasLocalData {
@@ -219,6 +242,10 @@ func buildSettingsSnapshot(
         db,
         sql: "SELECT value FROM atlas_app_settings WHERE key = 'mascot_selection_confirmed'"
     )
+    let ambientMascotPresenceRaw = try String.fetchOne(
+        db,
+        sql: "SELECT value FROM atlas_app_settings WHERE key = 'ambient_mascot_presence'"
+    )
     let mascotNicknameRaw = try String.fetchOne(
         db,
         sql: "SELECT value FROM atlas_app_settings WHERE key = 'mascot_nickname'"
@@ -239,6 +266,9 @@ func buildSettingsSnapshot(
         ?? atlasInferredMascotSelection(from: onboardingDraft?.profile.gender)
         ?? .aetherion
     let mascotSelectionConfirmed = mascotSelectionConfirmedRaw == "1"
+    let ambientMascotPresence = ambientMascotPresenceRaw
+        .flatMap(AtlasAmbientMascotPresence.init(rawValue:))
+        ?? .subtle
     let profile = try AtlasPrivacyProfileDBRecord.fetchOne(db)?.domain ?? .default()
     let connections = try AtlasHealthConnectionDBRecord.fetchAll(db).map(\.domain).sorted {
         $0.providerKey.rawValue < $1.providerKey.rawValue
@@ -300,6 +330,7 @@ func buildSettingsSnapshot(
         mascotSelection: mascotSelection,
         mascotNickname: atlasMascotSanitizedNickname(mascotNicknameRaw ?? onboardingDraft?.profile.mascotNickname),
         mascotSelectionConfirmed: mascotSelectionConfirmed,
+        ambientMascotPresence: ambientMascotPresence,
         mascotUnlocks: mascotUnlocks,
         mascotEvolutionHistory: mascotEvolutionHistory,
         mascotMoments: mascotMoments,

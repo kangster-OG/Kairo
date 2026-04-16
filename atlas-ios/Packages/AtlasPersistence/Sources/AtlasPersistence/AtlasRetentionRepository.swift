@@ -81,7 +81,7 @@ func buildRetentionSnapshot(
         milestones: milestones,
         earnedMilestoneCount: earnedCount,
         companion: companion,
-        note: "Calm continuity is optional, local only, and never rewrites Atlas history."
+        note: "Continuity is optional, local only, and never rewrites history."
     )
 }
 
@@ -134,7 +134,7 @@ private func buildRetentionMilestones(
         AtlasRetentionMilestoneSnapshot(
             kind: .checkedInToday,
             title: "Local activity today",
-            subtitle: todayCheckedIn ? "Atlas recorded local activity today." : "Today is still open for a local entry.",
+            subtitle: todayCheckedIn ? "Local activity is logged today." : "Today is still open for a local entry.",
             helperText: todayCheckedIn
                 ? (checkInStreak > 1
                     ? "Recent local continuity spans \(checkInStreak) consecutive days."
@@ -153,7 +153,7 @@ private func buildRetentionMilestones(
                 ? (reviewStreak > 1
                     ? "Review continuity spans \(reviewStreak) consecutive weeks."
                     : "Review completion stays local to this device.")
-                : "Use this only when you have actually looked over the week. Missing a week never affects Atlas history.",
+                : "Use this only when you have actually looked over the week. Missing a week never affects history.",
             symbolName: "calendar.badge.checkmark",
             isEarned: weeklyReviewCompleted,
             continuityLabel: reviewStreak > 1 ? "\(reviewStreak) weeks" : nil,
@@ -168,7 +168,7 @@ private func buildRetentionMilestones(
                     ? "Tracked inventory is currently above low-stock thresholds."
                     : "A few tracked items need attention."),
             helperText: activeInventoryCount == 0
-                ? "Add vials or supplies when you want Atlas to watch depletion."
+                ? "Add vials or supplies when you want depletion tracking."
                 : (inventoryCurrent
                     ? "Active items are above low-stock thresholds."
                     : "\(activeLowStockCount) tracked item\(activeLowStockCount == 1 ? "" : "s") are low."),
@@ -186,8 +186,8 @@ private func buildRetentionMilestones(
             helperText: contextConsistent
                 ? (contextStreak > 1
                     ? "Recent context continuity spans \(contextStreak) consecutive days."
-                    : "Atlas counts days with at least one context entry.")
-                : "Atlas counts days with at least one context entry. There is no penalty for quiet stretches.",
+                    : "A day counts when it includes at least one context entry.")
+                : "A day counts when it includes at least one context entry. There is no penalty for quiet stretches.",
             symbolName: "leaf.circle.fill",
             isEarned: contextConsistent,
             continuityLabel: contextStreak > 1 ? "\(contextStreak) days" : nil,
@@ -207,7 +207,7 @@ private func buildRetentionCompanion(
         return AtlasRetentionCompanionSnapshot(
             mood: .settled,
             title: "Board settled",
-            subtitle: "Atlas has enough recent continuity to keep this board current.",
+            subtitle: "There is enough recent continuity to keep this board current.",
             systemImage: "checkmark.circle.fill"
         )
     }
@@ -216,7 +216,7 @@ private func buildRetentionCompanion(
         return AtlasRetentionCompanionSnapshot(
             mood: .steady,
             title: "Quietly current",
-            subtitle: "Atlas has a recent continuity update to reflect here.",
+            subtitle: "There is a recent continuity update to reflect here.",
             systemImage: "leaf.fill"
         )
     }

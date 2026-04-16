@@ -220,7 +220,9 @@ extension AtlasAppModel {
         }
 
         do {
-            return try atlasWriteWeeklyReviewExport(snapshot: snapshot)
+            let url = try atlasWriteWeeklyReviewExport(snapshot: snapshot)
+            triggerAmbientMascotReaction(.artifactReady)
+            return url
         } catch {
             setLoadErrorMessage(error.localizedDescription)
             return nil
@@ -235,6 +237,7 @@ public struct AtlasWeeklyReviewScreen: View {
     @State private var shareURL: URL?
     @State private var isExporting = false
     @State private var closeoutState: AtlasWeeklyReviewCloseoutState?
+    @State private var mascotContentNoticeTrigger = 0
 
     public init(model: AtlasAppModel) {
         self.model = model
@@ -318,6 +321,13 @@ public struct AtlasWeeklyReviewScreen: View {
                     snapshot: snapshot,
                     closureValue: weeklyReviewClosureValue(snapshot),
                     closureDetail: weeklyReviewClosureDetail(snapshot),
+                    contentNoticeTrigger: mascotContentNoticeTrigger,
+                    suppression: atlasAmbientMascotSuppression(
+                        presentingSheet: detailSheet != nil
+                            || archivePresented
+                            || model.pendingMascotCelebration != nil,
+                        presentingExport: shareURL != nil
+                    ),
                     exportAction: { await exportWeeklyReview(snapshot) },
                     markCompleteAction: snapshot.isMarkedReviewed
                         ? nil
@@ -346,8 +356,8 @@ public struct AtlasWeeklyReviewScreen: View {
                     AtlasSectionCard(style: .task, title: "What shifted") {
                         AtlasCalloutRow(
                             systemImage: "waveform.path.ecg.text",
-                            title: "Descriptive, not diagnostic",
-                            detail: "These notes restate visible patterns from your local records without claiming causes.",
+                            title: "Visible patterns",
+                            detail: nil,
                             tint: AtlasPalette.secondaryText
                         )
 
@@ -420,8 +430,8 @@ public struct AtlasWeeklyReviewScreen: View {
                     AtlasSectionCard(style: .utility, title: "Archive & compare") {
                         AtlasCalloutRow(
                             systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90",
-                            title: "Review memory stays attached",
-                            detail: "Prior weeks stay available here so the current review has memory, not just a moment-in-time snapshot.",
+                            title: "Past weeks stay available",
+                            detail: nil,
                             tint: AtlasPalette.secondaryText
                         )
 
@@ -452,8 +462,8 @@ public struct AtlasWeeklyReviewScreen: View {
                     AtlasSectionCard(style: .reward, title: "Weekly focus") {
                         AtlasCalloutRow(
                             systemImage: "flag.2.crossed",
-                            title: "Carry-forward actions stay anchored",
-                            detail: "Saved follow-through items stay visible across Today and Weekly Review until you clear or carry them forward.",
+                            title: "Saved follow-through",
+                            detail: nil,
                             tint: AtlasPalette.reward
                         )
 
@@ -547,8 +557,8 @@ public struct AtlasWeeklyReviewScreen: View {
             } else {
                 AtlasCommandDeck(
                     eyebrow: "WEEKLY REVIEW",
-                    title: "Atlas needs a little more signal first.",
-                    detail: "Weekly Review becomes valuable once Atlas has enough local activity to summarize patterns, follow-through, and recent shifts without guessing.",
+                    title: "Weekly Review needs more signal.",
+                    detail: "Add more logs and context first.",
                     style: .hero
                 ) {
                     Button("Open Insights") {
@@ -560,8 +570,8 @@ public struct AtlasWeeklyReviewScreen: View {
                 } footer: {
                     AtlasCalloutRow(
                         systemImage: "sparkles.rectangle.stack",
-                        title: "The payoff comes later",
-                        detail: "Once Atlas has a fuller week of logs, the review will become a proper closure and planning surface instead of a placeholder.",
+                        title: "Check back after more activity",
+                        detail: nil,
                         tint: AtlasPalette.secondaryText
                     )
                 }
@@ -569,6 +579,14 @@ public struct AtlasWeeklyReviewScreen: View {
         }
         .navigationTitle("Weekly Review")
         .navigationBarTitleDisplayMode(.inline)
+        .atlasAmbientMascotOpenReaction(model: model, kind: .openedSurface)
+        .onChange(of: closeoutState?.title) { oldValue, newValue in
+            guard oldValue != newValue,
+                  newValue != nil else {
+                return
+            }
+            mascotContentNoticeTrigger &+= 1
+        }
         .toolbar {
             if let snapshot {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -649,8 +667,8 @@ public struct AtlasWeeklyReviewScreen: View {
         defer { isExporting = false }
         closeoutState = AtlasWeeklyReviewCloseoutState(
             eyebrow: "Pack staging",
-            title: "Atlas is packaging this week into a shareable handoff.",
-            detail: "The summary, highlights, and closure signal are being assembled so the export feels like a finished chapter instead of a raw dump.",
+            title: "Preparing weekly review export.",
+            detail: "Building the recap pack.",
             tint: AtlasPalette.reward,
             badge: snapshot.periodTitle,
             symbolName: "square.and.arrow.up.fill"
@@ -660,8 +678,8 @@ public struct AtlasWeeklyReviewScreen: View {
         if shareURL != nil {
             closeoutState = AtlasWeeklyReviewCloseoutState(
                 eyebrow: "Pack ready",
-                title: "This week is staged as a real recap handoff.",
-                detail: "Atlas finished the export and kept the closure signal attached so sharing the pack still feels like the end of a chapter.",
+                title: "Weekly review export is ready.",
+                detail: "Share when ready.",
                 tint: model.rewardsSnapshot.settings.enabled ? atlasMascotLineTint(for: model.settingsSnapshot.mascotSelection) : AtlasPalette.success,
                 badge: model.rewardsSnapshot.settings.enabled ? atlasRewardsEvolutionProgress(for: model.rewardsSnapshot, selection: model.settingsSnapshot.mascotSelection).stageBadge : "Review",
                 symbolName: "sparkles"
@@ -675,8 +693,8 @@ public struct AtlasWeeklyReviewScreen: View {
     private func completeWeeklyReviewWithReveal() async {
         closeoutState = AtlasWeeklyReviewCloseoutState(
             eyebrow: "Closing the loop",
-            title: "Atlas is anchoring this week into memory.",
-            detail: "Weekly Review is being marked complete and the carry-forward payoff is being attached to Today, archive, and mascot continuity.",
+            title: "Marking this week reviewed.",
+            detail: "Saving the review and carry-forward state.",
             tint: AtlasPalette.reward,
             badge: model.rewardsSnapshot.settings.enabled ? atlasRewardsEvolutionProgress(for: model.rewardsSnapshot, selection: model.settingsSnapshot.mascotSelection).stageBadge : "Review",
             symbolName: "checkmark.seal.fill"
@@ -685,10 +703,10 @@ public struct AtlasWeeklyReviewScreen: View {
         await model.markWeeklyReviewComplete()
         closeoutState = AtlasWeeklyReviewCloseoutState(
             eyebrow: "Week anchored",
-            title: "This week now reads like a finished chapter.",
+            title: "Week marked reviewed.",
             detail: model.rewardsSnapshot.settings.enabled
-                ? "\(atlasRewardsEvolutionProgress(for: model.rewardsSnapshot, selection: model.settingsSnapshot.mascotSelection).currentFormName) carries the closeout forward, and the next unlock stays visible instead of disappearing into admin."
-                : "Atlas stored the review, kept your follow-through visible, and preserved the week as a reusable memory instead of a one-time checklist.",
+                ? "\(atlasRewardsEvolutionProgress(for: model.rewardsSnapshot, selection: model.settingsSnapshot.mascotSelection).currentFormName) remains the weekly guardian. The next unlock stays visible."
+                : "The review is saved and follow-through stays visible.",
             tint: model.rewardsSnapshot.settings.enabled ? atlasMascotLineTint(for: model.settingsSnapshot.mascotSelection) : AtlasPalette.success,
             badge: model.rewardsSnapshot.settings.enabled ? "Guardian payoff" : "Reviewed",
             symbolName: model.rewardsSnapshot.settings.enabled ? atlasMascotLineSymbol(for: model.settingsSnapshot.mascotSelection) : "checkmark.circle.fill"
@@ -746,12 +764,12 @@ public struct AtlasWeeklyReviewScreen: View {
 
     private func weeklyReviewClosureDetail(_ snapshot: AtlasWeeklyReviewPresentation) -> String {
         if snapshot.isMarkedReviewed {
-            return "This review is marked complete. Saved follow-through stays visible in Today until you clear or carry it forward."
+            return "Review complete. Saved follow-through stays visible in Today."
         }
         if let primaryAction = snapshot.actions.first {
-            return "Primary focus: \(primaryAction.title). Save it for next week if you want Atlas to keep it pinned in your operating loop."
+            return "Primary focus: \(primaryAction.title). Save it for next week if needed."
         }
-        return "Atlas has enough source data for a descriptive weekly review, but no single follow-through item rose above the rest."
+        return "No single follow-through item stands above the rest."
     }
 }
 
@@ -763,7 +781,7 @@ private struct AtlasWeeklyReviewCommandDeck: View {
         AtlasCommandDeck(
             eyebrow: "AT A GLANCE",
             title: snapshot.actions.first?.title ?? "No follow-through queued",
-            detail: snapshot.actions.first?.detail ?? "Atlas did not detect a single high-priority follow-up for this review, so the rest of the screen stays descriptive and source-backed.",
+            detail: snapshot.actions.first?.detail ?? "No single follow-through item stands out right now.",
             metrics: [
                 AtlasMetricItem(id: "plans", title: "Saved plans", value: "\(snapshot.actionPlans.count)", tint: AtlasPalette.reward),
                 AtlasMetricItem(id: "history", title: "History", value: "\(snapshot.history.count)", tint: AtlasPalette.secondaryText)
@@ -800,8 +818,8 @@ private struct AtlasWeeklyReviewCommandDeck: View {
                     systemImage: "pin",
                     title: snapshot.actionPlans.isEmpty ? "No saved plans yet" : "\(snapshot.actionPlans.count) follow-through item(s) saved",
                     detail: snapshot.actionPlans.isEmpty
-                        ? "Save one action from this review to keep it visible in Today next week."
-                        : "Saved follow-through items stay anchored in Weekly Review and Today until you clear them.",
+                        ? "Save one action to keep it visible in Today next week."
+                        : "Saved follow-through stays visible in Weekly Review and Today.",
                     tint: AtlasPalette.reward,
                     badge: snapshot.actionPlans.isEmpty ? nil : "Pinned"
                 )
@@ -924,11 +942,14 @@ private struct AtlasWeeklyReviewPayoffCard: View {
     let snapshot: AtlasWeeklyReviewPresentation
     let closureValue: Double
     let closureDetail: String
+    let contentNoticeTrigger: Int
+    let suppression: AtlasAmbientMascotSuppression
     let exportAction: () async -> Void
     let markCompleteAction: (() async -> Void)?
     let openMascotAction: (() -> Void)?
     @State private var isSharingPack = false
     @State private var isClosingWeek = false
+    @State private var courtesySignal = 0
 
     var body: some View {
         let rewardsEnabled = model.rewardsSnapshot.settings.enabled
@@ -961,8 +982,8 @@ private struct AtlasWeeklyReviewPayoffCard: View {
                         Text(
                             rewardsEnabled
                                 ? (snapshot.isMarkedReviewed
-                                    ? "\(evolution.currentFormName) stays visible as the guardian for this week’s closure, and the next unlock remains attached to the operating loop."
-                                    : "\(evolution.currentFormName) carries the week forward. Save the week, export the pack, and keep the next unlock visible instead of letting it disappear into admin.")
+                                    ? "\(evolution.currentFormName) remains the weekly guardian. The next unlock stays visible."
+                                    : "\(evolution.currentFormName) carries the week forward. Save the week or export the pack to keep the next unlock moving.")
                                 : closureDetail
                         )
                         .atlasTextRole(.supporting)
@@ -1023,9 +1044,9 @@ private struct AtlasWeeklyReviewPayoffCard: View {
                         title: latestMoment == nil ? "Next unlock stays attached" : "Mascot momentum is already visible",
                         detail: latestMoment == nil
                             ? (evolution.nextFormName == nil
-                                ? "The full line is already unlocked, so the payoff now shifts to recap quality and collectible memory."
-                                : "\(evolution.nextFormName ?? "Next form") remains the next big unlock, and Weekly Review is one of the cleanest ways to make that feel earned.")
-                            : "\(latestMoment?.title ?? "") is already in the journal, so this week can end with a specific emotional beat instead of a generic summary.",
+                                ? "The full line is already unlocked."
+                                : "\(evolution.nextFormName ?? "Next form") is the next unlock.")
+                            : "Latest moment: \(latestMoment?.title ?? "recent mascot moment").",
                         tint: atlasMascotLineTint(for: selection),
                         badge: latestMoment == nil ? evolution.stageBadge : "Journaled"
                     )
@@ -1037,6 +1058,7 @@ private struct AtlasWeeklyReviewPayoffCard: View {
                             guard isClosingWeek == false else {
                                 return
                             }
+                            courtesySignal &+= 1
                             isClosingWeek = true
                             Task {
                                 await markCompleteAction()
@@ -1051,6 +1073,7 @@ private struct AtlasWeeklyReviewPayoffCard: View {
                         guard isSharingPack == false else {
                             return
                         }
+                        courtesySignal &+= 1
                         isSharingPack = true
                         Task {
                             await exportAction()
@@ -1064,12 +1087,39 @@ private struct AtlasWeeklyReviewPayoffCard: View {
 
                     if let openMascotAction {
                         Button("Open mascot") {
+                            courtesySignal &+= 1
                             AtlasFeedback.selection()
                             openMascotAction()
                         }
                         .buttonStyle(AtlasTertiaryButtonStyle())
                     }
                 }
+            }
+        }
+        .overlay(alignment: .topTrailing) {
+            if let ambientMascotSelection = atlasAmbientMascotSelection(settingsSnapshot: model.settingsSnapshot),
+               let ambientMascotStage = atlasAmbientMascotStage(
+                   settingsSnapshot: model.settingsSnapshot,
+                   rewardsSnapshot: model.rewardsSnapshot
+               ) {
+                AtlasAmbientMascotPerch(
+                    selection: ambientMascotSelection,
+                    stage: ambientMascotStage,
+                    presence: model.settingsSnapshot.ambientMascotPresence,
+                    placement: .cardCorner,
+                    context: .weeklyReviewPayoff,
+                    size: 64,
+                    courtesySignal: courtesySignal,
+                    contentNoticeTrigger: contentNoticeTrigger,
+                    suppression: suppression,
+                    reactionSignal: model.ambientMascotReactionSignal,
+                    milestoneNearby: atlasAmbientMascotMilestoneNearby(
+                        settingsSnapshot: model.settingsSnapshot,
+                        rewardsSnapshot: model.rewardsSnapshot,
+                        pendingCelebration: model.pendingMascotCelebration
+                    )
+                )
+                .offset(x: -14, y: -12)
             }
         }
     }
@@ -1276,7 +1326,7 @@ private func atlasWeeklyReviewPresentation(
     let reviewCompleted = retentionSnapshot.milestones.first(where: { $0.kind == .weeklyReviewCompleted })?.isEarned == true
     let summaryText = seed.plainLanguageSummary?.summary ?? seed.fallbackSummary
     let disclaimer = seed.plainLanguageSummary?.disclaimer
-        ?? "Source-backed weekly view only. Atlas is showing local facts, descriptive highlights, and suggested next steps without making causal claims."
+        ?? "Local facts and suggested next steps only. No causal claims."
     let trustLabel = seed.plainLanguageSummary?.executionMode.label ?? "Source-backed week view"
     let sourceSections = seed.sourceSections
         + atlasWeeklyReviewRewardsSections(
@@ -1590,7 +1640,7 @@ private struct AtlasWeeklyReviewProtocolFollowUpView: View {
                     Text(summary.title ?? "Atlas protocol")
                         .atlasTextRole(.cardBody)
                         .foregroundStyle(AtlasPalette.textPrimary)
-                    Text(summary.summary ?? "\(summary.changeTypeTitle) is still within Atlas's follow-up window.")
+                    Text(summary.summary ?? "\(summary.changeTypeTitle) is still within the follow-up window.")
                         .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
@@ -1604,8 +1654,8 @@ private struct AtlasWeeklyReviewProtocolFollowUpView: View {
                     .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
                 Text(summary.hasVisibleSupportingData
-                    ? "Atlas has visible follow-through around the change and is keeping the read descriptive."
-                    : "Atlas has the change audit, but very little follow-through around it yet.")
+                    ? "Visible follow-through is attached to this change."
+                    : "There is not much follow-through around this change yet.")
                     .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
             }
@@ -1959,7 +2009,7 @@ private func atlasWeeklyReviewContextHighlight(
         id: "context",
         title: detailParts.isEmpty ? "Supporting context stayed light" : "Supporting records stayed in the loop",
         detail: detailParts.isEmpty
-            ? "Atlas had little surrounding context to compare against the schedule this week."
+            ? "There was little surrounding context to compare against the schedule this week."
             : "This week included \(detailParts.joined(separator: ", ")) entries.",
         symbolName: "waveform.path.ecg"
     )
@@ -1983,7 +2033,7 @@ private func atlasWeeklyReviewProtocolChangeHighlight(
     return AtlasWeeklyReviewHighlightItem(
         id: "protocol-change",
         title: title,
-        detail: detail.isEmpty ? "Atlas is surfacing the edits without claiming what they caused." : detail,
+        detail: detail.isEmpty ? "Change audit only." : detail,
         symbolName: "slider.horizontal.3"
     )
 }
@@ -2057,7 +2107,7 @@ private func atlasWeeklyReviewShifts(
                 id: "protocol-change-shift",
                 title: "Protocol planning shifted",
                 summary: protocolChangeSummary.latestSummary
-                    ?? "Atlas recorded \(protocolChangeSummary.changeCount) plan edits in this review window.",
+                    ?? "\(protocolChangeSummary.changeCount) plan edit\(protocolChangeSummary.changeCount == 1 ? "" : "s") in this review window.",
                 facts: [
                     AtlasExplainerFact(label: "Changes", value: String(protocolChangeSummary.changeCount)),
                     AtlasExplainerFact(label: "Latest protocol", value: protocolChangeSummary.latestTitle ?? "Atlas protocol"),
@@ -2131,8 +2181,8 @@ private func atlasWeeklyReviewShifts(
                 id: "context-coverage",
                 title: "Weekly context coverage",
                 summary: seed.contextEntryCount > 0
-                    ? "Atlas captured \(seed.contextEntryCount) context entries during the review window."
-                    : "Atlas did not have much surrounding context to compare against the schedule this week.",
+                    ? "\(seed.contextEntryCount) context entries were logged during the review window."
+                    : "There was not much surrounding context this week.",
                 facts: [
                     AtlasExplainerFact(label: "Context entries", value: String(seed.contextEntryCount)),
                     AtlasExplainerFact(label: "Symptom entries", value: String(seed.symptomEntryCount))
@@ -2209,7 +2259,7 @@ private func atlasWeeklyReviewActions(
             AtlasWeeklyReviewActionItem(
                 id: "capture-context",
                 title: "Capture more context next week",
-                detail: "A little more surrounding context will make the next review more informative without making logging heavy.",
+                detail: "More context next week will make the review clearer.",
                 symbolName: "plus.circle.fill",
                 destination: .insights
             )
@@ -2223,7 +2273,7 @@ private func atlasWeeklyReviewActions(
                 id: "review-protocol-change-\(protocolID)",
                 title: "Review the latest plan change",
                 detail: protocolChangeSummary.supportingLogCount == 0 && protocolChangeSummary.supportingContextCount == 0
-                    ? "Atlas has the plan update, but not much follow-through around it yet."
+                    ? "The plan changed, but there is not much follow-through around it yet."
                     : "Check the updated plan against the week’s supporting records before the next cycle starts.",
                 symbolName: "slider.horizontal.3",
                 destination: .protocolChange(protocolID)
@@ -2248,7 +2298,7 @@ private func atlasWeeklyReviewActions(
             AtlasWeeklyReviewActionItem(
                 id: "enable-summary",
                 title: "Enable on-device weekly reads",
-                detail: "Turn on bounded summaries in Settings if you want the hero read written out each week.",
+                detail: "Turn on on-device summaries in Settings.",
                 symbolName: "text.badge.checkmark",
                 destination: .settings
             )
@@ -2260,7 +2310,7 @@ private func atlasWeeklyReviewActions(
             AtlasWeeklyReviewActionItem(
                 id: "mark-reviewed",
                 title: "Mark this week reviewed",
-                detail: "Use this only when you have actually looked over the week. It stays local and never changes history.",
+                detail: "Use this after you finish reviewing the week.",
                 symbolName: "calendar.badge.checkmark",
                 destination: .markReviewComplete
             )
@@ -2273,7 +2323,7 @@ private func atlasWeeklyReviewActions(
                 id: "open-next-due-\(protocolID)",
                 title: "Open the next scheduled plan",
                 detail: seed.nextDueTitle.map { "\($0) is still the clearest anchor for the next step." }
-                    ?? "Review the next visible protocol detail from the weekly summary.",
+                    ?? "Open the next visible protocol detail.",
                 symbolName: "arrow.right.circle.fill",
                 destination: .protocolDetail(protocolID)
             )
@@ -2285,7 +2335,7 @@ private func atlasWeeklyReviewActions(
             AtlasWeeklyReviewActionItem(
                 id: "open-insights",
                 title: "Open Insights",
-                detail: "Use Insights to add supporting context and keep the next review source-rich.",
+                detail: "Use Insights to add more supporting context.",
                 symbolName: "chart.line.uptrend.xyaxis",
                 destination: .insights
             )
@@ -2465,7 +2515,7 @@ private func atlasWeeklyReviewActionOutcomeSummary(
     return AtlasWeeklyReviewActionOutcomeSummary(
         previousPeriodTitle: periodTitle,
         summary: summary.isEmpty
-            ? "Atlas kept your prior weekly focus visible, but there were no marked outcomes yet."
+            ? "Your prior weekly focus stayed visible, but there were no marked outcomes yet."
             : "From \(periodTitle): \(summary).",
         items: previousPlans.prefix(4).map { plan in
             let statusLabel: String
@@ -2475,7 +2525,7 @@ private func atlasWeeklyReviewActionOutcomeSummary(
                 statusDetail = "This saved focus was marked done after the review."
             } else if plan.isPinnedForNextWeek {
                 statusLabel = "Carried"
-                statusDetail = "Atlas kept this focus visible into the new week."
+                statusDetail = "This focus stayed visible into the new week."
             } else {
                 statusLabel = "Open"
                 statusDetail = "This focus was left open and is no longer pinned into the current week."
