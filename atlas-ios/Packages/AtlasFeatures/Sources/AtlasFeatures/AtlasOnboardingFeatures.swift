@@ -56,6 +56,7 @@ public struct AtlasOnboardingFlowScreen: View {
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     .scrollDismissesKeyboard(.interactively)
+                    .id(step)
                     .animation(.spring(response: 0.42, dampingFraction: 0.86), value: step)
 
                     AtlasOnboardingFooter(
@@ -387,6 +388,7 @@ private struct AtlasOnboardingHeroProofGrid: View {
         ViewThatFits(in: .vertical) {
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: AtlasSpacing.small) {
                 AtlasOnboardingProofTile(title: "Local-first", symbol: "lock.shield")
+                AtlasOnboardingProofTile(title: "Sign-in optional", symbol: "person.crop.circle.badge.checkmark")
                 AtlasOnboardingProofTile(title: "Review-ready", symbol: "doc.text.magnifyingglass")
                 AtlasOnboardingProofTile(title: "Widgets", symbol: "rectangle.grid.2x2")
                 AtlasOnboardingProofTile(title: "No sourcing", symbol: "checkmark.shield")
@@ -394,6 +396,7 @@ private struct AtlasOnboardingHeroProofGrid: View {
 
             VStack(spacing: AtlasSpacing.small) {
                 AtlasOnboardingProofTile(title: "Local-first", symbol: "lock.shield")
+                AtlasOnboardingProofTile(title: "Sign-in optional", symbol: "person.crop.circle.badge.checkmark")
                 AtlasOnboardingProofTile(title: "Review-ready", symbol: "doc.text.magnifyingglass")
                 AtlasOnboardingProofTile(title: "No sourcing", symbol: "checkmark.shield")
             }
@@ -1066,6 +1069,7 @@ private struct AtlasOnboardingTrustVaultRevealStep: View {
 
 private struct AtlasOnboardingCompanionPreviewStep: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @State private var companionNameText = ""
 
     let model: AtlasAppModel
     let draft: AtlasOnboardingDraft
@@ -1094,6 +1098,39 @@ private struct AtlasOnboardingCompanionPreviewStep: View {
                 }
             }
 
+            AtlasSectionCard(style: .task, title: "Companion name") {
+                HStack(alignment: .center, spacing: AtlasSpacing.medium) {
+                    AtlasOnboardingSymbol(symbol: "tag")
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Name your companion")
+                            .font(.headline.weight(.semibold))
+                            .foregroundStyle(AtlasPalette.textPrimary)
+                        TextField("Optional nickname", text: $companionNameText)
+                            .textInputAutocapitalization(.words)
+                            .autocorrectionDisabled()
+                            .submitLabel(.done)
+                            .font(.title3.weight(.semibold))
+                            .foregroundStyle(AtlasPalette.textPrimary)
+                            .padding(.horizontal, AtlasSpacing.medium)
+                            .padding(.vertical, 10)
+                            .background(
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .fill(AtlasPalette.surfaceSecondary)
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .stroke(AtlasPalette.border.opacity(0.78), lineWidth: 1)
+                            )
+                            .accessibilityLabel("Companion nickname")
+                        Text("Leave it blank to use the default companion name.")
+                            .atlasTextRole(.supporting)
+                            .foregroundStyle(AtlasPalette.textSecondary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: AtlasSpacing.medium) {
                     colorChoice(for: primarySelection)
@@ -1112,6 +1149,23 @@ private struct AtlasOnboardingCompanionPreviewStep: View {
                 AtlasOnboardingValueRow(title: "Evolution moments", subtitle: "Milestones feel visible when the routine holds together.", symbol: "sparkles")
             }
         }
+        .onAppear {
+            companionNameText = draft.profile.mascotNickname ?? ""
+        }
+        .onChange(of: companionNameText) { _, newValue in
+            let limited = String(newValue.prefix(24))
+            if limited != newValue {
+                companionNameText = limited
+                return
+            }
+
+            Task {
+                await model.updateOnboardingDraft { current in
+                    let trimmed = limited.trimmingCharacters(in: .whitespacesAndNewlines)
+                    current.profile.mascotNickname = trimmed.isEmpty ? nil : trimmed
+                }
+            }
+        }
     }
 
     private var stickerSize: CGFloat {
@@ -1125,10 +1179,10 @@ private struct AtlasOnboardingCompanionPreviewStep: View {
 
     private var heroCopy: some View {
         VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
-            Text(atlasCompanionColorTitle(for: selectedSelection))
+            Text(companionDisplayName)
                 .atlasTextRole(.cardTitle)
                 .foregroundStyle(AtlasPalette.textPrimary)
-            Text("Atlas carries this color through companion, goal, and evolution moments without adding another setup chore.")
+            Text("\(atlasCompanionColorTitle(for: selectedSelection)) carries through companion, goal, and evolution moments.")
                 .atlasTextRole(.supporting)
                 .foregroundStyle(AtlasPalette.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -1139,6 +1193,11 @@ private struct AtlasOnboardingCompanionPreviewStep: View {
 
     private var selectedSelection: AtlasMascotSelection {
         draft.profile.mascotSelection ?? primarySelection
+    }
+
+    private var companionDisplayName: String {
+        atlasMascotSanitizedNickname(draft.profile.mascotNickname)
+            ?? selectedSelection.title(for: .stage1)
     }
 
     private func colorChoice(for selection: AtlasMascotSelection) -> some View {
@@ -2147,6 +2206,7 @@ private struct AtlasOnboardingPlanReadyStep: View {
                 AtlasOnboardingValueRow(title: "Goal signal", subtitle: draft.focus?.title ?? "Choose inside Atlas", symbol: "flame")
                 AtlasOnboardingValueRow(title: "Goal weight", subtitle: goalWeightLine, symbol: "target")
                 AtlasOnboardingValueRow(title: "Nutrition", subtitle: draft.profile.wantsNutritionTracking ? "Calories and meals visible in setup" : "Can be enabled later", symbol: "fork.knife")
+                AtlasOnboardingValueRow(title: "Companion name", subtitle: atlasMascotSanitizedNickname(draft.profile.mascotNickname) ?? "Default companion name", symbol: "tag")
                 AtlasOnboardingValueRow(title: "Color", subtitle: atlasCompanionColorTitle(for: draft.profile.mascotSelection ?? .aetherion), symbol: "paintpalette")
                 AtlasOnboardingValueRow(title: "Access", subtitle: accessLine, symbol: "creditcard")
             }

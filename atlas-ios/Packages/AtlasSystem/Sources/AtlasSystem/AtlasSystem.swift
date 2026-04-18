@@ -306,7 +306,6 @@ public struct AtlasHealthKitManager: HealthKitManaging {
               let heartRateVariabilityType = HKObjectType.quantityType(forIdentifier: .heartRateVariabilitySDNN),
               let bodyFatType = HKObjectType.quantityType(forIdentifier: .bodyFatPercentage),
               let sleepType = HKObjectType.categoryType(forIdentifier: .sleepAnalysis),
-              let bloodPressureType = HKObjectType.correlationType(forIdentifier: .bloodPressure),
               let systolicType = HKObjectType.quantityType(forIdentifier: .bloodPressureSystolic),
               let diastolicType = HKObjectType.quantityType(forIdentifier: .bloodPressureDiastolic) else {
             return false
@@ -322,7 +321,6 @@ public struct AtlasHealthKitManager: HealthKitManaging {
             sleepType,
             restingHeartRateType,
             heartRateVariabilityType,
-            bloodPressureType,
             systolicType,
             diastolicType,
             bodyFatType
