@@ -42,6 +42,13 @@ public struct AtlasOnboardingFlowScreen: View {
                             }
 
                             content(for: step, draft: draft)
+                                .id(step)
+                                .transition(
+                                    .asymmetric(
+                                        insertion: .move(edge: .trailing).combined(with: .opacity),
+                                        removal: .move(edge: .leading).combined(with: .opacity)
+                                    )
+                                )
                         }
                         .padding(.horizontal, AtlasSpacing.large)
                         .padding(.top, step == .splash ? AtlasSpacing.large : 44)
@@ -49,6 +56,7 @@ public struct AtlasOnboardingFlowScreen: View {
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     .scrollDismissesKeyboard(.interactively)
+                    .animation(.spring(response: 0.42, dampingFraction: 0.86), value: step)
 
                     AtlasOnboardingFooter(
                         primaryTitle: primaryTitle(for: step, draft: draft),
@@ -73,6 +81,7 @@ public struct AtlasOnboardingFlowScreen: View {
                 Button("Done", action: AtlasKeyboard.dismiss)
             }
         }
+        .dynamicTypeSize(.xSmall ... .accessibility1)
     }
 
     @ViewBuilder
@@ -88,6 +97,10 @@ public struct AtlasOnboardingFlowScreen: View {
             AtlasOnboardingProtocolPreviewStep(model: model, draft: draft)
         case .focus:
             AtlasOnboardingFocusStep(model: model, draft: draft)
+        case .goalsProfile:
+            AtlasOnboardingGoalsProfileStep(model: model, draft: draft)
+        case .healthDisclaimer:
+            AtlasOnboardingHealthDisclaimerStep(model: model, draft: draft)
         case .privacyPreset:
             AtlasOnboardingPrivacyPresetStep(model: model, draft: draft)
         case .premiumPreview:
@@ -95,7 +108,7 @@ public struct AtlasOnboardingFlowScreen: View {
         case .trustVaultReveal:
             AtlasOnboardingTrustVaultRevealStep(draft: draft)
         case .companionPreview:
-            AtlasOnboardingCompanionPreviewStep(draft: draft)
+            AtlasOnboardingCompanionPreviewStep(model: model, draft: draft)
         case .readinessLoop:
             AtlasOnboardingReadinessLoopStep(draft: draft)
         case .systemSurfaces:
@@ -127,8 +140,10 @@ public struct AtlasOnboardingFlowScreen: View {
             "Get started"
         case .premiumPaywall:
             draft.paywallChoice == .trialStarted ? "Continue" : "Start free trial"
+        case .healthDisclaimer:
+            "I understand"
         case .connectApps:
-            model.dependencies.healthKit.isAvailable() ? "Connect Apple Health" : "Continue"
+            "Continue"
         case .planReady:
             "Open Atlas"
         default:
@@ -141,7 +156,7 @@ public struct AtlasOnboardingFlowScreen: View {
         case .premiumPaywall:
             "Continue with basic tracking"
         case .connectApps:
-            "Connect later"
+            model.dependencies.healthKit.isAvailable() ? "Connect Apple Health" : nil
         default:
             nil
         }
@@ -162,6 +177,9 @@ public struct AtlasOnboardingFlowScreen: View {
         case .connectApps:
             return {
                 Task {
+                    if model.dependencies.healthKit.isAvailable() {
+                        await model.connectHealthKit()
+                    }
                     await model.updateOnboardingDraft { current in
                         current.healthConnectionPromptSeen = true
                     }
@@ -183,6 +201,8 @@ public struct AtlasOnboardingFlowScreen: View {
             draft.focus == nil
         case .privacyPreset:
             draft.privacyPreset == nil
+        case .healthDisclaimer:
+            draft.healthDisclaimerAccepted == false
         case .planReady:
             draft.isComplete == false
         default:
@@ -201,9 +221,6 @@ public struct AtlasOnboardingFlowScreen: View {
             }
             model.advanceOnboarding()
         case .connectApps:
-            if model.dependencies.healthKit.isAvailable() {
-                await model.connectHealthKit()
-            }
             await model.updateOnboardingDraft { current in
                 current.healthConnectionPromptSeen = true
             }
@@ -320,6 +337,8 @@ private struct AtlasOnboardingFooter: View {
 
 private struct AtlasOnboardingSplash: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var hasArrived = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: dynamicTypeSize.isAccessibilitySize ? AtlasSpacing.medium : AtlasSpacing.large) {
@@ -329,7 +348,7 @@ private struct AtlasOnboardingSplash: View {
                 .font(AtlasTypography.brandFont(size: dynamicTypeSize.isAccessibilitySize ? 36 : 46, weight: .bold, relativeTo: .largeTitle))
                 .foregroundStyle(.white)
 
-            Text("Protocol tracking for injections, reminders, inventory, and review.")
+            Text("Start private, then build the protocol command center around your goal.")
                 .font(dynamicTypeSize.isAccessibilitySize ? .body.weight(.semibold) : .title3.weight(.medium))
                 .foregroundStyle(.white.opacity(0.78))
                 .fixedSize(horizontal: false, vertical: true)
@@ -353,6 +372,13 @@ private struct AtlasOnboardingSplash: View {
             RoundedRectangle(cornerRadius: 30, style: .continuous)
                 .stroke(.white.opacity(0.08), lineWidth: 1)
         )
+        .opacity(hasArrived ? 1 : 0)
+        .offset(y: hasArrived || reduceMotion ? 0 : 18)
+        .onAppear {
+            withAnimation(reduceMotion ? .linear(duration: 0.01) : .spring(response: 0.55, dampingFraction: 0.82)) {
+                hasArrived = true
+            }
+        }
     }
 }
 
@@ -416,7 +442,7 @@ private struct AtlasOnboardingTrackTypeStep: View {
         VStack(alignment: .leading, spacing: AtlasSpacing.large) {
             AtlasOnboardingTitle(
                 title: "What are you tracking?",
-                subtitle: "Pick a starting point. Doses come later."
+                subtitle: "Choose the setup path. Exact doses, supplies, and reminders come later."
             )
 
             VStack(spacing: AtlasSpacing.medium) {
@@ -544,7 +570,7 @@ private struct AtlasOnboardingProtocolPreviewStep: View {
         VStack(alignment: .leading, spacing: AtlasSpacing.large) {
             AtlasOnboardingTitle(
                 title: "Shape the preview",
-                subtitle: "Pick lightweight anchors now. Exact dose, vial, and reminder setup happens after the trial screen."
+                subtitle: "Pick quick anchors now. Detailed setup happens inside Atlas."
             )
 
             if draft.needsGlpSetup {
@@ -691,6 +717,165 @@ private struct AtlasOnboardingFocusStep: View {
     }
 }
 
+private struct AtlasOnboardingGoalsProfileStep: View {
+    let model: AtlasAppModel
+    let draft: AtlasOnboardingDraft
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AtlasSpacing.large) {
+            AtlasOnboardingTitle(
+                title: "Set the goal signal",
+                subtitle: "Optional, but personal. Atlas can keep goal weight, pace, and nutrition context visible without turning setup into homework."
+            )
+
+            AtlasSectionCard(style: .task, title: "Body context") {
+                AtlasOnboardingNumberField(
+                    title: "Current weight",
+                    placeholder: "190",
+                    suffix: draft.profile.weightUnit == .kg ? "kg" : "lb",
+                    symbol: "scalemass",
+                    text: profileNumberBinding(\.weight)
+                )
+                AtlasOnboardingNumberField(
+                    title: "Goal weight",
+                    placeholder: "165",
+                    suffix: draft.profile.weightUnit == .kg ? "kg" : "lb",
+                    symbol: "target",
+                    text: profileNumberBinding(\.goalWeight)
+                )
+                AtlasOnboardingNumberField(
+                    title: draft.profile.heightUnit == .cm ? "Height" : "Height in inches",
+                    placeholder: draft.profile.heightUnit == .cm ? "178" : "70",
+                    suffix: draft.profile.heightUnit == .cm ? "cm" : "in",
+                    symbol: "ruler",
+                    text: profileNumberBinding(\.height)
+                )
+
+                AtlasOnboardingChipGroup(
+                    options: ["lb", "kg"],
+                    selected: draft.profile.weightUnit == .kg ? "kg" : "lb",
+                    title: "Weight unit"
+                ) { value in
+                    Task {
+                        await model.updateOnboardingDraft { current in
+                            current.profile.weightUnit = value == "kg" ? .kg : .lb
+                        }
+                    }
+                }
+            }
+
+            AtlasSectionCard(style: .utility, title: "Goal rhythm") {
+                AtlasOnboardingChipGroup(
+                    options: ["0.5 lb/week", "1 lb/week", "1.5 lb/week", "2 lb/week"],
+                    selected: paceSelection,
+                    title: "Goal pace"
+                ) { value in
+                    Task {
+                        await model.updateOnboardingDraft { current in
+                            current.profile.goalPacePoundsPerWeek = paceValue(from: value)
+                        }
+                    }
+                }
+
+                Button {
+                    AtlasFeedback.selection()
+                    Task {
+                        await model.updateOnboardingDraft { current in
+                            current.profile.wantsNutritionTracking.toggle()
+                        }
+                    }
+                } label: {
+                    AtlasSelectableUtilityRow(
+                        title: "Track calories or meals",
+                        subtitle: "Use Atlas nutrition capture or connect a calorie app through Apple Health later.",
+                        symbol: "fork.knife",
+                        isSelected: draft.profile.wantsNutritionTracking
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+
+            AtlasSectionCard(style: .utility, title: "Why Atlas asks") {
+                AtlasOnboardingValueRow(title: "Dosage context", subtitle: "Height and weight can help keep dose notes and review context organized. Atlas does not calculate medical dosing advice.", symbol: "cross.case")
+                AtlasOnboardingValueRow(title: "Goal reminders", subtitle: "Goal weight and pace can power calmer progress copy, widgets, and streak context.", symbol: "flame")
+            }
+        }
+    }
+
+    private func profileNumberBinding(_ keyPath: WritableKeyPath<AtlasOnboardingProfile, Double?>) -> Binding<String> {
+        Binding(
+            get: {
+                guard let value = draft.profile[keyPath: keyPath] else {
+                    return ""
+                }
+                if value.rounded() == value {
+                    return String(Int(value))
+                }
+                return String(value)
+            },
+            set: { newValue in
+                let filtered = newValue.filter { $0.isNumber || $0 == "." }
+                Task {
+                    await model.updateOnboardingDraft { current in
+                        current.profile[keyPath: keyPath] = Double(filtered)
+                    }
+                }
+            }
+        )
+    }
+
+    private var paceSelection: String? {
+        guard let pace = draft.profile.goalPacePoundsPerWeek else {
+            return nil
+        }
+        if pace.rounded() == pace {
+            return "\(Int(pace)) lb/week"
+        }
+        return "\(pace) lb/week"
+    }
+
+    private func paceValue(from selection: String) -> Double? {
+        Double(selection.replacingOccurrences(of: " lb/week", with: ""))
+    }
+}
+
+private struct AtlasOnboardingHealthDisclaimerStep: View {
+    let model: AtlasAppModel
+    let draft: AtlasOnboardingDraft
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AtlasSpacing.large) {
+            AtlasOnboardingTitle(
+                title: "Health disclaimer",
+                subtitle: "Atlas organizes your records. It does not prescribe, source, diagnose, or replace clinical judgment."
+            )
+
+            AtlasSectionCard(style: .hero) {
+                AtlasOnboardingValueRow(title: "Not medical advice", subtitle: "Dose, compound, and timing decisions should come from you and a qualified clinician.", symbol: "checkmark.shield")
+                AtlasOnboardingValueRow(title: "Review before acting", subtitle: "Summaries, estimates, reminders, and trends are for recordkeeping and discussion.", symbol: "doc.text.magnifyingglass")
+                AtlasOnboardingValueRow(title: "You stay in control", subtitle: "You decide what to enter, connect, export, or share.", symbol: "person.crop.circle.badge.checkmark")
+            }
+
+            Button {
+                AtlasFeedback.selection()
+                Task {
+                    await model.updateOnboardingDraft { current in
+                        current.healthDisclaimerAccepted.toggle()
+                    }
+                }
+            } label: {
+                AtlasSelectableUtilityRow(
+                    title: "I understand",
+                    subtitle: "I will use Atlas as a tracking and review tool, not as medical advice.",
+                    symbol: "checkmark.seal",
+                    isSelected: draft.healthDisclaimerAccepted
+                )
+            }
+            .buttonStyle(.plain)
+        }
+    }
+}
+
 private struct AtlasOnboardingPrivacyPresetStep: View {
     let model: AtlasAppModel
     let draft: AtlasOnboardingDraft
@@ -731,7 +916,7 @@ private struct AtlasOnboardingPrivacyPresetStep: View {
         case .discreet:
             "Sensitive labels hidden and reminders kept private by default."
         case .alias:
-            "Use protocol aliases for review and sharing surfaces."
+            "Use a different name for sensitive protocols in review and sharing surfaces."
         }
     }
 
@@ -848,7 +1033,7 @@ private struct AtlasOnboardingTrustVaultRevealStep: View {
                         Text(trustTitle)
                             .atlasTextRole(.cardTitle)
                             .foregroundStyle(AtlasPalette.textPrimary)
-                        Text("Use full labels, discreet labels, or aliases across the app before any Health permission prompt.")
+                        Text("Use full labels, discreet labels, or aliases. Alias means Atlas can show a safer alternate name instead of the real protocol label.")
                             .atlasTextRole(.supporting)
                             .foregroundStyle(AtlasPalette.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -859,7 +1044,7 @@ private struct AtlasOnboardingTrustVaultRevealStep: View {
 
             AtlasSectionCard(style: .utility, title: "Trust surfaces") {
                 AtlasOnboardingValueRow(title: "Discreet rendering", subtitle: "Hide sensitive names in reminders and everyday surfaces.", symbol: "eye.slash")
-                AtlasOnboardingValueRow(title: "Alias-safe sharing", subtitle: "Prepare review and export outputs without exposing labels by default.", symbol: "person.text.rectangle")
+                AtlasOnboardingValueRow(title: "Alias-safe sharing", subtitle: "Use alternate names in review and export outputs instead of exposing sensitive protocol labels.", symbol: "person.text.rectangle")
                 AtlasOnboardingValueRow(title: "Deliberate unlocks", subtitle: "Sensitive actions can require an intentional Trust Vault gate.", symbol: "lock.open")
             }
         }
@@ -882,6 +1067,7 @@ private struct AtlasOnboardingTrustVaultRevealStep: View {
 private struct AtlasOnboardingCompanionPreviewStep: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
+    let model: AtlasAppModel
     let draft: AtlasOnboardingDraft
 
     private let primarySelection: AtlasMascotSelection = .aetherion
@@ -891,7 +1077,7 @@ private struct AtlasOnboardingCompanionPreviewStep: View {
         VStack(alignment: .leading, spacing: AtlasSpacing.large) {
             AtlasOnboardingTitle(
                 title: "A companion, not a gimmick",
-                subtitle: "Atlas uses calm companion signals to make consistency visible without noisy gamification."
+                subtitle: "Choose a color signal for companion, streak, and widget moments."
             )
 
             AtlasSectionCard(style: .reward) {
@@ -910,20 +1096,20 @@ private struct AtlasOnboardingCompanionPreviewStep: View {
 
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: AtlasSpacing.medium) {
-                    AtlasMascotMiniCard(selection: primarySelection)
-                    AtlasMascotMiniCard(selection: secondarySelection)
+                    colorChoice(for: primarySelection)
+                    colorChoice(for: secondarySelection)
                 }
 
                 VStack(spacing: AtlasSpacing.medium) {
-                    AtlasMascotMiniCard(selection: primarySelection)
-                    AtlasMascotMiniCard(selection: secondarySelection)
+                    colorChoice(for: primarySelection)
+                    colorChoice(for: secondarySelection)
                 }
             }
 
             AtlasSectionCard(style: .utility, title: "Companion signals") {
                 AtlasOnboardingValueRow(title: "Missed-action recovery", subtitle: "Helpful prompts when a protocol step needs attention.", symbol: "arrow.clockwise.circle")
-                AtlasOnboardingValueRow(title: "Review moments", subtitle: "Weekly completion and provider-prep moments feel acknowledged.", symbol: "doc.text.magnifyingglass")
-                AtlasOnboardingValueRow(title: "Evolution with restraint", subtitle: "Mascot progress reflects continuity and readiness, not noise.", symbol: "sparkles")
+                AtlasOnboardingValueRow(title: "Goal streaks", subtitle: "Progress can show beside the companion without pressure.", symbol: "flame")
+                AtlasOnboardingValueRow(title: "Evolution moments", subtitle: "Milestones feel visible when the routine holds together.", symbol: "sparkles")
             }
         }
     }
@@ -933,22 +1119,42 @@ private struct AtlasOnboardingCompanionPreviewStep: View {
     }
 
     private var heroSticker: some View {
-        AtlasMascotSticker(line: atlasMascotLine(for: primarySelection), stage: .stage1, size: stickerSize)
+        AtlasMascotSticker(line: atlasMascotLine(for: selectedSelection), stage: .stage1, size: stickerSize)
             .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : stickerSize, alignment: .leading)
     }
 
     private var heroCopy: some View {
         VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
-            Text(primarySelection.title(for: .stage1))
+            Text(atlasCompanionColorTitle(for: selectedSelection))
                 .atlasTextRole(.cardTitle)
                 .foregroundStyle(AtlasPalette.textPrimary)
-            Text("A private protocol companion can surface missed actions, review moments, and meaningful milestones.")
+            Text("Atlas carries this color through companion, goal, and evolution moments without adding another setup chore.")
                 .atlasTextRole(.supporting)
                 .foregroundStyle(AtlasPalette.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
-            AtlasStatusBadge("Medium card art", tint: atlasMascotLineTint(for: primarySelection))
+            AtlasStatusBadge("Goal streaks + evolutions", tint: atlasMascotLineTint(for: selectedSelection))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var selectedSelection: AtlasMascotSelection {
+        draft.profile.mascotSelection ?? primarySelection
+    }
+
+    private func colorChoice(for selection: AtlasMascotSelection) -> some View {
+        Button {
+            AtlasFeedback.selection()
+            Task {
+                await model.updateOnboardingDraft { current in
+                    current.profile.mascotSelection = selection
+                }
+            }
+        } label: {
+            AtlasMascotMiniCard(selection: selection, isSelected: selectedSelection == selection)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(atlasCompanionColorTitle(for: selection))
+        .accessibilityValue(selectedSelection == selection ? "Selected" : "Not selected")
     }
 }
 
@@ -994,8 +1200,8 @@ private struct AtlasOnboardingSystemSurfacesStep: View {
     var body: some View {
         VStack(alignment: .leading, spacing: AtlasSpacing.large) {
             AtlasOnboardingTitle(
-                title: "Useful without opening the app",
-                subtitle: "Premium surfaces can keep the next action, inventory state, and companion signal close at hand."
+                title: "Add Atlas to your Home Screen",
+                subtitle: "A quick widget walkthrough keeps the companion, streak, and next action close."
             )
 
             VStack(spacing: AtlasSpacing.medium) {
@@ -1014,10 +1220,10 @@ private struct AtlasOnboardingSystemSurfacesStep: View {
                 AtlasMascotWidgetPreviewCard()
             }
 
-            AtlasSectionCard(style: .utility, title: "System reach") {
-                AtlasOnboardingValueRow(title: "Widgets", subtitle: "Pixel-first live state surfaces for compact, private checks.", symbol: "rectangle.grid.2x2")
-                AtlasOnboardingValueRow(title: "Quick capture", subtitle: "Fast capture for context without digging through root tabs.", symbol: "bolt")
-                AtlasOnboardingValueRow(title: "Shortcuts-ready posture", subtitle: "Protocol actions can become system-level commands over time.", symbol: "wand.and.stars")
+            AtlasSectionCard(style: .utility, title: "Widget setup") {
+                AtlasOnboardingValueRow(title: "1. Long-press Home Screen", subtitle: "Tap the plus button when the icons start moving.", symbol: "hand.tap")
+                AtlasOnboardingValueRow(title: "2. Search Atlas", subtitle: "Choose Next Action, Quick Capture, or Companion.", symbol: "magnifyingglass")
+                AtlasOnboardingValueRow(title: "3. Keep the signal visible", subtitle: "Your streak, mascot, and next action can stay one glance away.", symbol: "flame")
             }
         }
     }
@@ -1050,7 +1256,7 @@ private struct AtlasOnboardingPersonalizedUnlockStep: View {
                 Text(unlockTitle)
                     .atlasTextRole(.cardTitle)
                     .foregroundStyle(AtlasPalette.textPrimary)
-                Text("A premium setup shaped around \(draft.focus?.title.lowercased() ?? "private protocol tracking") and \(draft.privacyPreset?.title.lowercased() ?? "privacy") controls.")
+                Text("Built around \(draft.focus?.title.lowercased() ?? "private protocol tracking"), \(draft.privacyPreset?.title.lowercased() ?? "privacy"), and visible goal progress.")
                     .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -1082,8 +1288,8 @@ private struct AtlasOnboardingPersonalizedUnlockStep: View {
             .init(title: "Today command surface", subtitle: "Next due, capture, recovery, and overdue states.", symbol: "checklist.checked"),
             .init(title: "Trust Vault", subtitle: "\(draft.privacyPreset?.title ?? "Privacy") posture carried into labels and exports.", symbol: "lock.shield"),
             .init(title: "Inventory runway", subtitle: "Vials, supplies, and low-stock review beside the protocol.", symbol: "shippingbox"),
-            .init(title: "Review outputs", subtitle: "Bounded weekly summaries and provider-ready handoff.", symbol: "doc.text.magnifyingglass"),
-            .init(title: "Companion and readiness", subtitle: "Calm milestone signals without noisy gamification.", symbol: "sparkles")
+            .init(title: "Goal streak", subtitle: "A visible continuity signal for the habit you chose.", symbol: "flame"),
+            .init(title: "Companion color", subtitle: "A color signal carries into companion, streak, and widget moments.", symbol: "sparkles")
         ]
     }
 }
@@ -1161,7 +1367,7 @@ private struct AtlasOnboardingReviewOutputPreviewStep: View {
         VStack(alignment: .leading, spacing: AtlasSpacing.large) {
             AtlasOnboardingTitle(
                 title: "Preview the review artifact",
-                subtitle: "Premium should produce something useful: a bounded summary you can inspect before sharing."
+                subtitle: "A plain-language summary of what you track, how long it has been active, and what changed before you share anything."
             )
 
             AtlasSectionCard(style: .hero) {
@@ -1178,10 +1384,10 @@ private struct AtlasOnboardingReviewOutputPreviewStep: View {
                     .foregroundStyle(AtlasPalette.primary)
 
                 VStack(spacing: AtlasSpacing.medium) {
-                    AtlasReviewPreviewRow(title: "Protocol snapshot", detail: "\(protocolLabel), cadence, setup status, and current privacy mode.", symbol: "list.bullet.rectangle")
-                    AtlasReviewPreviewRow(title: "Adherence context", detail: "Completed, delayed, and recovered actions without moralizing language.", symbol: "checkmark.seal")
+                    AtlasReviewPreviewRow(title: "Protocol snapshot", detail: "\(protocolLabel), cadence, active duration, setup status, and current privacy mode.", symbol: "list.bullet.rectangle")
+                    AtlasReviewPreviewRow(title: "Adherence context", detail: "Completed, delayed, missed, and recovered actions without moralizing language.", symbol: "checkmark.seal")
                     AtlasReviewPreviewRow(title: "Inventory runway", detail: "Supplies, vial context, and low-stock review stay beside the plan.", symbol: "shippingbox")
-                    AtlasReviewPreviewRow(title: "Questions to review", detail: "A short local note area for topics to discuss with a clinician.", symbol: "questionmark.bubble")
+                    AtlasReviewPreviewRow(title: "Questions to review", detail: "A short local note area for topics to discuss with a clinician or keep for yourself.", symbol: "questionmark.bubble")
                 }
             }
 
@@ -1512,6 +1718,7 @@ private struct AtlasMigrationPreviewCard: View {
 
 private struct AtlasMascotMiniCard: View {
     let selection: AtlasMascotSelection
+    let isSelected: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: AtlasSpacing.small) {
@@ -1519,28 +1726,47 @@ private struct AtlasMascotMiniCard: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(selection.title(for: .stage1))
+                Text(atlasCompanionColorTitle(for: selection))
                     .atlasTextRole(.cardBody)
                     .foregroundStyle(AtlasPalette.textPrimary)
                     .lineLimit(2)
                     .minimumScaleFactor(0.82)
-                Text(selection.subtitle)
+                Text(atlasCompanionColorSubtitle(for: selection))
                     .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
+                AtlasStatusBadge(isSelected ? "Selected" : "Color option", tint: atlasMascotLineTint(for: selection))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(AtlasSpacing.medium)
         .background(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(Color.white.opacity(0.96))
+                .fill(isSelected ? atlasMascotLineTint(for: selection).opacity(0.12) : Color.white.opacity(0.96))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(atlasMascotLineTint(for: selection).opacity(0.34), lineWidth: 1.2)
+                .stroke(atlasMascotLineTint(for: selection).opacity(isSelected ? 0.72 : 0.34), lineWidth: isSelected ? 1.6 : 1.2)
         )
         .shadow(color: AtlasPalette.shadow.opacity(0.12), radius: 10, x: 0, y: 6)
+    }
+}
+
+private func atlasCompanionColorTitle(for selection: AtlasMascotSelection) -> String {
+    switch selection {
+    case .aetherion:
+        return "Storm blue"
+    case .aurielle:
+        return "Aurora cyan"
+    }
+}
+
+private func atlasCompanionColorSubtitle(for selection: AtlasMascotSelection) -> String {
+    switch selection {
+    case .aetherion:
+        return "Sharper contrast for action and streak states."
+    case .aurielle:
+        return "Softer glow for companion and recovery states."
     }
 }
 
@@ -1842,11 +2068,11 @@ private struct AtlasOnboardingConnectAppsStep: View {
         VStack(alignment: .leading, spacing: AtlasSpacing.large) {
             AtlasOnboardingTitle(
                 title: "Connect Apple Health?",
-                subtitle: "Optional. Atlas works locally even if you skip this now."
+                subtitle: "Optional. Skip now if you just want to finish setup."
             )
 
             AtlasSectionCard(style: .task) {
-                Text("Import useful context such as weight, activity, sleep, heart rate, and nutrition when you want it. You can connect later from Settings.")
+                Text("Apple Health can add weight, activity, sleep, heart, and nutrition context later. Atlas keeps working locally either way.")
                     .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -1860,34 +2086,68 @@ private struct AtlasOnboardingConnectAppsStep: View {
                     tint: isConnected || model.dependencies.healthKit.isAvailable() ? AtlasPalette.primary : .orange
                 )
             }
+
+            AtlasSectionCard(style: .utility, title: "What happens next") {
+                AtlasOnboardingValueRow(title: "Continue", subtitle: "Finish setup without opening any system permission sheet.", symbol: "arrow.right.circle")
+                AtlasOnboardingValueRow(title: "Connect Apple Health", subtitle: "Ask iOS for permission now; you can still change it later.", symbol: "heart")
+                AtlasOnboardingValueRow(title: "Calories and meals", subtitle: "Atlas can use in-app nutrition capture, or import nutrition written to Apple Health by another calorie app.", symbol: "fork.knife")
+            }
         }
     }
 }
 
 private struct AtlasOnboardingPlanReadyStep: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var welcomeVisible = true
+
     let draft: AtlasOnboardingDraft
 
     var body: some View {
         VStack(alignment: .leading, spacing: AtlasSpacing.large) {
             AtlasOnboardingTitle(
                 title: readyTitle,
-                subtitle: "Next, build the exact protocol in Library or start from Today. Your first setup stays local-first."
+                subtitle: "Your first setup is saved. This handoff opens Atlas with the pieces you chose instead of another wall of instructions."
             )
 
             AtlasSectionCard(style: .hero) {
-                Text("Ready for first protocol")
-                    .atlasTextRole(.cardTitle)
-                    .foregroundStyle(AtlasPalette.textPrimary)
-                Text("Atlas will open with Today, Library, Timeline, Insights, and Trust Vault ready. Exact dosing, reminders, and inventory are added inside the protocol builder.")
-                    .atlasTextRole(.supporting)
-                    .foregroundStyle(AtlasPalette.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                ZStack(alignment: .leading) {
+                    VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+                        Text("Atlas is ready")
+                            .atlasTextRole(.cardTitle)
+                            .foregroundStyle(AtlasPalette.textPrimary)
+                        Text("Atlas opens with Today, Library, Timeline, Insights, Trust Vault, widgets, and companion progress ready.")
+                            .atlasTextRole(.supporting)
+                            .foregroundStyle(AtlasPalette.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .opacity(welcomeVisible ? 0 : 1)
+
+                    if welcomeVisible {
+                        Text("Welcome to your Atlas")
+                            .atlasTextRole(.cardTitle)
+                            .foregroundStyle(AtlasPalette.primary)
+                            .transition(.opacity.combined(with: .scale(scale: reduceMotion ? 1 : 0.96)))
+                    }
+                }
+                .frame(maxWidth: .infinity, minHeight: 92, alignment: .leading)
+                .onAppear {
+                    guard welcomeVisible else { return }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + (reduceMotion ? 0.2 : 1.25)) {
+                        withAnimation(.easeInOut(duration: reduceMotion ? 0.01 : 0.45)) {
+                            welcomeVisible = false
+                        }
+                    }
+                }
             }
 
             AtlasSectionCard(style: .utility, title: "Setup summary") {
                 AtlasOnboardingValueRow(title: "Tracking", subtitle: draft.trackType?.title ?? "Not set", symbol: "checklist")
                 AtlasOnboardingValueRow(title: "Focus", subtitle: draft.focus?.title ?? "Not set", symbol: "scope")
                 AtlasOnboardingValueRow(title: "Privacy", subtitle: draft.privacyPreset?.title ?? "Standard", symbol: "lock.shield")
+                AtlasOnboardingValueRow(title: "Goal signal", subtitle: draft.focus?.title ?? "Choose inside Atlas", symbol: "flame")
+                AtlasOnboardingValueRow(title: "Goal weight", subtitle: goalWeightLine, symbol: "target")
+                AtlasOnboardingValueRow(title: "Nutrition", subtitle: draft.profile.wantsNutritionTracking ? "Calories and meals visible in setup" : "Can be enabled later", symbol: "fork.knife")
+                AtlasOnboardingValueRow(title: "Color", subtitle: atlasCompanionColorTitle(for: draft.profile.mascotSelection ?? .aetherion), symbol: "paintpalette")
                 AtlasOnboardingValueRow(title: "Access", subtitle: accessLine, symbol: "creditcard")
             }
         }
@@ -1906,6 +2166,19 @@ private struct AtlasOnboardingPlanReadyStep: View {
         case .none:
             return "Not set"
         }
+    }
+
+    private var goalWeightLine: String {
+        guard let goalWeight = draft.profile.goalWeight else {
+            return "Can be set later"
+        }
+        let unit = draft.profile.weightUnit?.rawValue ?? "lb"
+        let weight = goalWeight.rounded() == goalWeight ? String(Int(goalWeight)) : String(goalWeight)
+        if let pace = draft.profile.goalPacePoundsPerWeek {
+            let paceLabel = pace.rounded() == pace ? String(Int(pace)) : String(pace)
+            return "\(weight) \(unit), \(paceLabel) lb/week"
+        }
+        return "\(weight) \(unit)"
     }
 }
 
@@ -1943,8 +2216,8 @@ private struct AtlasOnboardingChipGroup: View {
     var body: some View {
         VStack(alignment: .leading, spacing: AtlasSpacing.small) {
             Text(title)
-                .atlasTextRole(.deckEyebrow)
-                .foregroundStyle(AtlasPalette.primary)
+                .font(.callout.weight(.semibold))
+                .foregroundStyle(AtlasPalette.textPrimary)
 
             FlowLayout(spacing: 8, rowSpacing: 8) {
                 ForEach(options, id: \.self) { option in
@@ -1969,8 +2242,8 @@ private struct AtlasOnboardingMultiChipGroup: View {
     var body: some View {
         VStack(alignment: .leading, spacing: AtlasSpacing.small) {
             Text(title)
-                .atlasTextRole(.deckEyebrow)
-                .foregroundStyle(AtlasPalette.primary)
+                .font(.callout.weight(.semibold))
+                .foregroundStyle(AtlasPalette.textPrimary)
 
             FlowLayout(spacing: 8, rowSpacing: 8) {
                 ForEach(options, id: \.self) { option in
@@ -1994,12 +2267,12 @@ private struct AtlasOnboardingChip: View {
     var body: some View {
         Button(action: action) {
             Text(title)
-                .atlasTextRole(.supporting)
+                .font(.callout.weight(.semibold))
                 .foregroundStyle(isSelected ? .white : AtlasPalette.textPrimary)
                 .lineLimit(1)
-                .minimumScaleFactor(0.82)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 9)
+                .minimumScaleFactor(0.86)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 11)
                 .background(
                     Capsule(style: .continuous)
                         .fill(isSelected ? AtlasPalette.primary : AtlasPalette.surfaceSecondary)
@@ -2033,6 +2306,95 @@ private struct AtlasOnboardingTitle: View {
     }
 }
 
+private struct AtlasOnboardingNumberField: View {
+    let title: String
+    let placeholder: String
+    let suffix: String
+    let symbol: String
+    @Binding var text: String
+
+    var body: some View {
+        HStack(alignment: .center, spacing: AtlasSpacing.medium) {
+            AtlasOnboardingSymbol(symbol: symbol)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(AtlasPalette.textPrimary)
+                HStack(spacing: AtlasSpacing.small) {
+                    TextField(placeholder, text: $text)
+                        .keyboardType(.decimalPad)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(AtlasPalette.textPrimary)
+                    Text(suffix)
+                        .font(.callout.weight(.semibold))
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                }
+                .padding(.horizontal, AtlasSpacing.medium)
+                .padding(.vertical, 10)
+                .background(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(AtlasPalette.surfaceSecondary)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(AtlasPalette.border.opacity(0.78), lineWidth: 1)
+                )
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
+private struct AtlasSelectableUtilityRow: View {
+    let title: String
+    let subtitle: String
+    let symbol: String
+    let isSelected: Bool
+
+    var body: some View {
+        HStack(alignment: .top, spacing: AtlasSpacing.medium) {
+            AtlasOnboardingSymbol(symbol: symbol)
+
+            VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
+                Text(title)
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(AtlasPalette.textPrimary)
+                Text(subtitle)
+                    .font(.callout.weight(.medium))
+                    .foregroundStyle(AtlasPalette.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                AtlasStatusBadge(isSelected ? "Selected" : "Tap to select", tint: isSelected ? AtlasPalette.primary : AtlasPalette.secondaryText)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            ZStack {
+                Circle()
+                    .fill(isSelected ? AtlasPalette.primary : AtlasPalette.surfaceMuted)
+                    .frame(width: 28, height: 28)
+                Image(systemName: isSelected ? "checkmark" : "circle.fill")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 11, height: 11)
+                    .foregroundStyle(isSelected ? .white : AtlasPalette.border)
+            }
+        }
+        .padding(AtlasSpacing.medium)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(isSelected ? AtlasPalette.secondaryFill : Color.white.opacity(0.96))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(isSelected ? AtlasPalette.primary.opacity(0.58) : AtlasPalette.border, lineWidth: 1.2)
+        )
+        .shadow(color: isSelected ? AtlasPalette.primary.opacity(0.14) : AtlasPalette.shadow.opacity(0.12), radius: 10, x: 0, y: 6)
+    }
+}
+
 private struct AtlasCompactOptionCard: View {
     let title: String
     let subtitle: String
@@ -2047,12 +2409,13 @@ private struct AtlasCompactOptionCard: View {
 
                 VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
                     Text(title)
-                        .atlasTextRole(.cardBody)
+                        .font(.headline.weight(.semibold))
                         .foregroundStyle(AtlasPalette.textPrimary)
                     Text(subtitle)
-                        .atlasTextRole(.supporting)
+                        .font(.callout.weight(.medium))
                         .foregroundStyle(AtlasPalette.textSecondary)
-                        .lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                    AtlasStatusBadge(isSelected ? "Selected" : "Tap to choose", tint: isSelected ? AtlasPalette.primary : AtlasPalette.secondaryText)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .layoutPriority(1)
@@ -2101,7 +2464,7 @@ private struct AtlasOnboardingSymbol: View {
             Image(systemName: symbol)
                 .resizable()
                 .scaledToFit()
-                .frame(width: 18, height: 18)
+                .frame(width: 20, height: 20)
                 .foregroundStyle(AtlasPalette.primary)
         }
         .accessibilityHidden(true)

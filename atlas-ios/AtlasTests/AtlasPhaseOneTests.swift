@@ -241,6 +241,8 @@ final class AtlasPhaseOneTests: XCTestCase {
                 .journeyStatus,
                 .protocolPreview,
                 .focus,
+                .goalsProfile,
+                .healthDisclaimer,
                 .privacyPreset,
                 .premiumPreview,
                 .trustVaultReveal,
@@ -4381,6 +4383,7 @@ final class AtlasPhaseOneTests: XCTestCase {
         XCTAssertEqual(settings.accountMode, .guest)
         XCTAssertEqual(settings.accountStartMode, .guest)
         XCTAssertEqual(settings.syncStatus, .localOnly)
+        XCTAssertTrue(settings.rewardsSettings.enabled)
     }
 
     func testAccountBoundaryModesPersistFromOnboarding() async throws {
@@ -7614,7 +7617,9 @@ final class AtlasPhaseOneTests: XCTestCase {
                 height: 70,
                 heightUnit: .ftIn,
                 weight: 190,
-                weightUnit: .lb
+                weightUnit: .lb,
+                goalPacePoundsPerWeek: 1.5,
+                wantsNutritionTracking: true
             ),
             glp: AtlasOnboardingGlpSetup(
                 medication: "Semaglutide",
@@ -7633,7 +7638,8 @@ final class AtlasPhaseOneTests: XCTestCase {
                 dose: "250 mcg",
                 goal: "Recovery"
             ),
-            healthConnectionPromptSeen: true
+            healthConnectionPromptSeen: true,
+            healthDisclaimerAccepted: true
         )
     }
 

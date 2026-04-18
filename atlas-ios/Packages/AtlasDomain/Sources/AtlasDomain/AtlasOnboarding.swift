@@ -133,6 +133,8 @@ public enum AtlasOnboardingStep: String, Codable, CaseIterable, Identifiable, Se
     case journeyStatus
     case protocolPreview
     case focus
+    case goalsProfile
+    case healthDisclaimer
     case privacyPreset
     case premiumPreview
     case trustVaultReveal
@@ -181,6 +183,22 @@ public struct AtlasOnboardingProfile: Codable, Equatable, Sendable {
     public var heightUnit: AtlasHeightUnit?
     public var weight: Double?
     public var weightUnit: AtlasWeightUnit?
+    public var goalPacePoundsPerWeek: Double?
+    public var wantsNutritionTracking: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case gender
+        case mascotSelection
+        case mascotNickname
+        case age
+        case goalWeight
+        case height
+        case heightUnit
+        case weight
+        case weightUnit
+        case goalPacePoundsPerWeek
+        case wantsNutritionTracking
+    }
 
     public init(
         gender: String? = nil,
@@ -191,7 +209,9 @@ public struct AtlasOnboardingProfile: Codable, Equatable, Sendable {
         height: Double? = nil,
         heightUnit: AtlasHeightUnit? = nil,
         weight: Double? = nil,
-        weightUnit: AtlasWeightUnit? = nil
+        weightUnit: AtlasWeightUnit? = nil,
+        goalPacePoundsPerWeek: Double? = nil,
+        wantsNutritionTracking: Bool = false
     ) {
         self.gender = gender
         self.mascotSelection = mascotSelection
@@ -202,6 +222,23 @@ public struct AtlasOnboardingProfile: Codable, Equatable, Sendable {
         self.heightUnit = heightUnit
         self.weight = weight
         self.weightUnit = weightUnit
+        self.goalPacePoundsPerWeek = goalPacePoundsPerWeek
+        self.wantsNutritionTracking = wantsNutritionTracking
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.gender = try container.decodeIfPresent(String.self, forKey: .gender)
+        self.mascotSelection = try container.decodeIfPresent(AtlasMascotSelection.self, forKey: .mascotSelection)
+        self.mascotNickname = try container.decodeIfPresent(String.self, forKey: .mascotNickname)
+        self.age = try container.decodeIfPresent(Int.self, forKey: .age)
+        self.goalWeight = try container.decodeIfPresent(Double.self, forKey: .goalWeight)
+        self.height = try container.decodeIfPresent(Double.self, forKey: .height)
+        self.heightUnit = try container.decodeIfPresent(AtlasHeightUnit.self, forKey: .heightUnit)
+        self.weight = try container.decodeIfPresent(Double.self, forKey: .weight)
+        self.weightUnit = try container.decodeIfPresent(AtlasWeightUnit.self, forKey: .weightUnit)
+        self.goalPacePoundsPerWeek = try container.decodeIfPresent(Double.self, forKey: .goalPacePoundsPerWeek)
+        self.wantsNutritionTracking = try container.decodeIfPresent(Bool.self, forKey: .wantsNutritionTracking) ?? false
     }
 }
 
@@ -271,6 +308,7 @@ public struct AtlasOnboardingDraft: Codable, Equatable, Sendable {
     public var glp: AtlasOnboardingGlpSetup
     public var peptide: AtlasOnboardingPeptideSetup
     public var healthConnectionPromptSeen: Bool
+    public var healthDisclaimerAccepted: Bool
 
     enum CodingKeys: String, CodingKey {
         case accountMode
@@ -285,6 +323,7 @@ public struct AtlasOnboardingDraft: Codable, Equatable, Sendable {
         case glp
         case peptide
         case healthConnectionPromptSeen
+        case healthDisclaimerAccepted
     }
 
     public init(
@@ -299,7 +338,8 @@ public struct AtlasOnboardingDraft: Codable, Equatable, Sendable {
         profile: AtlasOnboardingProfile = .init(),
         glp: AtlasOnboardingGlpSetup = .init(),
         peptide: AtlasOnboardingPeptideSetup = .init(),
-        healthConnectionPromptSeen: Bool = false
+        healthConnectionPromptSeen: Bool = false,
+        healthDisclaimerAccepted: Bool = false
     ) {
         self.accountMode = accountMode
         self.privacy = privacy
@@ -313,6 +353,7 @@ public struct AtlasOnboardingDraft: Codable, Equatable, Sendable {
         self.glp = glp
         self.peptide = peptide
         self.healthConnectionPromptSeen = healthConnectionPromptSeen
+        self.healthDisclaimerAccepted = healthDisclaimerAccepted
     }
 
     public init(from decoder: Decoder) throws {
@@ -329,6 +370,7 @@ public struct AtlasOnboardingDraft: Codable, Equatable, Sendable {
         self.glp = try container.decodeIfPresent(AtlasOnboardingGlpSetup.self, forKey: .glp) ?? .init()
         self.peptide = try container.decodeIfPresent(AtlasOnboardingPeptideSetup.self, forKey: .peptide) ?? .init()
         self.healthConnectionPromptSeen = try container.decodeIfPresent(Bool.self, forKey: .healthConnectionPromptSeen) ?? false
+        self.healthDisclaimerAccepted = try container.decodeIfPresent(Bool.self, forKey: .healthDisclaimerAccepted) ?? false
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -345,6 +387,7 @@ public struct AtlasOnboardingDraft: Codable, Equatable, Sendable {
         try container.encode(glp, forKey: .glp)
         try container.encode(peptide, forKey: .peptide)
         try container.encode(healthConnectionPromptSeen, forKey: .healthConnectionPromptSeen)
+        try container.encode(healthDisclaimerAccepted, forKey: .healthDisclaimerAccepted)
     }
 
     public static func empty() -> Self {
@@ -365,6 +408,9 @@ public struct AtlasOnboardingDraft: Codable, Equatable, Sendable {
         }
         if privacyPreset == nil {
             missing.append("privacyPreset")
+        }
+        if healthDisclaimerAccepted == false {
+            missing.append("healthDisclaimerAccepted")
         }
         if paywallChoice == nil {
             missing.append("paywallChoice")
@@ -395,6 +441,8 @@ public struct AtlasOnboardingDraft: Codable, Equatable, Sendable {
             .journeyStatus,
             .protocolPreview,
             .focus,
+            .goalsProfile,
+            .healthDisclaimer,
             .privacyPreset,
             .premiumPreview,
             .trustVaultReveal,

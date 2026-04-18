@@ -78,6 +78,17 @@ public struct GRDBOnboardingRepository: OnboardingRepository, Sendable {
             try writeAppSetting(db: db, key: "onboarding_journey_status", value: draft.journeyStatus?.rawValue, now: now)
             try writeAppSetting(
                 db: db,
+                key: "onboarding_health_disclaimer_accepted",
+                value: draft.healthDisclaimerAccepted ? "1" : "0",
+                now: now
+            )
+            if atlasOnboardingShouldEnableRewards(from: draft) {
+                try writeAppSetting(db: db, key: "rewards_enabled", value: "1", now: now)
+                try writeAppSetting(db: db, key: "rewards_weekly_workout_goal", value: "3", now: now)
+                try writeAppSetting(db: db, key: "rewards_weekly_self_goal_target", value: "2", now: now)
+            }
+            try writeAppSetting(
+                db: db,
                 key: "mascot_selection",
                 value: (draft.profile.mascotSelection ?? atlasInferredMascotSelection(from: draft.profile.gender) ?? .aetherion).rawValue,
                 now: now
@@ -166,6 +177,13 @@ public struct GRDBOnboardingRepository: OnboardingRepository, Sendable {
             return try buildBootstrapSnapshot(db: db)
         }
     }
+}
+
+private func atlasOnboardingShouldEnableRewards(from draft: AtlasOnboardingDraft) -> Bool {
+    draft.focus != nil
+        || draft.profile.goalWeight != nil
+        || draft.profile.goalPacePoundsPerWeek != nil
+        || draft.profile.wantsNutritionTracking
 }
 
 func buildBootstrapSnapshot(
