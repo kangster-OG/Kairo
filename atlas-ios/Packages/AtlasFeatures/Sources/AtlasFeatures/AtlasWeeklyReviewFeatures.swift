@@ -928,7 +928,7 @@ private struct AtlasWeeklyReviewSignalPill: View {
         .padding(.vertical, 10)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color.white.opacity(0.65))
+                .fill(AtlasPalette.surfaceSecondary)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -1167,7 +1167,7 @@ private struct AtlasWeeklyReviewCommandCard: View {
         .padding(.vertical, 12)
         .background(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color.white.opacity(0.62))
+                .fill(AtlasPalette.surfaceSecondary)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
@@ -1591,7 +1591,7 @@ private struct AtlasWeeklyReviewComparisonCard: View {
             .padding(AtlasSpacing.small)
             .background(
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(Color.white.opacity(0.62))
+                    .fill(AtlasPalette.surfaceSecondary)
             )
         }
         .buttonStyle(.plain)

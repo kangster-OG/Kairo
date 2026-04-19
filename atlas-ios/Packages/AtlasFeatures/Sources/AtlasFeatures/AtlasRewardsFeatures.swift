@@ -284,7 +284,7 @@ private struct AtlasRewardSignalTile: View {
         .padding(.vertical, 12)
         .background(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color.white.opacity(0.62))
+                .fill(AtlasPalette.surfaceSecondary)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 18, style: .continuous)

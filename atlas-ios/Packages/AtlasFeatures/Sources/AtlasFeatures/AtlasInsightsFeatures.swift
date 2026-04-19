@@ -3443,7 +3443,7 @@ private struct AtlasQuickActionTile: View {
                     )
                     : AnyShapeStyle(
                         LinearGradient(
-                            colors: [Color.white.opacity(0.985), AtlasPalette.surfaceSecondary],
+                            colors: [AtlasPalette.surfaceTop, AtlasPalette.surfaceSecondary],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )

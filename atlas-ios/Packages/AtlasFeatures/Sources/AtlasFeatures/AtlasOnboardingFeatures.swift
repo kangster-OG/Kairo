@@ -351,7 +351,7 @@ private struct AtlasOnboardingSplash: View {
 
             Text("Start private, then build the protocol command center around your goal.")
                 .font(dynamicTypeSize.isAccessibilitySize ? .body.weight(.semibold) : .title3.weight(.medium))
-                .foregroundStyle(.white.opacity(0.78))
+                .foregroundStyle(.white.opacity(0.9))
                 .fixedSize(horizontal: false, vertical: true)
 
             AtlasOnboardingHeroProofGrid()
@@ -1567,7 +1567,7 @@ private struct AtlasPremiumPreviewCard: View {
         .padding(AtlasSpacing.medium)
         .background(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(Color.white.opacity(0.96))
+                .fill(AtlasPalette.surfaceTop)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
@@ -1667,7 +1667,7 @@ private struct AtlasCommandPreviewRow: View {
         .padding(AtlasSpacing.small)
         .background(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color.white.opacity(0.9))
+                .fill(AtlasPalette.surfaceSecondary)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
@@ -1709,7 +1709,7 @@ private struct AtlasProofTimelineRow: View {
         .padding(AtlasSpacing.small)
         .background(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color.white.opacity(0.9))
+                .fill(AtlasPalette.surfaceSecondary)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
@@ -1765,7 +1765,7 @@ private struct AtlasMigrationPreviewCard: View {
         .padding(AtlasSpacing.medium)
         .background(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(Color.white.opacity(0.96))
+                .fill(AtlasPalette.surfaceTop)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
@@ -1801,7 +1801,7 @@ private struct AtlasMascotMiniCard: View {
         .padding(AtlasSpacing.medium)
         .background(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(isSelected ? atlasMascotLineTint(for: selection).opacity(0.12) : Color.white.opacity(0.96))
+                .fill(isSelected ? atlasMascotLineTint(for: selection).opacity(0.12) : AtlasPalette.surfaceTop)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
@@ -1863,7 +1863,7 @@ private struct AtlasReadinessSignalTile: View {
         .padding(AtlasSpacing.small)
         .background(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color.white.opacity(0.9))
+                .fill(AtlasPalette.surfaceSecondary)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
@@ -1913,7 +1913,7 @@ private struct AtlasWidgetPreviewCard: View {
         .padding(AtlasSpacing.medium)
         .background(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(Color.white.opacity(0.96))
+                .fill(AtlasPalette.surfaceTop)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
@@ -1955,7 +1955,7 @@ private struct AtlasMascotWidgetPreviewCard: View {
         .padding(AtlasSpacing.medium)
         .background(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(Color.white.opacity(0.96))
+                .fill(AtlasPalette.surfaceTop)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
@@ -2096,7 +2096,7 @@ private struct AtlasPaywallPlanCard: View {
             .padding(AtlasSpacing.medium)
             .background(
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(isSelected ? AtlasPalette.secondaryFill : Color.white.opacity(0.96))
+                    .fill(isSelected ? AtlasPalette.secondaryFill : AtlasPalette.surfaceTop)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
@@ -2445,7 +2445,7 @@ private struct AtlasSelectableUtilityRow: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(isSelected ? AtlasPalette.secondaryFill : Color.white.opacity(0.96))
+                .fill(isSelected ? AtlasPalette.secondaryFill : AtlasPalette.surfaceTop)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
@@ -2495,7 +2495,7 @@ private struct AtlasCompactOptionCard: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(isSelected ? AtlasPalette.secondaryFill : Color.white.opacity(0.96))
+                    .fill(isSelected ? AtlasPalette.secondaryFill : AtlasPalette.surfaceTop)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 20, style: .continuous)

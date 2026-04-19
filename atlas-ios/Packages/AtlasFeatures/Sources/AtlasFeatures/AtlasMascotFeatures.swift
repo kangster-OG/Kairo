@@ -2682,8 +2682,8 @@ struct AtlasMascotConfirmationCard: View {
                     .fill(
                         LinearGradient(
                             colors: selection == currentSelection
-                                ? [Color.white.opacity(0.98), AtlasPalette.secondaryFill]
-                                : [Color.white.opacity(0.96), AtlasPalette.surfaceSecondary],
+                                ? [AtlasPalette.surfaceTop, AtlasPalette.secondaryFill]
+                                : [AtlasPalette.surfaceTop, AtlasPalette.surfaceSecondary],
                             startPoint: .top,
                             endPoint: .bottom
                         )
@@ -2691,7 +2691,7 @@ struct AtlasMascotConfirmationCard: View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(selection == currentSelection ? AtlasPalette.primary.opacity(0.45) : Color.white.opacity(0.82), lineWidth: 1)
+                    .stroke(selection == currentSelection ? AtlasPalette.primary.opacity(0.45) : AtlasPalette.chromeStroke, lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
@@ -2746,11 +2746,11 @@ private struct AtlasMascotEvolutionPathCard: View {
                             .padding(16)
                             .background(
                                 RoundedRectangle(cornerRadius: 22, style: .continuous)
-                                    .fill(stage == currentStage ? AtlasPalette.secondaryFill : Color.white.opacity(0.94))
+                                    .fill(stage == currentStage ? AtlasPalette.secondaryFill : AtlasPalette.surfaceTop)
                             )
                             .overlay(
                                 RoundedRectangle(cornerRadius: 22, style: .continuous)
-                                    .stroke(stage == currentStage ? atlasMascotLineTint(for: selection).opacity(0.45) : Color.white.opacity(0.82), lineWidth: 1)
+                                    .stroke(stage == currentStage ? atlasMascotLineTint(for: selection).opacity(0.45) : AtlasPalette.chromeStroke, lineWidth: 1)
                             )
                         }
                     }
@@ -3496,7 +3496,7 @@ private struct AtlasMascotMomentumTile: View {
         .padding(.vertical, 12)
         .background(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color.white.opacity(0.62))
+                .fill(AtlasPalette.surfaceSecondary)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 18, style: .continuous)

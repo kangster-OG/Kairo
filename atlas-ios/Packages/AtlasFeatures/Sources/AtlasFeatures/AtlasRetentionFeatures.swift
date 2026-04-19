@@ -189,7 +189,7 @@ private struct AtlasRetentionCompanionView: View {
             RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .fill(
                     LinearGradient(
-                        colors: [Color.white.opacity(0.96), companionTint.opacity(0.05)],
+                        colors: [AtlasPalette.surfaceTop, companionTint.opacity(0.08)],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )

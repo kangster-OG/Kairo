@@ -105,7 +105,7 @@ public enum AtlasTextRole {
         case .cardBody:
             return .body.weight(.semibold)
         case .supporting:
-            return .caption
+            return .caption.weight(.medium)
         case .metricValue:
             return .title3.weight(.bold)
         case .metricLabel:
@@ -126,7 +126,7 @@ public enum AtlasTextRole {
         case .cardBody:
             return .body.weight(.semibold)
         case .supporting:
-            return .caption
+            return .caption.weight(.medium)
         case .metricValue:
             return Font.custom("AvenirNext-Bold", size: 20, relativeTo: .title3)
         case .metricLabel:
@@ -147,7 +147,7 @@ public enum AtlasTextRole {
         case .cardBody:
             return Font.custom("IBMPlexSans-SmBld", size: 17, relativeTo: .body)
         case .supporting:
-            return Font.custom("IBMPlexSans", size: 12, relativeTo: .caption)
+            return Font.custom("IBMPlexSans-Medm", size: 12, relativeTo: .caption)
         case .metricValue:
             return Font.custom("IBMPlexSans-Bold", size: 20, relativeTo: .title3)
         case .metricLabel:
@@ -156,14 +156,7 @@ public enum AtlasTextRole {
     }
 
     fileprivate var tracking: CGFloat {
-        switch self {
-        case .screenTitle:
-            return -0.5
-        case .deckEyebrow, .metricLabel:
-            return 0.6
-        default:
-            return 0
-        }
+        return 0
     }
 
     fileprivate var textCase: Text.Case? {

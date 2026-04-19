@@ -432,7 +432,7 @@ private struct AtlasInventoryActionTile: View {
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .fill(
                         LinearGradient(
-                            colors: [Color.white.opacity(0.96), tint.opacity(0.14)],
+                            colors: [AtlasPalette.surfaceTop, tint.opacity(0.14)],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )

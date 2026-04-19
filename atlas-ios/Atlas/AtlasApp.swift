@@ -106,7 +106,7 @@ private struct AtlasTypographyAuditionView: View {
 
             Text("Protocol tracking for injections, reminders, inventory, and review.")
                 .atlasTextRole(.screenSubtitle)
-                .foregroundStyle(.white.opacity(0.78))
+                .foregroundStyle(.white.opacity(0.9))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(22)
@@ -211,7 +211,7 @@ private struct AtlasBootstrapFailureView: View {
                 .multilineTextAlignment(.center)
             Text(message)
                 .font(.body)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(AtlasPalette.textSecondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 24)
             Button("Try again", action: retry)

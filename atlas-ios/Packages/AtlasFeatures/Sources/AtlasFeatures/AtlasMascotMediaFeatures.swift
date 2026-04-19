@@ -567,7 +567,7 @@ private struct AtlasMascotRecapCanvas: View {
                         .tracking(1.2)
                         .textCase(.uppercase)
                 }
-                .foregroundStyle(.white.opacity(0.84))
+                .foregroundStyle(.white.opacity(0.88))
 
                 Text(descriptor.displayName)
                     .font(.system(size: 42, weight: .bold, design: .rounded))
@@ -575,7 +575,7 @@ private struct AtlasMascotRecapCanvas: View {
 
                 Text("\(artDirection.lineTitle) • \(artDirection.stageHeadline)")
                     .font(.system(size: 18, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.78))
+                    .foregroundStyle(.white.opacity(0.88))
             }
 
             Spacer(minLength: 24)
@@ -604,7 +604,7 @@ private struct AtlasMascotRecapCanvas: View {
 
                 Text(descriptor.secondaryDetail)
                     .font(.system(size: 18, weight: .medium, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.72))
+                    .foregroundStyle(.white.opacity(0.88))
 
                 HStack(spacing: 12) {
                     atlasRecapCanvasMetric(title: "Form", value: descriptor.currentFormName)
@@ -613,7 +613,7 @@ private struct AtlasMascotRecapCanvas: View {
 
                 Text(artDirection.posterKicker)
                     .font(.system(size: 16, weight: .medium, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.72))
+                    .foregroundStyle(.white.opacity(0.88))
             }
 
             Spacer(minLength: 0)
@@ -639,7 +639,7 @@ private struct AtlasMascotRecapCanvas: View {
 
                 Text(descriptor.secondaryDetail)
                     .font(.system(size: 17, weight: .medium, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.7))
+                    .foregroundStyle(.white.opacity(0.88))
                     .multilineTextAlignment(.center)
             }
 
@@ -665,12 +665,12 @@ private struct AtlasMascotRecapCanvas: View {
 
                 Text(descriptor.secondaryDetail)
                     .font(.system(size: 18, weight: .medium, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.74))
+                    .foregroundStyle(.white.opacity(0.88))
 
                 atlasRecapCanvasMetric(title: "Current form", value: descriptor.currentFormName)
                 Text(artDirection.posterKicker)
                     .font(.system(size: 16, weight: .medium, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.72))
+                    .foregroundStyle(.white.opacity(0.88))
             }
 
             Spacer(minLength: 0)
@@ -716,7 +716,7 @@ private struct AtlasMascotRecapCanvas: View {
 
             Image(systemName: artDirection.ornamentSymbol)
                 .font(.system(size: 34, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.78))
+                .foregroundStyle(.white.opacity(0.88))
                 .offset(x: -artDirection.posterFrameSize.width * 0.26, y: -artDirection.posterFrameSize.height * 0.3)
 
             AtlasMascotIllustration(
@@ -753,10 +753,10 @@ private struct AtlasMascotRecapCanvas: View {
                     .foregroundStyle(.white)
                 Text(descriptor.footer)
                     .font(.system(size: 17, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.8))
+                    .foregroundStyle(.white.opacity(0.88))
                 Text(artDirection.lineMotto)
                     .font(.system(size: 15, weight: .medium, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.62))
+                    .foregroundStyle(.white.opacity(0.86))
             }
 
             Spacer(minLength: 0)
@@ -764,10 +764,10 @@ private struct AtlasMascotRecapCanvas: View {
             VStack(alignment: .trailing, spacing: 4) {
                 Text("Shared from Atlas mascot recap")
                     .font(.system(size: 15, weight: .medium, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.62))
+                    .foregroundStyle(.white.opacity(0.86))
                 Text(artDirection.stageLabel)
                     .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.74))
+                    .foregroundStyle(.white.opacity(0.88))
             }
         }
         .padding(.top, 18)
@@ -884,9 +884,9 @@ private func atlasRecapCanvasMetric(title: String, value: String) -> some View {
     VStack(alignment: .leading, spacing: 4) {
         Text(title)
             .font(.caption.weight(.semibold))
-            .foregroundStyle(.white.opacity(0.68))
+            .foregroundStyle(.white.opacity(0.86))
             .textCase(.uppercase)
-            .tracking(1)
+            .tracking(0)
         Text(value)
             .font(.system(size: 18, weight: .semibold, design: .rounded))
             .foregroundStyle(.white)

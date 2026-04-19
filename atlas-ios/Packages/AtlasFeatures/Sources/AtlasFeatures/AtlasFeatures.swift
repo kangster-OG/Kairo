@@ -3009,7 +3009,7 @@ private struct AtlasBottomTabBar: View {
         .padding(.horizontal, 16)
         .padding(.top, 8)
         .padding(.bottom, 8)
-        .background(Color.clear.ignoresSafeArea(edges: .bottom))
+        .background(AtlasPalette.background.ignoresSafeArea(edges: .bottom))
     }
 
     private var tabLabelFont: Font {
@@ -8237,7 +8237,7 @@ private struct AtlasSettingsStepperCard: View {
                 .fill(
                     LinearGradient(
                         colors: isEnabled
-                            ? [Color.white.opacity(0.97), tint.opacity(0.08)]
+                            ? [AtlasPalette.surfaceTop, tint.opacity(0.08)]
                             : [AtlasPalette.surfaceMuted.opacity(0.82), AtlasPalette.surfaceMuted.opacity(0.7)],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
@@ -8999,11 +8999,11 @@ private struct AtlasOccurrenceHero: View {
                 .foregroundStyle(.white)
             Text(occurrence.cadenceLabel)
                 .atlasTextRole(.screenSubtitle)
-                .foregroundStyle(.white.opacity(0.8))
+                .foregroundStyle(.white.opacity(0.9))
             if let doseLabel = occurrence.doseLabel {
                 Text("Dose \(doseLabel)")
                     .atlasTextRole(.supporting)
-                    .foregroundStyle(.white.opacity(0.76))
+                    .foregroundStyle(.white.opacity(0.86))
             }
 
             VStack(spacing: AtlasSpacing.small) {
@@ -9527,7 +9527,7 @@ private struct AtlasToolLauncherButton: View {
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .fill(
                             LinearGradient(
-                                colors: [Color.white.opacity(0.98), AtlasPalette.secondaryFill],
+                                colors: [AtlasPalette.surfaceTop, AtlasPalette.secondaryFill],
                                 startPoint: .top,
                                 endPoint: .bottom
                             )
@@ -9542,7 +9542,7 @@ private struct AtlasToolLauncherButton: View {
                         )
                         .overlay(
                             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .stroke(Color.white.opacity(0.88), lineWidth: 1)
+                                .stroke(AtlasPalette.chromeStroke, lineWidth: 1)
                         )
 
                     Spacer(minLength: AtlasSpacing.small)
@@ -9572,7 +9572,7 @@ private struct AtlasToolLauncherButton: View {
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
                     .fill(
                         LinearGradient(
-                            colors: [Color.white.opacity(0.97), AtlasPalette.surfaceSecondary],
+                            colors: [AtlasPalette.surfaceTop, AtlasPalette.surfaceSecondary],
                             startPoint: .top,
                             endPoint: .bottom
                         )
@@ -9580,7 +9580,7 @@ private struct AtlasToolLauncherButton: View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .stroke(Color.white.opacity(0.88), lineWidth: 1)
+                    .stroke(AtlasPalette.chromeStroke, lineWidth: 1)
             )
             .shadow(color: AtlasPalette.shadow.opacity(0.16), radius: 12, x: 0, y: 8)
         }
@@ -10288,6 +10288,7 @@ extension View {
 }
 
 struct AtlasRootScrollSurface<Content: View>: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ViewBuilder let content: Content
 
     init(@ViewBuilder content: () -> Content) {
@@ -10301,7 +10302,7 @@ struct AtlasRootScrollSurface<Content: View>: View {
             }
             .padding(.horizontal, 20)
             .padding(.top, 8)
-            .padding(.bottom, 120)
+            .padding(.bottom, dynamicTypeSize.isAccessibilitySize ? 220 : 150)
         }
         .scrollIndicators(.hidden)
         .background(AtlasAppBackground())
@@ -10348,7 +10349,7 @@ struct AtlasTabHeader: View {
                 if let subtitle, subtitle.isEmpty == false {
                     Text(subtitle)
                         .atlasTextRole(.screenSubtitle)
-                        .foregroundStyle(colorSchemeContrast == .increased ? .white : .white.opacity(0.76))
+                        .foregroundStyle(colorSchemeContrast == .increased ? .white : .white.opacity(0.88))
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
