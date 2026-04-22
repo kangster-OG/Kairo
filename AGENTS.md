@@ -27,6 +27,9 @@ If the user asks about UI, UX, design, polish, motion, typography, layout, inter
 8. `docs/ios-ambient-mascot-system-handoff-2026-04-16.md` when the work touches mascot/rewards/motion/polish
 9. `docs/mascot-concepts/atlas-mascot-asset-matrix.md` when the work touches mascot/rewards/media/widgets
 10. `docs/ios-onboarding-paywall-handoff-2026-04-16.md` when the work touches onboarding, free trials, paywalls, or premium conversion
+11. `docs/current-thread-handoff-2026-04-21.md` when the work touches current DREAM onboarding, latest TestFlight context, or the recent app UX upgrade
+12. `docs/atlas-onboarding-ux-deep-dive-2026-04-21.md` and `docs/atlas-cal-ai-finch-dream-ux-2026-04-21.md` when the work touches competitor-informed onboarding or app UX
+13. `docs/atlas-dream-onboarding-locked-storyboard-2026-04-21.md` and `docs/atlas-dream-onboarding-motion-spec-2026-04-21.md` when the work touches onboarding length, sequencing, transitions, or companion hatch moments
 
 Treat those files as the standing Atlas UI design system brief for future Codex threads.
 
@@ -109,6 +112,8 @@ For UI-related work:
   - sticker art for medium cards
   - pixel art for widgets and compact live-state surfaces
 - preserve the ambient mascot handoff in `docs/ios-ambient-mascot-system-handoff-2026-04-16.md`: anchored companion behavior, not free-roaming or always-on clutter
+- preserve the current 180-state DREAM onboarding direction unless the user explicitly asks to shorten it
+- keep onboarding copy concise and human; avoid AI-ish strategy language such as `privacy posture`, `generated artifact`, `operating system fantasy`, or overexplained helper narration
 - default to simulator QA for UI changes, then note any remaining manual/device checks explicitly
 
 ## Done when
