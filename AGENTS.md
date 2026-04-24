@@ -30,6 +30,7 @@ If the user asks about UI, UX, design, polish, motion, typography, layout, inter
 11. `docs/current-thread-handoff-2026-04-21.md` when the work touches current DREAM onboarding, latest TestFlight context, or the recent app UX upgrade
 12. `docs/atlas-onboarding-ux-deep-dive-2026-04-21.md` and `docs/atlas-cal-ai-finch-dream-ux-2026-04-21.md` when the work touches competitor-informed onboarding or app UX
 13. `docs/atlas-dream-onboarding-locked-storyboard-2026-04-21.md` and `docs/atlas-dream-onboarding-motion-spec-2026-04-21.md` when the work touches onboarding length, sequencing, transitions, or companion hatch moments
+14. `docs/current-thread-handoff-2026-04-24.md` and `docs/atlas-post-onboarding-visual-north-star-2026-04-23.md` when the work touches the post-onboarding peptide command-center app, locked mockup fidelity, feature scope, or release-hardening direction
 
 Treat those files as the standing Atlas UI design system brief for future Codex threads.
 
@@ -48,13 +49,19 @@ If repo docs disagree, use this order:
 Do not treat older migration docs, the legacy Expo root, or empty placeholder docs as higher-authority than the current native product.
 
 ## Product summary
-Atlas is a privacy-first protocol tracker for injectables, reminders, logging, inventory, calculators, sites, Trust Vault privacy controls, bounded sharing, review outputs, and deterministic pattern insights.
+Atlas is a premium iPhone peptide protocol command center for protocol tracking, shot logging, vial runway, site rotation, side effects, protein, hydration, workouts, health integrations, widgets, companion progress, quests, badges, collectibles, progress evidence, and share/export review.
+
+Privacy/trust still matters, but it is no longer the product headline. It should feel built into the product rather than becoming the front-stage identity. The primary post-onboarding promise is: `Build your peptide protocol command center.`
 
 This app must not include:
 - dosing advice
 - medical recommendations
 - diagnostic or treatment claims
 - sourcing or marketplace flows
+- vendor or price-comparison flows
+- AI chatbot product expansion
+- calorie-scanner or full calorie-tracker sprawl
+- social/shop/seasonal economy loops
 
 ## Current product state
 - Native iOS is the primary product path.
@@ -112,7 +119,10 @@ For UI-related work:
   - sticker art for medium cards
   - pixel art for widgets and compact live-state surfaces
 - preserve the ambient mascot handoff in `docs/ios-ambient-mascot-system-handoff-2026-04-16.md`: anchored companion behavior, not free-roaming or always-on clutter
-- preserve the current 180-state DREAM onboarding direction unless the user explicitly asks to shorten it
+- preserve the current 180-plus-state DREAM onboarding direction unless the user explicitly asks to shorten it
+- ignore onboarding by default when the user is explicitly focused on post-onboarding mockup fidelity; onboarding will be rebuilt separately
+- preserve the locked post-onboarding mockup board language across root tabs, deep editors, quick-capture sheets, settings, widgets, review/export, and empty states
+- keep nutrition and fitness narrow: protein, hydration, workouts, weight/progress photos, and Apple Health passthrough, not a full calorie app
 - keep onboarding copy concise and human; avoid AI-ish strategy language such as `privacy posture`, `generated artifact`, `operating system fantasy`, or overexplained helper narration
 - default to simulator QA for UI changes, then note any remaining manual/device checks explicitly
 

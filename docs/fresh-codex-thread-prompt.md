@@ -16,29 +16,37 @@ Before doing anything else, please read:
 4. `docs/codex-launch-handoff.md`
 5. `docs/backlog-execution-handoff.md`
 6. `docs/current-thread-handoff-2026-04-21.md`
+7. `docs/current-thread-handoff-2026-04-24.md`
+8. `docs/atlas-post-onboarding-visual-north-star-2026-04-23.md`
+9. `docs/atlas-true-fidelity-pass-handoff-2026-04-22.md`
+10. `docs/fresh-codex-visual-fidelity-prompt-2026-04-23.md` if the work involves visual fidelity or post-onboarding UI direction
 
 If this thread touches UI, UX, design, widgets, SwiftUI presentation, mascot, rewards, motion, or polish, also read:
 
-7. `docs/ios-premium-ui-rubric.md`
-8. `docs/ios-ui-audit-2026-04-10.md`
-9. `docs/ios-ui-skill-stack.md`
-10. `docs/ios-ux-execution-playbook-2026-04-15.md`
-11. `docs/ios-redesign-context-2026-04-14.md`
-12. `docs/ios-ui-polish-thread-handoff-2026-04-16.md`
-13. `docs/ios-ambient-mascot-system-handoff-2026-04-16.md` if mascot/rewards/motion/polish are involved
-14. `docs/mascot-concepts/atlas-mascot-asset-matrix.md` if mascot/rewards/media/widgets are involved
-15. `docs/ios-onboarding-paywall-handoff-2026-04-16.md` if onboarding, trial paywalls, premium conversion, or protocol setup ordering are involved
-16. `docs/atlas-onboarding-ux-deep-dive-2026-04-21.md` if onboarding, app UX, or competitor research is involved
-17. `docs/atlas-cal-ai-finch-dream-ux-2026-04-21.md` if Cal AI, Finch, companion hatching, or dream-product UX is involved
-18. `docs/atlas-dream-onboarding-locked-storyboard-2026-04-21.md` if onboarding sequence, density, or copy structure is involved
-19. `docs/atlas-dream-onboarding-motion-spec-2026-04-21.md` if onboarding transitions, animation, or interaction polish is involved
+11. `docs/ios-premium-ui-rubric.md`
+12. `docs/ios-ui-audit-2026-04-10.md`
+13. `docs/ios-ui-skill-stack.md`
+14. `docs/ios-ux-execution-playbook-2026-04-15.md`
+15. `docs/ios-redesign-context-2026-04-14.md`
+16. `docs/ios-ui-polish-thread-handoff-2026-04-16.md`
+17. `docs/ios-ambient-mascot-system-handoff-2026-04-16.md` if mascot/rewards/motion/polish are involved
+18. `docs/mascot-concepts/atlas-mascot-asset-matrix.md` if mascot/rewards/media/widgets are involved
+19. `docs/ios-onboarding-paywall-handoff-2026-04-16.md` if onboarding, trial paywalls, premium conversion, or protocol setup ordering are involved
+20. `docs/atlas-onboarding-ux-deep-dive-2026-04-21.md` if onboarding, app UX, or competitor research is involved
+21. `docs/atlas-cal-ai-finch-dream-ux-2026-04-21.md` if Cal AI, Finch, companion hatching, or dream-product UX is involved
+22. `docs/atlas-dream-onboarding-locked-storyboard-2026-04-21.md` if onboarding sequence, density, or copy structure is involved
+23. `docs/atlas-dream-onboarding-motion-spec-2026-04-21.md` if onboarding transitions, animation, or interaction polish is involved
 
 Important context:
 
-- Atlas is a privacy-first, local-first, premium iPhone protocol operating system.
+- Atlas is a premium iPhone peptide protocol command center.
 - It is not a marketplace, sourcing app, social app, or medical advice app.
 - The native iOS app in `atlas-ios/` is the primary product path.
-- The product direction is calm, tactile, premium, informative, intuitive, and trust-heavy.
+- The current post-onboarding product direction is calm, tactile, premium, simple, mascot-forward, comprehensive, and utility-first.
+- Privacy/trust still matters, but it should no longer be overemphasized as the headline differentiator.
+- The main product promise is: `Build your peptide protocol command center.`
+- The April 24 handoff confirms the post-onboarding app has been rebuilt around the locked mockup board. Do not restart the mockup rebuild from scratch.
+- The next default phase is release hardening and concrete regression fixes, not broad feature expansion.
 - Avoid generic health-app UI and avoid noisy/childish gamification.
 - For mascot art:
   - portrait art = in-app hero/detail/export
@@ -46,10 +54,10 @@ Important context:
   - pixel art = widgets and compact live-state surfaces
 - Ambient mascot behavior should be anchored, optional, event-based, and calm. Do not turn it into free-roaming or always-on clutter.
 - Onboarding is intentionally long and proof-led. The free-trial paywall belongs before full protocol creation, after Atlas has shown enough premium differentiation to make the trial feel earned.
-- The current DREAM onboarding target is 180 user-facing states across 12 chapters. Do not shorten it by default.
+- The current DREAM onboarding target is roughly 180-plus user-facing states across 12 chapters. Do not shorten it by default.
 - The companion hatches or awakens only after Atlas has built enough of the user's readiness map, Day 1 plan, Trust Vault defaults, and first-week preview. Do not make hatch-a-mascot the first screen.
 - Do not change the avatar design unless explicitly asked. The hatching/egg/capsule/signal-core moment is a presentation layer around the existing companions.
-- The latest TestFlight upload from this thread was Atlas 1.0 build `2026042103`, uploaded on 2026-04-21 after the final onboarding copy pass.
+- The latest documented TestFlight upload before the mockup rebuild was Atlas 1.0 build `2026042103`, uploaded on 2026-04-21 after the final onboarding copy pass.
 
 Working style:
 
@@ -68,6 +76,10 @@ Additional UX / copy rules:
 - For broad UI cleanup, use `docs/ios-ui-polish-thread-handoff-2026-04-16.md` for the standing rules on stat tiles, keyboard exits, quick actions, recap clutter, and copy pruning.
 - The current docked bottom tab shelf is the baseline; do not default to transparent tab-bar experiments unless explicitly asked.
 - For mascot work, prefer event-based reactions over adding more permanent mascot homes.
+- For visual fidelity work, use `docs/fresh-codex-visual-fidelity-prompt-2026-04-23.md` as the copy-paste starter prompt and `docs/atlas-post-onboarding-visual-north-star-2026-04-23.md` as the mockup design reference.
+- Treat the new mockup direction as the visual standard for the entire post-onboarding app, including deep editors, widgets, compact states, and settings, not only Today / Log Shot / Companion.
+- Ignore onboarding for now unless explicitly asked; it will be rebuilt separately.
+- If doing UI work, use the screenshot QA harness in `scripts/atlas-mockup-screenshot-qa.sh` and compare against the latest intentional references. The latest closeout sweep captured 37 routes at `output/mockup-screenshot-qa/final-confidence-2026-04-24/`.
 
 Once you’ve read the docs above, run `git status --short`, give me a very short summary of what Atlas is building and what you understand the current product/design direction to be, then wait for my feature request.
 
