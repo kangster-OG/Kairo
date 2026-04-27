@@ -117,6 +117,29 @@ public struct GRDBMetricsRepository: MetricsRepository, Sendable {
         }
     }
 
+    public func saveWorkoutEntry(_ draft: AtlasWorkoutEntryDraft, now: Date) async throws -> AtlasWorkoutLogRecord {
+        try await stack.canonical.write { db in
+            let timestamp = atlasTimestamp(from: now)
+            let startedAt = draft.startedAt
+            let endedAt = startedAt.addingTimeInterval(max(draft.durationMinutes, 1) * 60)
+            let record = AtlasWorkoutLogRecord.make(
+                id: draft.id ?? "workout_\(UUID().uuidString.lowercased())",
+                activityKind: draft.activityKind,
+                startedAt: atlasTimestamp(from: startedAt),
+                endedAt: atlasTimestamp(from: endedAt),
+                durationMinutes: max(draft.durationMinutes, 1),
+                energyBurnedKilocalories: draft.energyBurnedKilocalories,
+                distanceMeters: draft.distanceMeters,
+                source: .manual,
+                externalSourceId: nil,
+                createdAt: timestamp,
+                updatedAt: timestamp
+            )
+            try AtlasWorkoutLogDBRecord(record: record).save(db)
+            return record
+        }
+    }
+
     public func importWeightSamples(_ samples: [AtlasHealthWeightSample], now: Date) async throws -> Int {
         try await stack.canonical.write { db in
             let timestamp = atlasTimestamp(from: now)

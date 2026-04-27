@@ -316,6 +316,7 @@ public final class AtlasAppModel {
     public var reviewOwnerSnapshot: AtlasReviewOwnerSnapshot
     public var reviewWorkspace: AtlasReviewWorkspace?
     public var pendingMascotCelebration: AtlasMascotCelebrationState?
+    public var pendingRewardCelebration: AtlasRewardCelebrationState?
     var ambientMascotReactionSignal: AtlasAmbientMascotReactionSignal?
     var undoBanner: AtlasUndoBannerState?
     public var cloudSession: AtlasCloudSessionSnapshot?
@@ -325,6 +326,8 @@ public final class AtlasAppModel {
     public var loadErrorMessage: String?
     public private(set) var widgetProjectionVersion: Int
     public var activeOnboardingStep: AtlasOnboardingStep
+    public private(set) var onboardingFunnelEvents: [AtlasOnboardingFunnelEvent]
+    @ObservationIgnored private var viewedOnboardingStepIDs: Set<String>
     private var hasLoadedBootstrap: Bool
     private var hasLoadedShellData: Bool
     private var hasConfiguredReminderHandling: Bool
@@ -433,6 +436,7 @@ public final class AtlasAppModel {
         self.reviewOwnerSnapshot = reviewOwnerSnapshot
         self.reviewWorkspace = nil
         self.pendingMascotCelebration = nil
+        self.pendingRewardCelebration = nil
         self.ambientMascotReactionSignal = nil
         self.undoBanner = nil
         self.cloudSession = nil
@@ -443,7 +447,9 @@ public final class AtlasAppModel {
         self.isLoading = false
         self.loadErrorMessage = nil
         self.widgetProjectionVersion = 0
-        self.activeOnboardingStep = .splash
+        self.activeOnboardingStep = .intro
+        self.onboardingFunnelEvents = []
+        self.viewedOnboardingStepIDs = []
         self.hasLoadedBootstrap = false
         self.hasLoadedShellData = false
         self.hasConfiguredReminderHandling = false
@@ -462,6 +468,416 @@ public final class AtlasAppModel {
         routePath.append(route)
     }
 
+    #if DEBUG
+    public func applyMockupFidelitySeed(referenceDate now: Date) {
+        let protocolID = "mockup-tirzepatide"
+        let vialID = "mockup-tirzepatide-vial"
+        let bpcProtocolID = "mockup-bpc-157"
+        let cjcProtocolID = "mockup-cjc-1295"
+        let igfProtocolID = "mockup-igf-lr3"
+        let bpcVialID = "mockup-bpc-157-vial"
+        let cjcVialID = "mockup-cjc-1295-vial"
+        let igfVialID = "mockup-igf-lr3-vial"
+        let bacVialID = "mockup-bac-water"
+        let dueAt = Calendar.current.date(bySettingHour: 12, minute: 30, second: 0, of: now)
+            ?? Calendar.current.date(byAdding: .minute, value: 155, to: now)
+            ?? now
+        let pastWorkout = Calendar.current.date(byAdding: .day, value: -1, to: now) ?? now
+
+        var seededSettings = AtlasSettingsSnapshot()
+        seededSettings.onboardingCompleted = true
+        seededSettings.mascotSelection = .aetherion
+        seededSettings.mascotNickname = "Aetherion"
+        seededSettings.mascotSelectionConfirmed = true
+        seededSettings.rewardsSettings = AtlasRewardsSettingsSnapshot(enabled: true)
+
+        let nextShot = AtlasScheduledOccurrence(
+            id: "mockup-shot-next",
+            protocolID: protocolID,
+            canonicalTitle: "Tirzepatide",
+            aliasTitle: nil,
+            kindLabel: "GLP",
+            cadenceLabel: "Weekly",
+            doseLabel: "5.0 mg",
+            scheduledAt: dueAt,
+            state: .due
+        )
+
+        let sites = [
+            AtlasSiteSummary(id: "abdomen", name: "Abdomen", bodyArea: "Torso", mapRegionKey: nil, notes: nil, archivedAt: nil),
+            AtlasSiteSummary(id: "right-thigh", name: "Right Thigh", bodyArea: "Leg", mapRegionKey: nil, notes: nil, archivedAt: nil),
+            AtlasSiteSummary(id: "left-thigh", name: "Left Thigh", bodyArea: "Leg", mapRegionKey: nil, notes: nil, archivedAt: nil),
+            AtlasSiteSummary(id: "right-arm", name: "Right Arm", bodyArea: "Arm", mapRegionKey: nil, notes: nil, archivedAt: nil),
+            AtlasSiteSummary(id: "left-arm", name: "Left Arm", bodyArea: "Arm", mapRegionKey: nil, notes: nil, archivedAt: nil),
+            AtlasSiteSummary(id: "other", name: "Other", bodyArea: nil, mapRegionKey: nil, notes: nil, archivedAt: nil)
+        ]
+
+        bootstrapSnapshot = AtlasBootstrapSnapshot(
+            destination: .app,
+            reason: .existingLocalUser,
+            onboardingDraft: .empty(),
+            onboardingCompleted: true,
+            hasLocalData: true,
+            isImportedLocalUser: false
+        )
+        settingsSnapshot = seededSettings
+        todaySnapshot = AtlasTodaySnapshot(hasProtocols: true, nextDue: nextShot, overdue: [], upcoming: [])
+        libraryProtocols = [
+            ProtocolSummary(
+                id: protocolID,
+                canonicalTitle: "Tirzepatide",
+                aliasTitle: nil,
+                protocolKind: .glp,
+                kindLabel: "GLP",
+                cadenceLabel: "Weekly",
+                doseLabel: "5.0 mg",
+                nextDueLabel: "Today, 12:30 PM",
+                status: .active
+            ),
+            ProtocolSummary(
+                id: bpcProtocolID,
+                canonicalTitle: "BPC-157",
+                aliasTitle: nil,
+                protocolKind: .peptide,
+                kindLabel: "Peptide",
+                cadenceLabel: "Daily",
+                doseLabel: "250 mcg",
+                nextDueLabel: "Today, 8:00 AM",
+                status: .active
+            ),
+            ProtocolSummary(
+                id: cjcProtocolID,
+                canonicalTitle: "CJC-1295",
+                aliasTitle: nil,
+                protocolKind: .peptide,
+                kindLabel: "Peptide",
+                cadenceLabel: "Daily",
+                doseLabel: "250 mcg",
+                nextDueLabel: "Tomorrow, 8:00 AM",
+                status: .active
+            )
+        ]
+        inventorySnapshot = AtlasInventorySnapshot(
+            protocolSettings: [
+                AtlasProtocolInventorySetting(
+                    id: protocolID,
+                    canonicalTitle: "Tirzepatide Weekly",
+                    aliasTitle: nil,
+                    kindLabel: "GLP",
+                    cadenceLabel: "Weekly",
+                    doseLabel: "5.0 mg",
+                    linkedVialID: vialID,
+                    linkedVialLabel: "Tirzepatide 10 mg vial",
+                    siteTrackingEnabled: true,
+                    siteRotationEnabled: true
+                ),
+                AtlasProtocolInventorySetting(
+                    id: bpcProtocolID,
+                    canonicalTitle: "BPC-157",
+                    aliasTitle: nil,
+                    kindLabel: "Peptide",
+                    cadenceLabel: "Daily",
+                    doseLabel: "250 mcg",
+                    linkedVialID: bpcVialID,
+                    linkedVialLabel: "BPC-157 5 mg vial",
+                    siteTrackingEnabled: true,
+                    siteRotationEnabled: true
+                ),
+                AtlasProtocolInventorySetting(
+                    id: cjcProtocolID,
+                    canonicalTitle: "CJC-1295",
+                    aliasTitle: nil,
+                    kindLabel: "Peptide",
+                    cadenceLabel: "Daily",
+                    doseLabel: "250 mcg",
+                    linkedVialID: cjcVialID,
+                    linkedVialLabel: "CJC-1295 5 mg vial",
+                    siteTrackingEnabled: true,
+                    siteRotationEnabled: true
+                ),
+                AtlasProtocolInventorySetting(
+                    id: igfProtocolID,
+                    canonicalTitle: "IGF-1 LR3",
+                    aliasTitle: nil,
+                    kindLabel: "Peptide",
+                    cadenceLabel: "Daily",
+                    doseLabel: "20 mcg",
+                    linkedVialID: igfVialID,
+                    linkedVialLabel: "IGF-1 LR3 2 mg vial",
+                    siteTrackingEnabled: false,
+                    siteRotationEnabled: false
+                )
+            ],
+            vials: [
+                AtlasVialSummary(
+                    id: vialID,
+                    label: "Tirzepatide 10 mg vial",
+                    linkedProtocolID: protocolID,
+                    linkedProtocolCanonicalTitle: "Tirzepatide Weekly",
+                    linkedProtocolAliasTitle: nil,
+                    calculatorProfileID: nil,
+                    calculatorProfileLabel: nil,
+                    quantityLabel: "12 doses",
+                    lowStockLabel: nil,
+                    projectedDepletionLabel: "~28 days left",
+                    autoDecrementLabel: "Auto-decrement on shot log",
+                    remainingQuantity: 12,
+                    startingQuantity: 20,
+                    quantityUnit: "doses",
+                    isLowStock: false,
+                    referencePhotoPath: nil,
+                    labelScanPreview: nil,
+                    archivedAt: nil
+                ),
+                AtlasVialSummary(
+                    id: bpcVialID,
+                    label: "BPC-157 5 mg vial",
+                    linkedProtocolID: bpcProtocolID,
+                    linkedProtocolCanonicalTitle: "BPC-157",
+                    linkedProtocolAliasTitle: nil,
+                    calculatorProfileID: nil,
+                    calculatorProfileLabel: nil,
+                    quantityLabel: "46 doses",
+                    lowStockLabel: nil,
+                    projectedDepletionLabel: "~46 days left",
+                    autoDecrementLabel: "Auto-decrement on shot log",
+                    remainingQuantity: 46,
+                    startingQuantity: 60,
+                    quantityUnit: "doses",
+                    isLowStock: false,
+                    referencePhotoPath: nil,
+                    labelScanPreview: nil,
+                    archivedAt: nil
+                ),
+                AtlasVialSummary(
+                    id: cjcVialID,
+                    label: "CJC-1295 5 mg vial",
+                    linkedProtocolID: cjcProtocolID,
+                    linkedProtocolCanonicalTitle: "CJC-1295",
+                    linkedProtocolAliasTitle: nil,
+                    calculatorProfileID: nil,
+                    calculatorProfileLabel: nil,
+                    quantityLabel: "30 doses",
+                    lowStockLabel: nil,
+                    projectedDepletionLabel: "~30 days left",
+                    autoDecrementLabel: "Auto-decrement on shot log",
+                    remainingQuantity: 30,
+                    startingQuantity: 40,
+                    quantityUnit: "doses",
+                    isLowStock: false,
+                    referencePhotoPath: nil,
+                    labelScanPreview: nil,
+                    archivedAt: nil
+                ),
+                AtlasVialSummary(
+                    id: igfVialID,
+                    label: "IGF-1 LR3 2 mg vial",
+                    linkedProtocolID: igfProtocolID,
+                    linkedProtocolCanonicalTitle: "IGF-1 LR3",
+                    linkedProtocolAliasTitle: nil,
+                    calculatorProfileID: nil,
+                    calculatorProfileLabel: nil,
+                    quantityLabel: "16 doses",
+                    lowStockLabel: "Low stock",
+                    projectedDepletionLabel: "~16 days left",
+                    autoDecrementLabel: "Manual decrement",
+                    remainingQuantity: 16,
+                    startingQuantity: 50,
+                    quantityUnit: "doses",
+                    isLowStock: true,
+                    referencePhotoPath: nil,
+                    labelScanPreview: nil,
+                    archivedAt: nil
+                ),
+                AtlasVialSummary(
+                    id: bacVialID,
+                    label: "BAC Water 10 mL vial",
+                    linkedProtocolID: nil,
+                    linkedProtocolCanonicalTitle: nil,
+                    linkedProtocolAliasTitle: nil,
+                    calculatorProfileID: nil,
+                    calculatorProfileLabel: nil,
+                    quantityLabel: "N/A",
+                    lowStockLabel: nil,
+                    projectedDepletionLabel: "N/A",
+                    autoDecrementLabel: nil,
+                    remainingQuantity: 1,
+                    startingQuantity: 1,
+                    quantityUnit: "vial",
+                    isLowStock: false,
+                    referencePhotoPath: nil,
+                    labelScanPreview: nil,
+                    archivedAt: nil
+                )
+            ],
+            consumables: [
+                AtlasConsumableSummary(
+                    id: "mockup-supply-syringes",
+                    name: "Syringes, Alcohol Swabs, Sharps",
+                    category: "Supplies",
+                    linkedProtocolID: protocolID,
+                    linkedProtocolCanonicalTitle: "Tirzepatide",
+                    linkedProtocolAliasTitle: nil,
+                    vendorLabel: nil,
+                    quantityLabel: "Well stocked",
+                    lowStockLabel: nil,
+                    projectedDepletionLabel: nil,
+                    usageLabel: "Ready",
+                    reorderLeadTimeLabel: nil,
+                    procurementStatusLabel: "Well stocked",
+                    lastProcurementLabel: nil,
+                    quantityOnHand: 30,
+                    quantityUnit: "items",
+                    reorderThreshold: 5,
+                    isLowStock: false,
+                    needsProcurementReview: false,
+                    archivedAt: nil
+                )
+            ],
+            sites: sites
+        )
+        protocolSiteOptions[protocolID] = AtlasProtocolSiteOptions(
+            protocolID: protocolID,
+            siteTrackingEnabled: true,
+            siteRotationEnabled: true,
+            sites: sites,
+            suggestedSiteID: "abdomen",
+            lastUsedSiteID: nil
+        )
+        rewardsSnapshot = AtlasRewardsSnapshot(
+            settings: AtlasRewardsSettingsSnapshot(enabled: true),
+            totalPoints: 1_240,
+            level: 14,
+            nextLevelPoints: 2_000,
+            streaks: [
+                AtlasRewardStreakSnapshot(
+                    kind: .activityDays,
+                    title: "Daily streak",
+                    valueLabel: "12",
+                    helperText: "12-day streak",
+                    symbolName: "chart.line.uptrend.xyaxis",
+                    count: 12,
+                    isActive: true
+                )
+            ],
+            goals: [
+                AtlasRewardGoalSnapshot(
+                    kind: .weeklyWorkouts,
+                    title: "Workout",
+                    progressLabel: "2 / 1",
+                    helperText: "Weekly movement quest",
+                    symbolName: "dumbbell.fill",
+                    currentValue: 2,
+                    targetValue: 1,
+                    progress: 1,
+                    isMet: true
+                )
+            ],
+            badges: [
+                AtlasRewardBadgeSnapshot(kind: .activityStreak7, title: "Streak", subtitle: "7 days", symbolName: "star.fill", isEarned: true),
+                AtlasRewardBadgeSnapshot(kind: .workoutGoalMet, title: "Hydration", subtitle: "Support", symbolName: "drop.fill", isEarned: true),
+                AtlasRewardBadgeSnapshot(kind: .selfGoalTargetMet, title: "Calendar", subtitle: "Logged", symbolName: "calendar", isEarned: true),
+                AtlasRewardBadgeSnapshot(kind: .weightCheckpoint, title: "Heart", subtitle: "Progress", symbolName: "heart.fill", isEarned: true)
+            ]
+        )
+        insightsSnapshot = AtlasInsightsSnapshot(
+            weightTrend: AtlasWeightTrendSummary(),
+            contextTrend: AtlasContextTrendSummary(recentEntryCount: 3, latestLabel: "Protein meal", lowHydrationEntryCount: 0),
+            nutritionSnapshot: AtlasNutritionSnapshot(
+                dailyTargets: [
+                    AtlasNutritionTargetSnapshot(kind: .proteinMeals, title: "Protein meal", progressLabel: "84%", helperText: "Protein-forward meals", symbolName: "fork.knife", currentValue: 84, targetValue: 100, progress: 0.84, isMet: false),
+                    AtlasNutritionTargetSnapshot(kind: .hydrationCheckins, title: "Hydration", progressLabel: "2 / 3 today", helperText: "Hydration check-ins", symbolName: "drop.fill", currentValue: 2, targetValue: 3, progress: 0.64, isMet: false)
+                ],
+                favoriteMealCount: 2,
+                recentMealCount: 3,
+                latestMealLabel: "Protein meal"
+            ),
+            adherenceTrend: AtlasAdherenceTrendSummary(completionRateLabel: "6 of 7 days logged", completedCount: 6),
+            amountInSystem: [
+                AtlasAmountEstimateItem(
+                    protocolID: protocolID,
+                    canonicalProtocolTitle: "Tirzepatide",
+                    aliasProtocolTitle: nil,
+                    cadenceLabel: "Weekly",
+                    estimateLabel: "Target",
+                    notesLabel: "Estimated relative amount",
+                    currentEstimateValue: 0.42,
+                    estimateUnit: "mg",
+                    points: mockupMedicationPoints(endingAt: now)
+                )
+            ],
+            recentContextEntries: mockupContextEntries(now: now, protocolID: protocolID),
+            recentWorkoutEntries: [
+                AtlasWorkoutEntrySummary(id: "mockup-workout-1", activityKind: .strength, startedAt: pastWorkout, endedAt: now, durationLabel: "30 min", detailLabel: nil, source: .manual),
+                AtlasWorkoutEntrySummary(id: "mockup-workout-2", activityKind: .walk, startedAt: now, endedAt: now, durationLabel: "20 min", detailLabel: nil, source: .health)
+            ],
+            hasAnyInsightData: true
+        )
+        protocolDetails[protocolID] = AtlasProtocolDetailSnapshot(
+            id: protocolID,
+            canonicalTitle: "Tirzepatide",
+            aliasTitle: nil,
+            status: .active,
+            protocolKind: .glp,
+            kindLabel: "GLP",
+            administrationLabel: "SubQ",
+            supplyLabel: "Vial",
+            cadenceLabel: "Weekly",
+            doseLabel: "5.0 mg",
+            notes: "Weekly protocol tracking with vial runway and site rotation.",
+            medicationLevel: insightsSnapshot.amountInSystem.first,
+            editableDraft: AtlasProtocolDraft(
+                name: "Tirzepatide",
+                kind: .peptide,
+                administrationRoute: .injection,
+                supplyType: .vial,
+                dosesPerSupply: 12,
+                cadenceType: .weekly,
+                intervalDays: 7,
+                weekday: 6,
+                defaultTimeOfDay: "12:30",
+                doseAmount: 5.0,
+                doseUnit: "mg",
+                notes: nil
+            ),
+            nextOccurrence: nextShot,
+            recentChanges: []
+        )
+        hasLoadedBootstrap = true
+        hasLoadedShellData = true
+        syncShellViewStates()
+    }
+
+    private func mockupMedicationPoints(endingAt now: Date) -> [AtlasMedicationLevelPoint] {
+        [0.76, 0.74, 0.62, 0.67, 0.48, 0.34, 0.25].enumerated().map { index, value in
+            let date = Calendar.current.date(byAdding: .day, value: index - 6, to: now) ?? now
+            return AtlasMedicationLevelPoint(timestamp: "mockup-\(index)", recordedAt: date, estimatedQuantity: value)
+        }
+    }
+
+    private func mockupContextEntries(now: Date, protocolID: String) -> [AtlasContextEntrySummary] {
+        (0..<3).map { index in
+            AtlasContextEntrySummary(
+                id: "mockup-context-\(index)",
+                protocolID: protocolID,
+                canonicalProtocolTitle: "Tirzepatide Weekly",
+                aliasProtocolTitle: nil,
+                loggedAt: Calendar.current.date(byAdding: .hour, value: -index, to: now) ?? now,
+                mealTiming: nil,
+                mealSize: nil,
+                mealComposition: nil,
+                fedState: nil,
+                appetite: nil,
+                hydration: nil,
+                giTags: [],
+                note: nil,
+                tags: ["support"],
+                presetKey: nil
+            )
+        }
+    }
+    #endif
+
     public func loadBootstrapIfNeeded() async {
         guard hasLoadedBootstrap == false else {
             return
@@ -477,13 +893,68 @@ public final class AtlasAppModel {
     public func refreshBootstrap() async {
         do {
             bootstrapSnapshot = try await dependencies.persistence.onboarding.loadBootstrapSnapshot()
+            onboardingFunnelEvents = (try? await dependencies.persistence.onboarding.fetchFunnelEvents(limit: 80)) ?? []
             let sequence = bootstrapSnapshot.onboardingDraft.sequence()
-            activeOnboardingStep = sequence.contains(activeOnboardingStep) ? activeOnboardingStep : sequence.first ?? .splash
+            activeOnboardingStep = sequence.contains(activeOnboardingStep) ? activeOnboardingStep : sequence.first ?? .intro
             settingsSnapshot = try await dependencies.persistence.settings.currentSettingsSnapshot()
             syncShellViewStates()
         } catch {
             setLoadErrorMessage(error.localizedDescription)
         }
+    }
+
+    public func recordOnboardingStepViewed(_ step: AtlasOnboardingStep) {
+        guard viewedOnboardingStepIDs.insert(step.rawValue).inserted else {
+            return
+        }
+        recordOnboardingFunnelEvent(.stepViewed, step: step)
+        if step == .trialPaywall {
+            recordOnboardingFunnelEvent(.paywallViewed, step: step)
+        }
+    }
+
+    public func recordOnboardingFunnelEvent(
+        _ name: AtlasOnboardingFunnelEventName,
+        step: AtlasOnboardingStep,
+        metadata: [String: String] = [:]
+    ) {
+        let now = currentDate()
+        let event = AtlasOnboardingFunnelEvent(
+            name: name,
+            step: step,
+            metadata: onboardingFunnelMetadata(merging: metadata),
+            recordedAt: now
+        )
+        onboardingFunnelEvents.append(event)
+        if onboardingFunnelEvents.count > 80 {
+            onboardingFunnelEvents = Array(onboardingFunnelEvents.suffix(80))
+        }
+        Task { [dependencies] in
+            try? await dependencies.persistence.onboarding.recordFunnelEvent(event, now: now)
+        }
+    }
+
+    private func onboardingFunnelMetadata(merging metadata: [String: String]) -> [String: String] {
+        let draft = bootstrapSnapshot.onboardingDraft
+        var base: [String: String] = [:]
+        if let trackType = draft.trackType {
+            base["trackType"] = trackType.rawValue
+        }
+        if let journeyStatus = draft.journeyStatus {
+            base["journeyStatus"] = journeyStatus.rawValue
+        }
+        if let focus = draft.focus {
+            base["focus"] = focus.rawValue
+        }
+        if let privacyPreset = draft.privacyPreset {
+            base["privacyPreset"] = privacyPreset.rawValue
+        }
+        base["premiumPlan"] = draft.premiumPlan.rawValue
+        if let paywallChoice = draft.paywallChoice {
+            base["paywallChoice"] = paywallChoice.rawValue
+        }
+        base["nutritionContext"] = draft.profile.wantsNutritionTracking ? "enabled" : "off"
+        return base.merging(metadata) { _, new in new }
     }
 
     public func loadShellDataIfNeeded() async {
@@ -509,6 +980,15 @@ public final class AtlasAppModel {
     }
 
     public func refreshShellData() async {
+        #if DEBUG
+        if atlasIsMockupFidelityLaunch {
+            hasLoadedBootstrap = true
+            hasLoadedShellData = true
+            syncShellViewStates()
+            return
+        }
+        #endif
+
         guard isLoading == false else {
             return
         }
@@ -519,6 +999,8 @@ public final class AtlasAppModel {
 
         do {
             let now = dependencies.dateProvider()
+            let previousRewardsSnapshot = rewardsSnapshot
+            let shouldCelebrateRewardDelta = hasLoadedShellData
             await syncRemindersIfPossible(referenceDate: now)
             await syncExternalCalendarIfPossible(referenceDate: now)
             do {
@@ -548,19 +1030,75 @@ public final class AtlasAppModel {
             async let trustVault = dependencies.persistence.trustVault.fetchTrustVaultSnapshot()
             async let reviewOwner = dependencies.persistence.reviewMode.fetchOwnerSnapshot(now: now)
 
-            settingsSnapshot = try await settings
-            todaySnapshot = try await today
-            libraryProtocols = try await protocols
-            timelineEntries = try await timeline
-            reminderSettings = try await reminders
+            var refreshErrors: [String] = []
+            do {
+                settingsSnapshot = try await settings
+            } catch {
+                refreshErrors.append("settings: \(error.localizedDescription)")
+            }
+            do {
+                todaySnapshot = try await today
+            } catch {
+                refreshErrors.append("today: \(error.localizedDescription)")
+            }
+            do {
+                libraryProtocols = try await protocols
+            } catch {
+                refreshErrors.append("protocols: \(error.localizedDescription)")
+            }
+            do {
+                timelineEntries = try await timeline
+            } catch {
+                refreshErrors.append("timeline: \(error.localizedDescription)")
+            }
+            do {
+                reminderSettings = try await reminders
+            } catch {
+                refreshErrors.append("reminders: \(error.localizedDescription)")
+            }
             notificationPermissionStatus = await permission
-            inventorySnapshot = try await inventory
-            self.calculatorProfiles = try await calculatorProfiles
-            insightsSnapshot = try await insights
-            retentionSnapshot = try await retention
-            rewardsSnapshot = try await rewards
-            trustVaultSnapshot = try await trustVault
-            reviewOwnerSnapshot = decorateReviewOwnerSnapshot(try await reviewOwner)
+            do {
+                inventorySnapshot = try await inventory
+            } catch {
+                refreshErrors.append("inventory: \(error.localizedDescription)")
+            }
+            do {
+                self.calculatorProfiles = try await calculatorProfiles
+            } catch {
+                refreshErrors.append("calculator: \(error.localizedDescription)")
+            }
+            do {
+                insightsSnapshot = try await insights
+            } catch {
+                refreshErrors.append("insights: \(error.localizedDescription)")
+            }
+            do {
+                retentionSnapshot = try await retention
+            } catch {
+                refreshErrors.append("retention: \(error.localizedDescription)")
+            }
+            do {
+                let refreshedRewards = try await rewards
+                rewardsSnapshot = refreshedRewards
+                queueRewardCelebrationIfNeeded(
+                    previous: previousRewardsSnapshot,
+                    current: refreshedRewards,
+                    referenceDate: now,
+                    shouldCelebrate: shouldCelebrateRewardDelta
+                )
+            } catch {
+                refreshErrors.append("rewards: \(error.localizedDescription)")
+            }
+            do {
+                trustVaultSnapshot = try await trustVault
+            } catch {
+                refreshErrors.append("trust vault: \(error.localizedDescription)")
+            }
+            do {
+                reviewOwnerSnapshot = decorateReviewOwnerSnapshot(try await reviewOwner)
+            } catch {
+                refreshErrors.append("review mode: \(error.localizedDescription)")
+            }
             calendarPermissionStatus = await dependencies.calendarSync.authorizationStatus()
             if calendarPermissionStatus.canListCalendars {
                 do {
@@ -578,6 +1116,9 @@ public final class AtlasAppModel {
             hasLoadedShellData = true
             await refreshCloudStatus()
             syncShellViewStates()
+            if let message = refreshErrors.first {
+                setLoadErrorMessage(message)
+            }
         } catch {
             setLoadErrorMessage(error.localizedDescription)
         }
@@ -635,7 +1176,7 @@ public final class AtlasAppModel {
         do {
             bootstrapSnapshot = try await dependencies.persistence.onboarding.resetOnboarding(now: currentDate())
             settingsSnapshot = try await dependencies.persistence.settings.currentSettingsSnapshot()
-            activeOnboardingStep = .splash
+            activeOnboardingStep = .intro
             hasLoadedShellData = false
             syncShellViewStates()
         } catch {
@@ -989,6 +1530,10 @@ public final class AtlasAppModel {
 
     public func dismissMascotCelebration() {
         pendingMascotCelebration = nil
+    }
+
+    public func dismissRewardCelebration() {
+        pendingRewardCelebration = nil
     }
 
     public func updateRewardsSettings(_ update: AtlasRewardsSettingsUpdate) async {
@@ -1407,7 +1952,7 @@ public final class AtlasAppModel {
             let result = try await dependencies.persistence.inventory.recordConsumableProcurement(procurement, now: currentDate())
             invalidateInventoryCaches()
             await refreshShellData()
-            queueAutomaticCloudSync(reason: "procurement history")
+            queueAutomaticCloudSync(reason: "supply history")
             consumableDetails[result.consumable.summary.id] = result.consumable
             return result
         } catch {
@@ -1478,6 +2023,17 @@ public final class AtlasAppModel {
                     )
                 )
             }
+        } catch {
+            setLoadErrorMessage(error.localizedDescription)
+        }
+    }
+
+    public func saveWorkoutEntry(_ draft: AtlasWorkoutEntryDraft) async {
+        do {
+            _ = try await dependencies.persistence.metrics.saveWorkoutEntry(draft, now: currentDate())
+            await refreshShellData()
+            triggerAmbientMascotReaction(.logSuccess)
+            queueAutomaticCloudSync(reason: "workout entry")
         } catch {
             setLoadErrorMessage(error.localizedDescription)
         }
@@ -1995,7 +2551,7 @@ public final class AtlasAppModel {
             occurrence: nextDue ?? AtlasScheduledOccurrence(
                 id: "preview",
                 protocolID: "preview",
-                canonicalTitle: "Atlas protocol",
+                canonicalTitle: "Kairo protocol",
                 aliasTitle: "Alias protocol",
                 kindLabel: "Routine",
                 cadenceLabel: "Daily cadence",
@@ -2063,7 +2619,7 @@ public final class AtlasAppModel {
             _ = try await runCloudSync(generatedAt: now)
             await refreshCloudStatus()
         } catch {
-            setLoadErrorMessage("Automatic Atlas Cloud backup failed after \(reason.lowercased()): \(error.localizedDescription)")
+            setLoadErrorMessage("Automatic Kairo Cloud backup failed after \(reason.lowercased()): \(error.localizedDescription)")
         }
     }
 
@@ -2283,6 +2839,34 @@ public final class AtlasAppModel {
         }
     }
 
+    private func queueRewardCelebrationIfNeeded(
+        previous: AtlasRewardsSnapshot,
+        current: AtlasRewardsSnapshot,
+        referenceDate: Date,
+        shouldCelebrate: Bool
+    ) {
+        guard shouldCelebrate,
+              pendingRewardCelebration == nil,
+              pendingMascotCelebration == nil else {
+            return
+        }
+
+        if let celebration = atlasRewardCelebrationCandidate(
+            previous: previous,
+            current: current,
+            selection: settingsSnapshot.mascotSelection,
+            createdAt: referenceDate
+        ) {
+            pendingRewardCelebration = celebration
+            switch celebration.kind {
+            case .goal, .badge, .level:
+                triggerAmbientMascotReaction(.milestone)
+            case .streak, .xp:
+                triggerAmbientMascotReaction(.logSuccess)
+            }
+        }
+    }
+
     private func processMascotMomentsIfNeeded(referenceDate: Date) async {
         guard settingsSnapshot.mascotSelectionConfirmed,
               rewardsSnapshot.settings.enabled else {
@@ -2423,55 +3007,55 @@ public struct AtlasRootView: View {
                     .navigationDestination(for: AtlasRoute.self) { route in
                         switch route {
                         case .protocolDetail(let id):
-                            AtlasProtocolDetailScreen(model: model, protocolID: id)
+                            KairoProtocolDetailScreen(model: model, protocolID: id)
                         case .protocolCreate:
-                            AtlasProtocolEditorScreen(model: model, mode: .create)
+                            KairoProtocolEditorScreen(model: model, mode: .create)
                         case .protocolEdit(let id):
-                            AtlasProtocolEditorScreen(model: model, mode: .edit(id))
+                            KairoProtocolEditorScreen(model: model, mode: .edit(id))
                         case .protocolChange(let id):
-                            AtlasProtocolChangeStudioScreen(model: model, protocolID: id)
+                            KairoProtocolEditorScreen(model: model, mode: .edit(id))
                         case .medicationLevels(let id):
-                            AtlasMedicationLevelsScreen(model: model, protocolID: id)
+                            KairoMedicationLevelScreen(model: model, protocolID: id)
                         case .compoundIntelligence(let slug):
-                            AtlasCompoundIntelligenceScreen(model: model, knowledgeSlug: slug)
+                            KairoCompoundKnowledgeScreen(model: model, slug: slug)
                         case .rewards:
-                            AtlasRewardsScreen(model: model)
+                            KairoRewardsScreen(model: model)
                         case .inventory:
-                            AtlasInventoryScreen(model: model)
+                            KairoInventoryScreen(model: model)
                         case .labs:
-                            AtlasLabsScreen(model: model)
+                            KairoLabsScreen(model: model)
                         case .mascot:
-                            AtlasMascotDetailScreen(model: model)
+                            KairoMascotDetailScreen(model: model)
                         case .calculator:
-                            AtlasCalculatorScreen(model: model)
+                            KairoCalculatorScreen(model: model)
                         case .trustVault:
-                            AtlasTrustVaultScreen(model: model)
+                            KairoTrustVaultScreen(model: model)
                         case .importFlow:
-                            AtlasImportScreen(model: model)
+                            KairoImportScreen(model: model)
                         case .reviewMode:
-                            AtlasReviewModeScreen(model: model)
+                            KairoShareSummaryScreen(model: model)
                         case .weeklyReview:
-                            AtlasWeeklyReviewScreen(model: model)
+                            KairoWeeklyReviewScreen(model: model)
                         case .progressEvidence:
-                            AtlasProgressEvidenceScreen(model: model)
+                            KairoProgressPhotosScreen(model: model)
                         case .quickCapture(let kind):
-                            AtlasQuickCaptureScreen(model: model, initialKind: kind)
+                            KairoQuickCaptureScreen(model: model, initialKind: kind)
                         case .watchCompanion:
-                            AtlasWatchCompanionScreen(model: model)
+                            KairoSettingsServicesScreen(model: model)
                         case .insightsLogs:
-                            AtlasInsightsLogsScreen(model: model, state: model.insightsViewState)
+                            KairoInsightsLogsScreen(model: model)
                         case .insightsAnalysis:
-                            AtlasInsightsAnalysisScreen(model: model, state: model.insightsViewState)
+                            KairoInsightsAnalysisScreen(model: model)
                         case .settingsAccount:
-                            AtlasSettingsAccountScreen(model: model, state: model.settingsViewState)
+                            KairoSettingsScreen(model: model)
                         case .settingsPrivacy:
-                            AtlasSettingsPrivacyScreen(model: model, state: model.settingsViewState)
+                            KairoSettingsPrivacyScreen(model: model)
                         case .settingsNotifications:
-                            AtlasSettingsNotificationsScreen(model: model, state: model.settingsViewState)
+                            KairoSettingsNotificationsScreen(model: model)
                         case .settingsServices:
-                            AtlasSettingsServicesScreen(model: model, state: model.settingsViewState)
+                            KairoSettingsServicesScreen(model: model)
                         case .settingsPersonalization:
-                            AtlasSettingsPersonalizationScreen(model: model, state: model.settingsViewState)
+                            KairoMascotDetailScreen(model: model)
                         }
                     }
                 }
@@ -2490,6 +3074,7 @@ private struct AtlasShellView: View {
     @State private var mascotFlight: AtlasAmbientMascotFlightState?
     @State private var mascotSettleTrigger = 0
     @State private var keyboardVisible = false
+    @State private var companionTabShowsSettings = false
 
     var body: some View {
         GeometryReader { geometry in
@@ -2503,6 +3088,18 @@ private struct AtlasShellView: View {
                     AtlasAmbientMascotFlightOverlay(flight: mascotFlight) {
                         self.mascotFlight = nil
                     }
+                }
+
+                if let celebration = model.pendingRewardCelebration,
+                   model.pendingMascotCelebration == nil {
+                    AtlasRewardCelebrationOverlay(
+                        celebration: celebration,
+                        selection: model.settingsSnapshot.mascotSelection
+                    ) {
+                        model.dismissRewardCelebration()
+                    }
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .zIndex(20)
                 }
             }
             .sheet(
@@ -2609,19 +3206,19 @@ private struct AtlasShellView: View {
     private var currentScreen: some View {
         switch model.activeTab {
         case .today:
-            AtlasTodayScreen(model: model, state: model.todayViewState)
+            KairoTodayScreen(model: model, state: model.todayViewState)
         case .timeline:
-            AtlasTimelineScreen(model: model, state: model.timelineViewState)
+            KairoLogShotScreen(model: model)
         case .library:
-            AtlasLibraryScreen(model: model, state: model.libraryViewState)
+            KairoProtocolsScreen(model: model, state: model.libraryViewState)
         case .insights:
-            AtlasInsightsScreen(
-                model: model,
-                state: model.insightsViewState,
-                ambientMascotVisible: mascotFlight?.destinationPlacement != .cardCorner
-            )
+            KairoProgressScreen(model: model, state: model.insightsViewState)
         case .settings:
-            AtlasSettingsScreen(model: model, state: model.settingsViewState)
+            if companionTabShowsSettings {
+                KairoSettingsScreen(model: model, embeddedInTab: true)
+            } else {
+                KairoCompanionScreen(model: model)
+            }
         }
     }
 
@@ -2631,6 +3228,11 @@ private struct AtlasShellView: View {
         safeAreaInsets: EdgeInsets
     ) {
         guard tab != model.activeTab else {
+            if tab == .settings {
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
+                    companionTabShowsSettings.toggle()
+                }
+            }
             return
         }
 
@@ -2644,6 +3246,7 @@ private struct AtlasShellView: View {
 
         mascotFlight = flight
         withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+            companionTabShowsSettings = false
             model.activeTab = tab
         }
 
@@ -2902,7 +3505,7 @@ private struct AtlasUndoBanner: View {
         }
         .padding(AtlasSpacing.small)
         .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .fill(
                     LinearGradient(
                         colors: [AtlasPalette.surfaceTop.opacity(0.96), AtlasPalette.surfaceSecondary],
@@ -2912,7 +3515,7 @@ private struct AtlasUndoBanner: View {
                 )
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .stroke(AtlasPalette.chromeStroke, lineWidth: 1)
         )
         .shadow(color: AtlasPalette.shadow.opacity(0.18), radius: 14, x: 0, y: 10)
@@ -2933,20 +3536,20 @@ private struct AtlasBottomTabBar: View {
     let onSelect: (AtlasTab) -> Void
 
     var body: some View {
-        HStack(spacing: dynamicTypeSize.isAccessibilitySize ? 4 : AtlasSpacing.xSmall) {
+        HStack(spacing: dynamicTypeSize.isAccessibilitySize ? 3 : 4) {
             ForEach(AtlasTab.allCases) { tab in
                 let isSelected = selection == tab
 
                 Button {
                     onSelect(tab)
                 } label: {
-                    VStack(spacing: dynamicTypeSize.isAccessibilitySize ? 5 : 7) {
+                    VStack(spacing: dynamicTypeSize.isAccessibilitySize ? 3 : 3) {
                         Image(systemName: tab.systemImage)
                             .resizable()
                             .scaledToFit()
                             .frame(
-                                width: dynamicTypeSize.isAccessibilitySize ? 16 : 18,
-                                height: dynamicTypeSize.isAccessibilitySize ? 16 : 18
+                                width: dynamicTypeSize.isAccessibilitySize ? 14 : 13,
+                                height: dynamicTypeSize.isAccessibilitySize ? 14 : 13
                             )
                             .symbolVariant(isSelected ? .fill : .none)
                         Text(tab.title)
@@ -2958,41 +3561,36 @@ private struct AtlasBottomTabBar: View {
                     }
                     .foregroundStyle(isSelected ? AtlasPalette.primary : AtlasPalette.textSecondary)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, dynamicTypeSize.isAccessibilitySize ? 10 : 11)
-                    .padding(.horizontal, dynamicTypeSize.isAccessibilitySize ? 1 : 4)
+                    .frame(minHeight: dynamicTypeSize.isAccessibilitySize ? 40 : 36)
+                    .padding(.vertical, dynamicTypeSize.isAccessibilitySize ? 4 : 3)
+                    .padding(.horizontal, dynamicTypeSize.isAccessibilitySize ? 1 : 2)
                     .background(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
                             .fill(
                                 isSelected
-                                    ? AnyShapeStyle(
-                                        LinearGradient(
-                                            colors: [AtlasPalette.surfaceTop, AtlasPalette.secondaryFill],
-                                            startPoint: .top,
-                                            endPoint: .bottom
-                                        )
-                                    )
+                                    ? AnyShapeStyle(AtlasPalette.secondaryFill)
                                     : AnyShapeStyle(Color.clear)
                             )
                     )
                     .overlay(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
                             .stroke(isSelected ? AtlasPalette.chromeStroke : Color.clear, lineWidth: 1)
                     )
                     .shadow(
                         color: isSelected ? AtlasPalette.shadow.opacity(0.24) : .clear,
-                        radius: 12,
+                        radius: 5,
                         x: 0,
-                        y: 7
+                        y: 2
                     )
                 }
                 .buttonStyle(.plain)
                 .accessibilityAddTraits(isSelected ? .isSelected : [])
             }
         }
-        .padding(.horizontal, dynamicTypeSize.isAccessibilitySize ? 6 : 10)
-        .padding(.vertical, 10)
+        .padding(.horizontal, dynamicTypeSize.isAccessibilitySize ? 5 : 5)
+        .padding(.vertical, 3)
         .background(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(
                     LinearGradient(
                         colors: [AtlasPalette.surfaceTop.opacity(0.95), AtlasPalette.surfaceSecondary],
@@ -3002,22 +3600,22 @@ private struct AtlasBottomTabBar: View {
                 )
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(AtlasPalette.chromeStroke, lineWidth: 1)
         )
-        .shadow(color: AtlasPalette.shadow.opacity(0.34), radius: 22, x: 0, y: 16)
-        .padding(.horizontal, 16)
-        .padding(.top, 8)
-        .padding(.bottom, 8)
+        .shadow(color: AtlasPalette.shadow.opacity(0.12), radius: 6, x: 0, y: 3)
+        .padding(.horizontal, 14)
+        .padding(.top, 1)
+        .padding(.bottom, 1)
         .background(AtlasPalette.background.ignoresSafeArea(edges: .bottom))
     }
 
     private var tabLabelFont: Font {
         if dynamicTypeSize.isAccessibilitySize {
-            return .system(size: 11, weight: .semibold, design: .rounded)
+            return .system(size: 9, weight: .semibold, design: .default)
         }
 
-        return .system(size: 12, weight: .semibold, design: .rounded)
+        return .system(size: 9, weight: .semibold, design: .default)
     }
 
 }
@@ -3080,6 +3678,14 @@ public struct AtlasTodayScreen: View {
                 action: performTodayCommand
             )
 
+            AtlasTrustStatusBanner(model: model, compact: true)
+
+            AtlasReadinessStripCard(model: model, todaySnapshot: state.todaySnapshot)
+
+            AtlasDayOneCommandCenterCard(model: model, todaySnapshot: state.todaySnapshot)
+
+            AtlasQuickActionDockCard(model: model)
+
             if let nextDue = state.todaySnapshot.nextDue {
                 AtlasRootSectionHeader("Next due")
                 AtlasOccurrenceHero(
@@ -3090,7 +3696,7 @@ public struct AtlasTodayScreen: View {
                         renderMode: state.renderMode
                     ),
                     onLog: { action in
-                        sheetContext = AtlasLogSheetContext(occurrence: nextDue, initialAction: action)
+                        handleOccurrenceAction(nextDue, action: action)
                     },
                     onOpenProtocol: {
                         model.open(.protocolDetail(nextDue.protocolID))
@@ -3184,7 +3790,7 @@ public struct AtlasTodayScreen: View {
                     state: state,
                     isExpanded: $queueExpanded,
                     onSelectOccurrence: { occurrence, action in
-                        sheetContext = AtlasLogSheetContext(occurrence: occurrence, initialAction: action)
+                        handleOccurrenceAction(occurrence, action: action)
                     },
                     onOpenChangeStudio: { protocolID in
                         model.open(.protocolChange(protocolID))
@@ -3394,7 +4000,11 @@ public struct AtlasTodayScreen: View {
         case .importFlow:
             model.open(.importFlow)
         case .quickCapture(let kind):
-            model.open(.quickCapture(kind))
+            if kind == .shot {
+                routeToShotRitual()
+            } else {
+                model.open(.quickCapture(kind))
+            }
         case .library:
             model.activeTab = .library
         case .insights:
@@ -3406,6 +4016,20 @@ public struct AtlasTodayScreen: View {
         case .protocolDetail(let id):
             model.open(.protocolDetail(id))
         }
+    }
+
+    private func handleOccurrenceAction(_ occurrence: AtlasScheduledOccurrence, action: AtlasOccurrenceLogAction) {
+        switch action {
+        case .taken:
+            routeToShotRitual()
+        case .skipped, .rescheduled:
+            sheetContext = AtlasLogSheetContext(occurrence: occurrence, initialAction: action)
+        }
+    }
+
+    private func routeToShotRitual() {
+        model.routePath.removeAll()
+        model.activeTab = .timeline
     }
 
     private func performTodayWorkspaceModule(_ module: AtlasTodayWorkspaceModule) {
@@ -3654,7 +4278,7 @@ private func atlasTodayCommandDeckPresentation(
             metrics: metrics,
             primaryTitle: "Create protocol",
             primaryAction: .createProtocol,
-            secondaryTitle: "Import Atlas data",
+            secondaryTitle: "Import Kairo data",
             secondaryAction: .importFlow,
             rewardProgress: nil,
             rewardDetail: nil,
@@ -3865,7 +4489,7 @@ private struct AtlasTodayCommandDeck: View {
                     presence: presentation.ambientMascotPresence,
                     placement: .cardCorner,
                     context: .todayCommandDeck,
-                    size: 66,
+                    size: 58,
                     courtesySignal: courtesySignal,
                     contentNoticeTrigger: mascotContentNoticeTrigger,
                     peekTrigger: mascotPeekTrigger,
@@ -3873,7 +4497,8 @@ private struct AtlasTodayCommandDeck: View {
                     reactionSignal: presentation.ambientMascotReactionSignal,
                     milestoneNearby: presentation.ambientMascotMilestoneNearby
                 )
-                .offset(x: -14, y: -12)
+                .offset(x: -18, y: -48)
+                .allowsHitTesting(false)
             }
         }
         .onAppear {
@@ -3981,7 +4606,7 @@ private struct AtlasTodayWorkspaceCard: View {
                         .padding(.horizontal, AtlasSpacing.medium)
                         .padding(.vertical, AtlasSpacing.small)
                         .background(
-                            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
                                 .fill(AtlasPalette.secondaryFill)
                         )
                     }
@@ -4341,7 +4966,7 @@ private struct AtlasTodayQuickCaptureTile: View {
                     .frame(width: 18, height: 18)
                     .foregroundStyle(.white)
                     .frame(width: 40, height: 40)
-                    .background(AtlasPalette.primary.opacity(0.88), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .background(AtlasPalette.primary.opacity(0.88), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
 
                 Text(kind.title)
                     .atlasTextRole(.cardBody)
@@ -4567,13 +5192,13 @@ private struct AtlasMealPhotoPickerLabel: View {
             }
             Spacer()
         }
-        .padding(AtlasSpacing.medium)
+        .padding(12)
         .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(AtlasPalette.surfacePrimary)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(AtlasPalette.border.opacity(0.55), lineWidth: 1)
         )
     }
@@ -4855,7 +5480,7 @@ private struct AtlasQuickCaptureShotCard: View {
 
                     HStack(spacing: AtlasSpacing.small) {
                         Button("Mark taken") {
-                            AtlasFeedback.notify(.success)
+                            AtlasFeedback.impact(.medium)
                             Task {
                                 await model.logOccurrence(
                                     AtlasOccurrenceLogRequest(
@@ -4864,6 +5489,8 @@ private struct AtlasQuickCaptureShotCard: View {
                                         action: .taken
                                     )
                                 )
+                                model.routePath.removeAll()
+                                model.activeTab = .today
                             }
                         }
                         .buttonStyle(AtlasPrimaryButtonStyle())
@@ -4878,6 +5505,8 @@ private struct AtlasQuickCaptureShotCard: View {
                                         action: .skipped
                                     )
                                 )
+                                model.routePath.removeAll()
+                                model.activeTab = .today
                             }
                         }
                         .buttonStyle(AtlasSecondaryButtonStyle())
@@ -5108,7 +5737,7 @@ private struct AtlasQuickCaptureProgressCard: View {
                 Text("Progress photo")
                     .atlasTextRole(.cardTitle)
                     .foregroundStyle(AtlasPalette.textPrimary)
-                Text("Jump into guided recapture, same-angle compare, and private visual summaries without leaving Atlas.")
+                Text("Jump into guided recapture, same-angle compare, and private visual summaries without leaving Kairo.")
                     .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
 
@@ -5396,7 +6025,7 @@ private struct AtlasTodayContextShortcutRail: View {
                             .padding(.vertical, AtlasSpacing.small)
                             .frame(width: 156, alignment: .leading)
                             .background(
-                                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
                                     .fill(AtlasPalette.secondaryFill)
                             )
                         }
@@ -5461,7 +6090,7 @@ func atlasTodayGuidancePresentation(
                 AtlasTodayGuidanceAction(
                     id: "recovery-change",
                     title: "Review recovery handling",
-                    detail: "Open Change Studio if the future plan needs adjustment.",
+                    detail: "Open the plan editor if the future plan needs adjustment.",
                     symbolName: "slider.horizontal.3",
                     destination: .protocolChange($0.protocolID)
                 )
@@ -5573,7 +6202,7 @@ func atlasTodayRecoveryPresentation(
         followUp.map {
             AtlasExplainerFact(
                 label: "Latest changed plan",
-                value: $0.title ?? "Atlas protocol"
+                value: $0.title ?? "Kairo protocol"
             )
         }
     ].compactMap { $0 }
@@ -5587,7 +6216,7 @@ func atlasTodayRecoveryPresentation(
         primaryAction: AtlasTodayGuidanceAction(
             id: "recovery-plan",
             title: "Review recovery plan",
-            detail: "Open Change Studio if the future plan or missed-dose handling needs a reset.",
+            detail: "Open the plan editor if the future plan or missed-dose handling needs a reset.",
             symbolName: "slider.horizontal.3",
             destination: .protocolChange(primaryProtocolID)
         ),
@@ -5661,6 +6290,8 @@ public struct AtlasTimelineScreen: View {
                 title: "Timeline",
                 subtitle: nil
             )
+
+            AtlasTimelineReviewDeltaCard(model: model, state: state)
 
             AtlasSectionCard(style: .utility, title: "History filters") {
                 AtlasMetricStrip(metrics: timelineMetrics)
@@ -5769,7 +6400,7 @@ public struct AtlasTimelineScreen: View {
                 } else {
                     AtlasEmptyStateCard(
                         title: "No history yet",
-                        message: "Quick logs, imports, and protocol edits will appear here with immutable timestamps.",
+                        message: "Shot rituals, imports, and protocol edits will appear here with immutable timestamps.",
                         systemImage: "clock.badge.questionmark",
                         note: nil
                     ) {
@@ -5894,89 +6525,22 @@ public struct AtlasLibraryScreen: View {
 
     public var body: some View {
         AtlasRootScrollSurface {
-            AtlasTabHeader(
-                title: "Library",
-                subtitle: nil,
-                action: AtlasTabHeaderAction(
-                    systemImage: "plus",
-                    accessibilityLabel: "Create protocol",
-                    accessibilityHint: "Opens the native protocol creation form."
-                ) {
-                    model.open(.protocolCreate)
-                }
-            )
-
-            AtlasCommandDeck(
-                eyebrow: "LIBRARY CONTROL",
-                title: state.protocols.isEmpty ? "Set up protocols and tools." : "Manage protocols and tools.",
-                detail: nil,
-                metrics: [
-                    AtlasMetricItem(id: "protocol_count", title: "Protocols", value: "\(state.protocols.count)", tint: state.protocols.isEmpty ? AtlasPalette.secondaryText : AtlasPalette.primary),
-                    AtlasMetricItem(id: "privacy_mode", title: "Privacy", value: state.renderMode.rawValue.capitalized, tint: AtlasPalette.secondaryText),
-                    AtlasMetricItem(id: "workspaces", title: "Tools", value: "2", tint: AtlasPalette.primary)
-                ],
-                style: .task
+            AtlasForwardHeaderRow(
+                title: "Protocols",
+                trailingSystemImage: "plus",
+                trailingTint: AtlasPalette.primary
             ) {
-                VStack(spacing: AtlasSpacing.small) {
-                    Button("Create protocol") {
-                        AtlasFeedback.selection()
-                        model.open(.protocolCreate)
-                    }
-                    .buttonStyle(AtlasPrimaryButtonStyle())
-
-                    HStack(spacing: AtlasSpacing.small) {
-                        Button("Open Inventory") {
-                            AtlasFeedback.selection()
-                            model.open(.inventory)
-                        }
-                        .buttonStyle(AtlasSecondaryButtonStyle())
-
-                        Button(state.protocols.isEmpty ? "Import Atlas data" : "Open Calculator") {
-                            AtlasFeedback.selection()
-                            model.open(state.protocols.isEmpty ? .importFlow : .calculator)
-                        }
-                        .buttonStyle(AtlasSecondaryButtonStyle())
-                    }
-                }
-            } footer: { EmptyView() }
-
-            AtlasSectionCard(style: .utility, title: "Tools") {
-                Group {
-                    if dynamicTypeSize.isAccessibilitySize {
-                        VStack(spacing: AtlasSpacing.small) {
-                            atlasLibraryToolButtons
-                        }
-                    } else {
-                        HStack(spacing: AtlasSpacing.small) {
-                            atlasLibraryToolButtons
-                        }
-                    }
-                }
+                model.open(.protocolCreate)
             }
 
-            if state.protocols.isEmpty {
-                AtlasEmptyStateCard(
-                    title: "Library is empty",
-                    message: "Create a protocol or import data to get started.",
-                    systemImage: "square.stack.3d.up",
-                    note: nil
-                ) {
-                    VStack(spacing: AtlasSpacing.small) {
-                        Button("Create protocol") {
-                            AtlasFeedback.selection()
-                            model.open(.protocolCreate)
-                        }
-                        .buttonStyle(AtlasPrimaryButtonStyle())
+            AtlasProtocolForwardHero(model: model, state: state)
 
-                        Button("Import Atlas data") {
-                            AtlasFeedback.selection()
-                            model.open(.importFlow)
-                        }
-                        .buttonStyle(AtlasSecondaryButtonStyle())
-                    }
-                }
+            if state.protocols.isEmpty {
+                AtlasProtocolStartChecklist(model: model)
             } else {
-                AtlasRootSectionHeader("Protocols")
+                AtlasActiveProtocolDashboard(model: model, state: state)
+
+                AtlasForwardHeaderRow(title: "Active Protocols")
                 VStack(spacing: AtlasSpacing.medium) {
                     ForEach(state.protocols) { summary in
                         AtlasProtocolLibraryCard(model: model, summary: summary, renderMode: state.renderMode)
@@ -5985,23 +6549,375 @@ public struct AtlasLibraryScreen: View {
             }
         }
     }
+}
+
+private struct AtlasActiveProtocolDashboard: View {
+    let model: AtlasAppModel
+    let state: AtlasLibraryViewState
+
+    var body: some View {
+        AtlasSectionCard(style: .task) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .top, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Live Plan")
+                            .atlasTextRole(.cardTitle)
+                            .foregroundStyle(AtlasPalette.textPrimary)
+                        Text("Next shot, vial runway, site rotation, support score, and recent signals.")
+                            .atlasTextRole(.supporting)
+                            .foregroundStyle(AtlasPalette.textSecondary)
+                            .lineLimit(2)
+                    }
+                    Spacer(minLength: 8)
+                    AtlasStatusBadge("\(state.protocols.count) live", tint: AtlasPalette.primary)
+                }
+
+                HStack(spacing: 8) {
+                    AtlasProtocolSignalPill(title: "Next shot", value: nextShotLine, tint: nextOccurrence?.state == .overdue ? AtlasPalette.warning : AtlasPalette.primary)
+                    AtlasProtocolSignalPill(title: "Vial runway", value: vialRunwayLine, tint: linkedVial?.isLowStock == true ? AtlasPalette.warning : AtlasPalette.success)
+                }
+
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
+                    AtlasActiveProtocolMiniTile(title: "Dose history", value: "\(doseLogsThisWeek)", detail: "taken this week", systemImage: "clock.arrow.circlepath", tint: AtlasPalette.success)
+                    AtlasActiveProtocolMiniTile(title: "Side effects", value: symptomValue, detail: symptomDetail, systemImage: "waveform.path.ecg", tint: AtlasPalette.warning)
+                    AtlasActiveProtocolMiniTile(title: "Site rotation", value: siteRotationValue, detail: siteRotationDetail, systemImage: "figure.arms.open", tint: AtlasPalette.primary)
+                    AtlasActiveProtocolMiniTile(title: "Support score", value: "\(supportScore)", detail: "protein, water, workout", systemImage: "heart.text.square.fill", tint: supportScore >= 70 ? AtlasPalette.success : AtlasPalette.reward)
+                }
+
+                HStack(spacing: 8) {
+                    Button("Plan") {
+                        if let summary = featuredProtocol {
+                            AtlasFeedback.selection()
+                            model.open(.protocolDetail(summary.id))
+                        }
+                    }
+                    .buttonStyle(AtlasPrimaryButtonStyle())
+                    .disabled(featuredProtocol == nil)
+
+                    Button("Log") {
+                        AtlasFeedback.selection()
+                        model.routePath.removeAll()
+                        model.activeTab = .timeline
+                    }
+                    .buttonStyle(AtlasSecondaryButtonStyle())
+
+                    Button("Supplies") {
+                        AtlasFeedback.selection()
+                        model.open(.inventory)
+                    }
+                    .buttonStyle(AtlasSecondaryButtonStyle())
+                }
+            }
+        }
+    }
+
+    private var featuredProtocol: ProtocolSummary? {
+        if let protocolID = nextOccurrence?.protocolID,
+           let summary = state.protocols.first(where: { $0.id == protocolID }) {
+            return summary
+        }
+        return state.protocols.first { $0.status == .active } ?? state.protocols.first
+    }
+
+    private var nextOccurrence: AtlasScheduledOccurrence? {
+        model.todaySnapshot.overdue.first ?? model.todaySnapshot.nextDue ?? model.todaySnapshot.upcoming.first
+    }
+
+    private var nextShotLine: String {
+        if let nextOccurrence {
+            return nextOccurrence.scheduledAt.formatted(date: .omitted, time: .shortened)
+        }
+        return featuredProtocol?.nextDueLabel ?? "Caught up"
+    }
+
+    private var linkedVial: AtlasVialSummary? {
+        guard let protocolID = featuredProtocol?.id else {
+            return model.inventorySnapshot.vials.first { $0.archivedAt == nil }
+        }
+        return model.inventorySnapshot.vials.first { $0.linkedProtocolID == protocolID && $0.archivedAt == nil }
+            ?? model.inventorySnapshot.vials.first { $0.archivedAt == nil }
+    }
+
+    private var vialRunwayLine: String {
+        linkedVial?.projectedDepletionLabel ?? linkedVial?.quantityLabel ?? "No vial"
+    }
+
+    private var doseLogsThisWeek: Int {
+        guard let protocolID = featuredProtocol?.id else { return 0 }
+        let weekAgo = Calendar.current.date(byAdding: .day, value: -7, to: model.currentDate()) ?? model.currentDate()
+        return model.timelineEntries.filter { $0.protocolID == protocolID && $0.type == .doseTaken && $0.recordedAt >= weekAgo }.count
+    }
+
+    private var symptomValue: String {
+        guard let symptom = model.insightsSnapshot.recentSymptomEntries.first else {
+            return "Clear"
+        }
+        return "\(symptom.severity)/5"
+    }
+
+    private var symptomDetail: String {
+        guard let symptom = model.insightsSnapshot.recentSymptomEntries.first else {
+            return "No recent signal"
+        }
+        return symptom.symptomKey
+    }
+
+    private var siteRotationValue: String {
+        guard let protocolID = featuredProtocol?.id,
+              let setting = model.inventorySnapshot.protocolSettings.first(where: { $0.id == protocolID }) else {
+            return "Setup"
+        }
+        if setting.siteRotationEnabled {
+            return "On"
+        }
+        return setting.siteTrackingEnabled ? "Tracked" : "Off"
+    }
+
+    private var siteRotationDetail: String {
+        let count = model.inventorySnapshot.sites.filter { $0.archivedAt == nil }.count
+        return count == 0 ? "Add sites" : "\(count) saved sites"
+    }
+
+    private var supportScore: Int {
+        let protein = Int((model.insightsSnapshot.nutritionSnapshot.dailyTargets.first { $0.kind == .proteinMeals }?.progress ?? 0) * 35)
+        let hydration = Int((model.insightsSnapshot.nutritionSnapshot.dailyTargets.first { $0.kind == .hydrationCheckins }?.progress ?? 0) * 25)
+        let workout = model.insightsSnapshot.recentWorkoutEntries.isEmpty ? 0 : 25
+        return min(100, max(10, protein + hydration + workout + 15))
+    }
+}
+
+private struct AtlasActiveProtocolMiniTile: View {
+    let title: String
+    let value: String
+    let detail: String
+    let systemImage: String
+    let tint: Color
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: systemImage)
+                .foregroundStyle(tint)
+                .frame(width: 32, height: 32)
+                .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .atlasTextRole(.metricLabel)
+                    .foregroundStyle(AtlasPalette.textSecondary)
+                Text(value)
+                    .atlasTextRole(.cardBody)
+                    .foregroundStyle(AtlasPalette.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.74)
+                Text(detail)
+                    .atlasTextRole(.supporting)
+                    .foregroundStyle(AtlasPalette.textSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, minHeight: 76, alignment: .leading)
+        .background(AtlasPalette.surfaceSecondary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+}
+
+private struct AtlasProtocolForwardHero: View {
+    let model: AtlasAppModel
+    let state: AtlasLibraryViewState
+
+    var body: some View {
+        AtlasSectionCard(style: .hero) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .center, spacing: 14) {
+                    mascot
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(title)
+                            .font(AtlasTypography.brandFont(size: 18, weight: .bold, relativeTo: .title2))
+                            .foregroundStyle(AtlasPalette.textPrimary)
+                        Text(detail)
+                            .atlasTextRole(.supporting)
+                            .foregroundStyle(AtlasPalette.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 0)
+                }
+
+                HStack(spacing: 8) {
+                    AtlasProtocolSignalPill(title: "Protocols", value: "\(state.protocols.count)", tint: state.protocols.isEmpty ? AtlasPalette.secondaryText : AtlasPalette.primary)
+                    AtlasProtocolSignalPill(title: "Vials", value: "\(model.inventorySnapshot.vials.filter { $0.archivedAt == nil }.count)", tint: model.inventorySnapshot.lowStockCount > 0 ? AtlasPalette.warning : AtlasPalette.primary)
+                    AtlasProtocolSignalPill(title: "Supplies", value: "\(model.inventorySnapshot.consumables.filter { $0.archivedAt == nil }.count)", tint: AtlasPalette.secondaryText)
+                }
+
+                HStack(spacing: 8) {
+                    Button(state.protocols.isEmpty ? "Create Protocol" : "Add Protocol") {
+                        AtlasFeedback.selection()
+                        model.open(.protocolCreate)
+                    }
+                    .buttonStyle(AtlasPrimaryButtonStyle())
+
+                    Button("Inventory") {
+                        AtlasFeedback.selection()
+                        model.open(.inventory)
+                    }
+                    .buttonStyle(AtlasSecondaryButtonStyle())
+                }
+            }
+        }
+    }
 
     @ViewBuilder
-    private var atlasLibraryToolButtons: some View {
-        AtlasToolLauncherButton(
-            title: "Inventory",
-            subtitle: nil,
-            systemImage: "shippingbox.fill"
-        ) {
-            model.open(.inventory)
+    private var mascot: some View {
+        if let selection = atlasAmbientMascotSelection(settingsSnapshot: model.settingsSnapshot),
+           let stage = atlasAmbientMascotStage(settingsSnapshot: model.settingsSnapshot, rewardsSnapshot: model.rewardsSnapshot) {
+            AtlasMascotSticker(line: atlasMascotLine(for: selection), stage: stage, size: 76)
+        } else {
+            Image(systemName: "list.clipboard.fill")
+                .font(.system(size: 34, weight: .bold))
+                .foregroundStyle(AtlasPalette.primary)
+                .frame(width: 76, height: 76)
+                .background(AtlasPalette.secondaryFill, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
+    }
 
-        AtlasToolLauncherButton(
-            title: "Calculator",
-            subtitle: nil,
-            systemImage: "function"
-        ) {
-            model.open(.calculator)
+    private var title: String {
+        if state.protocols.isEmpty {
+            return "Build your first protocol."
+        }
+        return "Your protocol stack is live."
+    }
+
+    private var detail: String {
+        if let next = model.todaySnapshot.nextDue ?? model.todaySnapshot.overdue.first {
+            let title = model.renderedTitle(canonical: next.canonicalTitle, alias: next.aliasTitle, renderMode: state.renderMode)
+            return "\(title) is the next action. Keep shots, supplies, and progress in one loop."
+        }
+        if state.protocols.isEmpty {
+            return "Start with cadence, dose, supply, and site tracking. Kairo keeps the setup focused."
+        }
+        return "No shot is due right now. Your protocol, inventory, and progress loops stay ready."
+    }
+}
+
+private struct AtlasProtocolForwardActionGrid: View {
+    let isAccessibilitySize: Bool
+    let hasProtocols: Bool
+    let onCreate: () -> Void
+    let onInventory: () -> Void
+    let onLog: () -> Void
+    let onCalculator: () -> Void
+
+    var body: some View {
+        Group {
+            if isAccessibilitySize {
+                VStack(spacing: AtlasSpacing.small) {
+                    tiles
+                }
+            } else {
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: AtlasSpacing.small), GridItem(.flexible(), spacing: AtlasSpacing.small)], spacing: AtlasSpacing.small) {
+                    tiles
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var tiles: some View {
+        AtlasProtocolForwardActionTile(title: hasProtocols ? "Add" : "Create", subtitle: "Protocol", systemImage: "plus.circle.fill", tint: AtlasPalette.primary, action: onCreate)
+        AtlasProtocolForwardActionTile(title: "Log", subtitle: "Shot", systemImage: "syringe.fill", tint: AtlasPalette.primary, action: onLog)
+        AtlasProtocolForwardActionTile(title: "Track", subtitle: "Supplies", systemImage: "shippingbox.fill", tint: AtlasPalette.success, action: onInventory)
+        AtlasProtocolForwardActionTile(title: hasProtocols ? "Dose" : "Import", subtitle: hasProtocols ? "Math" : "History", systemImage: hasProtocols ? "function" : "square.and.arrow.down.fill", tint: AtlasPalette.secondaryText, action: onCalculator)
+    }
+}
+
+private struct AtlasProtocolForwardActionTile: View {
+    let title: String
+    let subtitle: String
+    let systemImage: String
+    let tint: Color
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(tint)
+                    .frame(width: 38, height: 38)
+                    .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .atlasTextRole(.cardBody)
+                        .foregroundStyle(AtlasPalette.textPrimary)
+                    Text(subtitle)
+                        .atlasTextRole(.deckEyebrow)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, minHeight: 70, alignment: .leading)
+            .background(AtlasPalette.surfaceTop, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(tint.opacity(0.18), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct AtlasProtocolStartChecklist: View {
+    let model: AtlasAppModel
+
+    var body: some View {
+        AtlasSectionCard(style: .task) {
+            VStack(alignment: .leading, spacing: AtlasSpacing.medium) {
+                Text("Start Simple")
+                    .atlasTextRole(.cardTitle)
+                    .foregroundStyle(AtlasPalette.textPrimary)
+                AtlasProtocolStartRow(number: "1", title: "Create the protocol", detail: "Name, cadence, dose, and route.")
+                AtlasProtocolStartRow(number: "2", title: "Link supplies", detail: "Vial, syringe, pads, and low-stock runway.")
+                AtlasProtocolStartRow(number: "3", title: "Log the first action", detail: "Shot, site, symptoms, protein, hydration, and workout context.")
+
+                HStack(spacing: AtlasSpacing.small) {
+                    Button("Create Protocol") {
+                        AtlasFeedback.selection()
+                        model.open(.protocolCreate)
+                    }
+                    .buttonStyle(AtlasPrimaryButtonStyle())
+
+                    Button("Import") {
+                        AtlasFeedback.selection()
+                        model.open(.importFlow)
+                    }
+                    .buttonStyle(AtlasSecondaryButtonStyle())
+                }
+            }
+        }
+    }
+}
+
+private struct AtlasProtocolStartRow: View {
+    let number: String
+    let title: String
+    let detail: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text(number)
+                .font(.system(size: 13, weight: .bold, design: .default))
+                .foregroundStyle(.white)
+                .frame(width: 28, height: 28)
+                .background(AtlasPalette.primary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .atlasTextRole(.cardBody)
+                    .foregroundStyle(AtlasPalette.textPrimary)
+                Text(detail)
+                    .atlasTextRole(.supporting)
+                    .foregroundStyle(AtlasPalette.textSecondary)
+            }
         }
     }
 }
@@ -6022,15 +6938,15 @@ public struct AtlasProtocolDetailScreen: View {
                     AtlasMetricItem(
                         id: "dose",
                         title: "Dose",
-                        value: detail.doseLabel ?? "Atlas-managed",
+                        value: detail.doseLabel ?? "Kairo-managed",
                         tint: detail.doseLabel == nil ? AtlasPalette.secondaryText : AtlasPalette.success
                     )
                 ]
 
                 AtlasCommandDeck(
-                    eyebrow: "Protocol detail",
+                    eyebrow: "Protocol",
                     title: model.renderedTitle(canonical: detail.canonicalTitle, alias: detail.aliasTitle),
-                    detail: "Cadence \(detail.cadenceLabel)\(detail.nextOccurrence.map { " • next due \($0.scheduledAt.formatted(date: .abbreviated, time: .shortened))" } ?? "").",
+                    detail: protocolDetailHeroCopy(detail),
                     metrics: headerMetrics,
                     tint: AtlasPalette.primary,
                     style: .hero
@@ -6047,29 +6963,57 @@ public struct AtlasProtocolDetailScreen: View {
                     if let supplyLabel = detail.supplyLabel {
                         AtlasCalloutRow(
                             systemImage: "shippingbox.fill",
-                            title: "Supply source",
+                            title: "Linked inventory",
                             detail: supplyLabel,
                             tint: AtlasPalette.secondaryText
                         )
                     }
                 } footer: {
-                    HStack(spacing: AtlasSpacing.small) {
-                        Button("Edit core fields") {
-                            AtlasFeedback.selection()
-                            model.open(.protocolEdit(protocolID))
+                    VStack(spacing: 8) {
+                        if detail.nextOccurrence != nil {
+                            Button("Log Shot") {
+                                AtlasFeedback.selection()
+                                model.routePath.removeAll()
+                                model.activeTab = .timeline
+                            }
+                            .buttonStyle(AtlasPrimaryButtonStyle())
                         }
-                        .buttonStyle(AtlasSecondaryButtonStyle())
 
-                        Button("Open Change Studio") {
+                        HStack(spacing: 8) {
+                            Button("Edit Plan") {
+                                AtlasFeedback.selection()
+                                model.open(.protocolEdit(protocolID))
+                            }
+                            .buttonStyle(AtlasSecondaryButtonStyle())
+
+                            Button("Supplies") {
+                                AtlasFeedback.selection()
+                                model.open(.inventory)
+                            }
+                            .buttonStyle(AtlasSecondaryButtonStyle())
+                        }
+
+                        Button("Plan Editor") {
                             AtlasFeedback.selection()
                             model.open(.protocolChange(protocolID))
                         }
-                        .buttonStyle(AtlasPrimaryButtonStyle())
+                        .buttonStyle(AtlasTertiaryButtonStyle())
                     }
                 }
 
+                AtlasProtocolLivePlanDashboard(
+                    model: model,
+                    detail: detail,
+                    onLogShot: {
+                        model.routePath.removeAll()
+                        model.activeTab = .timeline
+                    }
+                )
+
+                AtlasProtocolDetailHistoryCard(model: model, detail: detail)
+
                 if let nextOccurrence = detail.nextOccurrence {
-                    AtlasRootSectionHeader("Next Due")
+                    AtlasRootSectionHeader("Shot Queue")
                     AtlasOccurrenceRow(
                         occurrence: nextOccurrence,
                         title: model.renderedTitle(
@@ -6077,7 +7021,7 @@ public struct AtlasProtocolDetailScreen: View {
                             alias: nextOccurrence.aliasTitle
                         ),
                         action: { action in
-                            sheetContext = AtlasLogSheetContext(occurrence: nextOccurrence, initialAction: action)
+                            handleProtocolOccurrenceAction(nextOccurrence, action: action)
                         },
                         onExplain: nextOccurrence.explanation.map { explanation in
                             {
@@ -6095,7 +7039,7 @@ public struct AtlasProtocolDetailScreen: View {
                 }
 
                 if let medicationLevel = detail.medicationLevel {
-                    AtlasRootSectionHeader("Level View")
+                    AtlasRootSectionHeader("Impact")
                     AtlasMedicationLevelCard(
                         model: model,
                         item: medicationLevel,
@@ -6106,30 +7050,7 @@ public struct AtlasProtocolDetailScreen: View {
                 }
 
                 if let knowledge = detail.compoundKnowledge {
-                    AtlasRootSectionHeader("Compound Intelligence")
-                    AtlasSectionCard(title: "Compound profile") {
-                        AtlasCalloutRow(
-                            systemImage: "waveform.path.ecg.text",
-                            title: "\(knowledge.categoryLabel) • \(knowledge.routeLabel)",
-                            detail: knowledge.protocolSummary,
-                            tint: AtlasPalette.primary
-                        )
-
-                        if let kineticsProfile = knowledge.kineticsProfile {
-                            AtlasCalloutRow(
-                                systemImage: "waveform",
-                                title: "Relative level support",
-                                detail: "Models a relative curve from a \(atlasCompoundHalfLifeLabel(hours: kineticsProfile.halfLifeHours)) half-life profile.",
-                                tint: AtlasPalette.secondaryText
-                            )
-                        }
-
-                        Button("Open compound intelligence") {
-                            AtlasFeedback.selection()
-                            model.open(.compoundIntelligence(knowledge.slug))
-                        }
-                        .buttonStyle(AtlasSecondaryButtonStyle())
-                    }
+                    AtlasProtocolDetailMoreContextCard(model: model, detail: detail, knowledge: knowledge)
                 }
 
                 if detail.recentChanges.isEmpty == false {
@@ -6155,13 +7076,6 @@ public struct AtlasProtocolDetailScreen: View {
                     }
                 }
 
-                AtlasRootSectionHeader("Notes")
-                AtlasSectionCard {
-                    Text(detail.notes ?? "No notes")
-                        .atlasTextRole(.supporting)
-                        .foregroundStyle(AtlasPalette.textSecondary)
-                }
-
                 AtlasRootSectionHeader("Future Plan")
                 AtlasSectionCard {
                     VStack(alignment: .leading, spacing: AtlasSpacing.small) {
@@ -6184,7 +7098,7 @@ public struct AtlasProtocolDetailScreen: View {
                         }
                         .buttonStyle(AtlasSecondaryButtonStyle())
 
-                        Button("Open Change Studio") {
+                        Button("Open Plan Editor") {
                             AtlasFeedback.selection()
                             model.open(.protocolChange(protocolID))
                         }
@@ -6213,6 +7127,408 @@ public struct AtlasProtocolDetailScreen: View {
             AtlasExplanationSheet(item: item)
         }
     }
+
+    private func handleProtocolOccurrenceAction(_ occurrence: AtlasScheduledOccurrence, action: AtlasOccurrenceLogAction) {
+        switch action {
+        case .taken:
+            model.routePath.removeAll()
+            model.activeTab = .timeline
+        case .skipped, .rescheduled:
+            sheetContext = AtlasLogSheetContext(occurrence: occurrence, initialAction: action)
+        }
+    }
+
+    private func protocolDetailHeroCopy(_ detail: AtlasProtocolDetailSnapshot) -> String {
+        if let nextOccurrence = detail.nextOccurrence {
+            return "\(detail.doseLabel ?? "Dose saved") • \(nextOccurrence.scheduledAt.formatted(date: .abbreviated, time: .shortened)) • \(detail.cadenceLabel)"
+        }
+        return "\(detail.cadenceLabel) • no immediate shot due"
+    }
+}
+
+private struct AtlasProtocolLivePlanDashboard: View {
+    let model: AtlasAppModel
+    let detail: AtlasProtocolDetailSnapshot
+    let onLogShot: () -> Void
+    @State private var siteOptions: AtlasProtocolSiteOptions?
+
+    var body: some View {
+        AtlasSectionCard(style: .task) {
+            VStack(alignment: .leading, spacing: AtlasSpacing.medium) {
+                HStack(alignment: .top, spacing: AtlasSpacing.small) {
+                    VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
+                        Text("Live Plan")
+                            .atlasTextRole(.cardTitle)
+                            .foregroundStyle(AtlasPalette.textPrimary)
+                        Text("Next shot, history, sites, supplies, support habits, and companion progress in one readable plan.")
+                            .atlasTextRole(.supporting)
+                            .foregroundStyle(AtlasPalette.textSecondary)
+                    }
+                    Spacer(minLength: 8)
+                    AtlasStatusBadge(detail.status.rawValue.capitalized, tint: AtlasPalette.primary)
+                }
+
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: AtlasSpacing.small), GridItem(.flexible(), spacing: AtlasSpacing.small)], spacing: AtlasSpacing.small) {
+                    AtlasProtocolLivePlanTile(
+                        title: "Next Shot",
+                        value: nextShotValue,
+                        detail: nextShotDetail,
+                        systemImage: "syringe.fill",
+                        tint: AtlasPalette.primary
+                    )
+                    AtlasProtocolLivePlanTile(
+                        title: "Dose History",
+                        value: "\(doseLogsThisWeek)",
+                        detail: doseLogsThisWeek == 1 ? "taken this week" : "taken this week",
+                        systemImage: "clock.arrow.circlepath",
+                        tint: AtlasPalette.success
+                    )
+                    AtlasProtocolLivePlanTile(
+                        title: "Side Effects",
+                        value: symptomValue,
+                        detail: symptomDetail,
+                        systemImage: "waveform.path.ecg",
+                        tint: AtlasPalette.warning
+                    )
+                    AtlasProtocolLivePlanTile(
+                        title: "Site Rotation",
+                        value: siteRotationValue,
+                        detail: siteRotationDetail,
+                        systemImage: "figure.arms.open",
+                        tint: AtlasPalette.primary
+                    )
+                    AtlasProtocolLivePlanTile(
+                        title: "Vial Runway",
+                        value: vialRunwayValue,
+                        detail: vialRunwayDetail,
+                        systemImage: "testtube.2",
+                        tint: linkedVial?.isLowStock == true ? AtlasPalette.warning : AtlasPalette.success
+                    )
+                    AtlasProtocolLivePlanTile(
+                        title: "Companion XP",
+                        value: "Lv. \(model.rewardsSnapshot.level)",
+                        detail: "\(model.rewardsSnapshot.totalPoints.formatted()) XP earned",
+                        systemImage: "sparkles",
+                        tint: AtlasPalette.reward
+                    )
+                    AtlasProtocolLivePlanTile(
+                        title: "Progress Impact",
+                        value: progressImpactValue,
+                        detail: progressImpactDetail,
+                        systemImage: "chart.line.uptrend.xyaxis",
+                        tint: AtlasPalette.primary
+                    )
+                }
+
+                AtlasCalloutRow(
+                    systemImage: "sparkles.rectangle.stack.fill",
+                    title: "What changed since last week",
+                    detail: recentChangeLine,
+                    tint: AtlasPalette.secondaryText
+                )
+
+                HStack(spacing: AtlasSpacing.small) {
+                    Button("Log Shot", action: onLogShot)
+                        .buttonStyle(AtlasPrimaryButtonStyle())
+
+                    Button("Sites") {
+                        AtlasFeedback.selection()
+                        model.open(.inventory)
+                    }
+                    .buttonStyle(AtlasSecondaryButtonStyle())
+
+                    Button("Supplies") {
+                        AtlasFeedback.selection()
+                        model.open(.inventory)
+                    }
+                    .buttonStyle(AtlasSecondaryButtonStyle())
+                }
+            }
+        }
+        .task(id: detail.id) {
+            siteOptions = await model.siteOptions(for: detail.id)
+        }
+    }
+
+    private var protocolTimeline: [AtlasTimelineEntry] {
+        model.timelineEntries.filter { $0.protocolID == detail.id }
+    }
+
+    private var doseLogsThisWeek: Int {
+        let weekAgo = Calendar.current.date(byAdding: .day, value: -7, to: model.currentDate()) ?? model.currentDate()
+        return protocolTimeline.filter { $0.type == .doseTaken && $0.recordedAt >= weekAgo }.count
+    }
+
+    private var nextShotValue: String {
+        guard let nextOccurrence = detail.nextOccurrence else {
+            return "Caught up"
+        }
+        return nextOccurrence.scheduledAt.formatted(date: .omitted, time: .shortened)
+    }
+
+    private var nextShotDetail: String {
+        if let nextOccurrence = detail.nextOccurrence {
+            return [detail.doseLabel, nextOccurrence.scheduledAt.formatted(date: .abbreviated, time: .omitted)]
+                .compactMap { $0 }
+                .joined(separator: " • ")
+        }
+        return detail.cadenceLabel
+    }
+
+    private var symptomValue: String {
+        guard let symptom = model.insightsSnapshot.recentSymptomEntries.first else {
+            return "Clear"
+        }
+        return "\(symptom.severity)/5"
+    }
+
+    private var symptomDetail: String {
+        guard let symptom = model.insightsSnapshot.recentSymptomEntries.first else {
+            return "No recent side-effect signal"
+        }
+        return "\(symptom.symptomKey) • \(symptom.loggedAt.formatted(date: .abbreviated, time: .omitted))"
+    }
+
+    private var inventorySetting: AtlasProtocolInventorySetting? {
+        model.inventorySnapshot.protocolSettings.first { $0.id == detail.id }
+    }
+
+    private var siteRotationValue: String {
+        if inventorySetting?.siteRotationEnabled == true {
+            return "On"
+        }
+        if inventorySetting?.siteTrackingEnabled == true || siteOptions?.siteTrackingEnabled == true {
+            return "Tracked"
+        }
+        return "Off"
+    }
+
+    private var siteRotationDetail: String {
+        if let suggestedID = siteOptions?.suggestedSiteID,
+           let suggested = siteOptions?.sites.first(where: { $0.id == suggestedID }) {
+            return "Next: \(suggested.name)"
+        }
+        let activeSites = siteOptions?.sites.filter { $0.archivedAt == nil }.count ?? model.inventorySnapshot.sites.filter { $0.archivedAt == nil }.count
+        return activeSites > 0 ? "\(activeSites) saved sites" : "Add sites for rotation"
+    }
+
+    private var linkedVial: AtlasVialSummary? {
+        if let linkedID = inventorySetting?.linkedVialID {
+            return model.inventorySnapshot.vials.first { $0.id == linkedID }
+        }
+        return model.inventorySnapshot.vials.first { $0.linkedProtocolID == detail.id && $0.archivedAt == nil }
+            ?? model.inventorySnapshot.vials.first { $0.archivedAt == nil }
+    }
+
+    private var vialRunwayValue: String {
+        linkedVial?.projectedDepletionLabel ?? linkedVial?.quantityLabel ?? "No vial"
+    }
+
+    private var vialRunwayDetail: String {
+        if let autoDecrement = linkedVial?.autoDecrementLabel {
+            return autoDecrement
+        }
+        return linkedVial?.label ?? "Link a vial for dose countdown"
+    }
+
+    private var recentChangeLine: String {
+        if let recent = detail.recentChanges.first {
+            return recent.summary
+        }
+        if let latest = protocolTimeline.first {
+            return latest.summary
+        }
+        return "No plan edits or dose history yet. The dashboard will fill in as you log."
+    }
+
+    private var progressImpactValue: String {
+        detail.medicationLevel?.estimateLabel
+            ?? model.insightsSnapshot.adherenceTrend.completionRateLabel
+            ?? "Building"
+    }
+
+    private var progressImpactDetail: String {
+        detail.medicationLevel?.compareLabel
+            ?? model.insightsSnapshot.weightTrend.changeLabel
+            ?? "Shots, support logs, and photos explain the trend."
+    }
+}
+
+private struct AtlasProtocolLivePlanTile: View {
+    let title: String
+    let value: String
+    let detail: String
+    let systemImage: String
+    let tint: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Image(systemName: systemImage)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(tint)
+                .frame(width: 32, height: 32)
+                .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            Text(title)
+                .atlasTextRole(.metricLabel)
+                .foregroundStyle(AtlasPalette.textSecondary)
+            Text(value)
+                .atlasTextRole(.cardBody)
+                .foregroundStyle(AtlasPalette.textPrimary)
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+            Text(detail)
+                .atlasTextRole(.supporting)
+                .foregroundStyle(AtlasPalette.textSecondary)
+                .lineLimit(2)
+                .minimumScaleFactor(0.78)
+        }
+        .frame(maxWidth: .infinity, minHeight: 112, alignment: .topLeading)
+        .padding(10)
+        .background(AtlasPalette.surfaceSecondary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+}
+
+private struct AtlasProtocolDetailHistoryCard: View {
+    let model: AtlasAppModel
+    let detail: AtlasProtocolDetailSnapshot
+
+    var body: some View {
+        AtlasSectionCard(style: .task) {
+            VStack(alignment: .leading, spacing: AtlasSpacing.medium) {
+                HStack(alignment: .top, spacing: AtlasSpacing.small) {
+                    VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
+                        Text("Dose History")
+                            .atlasTextRole(.cardTitle)
+                            .foregroundStyle(AtlasPalette.textPrimary)
+                        Text(historySummary)
+                            .atlasTextRole(.supporting)
+                            .foregroundStyle(AtlasPalette.textSecondary)
+                    }
+                    Spacer(minLength: 8)
+                    AtlasStatusBadge("\(recentDoseEntries.count)", tint: AtlasPalette.success)
+                }
+
+                if recentDoseEntries.isEmpty {
+                    AtlasCalloutRow(
+                        systemImage: "clock.badge.questionmark",
+                        title: "No dose history yet",
+                        detail: "Log the next shot and Kairo will build a simple record here.",
+                        tint: AtlasPalette.secondaryText
+                    )
+                } else {
+                    VStack(spacing: 8) {
+                        ForEach(recentDoseEntries.prefix(3)) { entry in
+                            HStack(spacing: 10) {
+                                Image(systemName: entry.type == .doseTaken ? "checkmark.circle.fill" : "forward.fill")
+                                    .foregroundStyle(entry.type == .doseTaken ? AtlasPalette.success : AtlasPalette.warning)
+                                    .frame(width: 30, height: 30)
+                                    .background(AtlasPalette.surfaceSecondary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(entry.summary)
+                                        .atlasTextRole(.cardBody)
+                                        .foregroundStyle(AtlasPalette.textPrimary)
+                                        .lineLimit(2)
+                                    Text(entry.recordedAt.formatted(date: .abbreviated, time: .shortened))
+                                        .atlasTextRole(.supporting)
+                                        .foregroundStyle(AtlasPalette.textSecondary)
+                                }
+                                Spacer(minLength: 0)
+                            }
+                            .padding(10)
+                            .background(AtlasPalette.surfaceSecondary.opacity(0.72), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        }
+                    }
+                }
+
+                HStack(spacing: AtlasSpacing.small) {
+                    Button("Open Timeline") {
+                        AtlasFeedback.selection()
+                        model.activeTab = .timeline
+                    }
+                    .buttonStyle(AtlasSecondaryButtonStyle())
+
+                    Button("Weekly Review") {
+                        AtlasFeedback.selection()
+                        model.open(.weeklyReview)
+                    }
+                    .buttonStyle(AtlasSecondaryButtonStyle())
+                }
+            }
+        }
+    }
+
+    private var recentDoseEntries: [AtlasTimelineEntry] {
+        model.timelineEntries
+            .filter { $0.protocolID == detail.id && ($0.type == .doseTaken || $0.type == .doseSkipped || $0.type == .doseRescheduled) }
+            .sorted { $0.recordedAt > $1.recordedAt }
+    }
+
+    private var historySummary: String {
+        let weekAgo = Calendar.current.date(byAdding: .day, value: -7, to: model.currentDate()) ?? model.currentDate()
+        let weekCount = recentDoseEntries.filter { $0.recordedAt >= weekAgo }.count
+        if weekCount > 0 {
+            return "\(weekCount) dose event\(weekCount == 1 ? "" : "s") this week. Recent changes stay attached to the protocol."
+        }
+        return "Recent shots, skips, site notes, and plan changes will stay inspectable here."
+    }
+}
+
+private struct AtlasProtocolDetailMoreContextCard: View {
+    let model: AtlasAppModel
+    let detail: AtlasProtocolDetailSnapshot
+    let knowledge: AtlasCompoundKnowledge
+
+    var body: some View {
+        AtlasSectionCard(style: .utility) {
+            DisclosureGroup {
+                VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+                    AtlasCalloutRow(
+                        systemImage: "waveform.path.ecg.text",
+                        title: "\(knowledge.categoryLabel) • \(knowledge.routeLabel)",
+                        detail: knowledge.protocolSummary,
+                        tint: AtlasPalette.primary
+                    )
+
+                    if let kineticsProfile = knowledge.kineticsProfile {
+                        AtlasCalloutRow(
+                            systemImage: "waveform",
+                            title: "Relative level support",
+                            detail: "Models a relative curve from a \(atlasCompoundHalfLifeLabel(hours: kineticsProfile.halfLifeHours)) half-life profile.",
+                            tint: AtlasPalette.secondaryText
+                        )
+                    }
+
+                    AtlasCalloutRow(
+                        systemImage: "note.text",
+                        title: "Notes",
+                        detail: detail.notes ?? "No notes saved for this protocol yet.",
+                        tint: AtlasPalette.secondaryText
+                    )
+
+                    Button("Open compound intelligence") {
+                        AtlasFeedback.selection()
+                        model.open(.compoundIntelligence(knowledge.slug))
+                    }
+                    .buttonStyle(AtlasSecondaryButtonStyle())
+                }
+                .padding(.top, AtlasSpacing.small)
+            } label: {
+                HStack(spacing: AtlasSpacing.small) {
+                    Image(systemName: "info.circle.fill")
+                        .foregroundStyle(AtlasPalette.primary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("More Context")
+                            .atlasTextRole(.cardBody)
+                            .foregroundStyle(AtlasPalette.textPrimary)
+                        Text("Compound notes and estimates stay available without crowding the daily plan.")
+                            .atlasTextRole(.supporting)
+                            .foregroundStyle(AtlasPalette.textSecondary)
+                    }
+                }
+            }
+            .tint(AtlasPalette.primary)
+        }
+    }
 }
 
 public enum AtlasProtocolEditorMode: Equatable {
@@ -6229,8 +7545,8 @@ public struct AtlasProtocolEditorScreen: View {
     public var body: some View {
         AtlasScreen(dismissKeyboardImmediately: true) {
             AtlasCommandDeck(
-                eyebrow: mode == .create ? "Protocol composer" : "Future plan edit",
-                title: mode == .create ? "Build a protocol." : "Update the future schedule without rewriting history.",
+                eyebrow: mode == .create ? "PROTOCOL SETUP" : "PLAN UPDATE",
+                title: mode == .create ? "Make this easy to follow." : "Tune the future plan.",
                 detail: protocolPreviewHeadline,
                 metrics: protocolPreviewMetrics,
                 tint: form.kind.editorTint,
@@ -6246,13 +7562,13 @@ public struct AtlasProtocolEditorScreen: View {
                     .accessibilityIdentifier("protocolEditorSubmitButton")
 
                     if case .edit(let id) = mode {
-                        Button("Open Change Studio") {
+                        Button("Open Plan Editor") {
                             AtlasFeedback.selection()
                             model.open(.protocolChange(id))
                         }
                         .buttonStyle(AtlasSecondaryButtonStyle())
                     } else {
-                        Button("Import Atlas data instead") {
+                        Button("Import Kairo data instead") {
                             AtlasFeedback.selection()
                             model.open(.importFlow)
                         }
@@ -6374,7 +7690,7 @@ public struct AtlasProtocolEditorScreen: View {
 
                 AtlasCalloutRow(
                     systemImage: "clock.badge.checkmark",
-                    title: "Cadence preview",
+                    title: "Schedule preview",
                     detail: protocolCadenceSummary,
                     tint: form.kind.editorTint
                 )
@@ -6502,9 +7818,9 @@ public struct AtlasProtocolEditorScreen: View {
 
     private var protocolPreviewHeadline: String {
         if form.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return "Set the name, cadence, route, and supply details before previewing the future schedule."
+            return "Start with the name, cadence, route, and supply link. The rest can stay simple."
         }
-        return "\(form.name) is set to \(protocolCadenceSummary.lowercased()) via \(form.administrationRoute.atlasTitle.lowercased())."
+        return "\(form.name) will show up \(protocolCadenceSummary.lowercased()) via \(form.administrationRoute.atlasTitle.lowercased())."
     }
 
     private var protocolPreviewSupport: String {
@@ -6683,6 +7999,10 @@ public struct AtlasSettingsScreen: View {
                 EmptyView()
             }
 
+            AtlasTrustStatusBanner(model: model)
+
+            AtlasCompanionContinuityCard(model: model)
+
             AtlasSectionCard(style: .utility, title: "Workspaces") {
                 VStack(spacing: AtlasSpacing.small) {
                     AtlasSettingsHubLink(
@@ -6795,9 +8115,9 @@ public struct AtlasSettingsScreen: View {
 
     private var settingsDeckTitle: String {
         if model.cloudSession != nil {
-            return "Trust and recovery."
+            return "Command center is synced and ready."
         }
-        return "Settings"
+        return "Tune your protocol command center."
     }
 
     private var settingsStatusCallout: (
@@ -7140,11 +8460,11 @@ private struct AtlasSettingsHubLink: View {
                     .foregroundStyle(AtlasPalette.textTertiary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .frame(minHeight: 54)
-            .padding(.horizontal, AtlasSpacing.medium)
-            .padding(.vertical, 10)
+            .frame(minHeight: 48)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
             .background(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(AtlasPalette.secondaryFill)
             )
         }
@@ -7174,11 +8494,11 @@ private struct AtlasSettingsMetricSummaryRow: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
                 }
-                .frame(maxWidth: .infinity, minHeight: 76, alignment: .leading)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 12)
+                .frame(maxWidth: .infinity, minHeight: 68, alignment: .leading)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 10)
                 .background(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(
                             LinearGradient(
                                 colors: [AtlasPalette.surfaceTop.opacity(0.95), metric.tint.opacity(0.08)],
@@ -7188,7 +8508,7 @@ private struct AtlasSettingsMetricSummaryRow: View {
                         )
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .strokeBorder(metric.tint.opacity(0.22), lineWidth: 1)
                 )
             }
@@ -7253,13 +8573,13 @@ private struct AtlasSettingsAccountScreen: View {
                     if session.newerBackupAvailable {
                         AtlasCalloutRow(
                             systemImage: "arrow.triangle.2.circlepath.icloud",
-                            title: "A newer Atlas Cloud backup is available",
+                            title: "A newer Kairo Cloud backup is available",
                             detail: "Restore it when you want this device to catch up. Local data remains intact until you choose that restore.",
                             tint: AtlasPalette.primary
                         )
                     }
 
-                    Button("Sync to Atlas Cloud") {
+                    Button("Sync to Kairo Cloud") {
                         AtlasFeedback.navigation()
                         Task { await model.syncToCloud() }
                     }
@@ -7311,7 +8631,7 @@ private struct AtlasSettingsAccountScreen: View {
                         .disabled(model.isPerformingCloudAction)
                     }
 
-                    Button("Create Atlas account") {
+                    Button("Create Kairo account") {
                         AtlasFeedback.navigation()
                         Task { await model.signUpToCloud(email: email.trimmingCharacters(in: .whitespacesAndNewlines), password: password) }
                     }
@@ -7320,7 +8640,7 @@ private struct AtlasSettingsAccountScreen: View {
                 } else {
                     AtlasCalloutRow(
                         systemImage: "internaldrive",
-                        title: "Atlas Cloud is not active on this build",
+                        title: "Kairo Cloud is not active on this build",
                         detail: "This device stays local-first until recovery sync is configured again.",
                         tint: AtlasPalette.secondaryText
                     )
@@ -7383,9 +8703,9 @@ private struct AtlasSettingsPrivacyScreen: View {
                 }
 
                 AtlasActionGrid(actions: [
-                    ("Trust Vault", .trustVault),
-                    ("Import", .importFlow),
-                    ("Review Mode", .reviewMode)
+                    ("Privacy Controls", .trustVault),
+                    ("Import Data", .importFlow),
+                    ("Share Summary", .reviewMode)
                 ], model: model)
             }
         }
@@ -7685,153 +9005,278 @@ private struct AtlasSettingsServicesScreen: View {
         let appleHealthConnection = health.connections.first(where: { $0.providerKey == .appleHealth })
 
         AtlasScreen {
-            AtlasSectionCard(style: .task, title: "Services & devices") {
-                AtlasMetricStrip(metrics: [
-                    AtlasMetricItem(
-                        id: "services_health",
-                        title: "Health",
-                        value: appleHealthConnection?.connected == true ? "Connected" : "Optional",
+            AtlasForwardCard {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Health Integrations")
+                        .atlasTextRole(.cardBody)
+                        .foregroundStyle(AtlasPalette.textPrimary)
+
+                    AtlasSettingsCompactRow(
+                        title: "Apple Health",
+                        detail: appleHealthConnection?.connected == true ? "Weight, workouts, hydration" : "Optional",
+                        value: appleHealthConnection?.connected == true ? "Connected" : health.isAvailable ? "Connect" : "Unavailable",
+                        systemImage: "heart.fill",
                         tint: appleHealthConnection?.connected == true ? AtlasPalette.success : AtlasPalette.secondaryText
-                    ),
-                    AtlasMetricItem(
-                        id: "services_labs",
-                        title: "Labs",
-                        value: state.settingsSnapshot.labsEnabled ? "On" : "Off",
-                        tint: state.settingsSnapshot.labsEnabled ? AtlasPalette.primary : AtlasPalette.secondaryText
-                    ),
-                    AtlasMetricItem(
-                        id: "services_watch",
-                        title: "Watch",
-                        value: state.settingsSnapshot.retentionSettings.companionEnabled ? "Ready" : "Quiet",
-                        tint: state.settingsSnapshot.retentionSettings.companionEnabled ? AtlasPalette.success : AtlasPalette.secondaryText
+                    ) {
+                        guard health.isAvailable else { return }
+                        AtlasFeedback.navigation()
+                        Task {
+                            if appleHealthConnection?.connected == true {
+                                await model.disconnectHealthKit()
+                            } else {
+                                await model.connectHealthKit()
+                            }
+                        }
+                    }
+
+                    AtlasSettingsCompactRow(
+                        title: "Body Metrics",
+                        detail: "Sync weight, body fat, steps",
+                        value: appleHealthConnection?.connected == true ? "\(health.syncedWeightEntryCount)" : "Off",
+                        systemImage: "figure.walk",
+                        tint: AtlasPalette.primary
                     )
-                ])
+                }
+            }
 
-                Text("Only the services you enable extend the local core.")
-                    .atlasTextRole(.supporting)
-                    .foregroundStyle(AtlasPalette.textSecondary)
+            AtlasForwardCard {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Widgets")
+                        .atlasTextRole(.cardBody)
+                        .foregroundStyle(AtlasPalette.textPrimary)
+                    AtlasSettingsCompactRow(
+                        title: "Home Screen Widgets",
+                        detail: "Configure your widgets",
+                        value: "",
+                        systemImage: "square.grid.2x2.fill",
+                        tint: AtlasPalette.primary
+                    )
+                }
+            }
 
-                if appleHealthConnection?.connected != true
-                    && state.settingsSnapshot.labsEnabled == false
-                    && state.settingsSnapshot.retentionSettings.companionEnabled == false {
-                    AtlasCalloutRow(
-                        systemImage: "shield.lefthalf.filled",
-                        title: "Services stay quiet by default",
-                        detail: "Apple Health, labs, and companion cues are off until you enable them.",
+            AtlasForwardCard {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Reminders")
+                        .atlasTextRole(.cardBody)
+                        .foregroundStyle(AtlasPalette.textPrimary)
+                    AtlasSettingsCompactRow(
+                        title: "Shot Reminders",
+                        detail: "30 min before",
+                        value: "On",
+                        systemImage: "syringe.fill",
+                        tint: AtlasPalette.primary
+                    ) {
+                        model.open(.settingsNotifications)
+                    }
+                    AtlasSettingsCompactRow(
+                        title: "Habit Reminders",
+                        detail: "Protein, hydration, workouts",
+                        value: state.notificationPermissionStatus == .authorized ? "On" : "Off",
+                        systemImage: "leaf.fill",
+                        tint: AtlasPalette.success
+                    ) {
+                        model.open(.settingsNotifications)
+                    }
+                }
+            }
+
+            AtlasForwardCard {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Companion & Rewards")
+                        .atlasTextRole(.cardBody)
+                        .foregroundStyle(AtlasPalette.textPrimary)
+
+                    AtlasSettingsCompactToggleRow(
+                        title: "Show XP & Rewards",
+                        detail: "Keep progress visible",
+                        isOn: Binding(
+                            get: { model.settingsSnapshot.rewardsSettings.enabled || atlasIsMockupFidelityLaunch },
+                            set: { value in
+                                state.settingsSnapshot.rewardsSettings.enabled = value
+                                model.settingsSnapshot.rewardsSettings.enabled = value
+                                Task { await model.updateRewardsSettings(AtlasRewardsSettingsUpdate(enabled: value)) }
+                            }
+                        ),
+                        systemImage: "hexagon.fill",
+                        tint: AtlasPalette.reward
+                    )
+
+                    AtlasSettingsCompactRow(
+                        title: "Quest Notifications",
+                        detail: "Companion cues",
+                        value: state.settingsSnapshot.retentionSettings.companionEnabled ? "On" : "Quiet",
+                        systemImage: "pawprint.fill",
+                        tint: AtlasPalette.primary
+                    ) {
+                        model.routePath.removeAll()
+                        model.activeTab = .today
+                        model.open(.watchCompanion)
+                    }
+                }
+            }
+
+            AtlasForwardCard {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Data & Privacy")
+                        .atlasTextRole(.cardBody)
+                        .foregroundStyle(AtlasPalette.textPrimary)
+                    AtlasSettingsCompactRow(
+                        title: "Share Summary",
+                        detail: "Export protocol review",
+                        value: "",
+                        systemImage: "doc.text.fill",
+                        tint: AtlasPalette.primary
+                    ) {
+                        model.open(.reviewMode)
+                    }
+                    AtlasSettingsCompactRow(
+                        title: "Export Data",
+                        detail: "Download your data",
+                        value: "",
+                        systemImage: "square.and.arrow.down.fill",
                         tint: AtlasPalette.secondaryText
-                    )
-                }
-            }
-
-            AtlasSectionCard(title: "Apple Health") {
-                AtlasSettingsStatusRow(
-                    title: "Connection",
-                    value: appleHealthConnection?.connected == true ? "Connected" : "Optional"
-                )
-
-                if appleHealthConnection?.connected == true {
-                    AtlasSettingsStatusRow(title: "Weight entries", value: "\(health.syncedWeightEntryCount)")
-                    AtlasSettingsStatusRow(title: "Workout entries", value: "\(health.syncedWorkoutEntryCount)")
-                }
-
-                if let appleHealthConnection, appleHealthConnection.connected {
-                    AtlasSettingsStatusRow(
-                        title: "Last sync",
-                        value: atlasCalendarSyncStatusLabel(appleHealthConnection.lastSyncAt)
-                    )
-
-                    if let lastError = appleHealthConnection.lastError,
-                       lastError.isEmpty == false {
-                        AtlasCalloutRow(
-                            systemImage: "exclamationmark.triangle.fill",
-                            title: "Apple Health needs attention",
-                            detail: lastError,
-                            tint: AtlasPalette.warning
-                        )
+                    ) {
+                        model.open(.trustVault)
                     }
-                }
-
-                Text(
-                    appleHealthConnection?.connected == true
-                        ? "Only the health data you allow is read."
-                        : "Apple Health is optional."
-                )
-                    .atlasTextRole(.supporting)
-                    .foregroundStyle(AtlasPalette.textSecondary)
-
-                if health.isAvailable {
-                    if appleHealthConnection?.connected == true {
-                        Button("Disconnect Apple Health") {
-                            AtlasFeedback.caution()
-                            Task { await model.disconnectHealthKit() }
-                        }
-                        .buttonStyle(AtlasTertiaryButtonStyle())
-                    } else {
-                        Button("Connect Apple Health") {
-                            AtlasFeedback.navigation()
-                            Task { await model.connectHealthKit() }
-                        }
-                        .buttonStyle(AtlasPrimaryButtonStyle())
-                    }
-                } else {
-                    AtlasCalloutRow(
-                        systemImage: "heart.slash",
-                        title: "Apple Health is unavailable",
-                        detail: "Apple Health isn't available on this device.",
+                    AtlasSettingsCompactRow(
+                        title: "Privacy & Security",
+                        detail: "Manage your data",
+                        value: "",
+                        systemImage: "lock.shield.fill",
                         tint: AtlasPalette.secondaryText
-                    )
-                }
-            }
-
-            AtlasSectionCard(title: "Lab tracking") {
-                AtlasSettingsToggleRow(
-                    title: "Enable advanced lab tracking",
-                    subtitle: "Turn on lab work and ranges when you need them.",
-                    isOn: Binding(
-                        get: { state.settingsSnapshot.labsEnabled },
-                        set: { value in
-                            state.settingsSnapshot.labsEnabled = value
-                            model.settingsSnapshot.labsEnabled = value
-                            Task { await model.updateLabsEnabled(value) }
-                        }
-                    )
-                )
-
-                if state.settingsSnapshot.labsEnabled {
-                    Button("Open lab tracking") {
-                        AtlasFeedback.selection()
-                        model.open(.labs)
+                    ) {
+                        model.open(.settingsPrivacy)
                     }
-                    .buttonStyle(AtlasSecondaryButtonStyle())
-                } else {
-                    Text("Lab ranges stay hidden until you turn them on.")
-                        .atlasTextRole(.supporting)
-                        .foregroundStyle(AtlasPalette.textSecondary)
                 }
-            }
-
-            AtlasSectionCard(title: "Watch companion") {
-                AtlasSettingsStatusRow(
-                    title: "Companion cues",
-                    value: state.settingsSnapshot.retentionSettings.companionEnabled ? "Ready" : "Quiet"
-                )
-
-                Text("Use the focused companion for next-due checks, recovery handling, and quick context.")
-                    .atlasTextRole(.supporting)
-                    .foregroundStyle(AtlasPalette.textSecondary)
-
-                Button("Open Apple Watch companion") {
-                    AtlasFeedback.navigation()
-                    model.routePath.removeAll()
-                    model.activeTab = .today
-                    model.open(.watchCompanion)
-                }
-                .buttonStyle(AtlasSecondaryButtonStyle())
             }
         }
-        .navigationTitle("Services")
+        .navigationTitle("Settings")
         .atlasInlineNavigationTitle()
     }
+}
+
+private struct AtlasSettingsCompactRow: View {
+    let title: String
+    let detail: String?
+    let value: String
+    let systemImage: String
+    let tint: Color
+    var action: (() -> Void)? = nil
+
+    var body: some View {
+        Group {
+            if let action {
+                Button {
+                    AtlasFeedback.navigation()
+                    action()
+                } label: {
+                    rowContent(showsChevron: true)
+                }
+                .buttonStyle(.plain)
+            } else {
+                rowContent(showsChevron: false)
+            }
+        }
+        .padding(9)
+        .background(AtlasPalette.surfaceSecondary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(AtlasPalette.border.opacity(0.42), lineWidth: 1)
+        )
+    }
+
+    private func rowContent(showsChevron: Bool) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: systemImage)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(tint)
+                .frame(width: 28, height: 28)
+                .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .atlasTextRole(.cardBody)
+                    .foregroundStyle(AtlasPalette.textPrimary)
+                if let detail, detail.isEmpty == false {
+                    Text(detail)
+                        .atlasTextRole(.metricLabel)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.78)
+                }
+            }
+
+            Spacer(minLength: 8)
+
+            if value.isEmpty == false {
+                Text(value)
+                    .atlasTextRole(.supporting)
+                    .foregroundStyle(tint)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.78)
+            }
+
+            if showsChevron {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(AtlasPalette.textTertiary)
+            }
+        }
+    }
+}
+
+private struct AtlasSettingsCompactToggleRow: View {
+    let title: String
+    let detail: String?
+    @Binding var isOn: Bool
+    let systemImage: String
+    let tint: Color
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: systemImage)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(tint)
+                .frame(width: 28, height: 28)
+                .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .atlasTextRole(.cardBody)
+                    .foregroundStyle(AtlasPalette.textPrimary)
+                if let detail {
+                    Text(detail)
+                        .atlasTextRole(.metricLabel)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.78)
+                }
+            }
+
+            Spacer(minLength: 8)
+
+            Toggle("", isOn: $isOn)
+                .labelsHidden()
+                .tint(AtlasPalette.primary)
+                .scaleEffect(0.82, anchor: .trailing)
+                .frame(width: 46, height: 30, alignment: .trailing)
+        }
+        .padding(9)
+        .background(AtlasPalette.surfaceSecondary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(AtlasPalette.border.opacity(0.42), lineWidth: 1)
+        )
+    }
+}
+
+private var atlasIsMockupFidelityLaunch: Bool {
+    #if DEBUG
+    if let rawValue = ProcessInfo.processInfo.environment["ATLAS_QA_MOCKUP_FIDELITY"]?.trimmingCharacters(in: .whitespacesAndNewlines) {
+        return ["1", "true", "yes"].contains(rawValue.lowercased())
+    }
+    #endif
+    return false
 }
 
 private struct AtlasSettingsPersonalizationScreen: View {
@@ -8195,7 +9640,6 @@ private struct AtlasSettingsStatusRow: View {
         Text(title)
             .atlasTextRole(.supporting)
             .foregroundStyle(AtlasPalette.primary)
-            .textCase(.uppercase)
     }
 
     private func valueText(multilineAlignment: TextAlignment) -> some View {
@@ -8233,7 +9677,7 @@ private struct AtlasSettingsStepperCard: View {
         .padding(.horizontal, AtlasSpacing.medium)
         .padding(.vertical, AtlasSpacing.medium)
         .background(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(
                     LinearGradient(
                         colors: isEnabled
@@ -8245,7 +9689,7 @@ private struct AtlasSettingsStepperCard: View {
                 )
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(isEnabled ? tint.opacity(0.14) : AtlasPalette.border.opacity(0.6), lineWidth: 1)
         )
     }
@@ -8346,7 +9790,7 @@ private struct AtlasSettingsDisclosureRow: View {
             .padding(.horizontal, AtlasSpacing.medium)
             .padding(.vertical, AtlasSpacing.small)
             .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(
                         LinearGradient(
                             colors: [AtlasPalette.surfaceTop.opacity(0.97), AtlasPalette.surfaceSecondary],
@@ -8356,7 +9800,7 @@ private struct AtlasSettingsDisclosureRow: View {
                     )
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .stroke(tint.opacity(0.12), lineWidth: 1)
             )
         }
@@ -8420,7 +9864,7 @@ private struct AtlasSettingsMenuRow<Value: Hashable>: View {
             .padding(.vertical, AtlasSpacing.small)
             .frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)
             .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(
                         LinearGradient(
                             colors: isEnabled
@@ -8432,7 +9876,7 @@ private struct AtlasSettingsMenuRow<Value: Hashable>: View {
                     )
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .stroke(isEnabled ? AtlasPalette.chromeStroke.opacity(0.92) : AtlasPalette.border.opacity(0.5), lineWidth: 1)
             )
         }
@@ -8492,7 +9936,7 @@ private struct AtlasMiniIconControlButton: View {
                 .foregroundStyle(isEnabled ? AtlasPalette.textSecondary : AtlasPalette.textTertiary)
                 .frame(width: 36, height: 36)
                 .background(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(isEnabled ? AtlasPalette.secondaryFill : AtlasPalette.surfaceMuted.opacity(0.7))
                 )
         }
@@ -8680,7 +10124,7 @@ private struct AtlasSettingsToggleRow: View {
             .padding(.vertical, AtlasSpacing.small)
             .frame(minHeight: 60)
             .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(
                         LinearGradient(
                             colors: isEnabled
@@ -8692,11 +10136,11 @@ private struct AtlasSettingsToggleRow: View {
                     )
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .stroke(isEnabled ? AtlasPalette.chromeStroke.opacity(0.92) : AtlasPalette.border.opacity(0.5), lineWidth: 1)
             )
             .overlay(alignment: .top) {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .stroke(AtlasPalette.chromeStrokeSoft.opacity(isEnabled ? 1 : 0.6), lineWidth: 1)
                     .mask(
                         LinearGradient(
@@ -8897,50 +10341,47 @@ private struct AtlasExplanationSheet: View {
 
     var body: some View {
         NavigationStack {
-            AtlasScreen {
-                AtlasCommandDeck(
-                    eyebrow: item.panelTitle,
-                    title: item.title,
-                    detail: item.detailLine ?? item.summary,
-                    metrics: [
-                        AtlasMetricItem(id: "facts", title: "Facts", value: "\(item.facts.count)", tint: AtlasPalette.primary),
-                        AtlasMetricItem(id: "notes", title: "Notes", value: "\(item.notes.count)", tint: AtlasPalette.secondaryText)
-                    ],
-                    tint: AtlasPalette.primary,
-                    style: .hero
-                ) { } footer: {
+            AtlasRootScrollSurface {
+                AtlasForwardDetailNavBar(title: item.panelTitle)
+
+                AtlasForwardCard {
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: item.detailLine == nil ? "calendar.badge.clock" : "slider.horizontal.3")
+                            .foregroundStyle(AtlasPalette.primary)
+                            .frame(width: 38, height: 38)
+                            .background(AtlasPalette.primary.opacity(0.1), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(item.title)
+                                .atlasTextRole(.cardTitle)
+                                .foregroundStyle(AtlasPalette.textPrimary)
+                            Text(item.detailLine ?? item.summary)
+                                .atlasTextRole(.supporting)
+                                .foregroundStyle(AtlasPalette.textSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+
                     if item.detailLine != nil {
                         Text(item.summary)
                             .atlasTextRole(.supporting)
                             .foregroundStyle(AtlasPalette.textSecondary)
+                            .padding(.top, 4)
                     }
                 }
 
                 if item.facts.isEmpty == false {
-                    AtlasRootSectionHeader("Deterministic Facts")
-                    AtlasSectionCard(style: .task) {
+                    AtlasForwardEditorSection(title: "What Kairo used") {
                         AtlasExplainerFactList(facts: item.facts)
                     }
                 }
 
                 if item.notes.isEmpty == false {
-                    AtlasRootSectionHeader("Notes")
-                    AtlasSectionCard(style: .utility) {
+                    AtlasForwardEditorSection(title: "Notes") {
                         ForEach(item.notes, id: \.self) { note in
                             Text(note)
                                 .atlasTextRole(.supporting)
                                 .foregroundStyle(AtlasPalette.textSecondary)
                         }
-                    }
-                }
-            }
-            .navigationTitle(item.panelTitle)
-            .atlasInlineNavigationTitle()
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
-                        AtlasFeedback.selection()
-                        dismiss()
                     }
                 }
             }
@@ -9041,11 +10482,11 @@ private struct AtlasOccurrenceHero: View {
                 }
                 .padding(AtlasSpacing.small)
                 .background(
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(.white.opacity(0.08))
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .stroke(.white.opacity(0.08), lineWidth: 1)
                 )
             }
@@ -9061,7 +10502,7 @@ private struct AtlasOccurrenceHero: View {
         .padding(AtlasSpacing.large)
         .background(
             ZStack(alignment: .topTrailing) {
-                RoundedRectangle(cornerRadius: 32, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(
                         LinearGradient(
                             colors: [AtlasPalette.shellTop, AtlasPalette.shellTopAccent],
@@ -9077,7 +10518,7 @@ private struct AtlasOccurrenceHero: View {
             }
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 32, style: .continuous)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(.white.opacity(0.08), lineWidth: 1)
         )
         .shadow(color: AtlasPalette.shadow.opacity(0.5), radius: 18, x: 0, y: 12)
@@ -9157,49 +10598,52 @@ private struct AtlasProtocolLibraryCard: View {
 
     var body: some View {
         AtlasSectionCard(style: .task) {
-            VStack(alignment: .leading, spacing: AtlasSpacing.small) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text(model.renderedTitle(
-                        canonical: summary.canonicalTitle,
-                        alias: summary.aliasTitle,
-                        renderMode: renderMode
-                    ))
-                    .atlasTextRole(.cardTitle)
-                    .foregroundStyle(AtlasPalette.textPrimary)
-                    Spacer()
-                    AtlasStatusBadge(summary.status.rawValue.capitalized)
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: summary.protocolKind.previewSystemImage)
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundStyle(summary.protocolKind.editorTint)
+                        .frame(width: 44, height: 44)
+                        .background(summary.protocolKind.editorTint.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(model.renderedTitle(
+                            canonical: summary.canonicalTitle,
+                            alias: summary.aliasTitle,
+                            renderMode: renderMode
+                        ))
+                        .atlasTextRole(.cardTitle)
+                        .foregroundStyle(AtlasPalette.textPrimary)
+                        .lineLimit(2)
+
+                        Text("\(summary.kindLabel) • \(summary.cadenceLabel)")
+                            .atlasTextRole(.supporting)
+                            .foregroundStyle(AtlasPalette.textSecondary)
+                    }
+
+                    Spacer(minLength: 0)
+                    AtlasStatusBadge(summary.status.rawValue.capitalized, tint: summary.protocolKind.editorTint)
                 }
 
-                Text("\(summary.kindLabel) • \(summary.cadenceLabel)")
-                    .atlasTextRole(.supporting)
-                    .foregroundStyle(AtlasPalette.textSecondary)
-
-                if let doseLabel = summary.doseLabel {
-                    Text("Dose: \(doseLabel)")
-                        .atlasTextRole(.supporting)
-                        .foregroundStyle(AtlasPalette.textSecondary)
-                }
-
-                if let nextDueLabel = summary.nextDueLabel {
-                    Text("Next due \(nextDueLabel)")
-                        .atlasTextRole(.supporting)
-                        .foregroundStyle(AtlasPalette.textSecondary)
+                HStack(spacing: AtlasSpacing.small) {
+                    AtlasProtocolSignalPill(title: "Dose", value: summary.doseLabel ?? "Pending", tint: summary.doseLabel == nil ? AtlasPalette.secondaryText : summary.protocolKind.editorTint)
+                    AtlasProtocolSignalPill(title: "Next", value: summary.nextDueLabel ?? "Ready", tint: summary.nextDueLabel == nil ? AtlasPalette.success : AtlasPalette.primary)
                 }
 
                 if let knowledge = summary.compoundKnowledge {
                     AtlasCalloutRow(
                         systemImage: "waveform.path.ecg.text",
-                        title: "Compound context",
+                        title: "Protocol context",
                         detail: knowledge.protocolSummary,
                         tint: AtlasPalette.secondaryText
                     )
+                    .lineLimit(3)
 
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: AtlasSpacing.xSmall) {
                             AtlasCompoundContextChip(label: knowledge.categoryLabel)
                             AtlasCompoundContextChip(label: knowledge.typicalCadenceLabel)
-                            AtlasCompoundContextChip(label: knowledge.availabilityLabel)
-                            ForEach(Array(knowledge.operationalTags.prefix(3)), id: \.self) { tag in
+                            ForEach(Array(knowledge.operationalTags.prefix(2)), id: \.self) { tag in
                                 AtlasCompoundContextChip(label: tag.title)
                             }
                         }
@@ -9207,13 +10651,28 @@ private struct AtlasProtocolLibraryCard: View {
                 }
 
                 HStack(spacing: AtlasSpacing.small) {
-                    Button("Open") {
+                    Button("Details") {
                         AtlasFeedback.selection()
                         model.open(.protocolDetail(summary.id))
                     }
                     .buttonStyle(AtlasSecondaryButtonStyle())
 
-                    Button("Change") {
+                    Button("Log Shot") {
+                        AtlasFeedback.selection()
+                        model.routePath.removeAll()
+                        model.activeTab = .timeline
+                    }
+                    .buttonStyle(AtlasPrimaryButtonStyle())
+
+                    Button("Supplies") {
+                        AtlasFeedback.selection()
+                        model.open(.inventory)
+                    }
+                    .buttonStyle(AtlasSecondaryButtonStyle())
+                }
+
+                HStack(spacing: AtlasSpacing.small) {
+                    Button("Change Plan") {
                         AtlasFeedback.selection()
                         model.open(.protocolChange(summary.id))
                     }
@@ -9238,6 +10697,33 @@ private struct AtlasProtocolLibraryCard: View {
                 currentKnowledge: summary.compoundKnowledge
             )
         }
+    }
+}
+
+private struct AtlasProtocolSignalPill: View {
+    let title: String
+    let value: String
+    let tint: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title)
+                .atlasTextRole(.deckEyebrow)
+                .foregroundStyle(AtlasPalette.textSecondary)
+            Text(value)
+                .atlasTextRole(.cardBody)
+                .foregroundStyle(AtlasPalette.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(tint.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(tint.opacity(0.16), lineWidth: 1)
+        )
     }
 }
 
@@ -9464,7 +10950,7 @@ private struct AtlasInlineMessage: View {
             .padding(AtlasSpacing.medium)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(Color.red.opacity(0.08))
             )
     }
@@ -9524,7 +11010,7 @@ private struct AtlasToolLauncherButton: View {
         } label: {
             VStack(alignment: .leading, spacing: AtlasSpacing.small) {
                 HStack(alignment: .top) {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(
                             LinearGradient(
                                 colors: [AtlasPalette.surfaceTop, AtlasPalette.secondaryFill],
@@ -9541,7 +11027,7 @@ private struct AtlasToolLauncherButton: View {
                                 .foregroundStyle(AtlasPalette.primary)
                         )
                         .overlay(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
                                 .stroke(AtlasPalette.chromeStroke, lineWidth: 1)
                         )
 
@@ -9569,7 +11055,7 @@ private struct AtlasToolLauncherButton: View {
             .frame(maxWidth: .infinity, minHeight: dynamicTypeSize.isAccessibilitySize ? 108 : 110, alignment: .topLeading)
             .padding(16)
             .background(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(
                         LinearGradient(
                             colors: [AtlasPalette.surfaceTop, AtlasPalette.surfaceSecondary],
@@ -9579,7 +11065,7 @@ private struct AtlasToolLauncherButton: View {
                     )
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .stroke(AtlasPalette.chromeStroke, lineWidth: 1)
             )
             .shadow(color: AtlasPalette.shadow.opacity(0.16), radius: 12, x: 0, y: 8)
@@ -9627,31 +11113,56 @@ private struct AtlasLogSheet: View {
 
     var body: some View {
         NavigationStack {
-            AtlasScreen {
-                AtlasCommandDeck(
-                    eyebrow: "Quick log",
-                    title: model.renderedTitle(canonical: context.occurrence.canonicalTitle, alias: context.occurrence.aliasTitle),
-                    detail: "\(context.occurrence.kindLabel) • \(context.occurrence.cadenceLabel) • \(context.occurrence.scheduledAt.formatted(date: .abbreviated, time: .shortened))",
-                    metrics: [
-                        AtlasMetricItem(id: "state", title: "State", value: context.occurrence.state.rawValue.capitalized, tint: AtlasPalette.primary),
-                        AtlasMetricItem(id: "action", title: "Action", value: actionLabel, tint: AtlasPalette.secondaryText)
-                    ],
-                    tint: AtlasPalette.primary,
-                    style: .hero
-                ) { } footer: { }
+            AtlasRootScrollSurface {
+                AtlasForwardDetailNavBar(title: action == .taken ? "Shot Update" : "Schedule Update")
 
-                AtlasSectionCard(style: .utility, title: "Action") {
-                    Picker("Action", selection: $action) {
-                        Text("Taken").tag(AtlasOccurrenceLogAction.taken)
-                        Text("Skip").tag(AtlasOccurrenceLogAction.skipped)
-                        Text("Reschedule").tag(AtlasOccurrenceLogAction.rescheduled)
+                AtlasForwardCard {
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: action == .rescheduled ? "clock.arrow.circlepath" : "syringe.fill")
+                            .foregroundStyle(AtlasPalette.primary)
+                            .frame(width: 38, height: 38)
+                            .background(AtlasPalette.primary.opacity(0.1), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(model.renderedTitle(canonical: context.occurrence.canonicalTitle, alias: context.occurrence.aliasTitle))
+                                .atlasTextRole(.cardTitle)
+                                .foregroundStyle(AtlasPalette.textPrimary)
+                            Text("\(context.occurrence.kindLabel) • \(context.occurrence.cadenceLabel) • \(context.occurrence.scheduledAt.formatted(date: .abbreviated, time: .shortened))")
+                                .atlasTextRole(.supporting)
+                                .foregroundStyle(AtlasPalette.textSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
-                    .pickerStyle(.segmented)
+                }
+
+                AtlasForwardEditorSection(title: "Update") {
+                    HStack(spacing: 6) {
+                        ForEach([AtlasOccurrenceLogAction.taken, .skipped, .rescheduled], id: \.rawValue) { option in
+                            Button {
+                                AtlasFeedback.selection()
+                                action = option
+                            } label: {
+                                Text(option.forwardTitle)
+                                    .font(.system(size: atlasForwardMockupFidelityActive ? 12 : 13, weight: .semibold, design: .default))
+                                    .foregroundStyle(action == option ? .white : AtlasPalette.textPrimary)
+                                    .frame(maxWidth: .infinity, minHeight: 32)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                            .fill(action == option ? AtlasPalette.primary : AtlasPalette.surfaceSecondary)
+                                    )
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                            .stroke(action == option ? AtlasPalette.primary : AtlasPalette.border.opacity(0.62), lineWidth: 1)
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
                 }
 
                 if action == .rescheduled {
-                    AtlasSectionCard(title: "New time") {
+                    AtlasForwardEditorSection(title: "New time") {
                         DatePicker("When", selection: $rescheduledAt)
+                            .datePickerStyle(.compact)
 
                         HStack(spacing: AtlasSpacing.small) {
                             Button("Later today (+2h)") {
@@ -9679,7 +11190,7 @@ private struct AtlasLogSheet: View {
                    let siteOptions,
                    siteOptions.siteTrackingEnabled,
                    siteOptions.sites.isEmpty == false {
-                    AtlasSectionCard(title: "Site") {
+                    AtlasForwardEditorSection(title: "Site rotation") {
                         if siteOptions.sites.contains(where: { $0.mapRegionKey != nil }) {
                             AtlasQuickLogSiteMap(
                                 sites: siteOptions.sites,
@@ -9690,14 +11201,26 @@ private struct AtlasLogSheet: View {
                             )
                         }
 
-                        Picker("Injection site", selection: Binding(
-                            get: { selectedSiteID },
-                            set: { selectedSiteID = $0 }
-                        )) {
-                            Text("No site").tag(Optional<String>.none)
+                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 6) {
+                            Button {
+                                AtlasFeedback.selection()
+                                selectedSiteID = nil
+                            } label: {
+                                AtlasForwardLogOptionPill(title: "No site", isSelected: selectedSiteID == nil)
+                            }
+                            .buttonStyle(.plain)
+
                             ForEach(siteOptions.sites) { site in
-                                let label = [site.name, site.bodyArea].compactMap { $0 }.joined(separator: " • ")
-                                Text(label).tag(Optional(site.id))
+                                Button {
+                                    AtlasFeedback.selection()
+                                    selectedSiteID = site.id
+                                } label: {
+                                    AtlasForwardLogOptionPill(
+                                        title: [site.name, site.bodyArea].compactMap { $0 }.joined(separator: " • "),
+                                        isSelected: selectedSiteID == site.id
+                                    )
+                                }
+                                .buttonStyle(.plain)
                             }
                         }
 
@@ -9712,15 +11235,18 @@ private struct AtlasLogSheet: View {
                     }
                 }
 
-                AtlasSectionCard(title: "Note") {
+                AtlasForwardEditorSection(title: "Note") {
                     TextField("Optional note", text: $note, axis: .vertical)
-                        .atlasStandaloneInputSurface()
+                        .atlasForwardCompactInput()
                 }
 
-                AtlasSectionCard(style: .utility, title: "Commit") {
-                    Button("Save quick log") {
+                AtlasForwardCard {
+                    Button {
                         AtlasFeedback.selection()
                         Task { await commitQuickLog() }
+                    } label: {
+                        Label(isSubmitting ? "Saving" : "Save Update", systemImage: "checkmark.circle.fill")
+                            .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(AtlasPrimaryButtonStyle())
                     .accessibilityIdentifier("quickLogPrimarySaveButton")
@@ -9735,7 +11261,6 @@ private struct AtlasLogSheet: View {
                     .disabled(isSubmitting)
                 }
             }
-            .navigationTitle("Quick log")
             .task {
                 guard action == .taken else {
                     return
@@ -9754,21 +11279,6 @@ private struct AtlasLogSheet: View {
                     if selectedSiteID == nil {
                         selectedSiteID = siteOptions?.suggestedSiteID
                     }
-                }
-            }
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                    .accessibilityIdentifier("quickLogCancelButton")
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        Task { await commitQuickLog() }
-                    }
-                    .accessibilityIdentifier("quickLogSaveButton")
-                    .disabled(isSubmitting)
                 }
             }
         }
@@ -9799,6 +11309,39 @@ private struct AtlasLogSheet: View {
             )
         )
         dismiss()
+    }
+}
+
+private extension AtlasOccurrenceLogAction {
+    var forwardTitle: String {
+        switch self {
+        case .taken: "Taken"
+        case .skipped: "Skip"
+        case .rescheduled: "Later"
+        }
+    }
+}
+
+private struct AtlasForwardLogOptionPill: View {
+    let title: String
+    let isSelected: Bool
+
+    var body: some View {
+        Text(title)
+            .font(.system(size: atlasForwardMockupFidelityActive ? 11.5 : 12, weight: .semibold, design: .default))
+            .foregroundStyle(isSelected ? .white : AtlasPalette.textPrimary)
+            .lineLimit(1)
+            .minimumScaleFactor(0.72)
+            .frame(maxWidth: .infinity, minHeight: atlasForwardMockupFidelityActive ? 30 : 32)
+            .padding(.horizontal, 7)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(isSelected ? AtlasPalette.primary : AtlasPalette.surfaceSecondary)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(isSelected ? AtlasPalette.primary : AtlasPalette.border.opacity(0.62), lineWidth: 1)
+            )
     }
 }
 
@@ -10297,12 +11840,12 @@ struct AtlasRootScrollSurface<Content: View>: View {
 
     var body: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 20) {
+            LazyVStack(alignment: .leading, spacing: 9) {
                 content
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 8)
-            .padding(.bottom, dynamicTypeSize.isAccessibilitySize ? 220 : 150)
+            .padding(.horizontal, 15)
+            .padding(.top, 0)
+            .padding(.bottom, dynamicTypeSize.isAccessibilitySize ? 184 : 118)
         }
         .scrollIndicators(.hidden)
         .background(AtlasAppBackground())

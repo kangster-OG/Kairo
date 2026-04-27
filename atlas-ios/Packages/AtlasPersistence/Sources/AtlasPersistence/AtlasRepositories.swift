@@ -647,6 +647,7 @@ public actor GRDBSharedProjectionWriter: SharedProjectionWriting {
                     items: [],
                     updatedAt: atlasTimestamp(from: Date())
                 ),
+                support: nil,
                 mascot: nil,
                 watchCompanion: buildWatchCompanionProjectionSnapshot(
                     referenceDate: Date(),
@@ -918,6 +919,8 @@ private func buildProjectionWriteState(
         updatedAt: atlasTimestamp(from: referenceDate)
     )
     let featureFlagProjection = AtlasSharedFeatureFlagProjection(flags: featureFlags)
+    let insightsSnapshot = try buildInsightsSnapshot(db: db, referenceDate: referenceDate, featureFlags: featureFlags, privacyFormatter: privacyFormatter)
+    let supportSnapshot = buildSupportRingsProjectionSnapshot(insights: insightsSnapshot, referenceDate: referenceDate)
     let mascotSnapshot = try buildMascotProjection(db: db, referenceDate: referenceDate)
     let watchCompanionSnapshot = buildWatchCompanionProjectionSnapshot(
         referenceDate: referenceDate,
@@ -939,6 +942,7 @@ private func buildProjectionWriteState(
             nextDue: nextDue,
             quickActions: quickActions,
             lowStock: lowStockSnapshot,
+            support: supportSnapshot,
             mascot: mascotSnapshot,
             watchCompanion: watchCompanionSnapshot,
             featureFlags: featureFlagProjection
@@ -991,23 +995,65 @@ private func buildWatchCompanionProjectionSnapshot(
     )
 }
 
+private func buildSupportRingsProjectionSnapshot(
+    insights: AtlasInsightsSnapshot,
+    referenceDate: Date
+) -> AtlasSharedSupportRingsSnapshot {
+    let protein = insights.nutritionSnapshot.dailyTargets.first { $0.kind == .proteinMeals }
+    let hydration = insights.nutritionSnapshot.dailyTargets.first { $0.kind == .hydrationCheckins }
+    let workoutProgress: Double = insights.recentWorkoutEntries.isEmpty ? 0 : 1
+    let proteinProgress = protein?.progress ?? 0
+    let hydrationProgress = hydration?.progress ?? 0
+    let score = min(
+        100,
+        max(
+            10,
+            Int(proteinProgress * 35)
+                + Int(hydrationProgress * 30)
+                + Int(workoutProgress * 25)
+                + 10
+        )
+    )
+
+    return AtlasSharedSupportRingsSnapshot(
+        score: score,
+        summary: "Protein, hydration, and workouts keep today's support loop visible.",
+        rings: [
+            AtlasSharedSupportRingSnapshot(
+                kind: "protein",
+                title: "Protein",
+                valueLabel: protein?.progressLabel ?? "0 / 1",
+                progress: proteinProgress,
+                symbolName: "bolt.heart.fill"
+            ),
+            AtlasSharedSupportRingSnapshot(
+                kind: "hydration",
+                title: "Hydration",
+                valueLabel: hydration?.progressLabel ?? "0 / 1",
+                progress: hydrationProgress,
+                symbolName: "drop.fill"
+            ),
+            AtlasSharedSupportRingSnapshot(
+                kind: "workout",
+                title: "Workout",
+                valueLabel: insights.recentWorkoutEntries.isEmpty ? "0 recent" : "\(insights.recentWorkoutEntries.count) recent",
+                progress: workoutProgress,
+                symbolName: "dumbbell.fill"
+            )
+        ],
+        updatedAt: atlasTimestamp(from: referenceDate)
+    )
+}
+
 private func buildMascotProjection(
     db: Database,
     referenceDate: Date
 ) throws -> AtlasSharedMascotSnapshot? {
     let rewardsSnapshot = try buildRewardsSnapshot(db: db, referenceDate: referenceDate)
-    guard rewardsSnapshot.settings.enabled else {
-        return nil
-    }
-
     let onboardingDraft = try readMascotProjectionOnboardingDraft(db: db)
     let selectionRaw = try String.fetchOne(
         db,
         sql: "SELECT value FROM atlas_app_settings WHERE key = 'mascot_selection'"
-    )
-    let selectionConfirmedRaw = try String.fetchOne(
-        db,
-        sql: "SELECT value FROM atlas_app_settings WHERE key = 'mascot_selection_confirmed'"
     )
     let nicknameRaw = try String.fetchOne(
         db,
@@ -1017,9 +1063,6 @@ private func buildMascotProjection(
         ?? onboardingDraft?.profile.mascotSelection
         ?? atlasInferredMascotSelection(from: onboardingDraft?.profile.gender)
         ?? .aetherion
-    guard selectionConfirmedRaw == "1" else {
-        return nil
-    }
 
     let stage = AtlasMascotMilestone.stage(for: rewardsSnapshot.totalPoints)
     let nextThresholdPoints = AtlasMascotMilestone.nextThreshold(after: stage)
@@ -1176,7 +1219,7 @@ private func lowStockSummary(for count: Int) -> String {
 
 private func lowStockDetail(for consumable: AtlasConsumableSummary) -> String {
     if consumable.needsProcurementReview {
-        return consumable.procurementStatusLabel ?? "Procurement review now."
+        return consumable.procurementStatusLabel ?? "Supply review now."
     }
 
     return consumable.procurementStatusLabel

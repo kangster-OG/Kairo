@@ -50,6 +50,12 @@ public struct AtlasInsightsScreen: View {
                 AtlasInsightsInlineMessage(text: error)
             }
 
+            AtlasInsightsSupportCommandCard(model: model, state: state)
+
+            AtlasInsightsEvidenceCard(model: model, state: state)
+
+            AtlasQuickActionDockCard(model: model)
+
             AtlasSectionCard(title: "Capture") {
                 AtlasQuickActionGrid(columns: 2) {
                     AtlasQuickActionTile(
@@ -1227,9 +1233,9 @@ private struct AtlasAdherenceCalendarDay: View {
                 .foregroundStyle(day.scheduledCount == 0 ? AtlasPalette.textSecondary : AtlasPalette.textPrimary)
                 .frame(maxWidth: .infinity)
                 .frame(height: 34)
-                .background(fillColor, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .background(fillColor, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .strokeBorder(borderColor, lineWidth: 1)
                 )
         }
@@ -1293,9 +1299,9 @@ private struct AtlasAdherenceDayBadge: View {
                 .atlasTextRole(.deckEyebrow)
                 .foregroundStyle(textColor)
                 .frame(width: 28, height: 28)
-                .background(fillColor, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .background(fillColor, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .strokeBorder(borderColor, lineWidth: 1)
                 )
                 .accessibilityLabel("\(day.title): \(accessibilitySummary)")
@@ -2586,7 +2592,7 @@ struct AtlasNutritionSuggestionButton: View {
             .padding(AtlasSpacing.medium)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(AtlasPalette.surfaceSecondary)
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
         .buttonStyle(.plain)
     }
@@ -3385,7 +3391,7 @@ private struct AtlasQuickActionTile: View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: AtlasSpacing.small) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(
                             prominence == .primary
                                 ? .white.opacity(0.16)
@@ -3412,7 +3418,7 @@ private struct AtlasQuickActionTile: View {
             .padding(AtlasSpacing.medium)
             .background(background)
             .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .stroke(prominence == .primary ? Color.white.opacity(0.18) : AtlasPalette.border, lineWidth: 1)
             )
             .shadow(
@@ -3431,7 +3437,7 @@ private struct AtlasQuickActionTile: View {
     }
 
     private var background: some View {
-        RoundedRectangle(cornerRadius: 20, style: .continuous)
+        RoundedRectangle(cornerRadius: 8, style: .continuous)
             .fill(
                 prominence == .primary
                     ? AnyShapeStyle(
@@ -3468,7 +3474,7 @@ private struct AtlasInsightsCompactActionRow: View {
                     .foregroundStyle(AtlasPalette.primary)
                     .frame(width: 36, height: 36)
                     .background(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
                             .fill(AtlasPalette.primary.opacity(0.1))
                     )
 
@@ -3493,7 +3499,7 @@ private struct AtlasInsightsCompactActionRow: View {
             .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
             .padding(.horizontal, AtlasSpacing.medium)
             .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(AtlasPalette.secondaryFill)
             )
         }
@@ -3541,7 +3547,7 @@ private struct AtlasInsightsDisclosureRow: View {
             .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
             .padding(.horizontal, AtlasSpacing.medium)
             .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(AtlasPalette.secondaryFill)
             )
         }
@@ -3652,6 +3658,126 @@ private struct AtlasNumericEntryControl: View {
     }
 }
 
+private struct AtlasInsightsSupportCommandCard: View {
+    let model: AtlasAppModel
+    let state: AtlasInsightsViewState
+
+    var body: some View {
+        AtlasSectionCard(style: .hero) {
+            VStack(alignment: .leading, spacing: AtlasSpacing.medium) {
+                HStack(alignment: .top, spacing: AtlasSpacing.medium) {
+                    VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
+                        Text("Protocol Support")
+                            .atlasTextRole(.deckEyebrow)
+                            .foregroundStyle(AtlasPalette.primary)
+                        Text("Food, workouts, symptoms, and photos explain what changed.")
+                            .atlasTextRole(.cardTitle)
+                            .foregroundStyle(AtlasPalette.textPrimary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text("Keep this lightweight: protein, hydration, training, appetite, and side-effect context roll into weekly review and companion quests.")
+                            .atlasTextRole(.supporting)
+                            .foregroundStyle(AtlasPalette.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 8)
+                    VStack(alignment: .trailing, spacing: 4) {
+                        Text("\(supportScore)")
+                            .font(AtlasTypography.brandFont(size: 34, weight: .bold, relativeTo: .title))
+                            .foregroundStyle(scoreTint)
+                        Text("Support")
+                            .atlasTextRole(.metricLabel)
+                            .foregroundStyle(AtlasPalette.textSecondary)
+                    }
+                }
+
+                ProgressView(value: Double(supportScore), total: 100)
+                    .tint(scoreTint)
+
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: AtlasSpacing.small), GridItem(.flexible(), spacing: AtlasSpacing.small)], spacing: AtlasSpacing.small) {
+                    supportTile(title: "Protein", value: proteinLabel, systemImage: "bolt.heart.fill", tint: AtlasPalette.success)
+                    supportTile(title: "Hydration", value: hydrationLabel, systemImage: "drop.fill", tint: Color(red: 0.15, green: 0.58, blue: 0.9))
+                    supportTile(title: "Workout", value: workoutLabel, systemImage: "dumbbell.fill", tint: AtlasPalette.reward)
+                    supportTile(title: "Symptoms", value: symptomLabel, systemImage: "waveform.path.ecg", tint: AtlasPalette.primary)
+                }
+
+                HStack(spacing: AtlasSpacing.small) {
+                    Button("Log support") {
+                        model.activeTab = .timeline
+                    }
+                    .buttonStyle(AtlasPrimaryButtonStyle())
+
+                    Button("Weekly review") {
+                        model.open(.weeklyReview)
+                    }
+                    .buttonStyle(AtlasSecondaryButtonStyle())
+                }
+            }
+        }
+    }
+
+    private func supportTile(title: String, value: String, systemImage: String, tint: Color) -> some View {
+        HStack(spacing: AtlasSpacing.small) {
+            Image(systemName: systemImage)
+                .foregroundStyle(tint)
+                .frame(width: 34, height: 34)
+                .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .atlasTextRole(.metricLabel)
+                    .foregroundStyle(AtlasPalette.textSecondary)
+                Text(value)
+                    .atlasTextRole(.supporting)
+                    .foregroundStyle(AtlasPalette.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(10)
+        .background(AtlasPalette.surfaceSecondary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private var proteinTarget: AtlasNutritionTargetSnapshot? {
+        state.insightsSnapshot.nutritionSnapshot.dailyTargets.first(where: { $0.kind == .proteinMeals })
+    }
+
+    private var hydrationTarget: AtlasNutritionTargetSnapshot? {
+        state.insightsSnapshot.nutritionSnapshot.dailyTargets.first(where: { $0.kind == .hydrationCheckins })
+    }
+
+    private var supportScore: Int {
+        let protein = Int((proteinTarget?.progress ?? 0) * 35)
+        let hydration = Int((hydrationTarget?.progress ?? 0) * 25)
+        let workout = state.insightsSnapshot.recentWorkoutEntries.isEmpty ? 0 : 20
+        let symptoms = state.insightsSnapshot.recentSymptomEntries.isEmpty ? 10 : 20
+        return min(100, max(10, protein + hydration + workout + symptoms))
+    }
+
+    private var scoreTint: Color {
+        supportScore >= 70 ? AtlasPalette.success : (supportScore >= 40 ? AtlasPalette.reward : AtlasPalette.warning)
+    }
+
+    private var proteinLabel: String {
+        proteinTarget?.progressLabel ?? "\(state.insightsSnapshot.nutritionSnapshot.recentMealCount) meals"
+    }
+
+    private var hydrationLabel: String {
+        hydrationTarget?.progressLabel ?? "Tap to log"
+    }
+
+    private var workoutLabel: String {
+        let count = state.insightsSnapshot.recentWorkoutEntries.count
+        return count == 0 ? "None yet" : "\(count) recent"
+    }
+
+    private var symptomLabel: String {
+        if let symptom = state.insightsSnapshot.recentSymptomEntries.first {
+            return "\(symptom.symptomKey) \(symptom.severity)/5"
+        }
+        return "No pairing"
+    }
+}
+
 private struct AtlasInsightsInlineMessage: View {
     let text: String
 
@@ -3662,7 +3788,7 @@ private struct AtlasInsightsInlineMessage: View {
             .padding()
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(Color.red.opacity(0.08))
             )
     }

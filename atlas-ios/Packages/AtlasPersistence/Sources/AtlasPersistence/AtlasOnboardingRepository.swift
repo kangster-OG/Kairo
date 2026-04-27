@@ -14,6 +14,9 @@ enum AtlasOnboardingRepositoryError: LocalizedError {
     }
 }
 
+private let atlasOnboardingFunnelEventsKey = "onboarding_funnel_events_json"
+private let atlasOnboardingFunnelEventLimit = 240
+
 public struct GRDBOnboardingRepository: OnboardingRepository, Sendable {
     let stack: AtlasDatabaseStack
     let healthKit: any HealthKitManaging
@@ -55,7 +58,37 @@ public struct GRDBOnboardingRepository: OnboardingRepository, Sendable {
                     now: now
                 )
             }
+            try writeAppSetting(
+                db: db,
+                key: "ambient_mascot_presence",
+                value: draft.companionPresence.rawValue,
+                now: now
+            )
             return try buildBootstrapSnapshot(db: db)
+        }
+    }
+
+    public func recordFunnelEvent(_ event: AtlasOnboardingFunnelEvent, now: Date) async throws {
+        try await stack.canonical.write { db in
+            var events = try readFunnelEvents(db: db)
+            events.append(event)
+            if events.count > atlasOnboardingFunnelEventLimit {
+                events = Array(events.suffix(atlasOnboardingFunnelEventLimit))
+            }
+            try writeAppSetting(db: db, key: atlasOnboardingFunnelEventsKey, value: encodeFunnelEvents(events), now: now)
+            try writeAppSetting(db: db, key: "onboarding_funnel_event_count", value: String(events.count), now: now)
+            try writeAppSetting(db: db, key: "onboarding_funnel_last_event", value: event.name.rawValue, now: now)
+            try writeAppSetting(db: db, key: "onboarding_funnel_last_step", value: event.step.rawValue, now: now)
+        }
+    }
+
+    public func fetchFunnelEvents(limit: Int) async throws -> [AtlasOnboardingFunnelEvent] {
+        try await stack.canonical.read { db in
+            let events = try readFunnelEvents(db: db)
+            guard limit > 0, events.count > limit else {
+                return events
+            }
+            return Array(events.suffix(limit))
         }
     }
 
@@ -100,6 +133,12 @@ public struct GRDBOnboardingRepository: OnboardingRepository, Sendable {
                 now: now
             )
             try writeAppSetting(db: db, key: "mascot_selection_confirmed", value: "1", now: now)
+            try writeAppSetting(
+                db: db,
+                key: "ambient_mascot_presence",
+                value: draft.companionPresence.rawValue,
+                now: now
+            )
             try writeAppSetting(
                 db: db,
                 key: "account_mode",
@@ -151,6 +190,7 @@ public struct GRDBOnboardingRepository: OnboardingRepository, Sendable {
                 lastError: nil,
                 now: now
             )
+            try seedOnboardingWeightLogIfNeeded(db: db, draft: draft, now: now)
 
             return try buildBootstrapSnapshot(
                 db: db,
@@ -171,6 +211,10 @@ public struct GRDBOnboardingRepository: OnboardingRepository, Sendable {
             try writeAppSetting(db: db, key: "onboarding_premium_plan", value: nil, now: now)
             try writeAppSetting(db: db, key: "onboarding_primary_focus", value: nil, now: now)
             try writeAppSetting(db: db, key: "onboarding_journey_status", value: nil, now: now)
+            try writeAppSetting(db: db, key: atlasOnboardingFunnelEventsKey, value: nil, now: now)
+            try writeAppSetting(db: db, key: "onboarding_funnel_event_count", value: nil, now: now)
+            try writeAppSetting(db: db, key: "onboarding_funnel_last_event", value: nil, now: now)
+            try writeAppSetting(db: db, key: "onboarding_funnel_last_step", value: nil, now: now)
             try writeAppSetting(db: db, key: "mascot_selection", value: nil, now: now)
             try writeAppSetting(db: db, key: "mascot_nickname", value: nil, now: now)
             try writeAppSetting(db: db, key: "mascot_selection_confirmed", value: nil, now: now)
@@ -469,6 +513,26 @@ func ensureDefaultHealthConnection(db: Database) throws {
     try AtlasHealthConnectionDBRecord(record: record).insert(db)
 }
 
+func seedOnboardingWeightLogIfNeeded(db: Database, draft: AtlasOnboardingDraft, now: Date) throws {
+    guard let weight = draft.profile.weight, weight > 0 else {
+        return
+    }
+    let timestamp = atlasTimestamp(from: now)
+    let id = "onboarding-initial-weight"
+    let existing = try AtlasWeightLogDBRecord.fetchOne(db, key: id)?.domain
+    let record = AtlasWeightLogRecord.make(
+        id: id,
+        loggedAt: timestamp,
+        value: weight,
+        unit: draft.profile.weightUnit ?? .lb,
+        source: .manual,
+        notes: "From onboarding",
+        createdAt: existing?.createdAt ?? timestamp,
+        updatedAt: timestamp
+    )
+    try AtlasWeightLogDBRecord(record: record).save(db)
+}
+
 func writeHealthConnection(
     db: Database,
     provider: AtlasHealthProviderKey,
@@ -520,6 +584,24 @@ private func encodeDraft(_ draft: AtlasOnboardingDraft) throws -> String {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.sortedKeys]
     let data = try encoder.encode(draft)
+    return String(decoding: data, as: UTF8.self)
+}
+
+private func readFunnelEvents(db: Database) throws -> [AtlasOnboardingFunnelEvent] {
+    guard let json = try String.fetchOne(
+        db,
+        sql: "SELECT value FROM atlas_app_settings WHERE key = ?",
+        arguments: [atlasOnboardingFunnelEventsKey]
+    ), json.isEmpty == false else {
+        return []
+    }
+    return try JSONDecoder().decode([AtlasOnboardingFunnelEvent].self, from: Data(json.utf8))
+}
+
+private func encodeFunnelEvents(_ events: [AtlasOnboardingFunnelEvent]) throws -> String {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys]
+    let data = try encoder.encode(events)
     return String(decoding: data, as: UTF8.self)
 }
 

@@ -30,7 +30,7 @@ final class AtlasPhaseOneTests: XCTestCase {
             prepared.dryRun.backfillNotes.contains(where: { $0.contains("Revision rows were backfilled") })
         )
         XCTAssertTrue(
-            prepared.dryRun.backfillNotes.contains(where: { $0.contains("Trust Vault profile rows") })
+            prepared.dryRun.backfillNotes.contains(where: { $0.contains("privacy control profile rows") })
         )
     }
 
@@ -135,8 +135,8 @@ final class AtlasPhaseOneTests: XCTestCase {
             privacyFormatter: AtlasPrivacyFormatter(),
             notifications: TestNotificationManager()
         )
-        let model = makeAppModel(controller: controller)
         let now = Date(timeIntervalSince1970: 1_773_950_400)
+        let model = makeAppModel(controller: controller, referenceDate: now)
 
         _ = try await controller.container.protocols.createProtocol(
             AtlasProtocolDraft(
@@ -158,8 +158,80 @@ final class AtlasPhaseOneTests: XCTestCase {
         XCTAssertEqual(snapshot?.renderMode, .full)
         XCTAssertEqual(snapshot?.nextDue?.displayTitle, "Widget protocol")
         XCTAssertFalse(snapshot?.quickActions.isEmpty ?? true)
+        XCTAssertEqual(snapshot?.mascot?.selection, .aetherion)
+        XCTAssertEqual(snapshot?.mascot?.currentFormName, AtlasMascotSelection.aetherion.stage1Title)
         XCTAssertEqual(snapshot?.watchCompanion?.nextDueTitle, "Widget protocol")
         XCTAssertFalse(snapshot?.watchCompanion?.quickContextShortcuts.isEmpty ?? true)
+    }
+
+    @MainActor
+    func testRefreshShellDataWritesSupportRingsProjectionSnapshot() async throws {
+        let directory = try makeTemporaryDirectory()
+        let controller = try AtlasPersistenceController.temporary(
+            baseURL: directory,
+            featureFlags: AtlasFeatureFlagState(),
+            privacyFormatter: AtlasPrivacyFormatter(),
+            notifications: TestNotificationManager()
+        )
+        let now = Date(timeIntervalSince1970: 1_773_950_400)
+        let model = makeAppModel(controller: controller, referenceDate: now)
+        let protocolDetail = try await controller.container.protocols.createProtocol(
+            AtlasProtocolDraft(
+                name: "Support protocol",
+                kind: .custom,
+                cadenceType: .daily,
+                intervalDays: 1,
+                weekday: nil,
+                defaultTimeOfDay: "09:00",
+                doseAmount: 1,
+                doseUnit: "mg"
+            ),
+            now: now
+        )
+
+        _ = try await controller.container.metrics.saveContextEntry(
+            AtlasContextEntryDraft(
+                protocolID: protocolDetail.id,
+                loggedAt: now.addingTimeInterval(-3_600),
+                mealTiming: .breakfast,
+                mealComposition: .proteinHeavy,
+                hydration: .high,
+                tags: ["protein", "hydration"]
+            ),
+            now: now.addingTimeInterval(-3_600)
+        )
+        _ = try await controller.container.metrics.saveContextEntry(
+            AtlasContextEntryDraft(
+                protocolID: protocolDetail.id,
+                loggedAt: now.addingTimeInterval(-1_800),
+                mealTiming: .lunch,
+                mealComposition: .proteinHeavy,
+                hydration: .high,
+                tags: ["protein", "hydration"]
+            ),
+            now: now.addingTimeInterval(-1_800)
+        )
+        _ = try await controller.container.metrics.saveWorkoutEntry(
+            AtlasWorkoutEntryDraft(
+                activityKind: .strength,
+                startedAt: now.addingTimeInterval(-900),
+                durationMinutes: 35,
+                energyBurnedKilocalories: 180
+            ),
+            now: now.addingTimeInterval(-900)
+        )
+
+        await model.refreshShellData()
+        let snapshot = try await controller.sharedProjectionWriter.loadExtensionProjectionSnapshot()
+        let support = try XCTUnwrap(snapshot?.support)
+        let proteinRing = try XCTUnwrap(support.rings.first { $0.kind == "protein" })
+        let hydrationRing = try XCTUnwrap(support.rings.first { $0.kind == "hydration" })
+        let workoutRing = try XCTUnwrap(support.rings.first { $0.kind == "workout" })
+
+        XCTAssertEqual(support.score, 100)
+        XCTAssertEqual(proteinRing.progress, 1, accuracy: 0.001)
+        XCTAssertEqual(hydrationRing.progress, 1, accuracy: 0.001)
+        XCTAssertEqual(workoutRing.progress, 1, accuracy: 0.001)
     }
 
     @MainActor
@@ -227,7 +299,7 @@ final class AtlasPhaseOneTests: XCTestCase {
 
         XCTAssertEqual(snapshot.lowStock.lowStockCount, 1)
         XCTAssertEqual(snapshot.lowStock.procurementReviewCount, 1)
-        XCTAssertEqual(snapshot.lowStock.items.first?.detail, "Procurement review now.")
+        XCTAssertEqual(snapshot.lowStock.items.first?.detail, "Supply review now.")
     }
 
     func testOnboardingSequencePlacesTrialPaywallBeforeAppHandoff() {
@@ -262,6 +334,76 @@ final class AtlasPhaseOneTests: XCTestCase {
         )
     }
 
+    func testDreamOnboardingInventoryStaysLongAndChaptered() {
+        XCTAssertEqual(atlasDreamOnboardingSceneCountForTesting, 22)
+        XCTAssertEqual(
+            atlasDreamOnboardingChapterTitlesForTesting,
+            [
+                "Command center fantasy",
+                "Problem aha",
+                "Protocol reality",
+                "Goals and evidence",
+                "Friction map",
+                "Trust Vault setup",
+                "Interactive Log Shot ritual",
+                "Kairo generation",
+                "Companion awakening",
+                "Readiness reveal",
+                "First-week plan",
+                "Trial and paywall",
+                "Permissions",
+                "Populated Today handoff"
+            ]
+        )
+    }
+
+    func testDreamOnboardingDraftDecodesWithSafeDefaults() throws {
+        let data = Data("{}".utf8)
+        let draft = try JSONDecoder().decode(AtlasOnboardingDraft.self, from: data)
+
+        XCTAssertEqual(draft.dreamProgressIndex, 0)
+        XCTAssertTrue(draft.dreamAnswers.isEmpty)
+        XCTAssertTrue(draft.dreamAnswerGroups.isEmpty)
+        XCTAssertNil(draft.dayOnePriority)
+        XCTAssertNil(draft.companionRole)
+        XCTAssertNil(draft.companionSignalColor)
+        XCTAssertEqual(draft.companionPresence, .subtle)
+        XCTAssertTrue(draft.firstWeekPlanPreview.isEmpty)
+    }
+
+    func testOnboardingFunnelEventsPersistLimitAndReset() async throws {
+        let controller = try makeInMemoryController()
+        let now = Date(timeIntervalSince1970: 1_773_950_400)
+        let viewed = AtlasOnboardingFunnelEvent(
+            id: "00000000-0000-0000-0000-000000000101",
+            name: .stepViewed,
+            step: .trackType,
+            metadata: ["trackType": "later"],
+            recordedAt: now
+        )
+        let selected = AtlasOnboardingFunnelEvent(
+            id: "00000000-0000-0000-0000-000000000102",
+            name: .answerSelected,
+            step: .trackType,
+            metadata: ["field": "trackType", "value": "later"],
+            recordedAt: now.addingTimeInterval(1)
+        )
+
+        try await controller.container.onboarding.recordFunnelEvent(viewed, now: now)
+        try await controller.container.onboarding.recordFunnelEvent(selected, now: now.addingTimeInterval(1))
+
+        let allEvents = try await controller.container.onboarding.fetchFunnelEvents(limit: 10)
+        let limitedEvents = try await controller.container.onboarding.fetchFunnelEvents(limit: 1)
+
+        XCTAssertEqual(allEvents, [viewed, selected])
+        XCTAssertEqual(limitedEvents, [selected])
+
+        _ = try await controller.container.onboarding.resetOnboarding(now: now.addingTimeInterval(2))
+
+        let resetEvents = try await controller.container.onboarding.fetchFunnelEvents(limit: 10)
+        XCTAssertTrue(resetEvents.isEmpty)
+    }
+
     func testMascotMilestoneThresholdsResolveExpectedStages() {
         XCTAssertEqual(AtlasMascotMilestone.stage(for: 0), .stage1)
         XCTAssertEqual(AtlasMascotMilestone.stage(for: 499), .stage1)
@@ -271,6 +413,107 @@ final class AtlasPhaseOneTests: XCTestCase {
         XCTAssertEqual(AtlasMascotMilestone.nextThreshold(after: .stage1), 500)
         XCTAssertEqual(AtlasMascotMilestone.nextThreshold(after: .stage2), 1_250)
         XCTAssertNil(AtlasMascotMilestone.nextThreshold(after: .stage3))
+    }
+
+    func testRewardCelebrationCandidatePrioritizesLevelGoalBadgeAndStreakEvents() {
+        let now = Date(timeIntervalSince1970: 1_773_950_400)
+        let prior = AtlasRewardsSnapshot(
+            settings: AtlasRewardsSettingsSnapshot(enabled: true),
+            totalPoints: 240,
+            level: 1,
+            nextLevelPoints: 250,
+            streaks: [
+                AtlasRewardStreakSnapshot(kind: .activityDays, title: "Daily streak", valueLabel: "2", helperText: "", symbolName: "flame.fill", count: 2, isActive: true)
+            ],
+            goals: [
+                AtlasRewardGoalSnapshot(kind: .weeklyWorkouts, title: "Workout", progressLabel: "2 / 3", helperText: "", symbolName: "dumbbell.fill", currentValue: 2, targetValue: 3, progress: 0.66, isMet: false)
+            ],
+            badges: [
+                AtlasRewardBadgeSnapshot(kind: .workoutGoalMet, title: "Workout", subtitle: "Weekly", symbolName: "dumbbell.fill", isEarned: false)
+            ]
+        )
+
+        let levelUp = AtlasRewardsSnapshot(
+            settings: AtlasRewardsSettingsSnapshot(enabled: true),
+            totalPoints: 260,
+            level: 2,
+            nextLevelPoints: 500,
+            streaks: prior.streaks,
+            goals: prior.goals,
+            badges: prior.badges
+        )
+        XCTAssertEqual(
+            atlasRewardCelebrationCandidate(previous: prior, current: levelUp, selection: .aetherion, createdAt: now)?.kind,
+            .level
+        )
+
+        let goalMet = AtlasRewardsSnapshot(
+            settings: AtlasRewardsSettingsSnapshot(enabled: true),
+            totalPoints: 340,
+            level: 2,
+            nextLevelPoints: 500,
+            streaks: prior.streaks,
+            goals: [
+                AtlasRewardGoalSnapshot(kind: .weeklyWorkouts, title: "Workout", progressLabel: "3 / 3", helperText: "", symbolName: "dumbbell.fill", currentValue: 3, targetValue: 3, progress: 1, isMet: true)
+            ],
+            badges: prior.badges
+        )
+        XCTAssertEqual(
+            atlasRewardCelebrationCandidate(previous: levelUp, current: goalMet, selection: .aetherion, createdAt: now)?.kind,
+            .goal
+        )
+
+        let badgeEarned = AtlasRewardsSnapshot(
+            settings: AtlasRewardsSettingsSnapshot(enabled: true),
+            totalPoints: 420,
+            level: 2,
+            nextLevelPoints: 500,
+            streaks: goalMet.streaks,
+            goals: goalMet.goals,
+            badges: [
+                AtlasRewardBadgeSnapshot(kind: .workoutGoalMet, title: "Workout", subtitle: "Weekly", symbolName: "dumbbell.fill", isEarned: true)
+            ]
+        )
+        XCTAssertEqual(
+            atlasRewardCelebrationCandidate(previous: goalMet, current: badgeEarned, selection: .aetherion, createdAt: now)?.kind,
+            .badge
+        )
+
+        let streakExtended = AtlasRewardsSnapshot(
+            settings: AtlasRewardsSettingsSnapshot(enabled: true),
+            totalPoints: 460,
+            level: 2,
+            nextLevelPoints: 500,
+            streaks: [
+                AtlasRewardStreakSnapshot(kind: .activityDays, title: "Daily streak", valueLabel: "3", helperText: "", symbolName: "flame.fill", count: 3, isActive: true)
+            ],
+            goals: badgeEarned.goals,
+            badges: badgeEarned.badges
+        )
+        XCTAssertEqual(
+            atlasRewardCelebrationCandidate(previous: badgeEarned, current: streakExtended, selection: .aetherion, createdAt: now)?.kind,
+            .streak
+        )
+    }
+
+    func testRewardCelebrationCandidateDefersToMascotEvolutionAtStageThresholds() {
+        let now = Date(timeIntervalSince1970: 1_773_950_400)
+        let prior = AtlasRewardsSnapshot(
+            settings: AtlasRewardsSettingsSnapshot(enabled: true),
+            totalPoints: 490,
+            level: 2,
+            nextLevelPoints: 500
+        )
+        let current = AtlasRewardsSnapshot(
+            settings: AtlasRewardsSettingsSnapshot(enabled: true),
+            totalPoints: 520,
+            level: 3,
+            nextLevelPoints: 750
+        )
+
+        XCTAssertNil(
+            atlasRewardCelebrationCandidate(previous: prior, current: current, selection: .aurielle, createdAt: now)
+        )
     }
 
     func testMascotEvolutionPersistenceDeduplicatesHistoryAndUnlocksHighestStage() async throws {
@@ -978,6 +1221,16 @@ final class AtlasPhaseOneTests: XCTestCase {
             ),
             now: now
         )
+        let vial = try await controller.container.inventory.saveVial(
+            AtlasVialDraft(
+                label: "Quick log vial",
+                protocolID: detail.id,
+                startingQuantity: 4,
+                remainingQuantity: 4,
+                quantityUnit: "mg"
+            ),
+            now: now
+        )
 
         await model.refreshShellData()
         let occurrence = try XCTUnwrap(model.todaySnapshot.nextDue)
@@ -992,10 +1245,17 @@ final class AtlasPhaseOneTests: XCTestCase {
         let history = try await controller.container.timeline.fetchTimeline(
             AtlasTimelineQuery(filter: .dosing, protocolID: detail.id, limit: 20)
         )
+        let vialDetail = try await controller.container.inventory.fetchVialDetail(
+            id: vial.summary.id,
+            referenceDate: now
+        )
         let refreshedToday = try await controller.container.today.fetchTodaySnapshot(referenceDate: now)
         let updatedSnapshot = try await controller.sharedProjectionWriter.loadExtensionProjectionSnapshot()
 
+        let refreshedVial = try XCTUnwrap(vialDetail)
+
         XCTAssertTrue(history.contains(where: { $0.type == .doseTaken }))
+        XCTAssertEqual(refreshedVial.summary.remainingQuantity, 3, accuracy: 0.001)
         XCTAssertNotEqual(refreshedToday.nextDue?.id, occurrence.id)
         XCTAssertTrue(previousSnapshot?.quickActions.contains(where: { $0.occurrenceID == occurrence.id }) ?? false)
         XCTAssertFalse(updatedSnapshot?.quickActions.contains(where: { $0.occurrenceID == occurrence.id }) ?? true)
@@ -3015,14 +3275,14 @@ final class AtlasPhaseOneTests: XCTestCase {
         XCTAssertTrue(summary.isLowStock)
         XCTAssertEqual(summary.vendorLabel, "Local pharmacy")
         XCTAssertNotNil(summary.projectedDepletionLabel)
-        XCTAssertEqual(summary.procurementStatusLabel, "Procurement review now.")
+        XCTAssertEqual(summary.procurementStatusLabel, "Supply review now.")
         XCTAssertEqual(adjusted.consumable.adjustmentHistory.first?.kind, .manualAdjustment)
         XCTAssertEqual(adjusted.consumable.adjustmentHistory.first?.deltaLabel, "-3 pad")
         XCTAssertEqual(adjusted.consumable.adjustmentHistory.dropFirst().first?.kind, .created)
         XCTAssertEqual(adjusted.consumable.procurementHistory.first?.kind, .created)
         XCTAssertEqual(adjusted.consumable.procurementHistory.first?.vendorLabel, "Local pharmacy")
         XCTAssertEqual(adjusted.consumable.procurementHistory.first?.sourceDetail, "Pack of 100")
-        XCTAssertEqual(adjusted.consumable.planning.vendorHistorySummary, "1 source recorded")
+        XCTAssertEqual(adjusted.consumable.planning.vendorHistorySummary, "1 inventory note recorded")
     }
 
     func testConsumableTakenLogDecrementAppendsSeparateSupplyHistory() async throws {
@@ -3129,8 +3389,8 @@ final class AtlasPhaseOneTests: XCTestCase {
         XCTAssertEqual(detail.procurementHistory.first?.kind, .procurement)
         XCTAssertEqual(detail.procurementHistory.first?.vendorLabel, "Neighborhood pharmacy")
         XCTAssertEqual(detail.procurementHistory.first?.sourceDetail, "Two sleeves for travel kits")
-        XCTAssertEqual(detail.planning.lastProcurementLabel, "Last procurement Mar 20, 2026")
-        XCTAssertEqual(detail.planning.vendorHistorySummary, "2 sources recorded")
+        XCTAssertEqual(detail.planning.lastProcurementLabel, "Last supply note Mar 20, 2026")
+        XCTAssertEqual(detail.planning.vendorHistorySummary, "2 inventory notes recorded")
     }
 
     func testInventoryMovementHistoryExplainsDeterministicInventoryChanges() async throws {
@@ -8618,7 +8878,7 @@ final class AtlasPhaseOneTests: XCTestCase {
                 expectedCreatedDatasets: [("protocolAliases", 1), ("sensitiveActionAudits", 1)],
                 expectedWarningFragments: [],
                 expectedBackfillFragments: [],
-                unexpectedBackfillFragments: ["Trust Vault profile rows", "Trust Vault audit rows"]
+                unexpectedBackfillFragments: ["privacy control profile rows", "Trust Vault audit rows"]
             ),
             PhaseTwoFixture(
                 name: "inventory-vials-sites",

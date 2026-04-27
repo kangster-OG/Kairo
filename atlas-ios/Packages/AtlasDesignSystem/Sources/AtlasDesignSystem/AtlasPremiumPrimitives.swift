@@ -14,7 +14,7 @@ public enum AtlasTypographyCandidate: String, CaseIterable, Sendable {
     static var current: AtlasTypographyCandidate {
         let environmentValue = ProcessInfo.processInfo.environment["ATLAS_TYPOGRAPHY_CANDIDATE"]
         let argumentValue = ProcessInfo.processInfo.arguments.adjacentValue(after: "-AtlasTypographyCandidate")
-        return AtlasTypographyCandidate(rawValue: argumentValue ?? environmentValue ?? "") ?? .avenir
+        return AtlasTypographyCandidate(rawValue: argumentValue ?? environmentValue ?? "") ?? .system
     }
 }
 
@@ -49,7 +49,7 @@ public enum AtlasTypography {
     ) -> Font {
         switch AtlasTypographyCandidate.current {
         case .system:
-            return .system(size: size, weight: weight, design: .rounded)
+            return .system(size: size, weight: weight, design: .default)
         case .avenir:
             return Font.custom(avenirName(for: weight), size: size, relativeTo: textStyle)
         case .plex:
@@ -95,63 +95,63 @@ public enum AtlasTextRole {
     fileprivate var systemFont: Font {
         switch self {
         case .screenTitle:
-            return .system(size: 34, weight: .bold, design: .rounded)
+            return .system(size: 24, weight: .bold, design: .default)
         case .screenSubtitle:
-            return .body.weight(.medium)
+            return .system(size: 14, weight: .medium, design: .default)
         case .deckEyebrow:
-            return .caption.weight(.semibold)
+            return .system(size: 11, weight: .semibold, design: .default)
         case .cardTitle:
-            return .title3.weight(.bold)
+            return .system(size: 16, weight: .bold, design: .default)
         case .cardBody:
-            return .body.weight(.semibold)
+            return .system(size: 13, weight: .semibold, design: .default)
         case .supporting:
-            return .caption.weight(.medium)
+            return .system(size: 11, weight: .medium, design: .default)
         case .metricValue:
-            return .title3.weight(.bold)
+            return .system(size: 16, weight: .bold, design: .default)
         case .metricLabel:
-            return .caption2.weight(.semibold)
+            return .system(size: 10, weight: .semibold, design: .default)
         }
     }
 
     fileprivate var avenirFont: Font {
         switch self {
         case .screenTitle:
-            return Font.custom("AvenirNext-Bold", size: 34, relativeTo: .largeTitle)
+            return Font.custom("AvenirNext-Bold", size: 24, relativeTo: .title)
         case .screenSubtitle:
-            return .body.weight(.medium)
+            return Font.custom("AvenirNext-Medium", size: 14, relativeTo: .subheadline)
         case .deckEyebrow:
-            return Font.custom("AvenirNext-DemiBold", size: 12, relativeTo: .caption)
+            return Font.custom("AvenirNext-DemiBold", size: 11, relativeTo: .caption)
         case .cardTitle:
-            return Font.custom("AvenirNext-Bold", size: 20, relativeTo: .title3)
+            return Font.custom("AvenirNext-Bold", size: 16, relativeTo: .headline)
         case .cardBody:
-            return .body.weight(.semibold)
+            return Font.custom("AvenirNext-DemiBold", size: 13, relativeTo: .subheadline)
         case .supporting:
-            return .caption.weight(.medium)
+            return Font.custom("AvenirNext-Medium", size: 11, relativeTo: .caption)
         case .metricValue:
-            return Font.custom("AvenirNext-Bold", size: 20, relativeTo: .title3)
+            return Font.custom("AvenirNext-Bold", size: 16, relativeTo: .headline)
         case .metricLabel:
-            return Font.custom("AvenirNext-DemiBold", size: 11, relativeTo: .caption2)
+            return Font.custom("AvenirNext-DemiBold", size: 10, relativeTo: .caption2)
         }
     }
 
     fileprivate var plexFont: Font {
         switch self {
         case .screenTitle:
-            return Font.custom("IBMPlexSans-Bold", size: 34, relativeTo: .largeTitle)
+            return Font.custom("IBMPlexSans-Bold", size: 24, relativeTo: .title)
         case .screenSubtitle:
-            return Font.custom("IBMPlexSans-Medm", size: 17, relativeTo: .body)
+            return Font.custom("IBMPlexSans-Medm", size: 14, relativeTo: .subheadline)
         case .deckEyebrow:
-            return Font.custom("IBMPlexSans-SmBld", size: 12, relativeTo: .caption)
+            return Font.custom("IBMPlexSans-SmBld", size: 11, relativeTo: .caption)
         case .cardTitle:
-            return Font.custom("IBMPlexSans-Bold", size: 20, relativeTo: .title3)
+            return Font.custom("IBMPlexSans-Bold", size: 16, relativeTo: .headline)
         case .cardBody:
-            return Font.custom("IBMPlexSans-SmBld", size: 17, relativeTo: .body)
+            return Font.custom("IBMPlexSans-SmBld", size: 13, relativeTo: .subheadline)
         case .supporting:
-            return Font.custom("IBMPlexSans-Medm", size: 12, relativeTo: .caption)
+            return Font.custom("IBMPlexSans-Medm", size: 11, relativeTo: .caption)
         case .metricValue:
-            return Font.custom("IBMPlexSans-Bold", size: 20, relativeTo: .title3)
+            return Font.custom("IBMPlexSans-Bold", size: 16, relativeTo: .headline)
         case .metricLabel:
-            return Font.custom("IBMPlexSans-SmBld", size: 11, relativeTo: .caption2)
+            return Font.custom("IBMPlexSans-SmBld", size: 10, relativeTo: .caption2)
         }
     }
 
@@ -160,12 +160,7 @@ public enum AtlasTextRole {
     }
 
     fileprivate var textCase: Text.Case? {
-        switch self {
-        case .deckEyebrow, .metricLabel:
-            return .uppercase
-        default:
-            return nil
-        }
+        nil
     }
 }
 
@@ -403,12 +398,16 @@ public struct AtlasMetricStrip: View {
                     metricCards(fitted: false)
                 }
             } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: AtlasSpacing.small) {
-                        metricCards(fitted: false)
-                    }
-                    .padding(.vertical, 2)
+                LazyVGrid(
+                    columns: [
+                        GridItem(.flexible(), spacing: 8),
+                        GridItem(.flexible(), spacing: 8)
+                    ],
+                    spacing: 8
+                ) {
+                    metricCards(fitted: true)
                 }
+                .padding(.vertical, 2)
             }
         }
     }
@@ -436,10 +435,10 @@ public struct AtlasMetricStrip: View {
                 maxWidth: fitted || dynamicTypeSize.isAccessibilitySize ? .infinity : nil,
                 alignment: .leading
             )
-            .padding(.horizontal, fitted ? 10 : 14)
-            .padding(.vertical, 12)
+            .padding(.horizontal, fitted ? 9 : 12)
+            .padding(.vertical, 10)
             .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(
                         LinearGradient(
                             colors: [AtlasPalette.surfaceTop.opacity(0.95), metric.tint.opacity(0.08)],
@@ -449,7 +448,7 @@ public struct AtlasMetricStrip: View {
                     )
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .stroke(metric.tint.opacity(0.14), lineWidth: 1)
             )
         }
@@ -549,7 +548,7 @@ public struct AtlasMilestoneRevealBanner: View {
     public var body: some View {
         HStack(alignment: .top, spacing: AtlasSpacing.medium) {
             ZStack {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(
                         LinearGradient(
                             colors: [tint.opacity(0.24), AtlasPalette.surfaceTop.opacity(0.96)],
@@ -562,12 +561,12 @@ public struct AtlasMilestoneRevealBanner: View {
                     .foregroundStyle(tint)
                     .scaleEffect(revealed ? 1 : 0.82)
             }
-            .frame(width: 48, height: 48)
+            .frame(width: 42, height: 42)
             .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .stroke(tint.opacity(0.18), lineWidth: 1)
             )
-            .shadow(color: tint.opacity(revealed ? 0.2 : 0.08), radius: revealed ? 14 : 6, x: 0, y: revealed ? 10 : 4)
+            .shadow(color: tint.opacity(revealed ? 0.12 : 0.06), radius: revealed ? 6 : 4, x: 0, y: revealed ? 3 : 2)
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: AtlasSpacing.small) {
@@ -593,7 +592,7 @@ public struct AtlasMilestoneRevealBanner: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
         .background(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(
                     LinearGradient(
                         colors: [AtlasPalette.surfaceTop.opacity(0.96), tint.opacity(0.08)],
@@ -603,7 +602,7 @@ public struct AtlasMilestoneRevealBanner: View {
                 )
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(tint.opacity(0.14), lineWidth: 1)
         )
         .scaleEffect(revealed ? 1 : 0.96)
@@ -661,7 +660,7 @@ public struct AtlasCalloutRow: View {
     }
 
     private var iconBadge: some View {
-        RoundedRectangle(cornerRadius: 14, style: .continuous)
+        RoundedRectangle(cornerRadius: 8, style: .continuous)
             .fill(
                 LinearGradient(
                     colors: [AtlasPalette.surfaceTop, tint.opacity(0.12)],
@@ -676,7 +675,7 @@ public struct AtlasCalloutRow: View {
                     .foregroundStyle(tint)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .stroke(AtlasPalette.chromeStroke, lineWidth: 1)
             )
     }
@@ -737,8 +736,8 @@ public struct AtlasCommandDeck<Actions: View, Footer: View>: View {
 
     public var body: some View {
         AtlasSectionCard(style: style) {
-            VStack(alignment: .leading, spacing: 14) {
-                VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+            VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 8) {
                     if let eyebrow {
                         Text(eyebrow)
                             .atlasTextRole(.deckEyebrow)
@@ -748,15 +747,19 @@ public struct AtlasCommandDeck<Actions: View, Footer: View>: View {
                     Text(title)
                         .atlasTextRole(style == .hero ? .screenTitle : .cardTitle)
                         .foregroundStyle(AtlasPalette.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
 
                     if let detail, detail.isEmpty == false {
                         Text(detail)
                             .atlasTextRole(style == .hero ? .screenSubtitle : .supporting)
                             .foregroundStyle(AtlasPalette.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
 
-                AtlasMetricStrip(metrics: metrics)
+                if metrics.isEmpty == false {
+                    AtlasMetricStrip(metrics: metrics)
+                }
                 actions
                 footer
             }
@@ -774,7 +777,7 @@ public struct AtlasTactileTileButtonStyle: ButtonStyle {
     public func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .background(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(
                         LinearGradient(
                             colors: configuration.isPressed
@@ -786,11 +789,11 @@ public struct AtlasTactileTileButtonStyle: ButtonStyle {
                     )
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .stroke(tint.opacity(configuration.isPressed ? 0.12 : 0.18), lineWidth: 1)
             )
             .overlay(alignment: .top) {
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .stroke(AtlasPalette.chromeStrokeSoft.opacity(configuration.isPressed ? 0.72 : 1), lineWidth: 1)
                     .mask(
                         LinearGradient(

@@ -787,6 +787,22 @@ struct AtlasSiteDBRecord: Codable, FetchableRecord, PersistableRecord {
         case archivedAt = "archived_at"
     }
 
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        bodyArea = try container.decodeIfPresent(String.self, forKey: .bodyArea)
+        if let rawMapRegionKey = try container.decodeIfPresent(String.self, forKey: .mapRegionKey) {
+            mapRegionKey = AtlasBodyMapRegionKey(rawValue: rawMapRegionKey)
+        } else {
+            mapRegionKey = nil
+        }
+        notes = try container.decodeIfPresent(String.self, forKey: .notes)
+        createdAt = try container.decode(String.self, forKey: .createdAt)
+        updatedAt = try container.decode(String.self, forKey: .updatedAt)
+        archivedAt = try container.decodeIfPresent(String.self, forKey: .archivedAt)
+    }
+
     init(record: AtlasSiteRecord) {
         id = record.id
         name = record.name

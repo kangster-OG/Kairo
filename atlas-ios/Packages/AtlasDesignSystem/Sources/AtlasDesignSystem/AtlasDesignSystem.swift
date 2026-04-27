@@ -35,35 +35,35 @@ public enum AtlasPalette {
     }
     #endif
 
-    public static let primary = adaptive(light: (56, 108, 215, 1), dark: (104, 148, 244, 1))
-    public static let primaryPressed = adaptive(light: (42, 87, 181, 1), dark: (82, 126, 224, 1))
-    public static let primaryGlow = adaptive(light: (120, 156, 238, 1), dark: (146, 178, 250, 1))
+    public static let primary = adaptive(light: (31, 111, 91, 1), dark: (83, 193, 161, 1))
+    public static let primaryPressed = adaptive(light: (20, 88, 72, 1), dark: (57, 164, 132, 1))
+    public static let primaryGlow = adaptive(light: (118, 196, 171, 1), dark: (126, 224, 191, 1))
     public static let reward = adaptive(light: (192, 139, 39, 1), dark: (216, 170, 72, 1))
     public static let rewardPressed = adaptive(light: (164, 117, 28, 1), dark: (188, 145, 52, 1))
     public static let rewardGlow = adaptive(light: (231, 194, 110, 1), dark: (241, 205, 126, 1))
-    public static let background = adaptive(light: (248, 250, 254, 1), dark: (9, 13, 22, 1))
-    public static let canvas = adaptive(light: (236, 241, 249, 1), dark: (15, 22, 35, 1))
-    public static let canvasAccent = adaptive(light: (220, 231, 246, 1), dark: (24, 35, 53, 1))
-    public static let border = adaptive(light: (209, 219, 235, 1), dark: (82, 101, 132, 1))
-    public static let textPrimary = adaptive(light: (18, 28, 45, 1), dark: (248, 251, 255, 1))
-    public static let textSecondary = adaptive(light: (85, 98, 122, 1), dark: (205, 216, 236, 1))
-    public static let textTertiary = adaptive(light: (123, 135, 156, 1), dark: (177, 192, 219, 1))
+    public static let background = adaptive(light: (250, 248, 244, 1), dark: (10, 13, 14, 1))
+    public static let canvas = adaptive(light: (244, 241, 236, 1), dark: (16, 22, 22, 1))
+    public static let canvasAccent = adaptive(light: (238, 235, 228, 1), dark: (24, 35, 34, 1))
+    public static let border = adaptive(light: (226, 220, 211, 1), dark: (82, 101, 96, 1))
+    public static let textPrimary = adaptive(light: (24, 31, 30, 1), dark: (248, 251, 248, 1))
+    public static let textSecondary = adaptive(light: (89, 94, 91, 1), dark: (209, 220, 215, 1))
+    public static let textTertiary = adaptive(light: (126, 132, 128, 1), dark: (178, 196, 188, 1))
     public static let success = adaptive(light: (22, 128, 92, 1), dark: (62, 182, 132, 1))
     public static let warning = adaptive(light: (199, 102, 41, 1), dark: (232, 136, 72, 1))
     public static let shadow = adaptive(light: (14, 29, 58, 0.07), dark: (0, 0, 0, 0.42))
-    public static let secondaryFill = adaptive(light: (229, 237, 251, 1), dark: (26, 40, 66, 1))
-    public static let secondaryText = adaptive(light: (42, 78, 158, 1), dark: (179, 204, 255, 1))
-    public static let shellTop = adaptive(light: (27, 45, 79, 1), dark: (4, 7, 14, 1))
-    public static let shellTopAccent = adaptive(light: (53, 88, 148, 1), dark: (16, 28, 50, 1))
-    public static let shellGlow = adaptive(light: (140, 172, 232, 1), dark: (86, 124, 210, 1))
-    public static let shellMist = adaptive(light: (214, 226, 248, 1), dark: (40, 58, 92, 1))
-    public static let surfacePrimary = adaptive(light: (252, 253, 255, 0.93), dark: (19, 28, 43, 0.96))
-    public static let surfaceSecondary = adaptive(light: (244, 248, 253, 0.98), dark: (24, 34, 52, 0.98))
-    public static let surfaceStrong = adaptive(light: (252, 253, 255, 0.99), dark: (30, 43, 65, 0.98))
-    public static let surfaceMuted = adaptive(light: (239, 244, 251, 0.94), dark: (18, 27, 42, 0.96))
-    public static let surfaceUtility = adaptive(light: (233, 240, 250, 0.9), dark: (15, 23, 37, 0.94))
-    public static let surfaceInverse = adaptive(light: (35, 55, 89, 1), dark: (228, 236, 249, 1))
-    public static let surfaceTop = adaptive(light: (255, 255, 255, 0.985), dark: (34, 49, 76, 0.98))
+    public static let secondaryFill = adaptive(light: (237, 243, 239, 1), dark: (24, 45, 39, 1))
+    public static let secondaryText = adaptive(light: (34, 96, 81, 1), dark: (171, 224, 204, 1))
+    public static let shellTop = adaptive(light: (250, 248, 244, 1), dark: (8, 12, 12, 1))
+    public static let shellTopAccent = adaptive(light: (246, 243, 237, 1), dark: (16, 26, 25, 1))
+    public static let shellGlow = adaptive(light: (205, 222, 213, 1), dark: (69, 140, 119, 1))
+    public static let shellMist = adaptive(light: (240, 237, 230, 1), dark: (40, 68, 61, 1))
+    public static let surfacePrimary = adaptive(light: (255, 254, 251, 0.96), dark: (20, 29, 28, 0.96))
+    public static let surfaceSecondary = adaptive(light: (247, 244, 239, 0.98), dark: (25, 37, 35, 0.98))
+    public static let surfaceStrong = adaptive(light: (255, 255, 253, 0.99), dark: (31, 45, 42, 0.98))
+    public static let surfaceMuted = adaptive(light: (241, 238, 232, 0.96), dark: (19, 31, 29, 0.96))
+    public static let surfaceUtility = adaptive(light: (236, 232, 224, 0.92), dark: (16, 27, 25, 0.94))
+    public static let surfaceInverse = adaptive(light: (45, 43, 37, 1), dark: (231, 238, 234, 1))
+    public static let surfaceTop = adaptive(light: (255, 255, 253, 0.99), dark: (35, 52, 48, 0.98))
     public static let chromeStroke = adaptive(light: (255, 255, 255, 0.88), dark: (119, 145, 196, 0.22))
     public static let chromeStrokeSoft = adaptive(light: (255, 255, 255, 0.18), dark: (255, 255, 255, 0.06))
     public static let innerLift = adaptive(light: (255, 255, 255, 0.12), dark: (94, 126, 188, 0.12))
@@ -160,11 +160,11 @@ public struct AtlasScreen<Content: View>: View {
 
     private var scrollContent: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: AtlasSpacing.large) {
+            LazyVStack(alignment: .leading, spacing: AtlasSpacing.medium) {
                 content
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 12)
+            .padding(.horizontal, 16)
+            .padding(.top, 6)
             .padding(.bottom, 44)
         }
         .scrollIndicators(.hidden)
@@ -260,30 +260,30 @@ public struct AtlasAppBackground: View {
     public var body: some View {
         ZStack(alignment: .top) {
             LinearGradient(
-                colors: [AtlasPalette.background, AtlasPalette.canvas],
+                colors: [AtlasPalette.background, AtlasPalette.canvas, AtlasPalette.background],
                 startPoint: .top,
                 endPoint: .bottom
             )
             .ignoresSafeArea()
 
             LinearGradient(
-                colors: [AtlasPalette.shellTop, AtlasPalette.shellTopAccent, AtlasPalette.canvasAccent],
+                colors: [AtlasPalette.shellTop, AtlasPalette.shellTopAccent, AtlasPalette.background.opacity(0.7)],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
-            .frame(height: 212)
+            .frame(height: 118)
             .ignoresSafeArea(edges: .top)
 
             RadialGradient(
-                colors: [AtlasPalette.shellGlow.opacity(0.22), .clear],
+                colors: [AtlasPalette.shellGlow.opacity(0.14), .clear],
                 center: .topTrailing,
                 startRadius: 12,
-                endRadius: 210
+                endRadius: 190
             )
             .ignoresSafeArea()
 
             RadialGradient(
-                colors: [AtlasPalette.shellMist.opacity(0.2), .clear],
+                colors: [AtlasPalette.shellMist.opacity(0.16), .clear],
                 center: .bottomLeading,
                 startRadius: 36,
                 endRadius: 240
@@ -311,17 +311,17 @@ public struct AtlasSectionCard<Content: View>: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: AtlasSpacing.medium) {
+        VStack(alignment: .leading, spacing: AtlasSpacing.small) {
             if let title {
                 Text(title)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(AtlasPalette.primary)
-                    .textCase(.uppercase)
+                    
             }
 
             content
         }
-        .padding(20)
+        .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             cardShape
@@ -347,7 +347,7 @@ public struct AtlasSectionCard<Content: View>: View {
     }
 
     private var cardShape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: style == .hero || style == .reward ? 28 : 24, style: .continuous)
+        RoundedRectangle(cornerRadius: 8, style: .continuous)
     }
 
     private var backgroundStyle: AnyShapeStyle {
@@ -481,34 +481,34 @@ public struct AtlasSectionCard<Content: View>: View {
     private var shadowRadius: CGFloat {
         switch style {
         case .hero:
-            return 28
+            return 7
         case .elevated:
-            return 24
+            return 6
         case .utility:
-            return 16
+            return 4
         case .default:
-            return 18
+            return 5
         case .task:
-            return 22
+            return 5
         case .reward:
-            return 26
+            return 6
         }
     }
 
     private var shadowY: CGFloat {
         switch style {
         case .hero:
-            return 18
+            return 4
         case .elevated:
-            return 14
+            return 4
         case .utility:
-            return 10
+            return 3
         case .default:
-            return 10
+            return 3
         case .task:
-            return 12
+            return 3
         case .reward:
-            return 16
+            return 4
         }
     }
 
@@ -541,10 +541,10 @@ public struct AtlasStatusBadge: View {
 
     public var body: some View {
         Text(title)
-            .font(.caption.weight(.semibold))
+            .font(.system(size: 10, weight: .semibold, design: .default))
             .foregroundStyle(tint)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
             .background(
                 Capsule(style: .continuous)
                     .fill(
@@ -559,7 +559,7 @@ public struct AtlasStatusBadge: View {
                 Capsule(style: .continuous)
                     .stroke(tint.opacity(0.18), lineWidth: 1)
             )
-            .shadow(color: tint.opacity(0.08), radius: 6, x: 0, y: 3)
+            .shadow(color: tint.opacity(0.05), radius: 3, x: 0, y: 1)
     }
 }
 
@@ -568,28 +568,19 @@ public struct AtlasPrimaryButtonStyle: ButtonStyle {
 
     public func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.body.weight(.semibold))
+            .font(.system(size: 15, weight: .semibold, design: .default))
             .foregroundStyle(.white)
-            .frame(maxWidth: .infinity, minHeight: 52)
-            .padding(.vertical, 14)
+            .frame(maxWidth: .infinity, minHeight: 46)
             .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: configuration.isPressed
-                                ? [AtlasPalette.primaryPressed, AtlasPalette.primary]
-                                : [AtlasPalette.primaryGlow, AtlasPalette.primary],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(configuration.isPressed ? AtlasPalette.primaryPressed : AtlasPalette.primary)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .stroke(AtlasPalette.chromeStroke.opacity(configuration.isPressed ? 0.32 : 0.44), lineWidth: 1)
             )
             .overlay(alignment: .top) {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .stroke(AtlasPalette.chromeStrokeSoft.opacity(configuration.isPressed ? 0.72 : 1), lineWidth: 1)
                     .mask(
                         LinearGradient(
@@ -600,10 +591,10 @@ public struct AtlasPrimaryButtonStyle: ButtonStyle {
                     )
             }
             .shadow(
-                color: AtlasPalette.primary.opacity(configuration.isPressed ? 0.18 : 0.34),
-                radius: configuration.isPressed ? 8 : 18,
+                color: AtlasPalette.primary.opacity(configuration.isPressed ? 0.14 : 0.22),
+                radius: configuration.isPressed ? 3 : 5,
                 x: 0,
-                y: configuration.isPressed ? 4 : 10
+                y: configuration.isPressed ? 1 : 2
             )
             .shadow(
                 color: AtlasPalette.innerLift.opacity(configuration.isPressed ? 0.4 : 1),
@@ -622,12 +613,11 @@ public struct AtlasSecondaryButtonStyle: ButtonStyle {
 
     public func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.body.weight(.semibold))
+            .font(.system(size: 15, weight: .semibold, design: .default))
             .foregroundStyle(AtlasPalette.secondaryText)
-            .frame(maxWidth: .infinity, minHeight: 52)
-            .padding(.vertical, 14)
+            .frame(maxWidth: .infinity, minHeight: 46)
             .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(
                         LinearGradient(
                             colors: configuration.isPressed
@@ -639,11 +629,11 @@ public struct AtlasSecondaryButtonStyle: ButtonStyle {
                     )
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .stroke(configuration.isPressed ? AtlasPalette.chromeStroke : AtlasPalette.border.opacity(0.78), lineWidth: 1)
             )
             .overlay(alignment: .top) {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .stroke(AtlasPalette.chromeStrokeSoft.opacity(configuration.isPressed ? 0.72 : 1), lineWidth: 1)
                     .mask(
                         LinearGradient(
@@ -655,9 +645,9 @@ public struct AtlasSecondaryButtonStyle: ButtonStyle {
             }
             .shadow(
                 color: AtlasPalette.shadow.opacity(configuration.isPressed ? 0.18 : 0.26),
-                radius: configuration.isPressed ? 6 : 14,
+                radius: configuration.isPressed ? 3 : 6,
                 x: 0,
-                y: configuration.isPressed ? 3 : 8
+                y: configuration.isPressed ? 2 : 3
             )
             .shadow(color: AtlasPalette.innerLift.opacity(0.72), radius: 2, x: 0, y: -1)
             .scaleEffect(configuration.isPressed ? 0.988 : 1)
@@ -671,16 +661,15 @@ public struct AtlasTertiaryButtonStyle: ButtonStyle {
 
     public func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.body.weight(.semibold))
+            .font(.system(size: 15, weight: .semibold, design: .default))
             .foregroundStyle(configuration.isPressed ? AtlasPalette.textPrimary : AtlasPalette.secondaryText)
-            .frame(maxWidth: .infinity, minHeight: 50)
-            .padding(.vertical, 13)
+            .frame(maxWidth: .infinity, minHeight: 44)
             .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(configuration.isPressed ? AtlasPalette.secondaryFill.opacity(0.62) : AtlasPalette.secondaryFill.opacity(0.42))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .stroke(AtlasPalette.border.opacity(0.72), lineWidth: 1)
             )
             .scaleEffect(configuration.isPressed ? 0.99 : 1)
@@ -693,12 +682,11 @@ public struct AtlasWarningButtonStyle: ButtonStyle {
 
     public func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.body.weight(.semibold))
+            .font(.system(size: 15, weight: .semibold, design: .default))
             .foregroundStyle(.white)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 15)
+            .frame(maxWidth: .infinity, minHeight: 46)
             .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(
                         LinearGradient(
                             colors: configuration.isPressed
@@ -710,11 +698,11 @@ public struct AtlasWarningButtonStyle: ButtonStyle {
                     )
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .stroke(AtlasPalette.chromeStroke.opacity(0.22), lineWidth: 1)
             )
             .overlay(alignment: .top) {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .stroke(AtlasPalette.chromeStrokeSoft.opacity(0.92), lineWidth: 1)
                     .mask(
                         LinearGradient(
@@ -726,9 +714,9 @@ public struct AtlasWarningButtonStyle: ButtonStyle {
             }
             .shadow(
                 color: AtlasPalette.warning.opacity(configuration.isPressed ? 0.18 : 0.28),
-                radius: configuration.isPressed ? 8 : 16,
+                radius: configuration.isPressed ? 4 : 8,
                 x: 0,
-                y: configuration.isPressed ? 4 : 10
+                y: configuration.isPressed ? 2 : 4
             )
             .scaleEffect(configuration.isPressed ? 0.985 : 1)
             .offset(y: configuration.isPressed ? 1 : 0)
@@ -742,9 +730,9 @@ public struct AtlasGlassButtonStyle: ButtonStyle {
     public func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .foregroundStyle(.white)
-            .frame(width: 52, height: 52)
+            .frame(width: 44, height: 44)
             .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(
                         LinearGradient(
                             colors: configuration.isPressed
@@ -756,10 +744,10 @@ public struct AtlasGlassButtonStyle: ButtonStyle {
                     )
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .stroke(AtlasPalette.chromeStroke.opacity(configuration.isPressed ? 0.24 : 0.36), lineWidth: 1)
             )
-            .shadow(color: Color.black.opacity(configuration.isPressed ? 0.08 : 0.18), radius: configuration.isPressed ? 8 : 18, x: 0, y: configuration.isPressed ? 4 : 10)
+            .shadow(color: Color.black.opacity(configuration.isPressed ? 0.06 : 0.12), radius: configuration.isPressed ? 4 : 8, x: 0, y: configuration.isPressed ? 2 : 4)
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
             .offset(y: configuration.isPressed ? 1 : 0)
             .animation(.spring(response: 0.22, dampingFraction: 0.8), value: configuration.isPressed)
@@ -771,12 +759,11 @@ public struct AtlasInverseSecondaryButtonStyle: ButtonStyle {
 
     public func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.body.weight(.semibold))
+            .font(.system(size: 15, weight: .semibold, design: .default))
             .foregroundStyle(.white)
-            .frame(maxWidth: .infinity, minHeight: 50)
-            .padding(.vertical, 13)
+            .frame(maxWidth: .infinity, minHeight: 46)
             .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(
                         LinearGradient(
                             colors: configuration.isPressed
@@ -788,10 +775,10 @@ public struct AtlasInverseSecondaryButtonStyle: ButtonStyle {
                     )
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .stroke(.white.opacity(configuration.isPressed ? 0.18 : 0.24), lineWidth: 1)
             )
-            .shadow(color: Color.black.opacity(configuration.isPressed ? 0.06 : 0.12), radius: configuration.isPressed ? 6 : 12, x: 0, y: configuration.isPressed ? 3 : 8)
+            .shadow(color: Color.black.opacity(configuration.isPressed ? 0.04 : 0.09), radius: configuration.isPressed ? 3 : 6, x: 0, y: configuration.isPressed ? 2 : 3)
             .scaleEffect(configuration.isPressed ? 0.988 : 1)
             .offset(y: configuration.isPressed ? 1 : 0)
             .animation(.spring(response: 0.22, dampingFraction: 0.82), value: configuration.isPressed)
@@ -807,11 +794,11 @@ public struct AtlasChipButtonStyle: ButtonStyle {
 
     public func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.caption.weight(.semibold))
+            .font(.system(size: 11, weight: .semibold, design: .default))
             .foregroundStyle(tint)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .frame(minHeight: 40)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .frame(minHeight: 34)
             .background(
                 Capsule(style: .continuous)
                     .fill(
@@ -829,7 +816,7 @@ public struct AtlasChipButtonStyle: ButtonStyle {
                 Capsule(style: .continuous)
                     .stroke(tint.opacity(0.2), lineWidth: 1)
             )
-            .shadow(color: tint.opacity(configuration.isPressed ? 0.04 : 0.08), radius: configuration.isPressed ? 3 : 8, x: 0, y: configuration.isPressed ? 1 : 4)
+            .shadow(color: tint.opacity(configuration.isPressed ? 0.03 : 0.05), radius: configuration.isPressed ? 2 : 4, x: 0, y: configuration.isPressed ? 1 : 2)
             .scaleEffect(configuration.isPressed ? 0.98 : 1)
             .animation(.spring(response: 0.18, dampingFraction: 0.84), value: configuration.isPressed)
     }
@@ -867,19 +854,19 @@ private struct AtlasStandaloneInputSurfaceModifier: ViewModifier {
             .onSubmit {
                 AtlasKeyboardControl.dismiss()
             }
-            .padding(.horizontal, AtlasSpacing.medium)
-            .padding(.vertical, 14)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
             .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(backgroundStyle)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .stroke(colorSchemeContrast == .increased ? AtlasPalette.primary.opacity(0.24) : AtlasPalette.border.opacity(0.8), lineWidth: 1)
             )
             .overlay(alignment: .top) {
                 if reduceTransparency == false && colorSchemeContrast != .increased {
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .stroke(AtlasPalette.chromeStrokeSoft.opacity(1.2), lineWidth: 1)
                         .mask(
                             LinearGradient(
@@ -890,7 +877,7 @@ private struct AtlasStandaloneInputSurfaceModifier: ViewModifier {
                         )
                 }
             }
-            .shadow(color: AtlasPalette.shadow.opacity(reduceTransparency ? 0.1 : 0.2), radius: 12, x: 0, y: 8)
+            .shadow(color: AtlasPalette.shadow.opacity(reduceTransparency ? 0.06 : 0.1), radius: 5, x: 0, y: 2)
     }
 
     private var backgroundStyle: AnyShapeStyle {

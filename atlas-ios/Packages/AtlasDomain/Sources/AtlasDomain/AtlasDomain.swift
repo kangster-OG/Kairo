@@ -12,20 +12,20 @@ public enum AtlasTab: String, CaseIterable, Hashable, Identifiable, Sendable {
     public var title: String {
         switch self {
         case .today: "Today"
-        case .timeline: "Timeline"
-        case .library: "Library"
-        case .insights: "Insights"
-        case .settings: "Settings"
+        case .timeline: "Log"
+        case .library: "Protocols"
+        case .insights: "Progress"
+        case .settings: "Companion"
         }
     }
 
     public var systemImage: String {
         switch self {
-        case .today: "sparkles"
-        case .timeline: "clock.arrow.trianglehead.counterclockwise.rotate.90"
-        case .library: "books.vertical"
-        case .insights: "chart.line.uptrend.xyaxis"
-        case .settings: "gearshape"
+        case .today: "house.fill"
+        case .timeline: "plus.circle.fill"
+        case .library: "list.clipboard.fill"
+        case .insights: "chart.bar.fill"
+        case .settings: "pawprint.fill"
         }
     }
 }
@@ -73,8 +73,8 @@ public enum AtlasQuickCaptureKind: String, Codable, CaseIterable, Hashable, Send
         switch self {
         case .shot: "Shot"
         case .weight: "Weight"
-        case .symptom: "Symptom"
-        case .context: "Context"
+        case .symptom: "Check-in"
+        case .context: "Food"
         case .hydration: "Hydration"
         case .protein: "Protein"
         case .progressPhoto: "Progress Photo"
@@ -1368,6 +1368,48 @@ public struct AtlasSharedLowStockSnapshot: Codable, Equatable, Sendable {
     }
 }
 
+public struct AtlasSharedSupportRingSnapshot: Codable, Equatable, Sendable, Identifiable {
+    public var id: String { kind }
+    public var kind: String
+    public var title: String
+    public var valueLabel: String
+    public var progress: Double
+    public var symbolName: String
+
+    public init(
+        kind: String,
+        title: String,
+        valueLabel: String,
+        progress: Double,
+        symbolName: String
+    ) {
+        self.kind = kind
+        self.title = title
+        self.valueLabel = valueLabel
+        self.progress = progress
+        self.symbolName = symbolName
+    }
+}
+
+public struct AtlasSharedSupportRingsSnapshot: Codable, Equatable, Sendable {
+    public var score: Int
+    public var summary: String
+    public var rings: [AtlasSharedSupportRingSnapshot]
+    public var updatedAt: String
+
+    public init(
+        score: Int,
+        summary: String,
+        rings: [AtlasSharedSupportRingSnapshot],
+        updatedAt: String
+    ) {
+        self.score = score
+        self.summary = summary
+        self.rings = rings
+        self.updatedAt = updatedAt
+    }
+}
+
 public struct AtlasSharedFeatureFlagProjection: Codable, Equatable, Sendable {
     public var flags: AtlasFeatureFlagState
 
@@ -1455,6 +1497,7 @@ public struct AtlasSharedExtensionProjectionSnapshot: Codable, Equatable, Sendab
     public var nextDue: AtlasSharedNextDueSnapshot?
     public var quickActions: [AtlasSharedQuickAction]
     public var lowStock: AtlasSharedLowStockSnapshot
+    public var support: AtlasSharedSupportRingsSnapshot?
     public var mascot: AtlasSharedMascotSnapshot?
     public var watchCompanion: AtlasSharedWatchCompanionSnapshot?
     public var featureFlags: AtlasSharedFeatureFlagProjection
@@ -1465,6 +1508,7 @@ public struct AtlasSharedExtensionProjectionSnapshot: Codable, Equatable, Sendab
         nextDue: AtlasSharedNextDueSnapshot?,
         quickActions: [AtlasSharedQuickAction],
         lowStock: AtlasSharedLowStockSnapshot,
+        support: AtlasSharedSupportRingsSnapshot? = nil,
         mascot: AtlasSharedMascotSnapshot? = nil,
         watchCompanion: AtlasSharedWatchCompanionSnapshot? = nil,
         featureFlags: AtlasSharedFeatureFlagProjection
@@ -1474,6 +1518,7 @@ public struct AtlasSharedExtensionProjectionSnapshot: Codable, Equatable, Sendab
         self.nextDue = nextDue
         self.quickActions = quickActions
         self.lowStock = lowStock
+        self.support = support
         self.mascot = mascot
         self.watchCompanion = watchCompanion
         self.featureFlags = featureFlags
@@ -1613,6 +1658,31 @@ public struct AtlasWorkoutLogRecord: Codable, Equatable, Sendable, Identifiable 
     public var externalSourceId: String?
     public var createdAt: String
     public var updatedAt: String
+}
+
+public struct AtlasWorkoutEntryDraft: Equatable, Sendable {
+    public var id: String?
+    public var activityKind: AtlasWorkoutActivityKind
+    public var startedAt: Date
+    public var durationMinutes: Double
+    public var energyBurnedKilocalories: Double?
+    public var distanceMeters: Double?
+
+    public init(
+        id: String? = nil,
+        activityKind: AtlasWorkoutActivityKind = .strength,
+        startedAt: Date = Date(),
+        durationMinutes: Double = 30,
+        energyBurnedKilocalories: Double? = nil,
+        distanceMeters: Double? = nil
+    ) {
+        self.id = id
+        self.activityKind = activityKind
+        self.startedAt = startedAt
+        self.durationMinutes = durationMinutes
+        self.energyBurnedKilocalories = energyBurnedKilocalories
+        self.distanceMeters = distanceMeters
+    }
 }
 
 public struct AtlasPrivacyProfileRecord: Codable, Equatable, Sendable, Identifiable {

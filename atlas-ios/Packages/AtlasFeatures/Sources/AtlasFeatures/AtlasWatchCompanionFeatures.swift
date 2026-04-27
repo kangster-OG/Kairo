@@ -22,19 +22,20 @@ public struct AtlasWatchCompanionScreen: View {
         )
         let currentOccurrence = model.todaySnapshot.overdue.first ?? model.todaySnapshot.nextDue ?? model.todaySnapshot.upcoming.first
         let shortcutPhrases = [
-            "Mark Next Due Taken",
-            "Skip Next Due",
-            "Open Recovery Handling",
+            "Log Next Shot",
+            "Skip Next Shot",
+            "Open Protocol Recovery",
+            "Log Protein Meal",
             "Log Hydration",
-            "Log Low Appetite"
+            "Log Workout Context"
         ]
 
         AtlasScreen {
             AtlasCommandDeck(
                 eyebrow: "Apple Watch",
-                title: "Wrist-ready status",
+                title: "Wrist-ready protocol loop",
                 detail: guidance?.headline
-                    ?? "Next due, recovery, and quick context.",
+                    ?? "Next shot, support signals, and companion progress.",
                 metrics: [
                     AtlasMetricItem(id: "next", title: "Next", value: currentOccurrence?.scheduledAt.formatted(date: .omitted, time: .shortened) ?? "Idle", tint: currentOccurrence?.state == .overdue ? AtlasPalette.warning : AtlasPalette.primary),
                     AtlasMetricItem(id: "shortcuts", title: "Shortcuts", value: "\(shortcutPhrases.count)", tint: AtlasPalette.secondaryText)
@@ -71,15 +72,31 @@ public struct AtlasWatchCompanionScreen: View {
                     .foregroundStyle(AtlasPalette.textSecondary)
             }
 
+            AtlasWatchSectionHeader(title: "Companion Glance")
+            AtlasWatchCompanionGlanceCard(model: model)
+
+            AtlasWatchSectionHeader(title: "Support Rings")
+            AtlasSectionCard(title: "Support rings") {
+                Text("Protein, hydration, and workouts are glanceable on wrist and feed companion quests.")
+                    .atlasTextRole(.supporting)
+                    .foregroundStyle(AtlasPalette.textSecondary)
+
+                HStack(spacing: AtlasSpacing.small) {
+                    AtlasWatchSupportRingTile(title: "Protein", value: proteinProgress, systemImage: "bolt.heart.fill", tint: AtlasPalette.success)
+                    AtlasWatchSupportRingTile(title: "Hydration", value: hydrationProgress, systemImage: "drop.fill", tint: Color(red: 0.15, green: 0.58, blue: 0.9))
+                    AtlasWatchSupportRingTile(title: "Workout", value: workoutProgress, systemImage: "dumbbell.fill", tint: AtlasPalette.reward)
+                }
+            }
+
             if let currentOccurrence {
-                AtlasWatchSectionHeader(title: "Next Due Actions")
-                AtlasSectionCard(title: "Next due actions") {
+                AtlasWatchSectionHeader(title: "Next Shot Actions")
+                AtlasSectionCard(title: "Next shot actions") {
                     Text("These are the same fast actions available through Apple Watch Shortcuts and Siri.")
                         .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
 
                     HStack(spacing: AtlasSpacing.small) {
-                        Button("Mark taken") {
+                        Button("Log shot") {
                             Task {
                                 await model.logOccurrence(
                                     AtlasOccurrenceLogRequest(
@@ -190,12 +207,12 @@ public struct AtlasWatchCompanionScreen: View {
 
             AtlasWatchSectionHeader(title: "Quick Context")
             AtlasSectionCard(title: "Quick context") {
-                Text("Hydration and appetite are one-tap actions here. GI check-in opens the deeper handoff.")
+                Text("Protein, hydration, appetite, and GI context are one-tap actions here. Deeper notes hand back to iPhone.")
                     .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
 
                 VStack(spacing: AtlasSpacing.small) {
-                    ForEach([AtlasTodayContextShortcut.hydration, .lowAppetite, .giCheckIn], id: \.self) { shortcut in
+                    ForEach([AtlasTodayContextShortcut.proteinMeal, .hydration, .lowAppetite, .giCheckIn], id: \.self) { shortcut in
                         Button {
                             triggerShortcut(shortcut)
                         } label: {
@@ -220,7 +237,7 @@ public struct AtlasWatchCompanionScreen: View {
 
             AtlasWatchSectionHeader(title: "Apple Watch Shortcuts")
             AtlasSectionCard(title: "Apple Watch shortcuts") {
-                Text("Use the watch for next due, recovery, and quick context.")
+                Text("Use the watch for next shot, support rings, recovery, and quick context.")
                     .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
 
@@ -291,6 +308,85 @@ public struct AtlasWatchCompanionScreen: View {
             )
             contextSheetPresented = true
         }
+    }
+
+    private var proteinProgress: String {
+        model.insightsSnapshot.nutritionSnapshot.dailyTargets.first(where: { $0.kind == .proteinMeals })?.progressLabel ?? "0 / 1"
+    }
+
+    private var hydrationProgress: String {
+        model.insightsSnapshot.nutritionSnapshot.dailyTargets.first(where: { $0.kind == .hydrationCheckins })?.progressLabel ?? "0 / 1"
+    }
+
+    private var workoutProgress: String {
+        model.rewardsSnapshot.goals.first(where: { $0.kind == .weeklyWorkouts })?.progressLabel ?? "\(model.insightsSnapshot.recentWorkoutEntries.count) recent"
+    }
+}
+
+private struct AtlasWatchCompanionGlanceCard: View {
+    let model: AtlasAppModel
+
+    var body: some View {
+        let evolution = atlasRewardsEvolutionProgress(for: model.rewardsSnapshot, selection: model.settingsSnapshot.mascotSelection)
+        AtlasSectionCard(title: "Companion") {
+            HStack(spacing: AtlasSpacing.medium) {
+                AtlasMascotSticker(line: atlasMascotLine(for: model.settingsSnapshot.mascotSelection), stage: evolution.stage, size: 72)
+                    .frame(width: 78, height: 68)
+
+                VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
+                    Text(model.settingsSnapshot.mascotNickname?.isEmpty == false ? model.settingsSnapshot.mascotNickname! : evolution.currentFormName)
+                        .atlasTextRole(.cardTitle)
+                        .foregroundStyle(AtlasPalette.textPrimary)
+                        .lineLimit(1)
+                    Text("Level \(model.rewardsSnapshot.level) - \(model.rewardsSnapshot.totalPoints.formatted()) XP")
+                        .atlasTextRole(.supporting)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                    Text(evolution.nextFormName.map { "Next form: \($0)" } ?? "Final form mastered")
+                        .atlasTextRole(.deckEyebrow)
+                        .foregroundStyle(AtlasPalette.reward)
+                }
+
+                Spacer(minLength: 0)
+            }
+
+            HStack(spacing: AtlasSpacing.small) {
+                AtlasStatusBadge("Streak \(activeStreak)", tint: AtlasPalette.success)
+                AtlasStatusBadge("\(questCount) quests", tint: AtlasPalette.reward)
+            }
+        }
+    }
+
+    private var activeStreak: Int {
+        model.rewardsSnapshot.streaks.filter(\.isActive).map(\.count).max() ?? 0
+    }
+
+    private var questCount: Int {
+        model.rewardsSnapshot.goals.filter { $0.isMet == false }.count
+    }
+}
+
+private struct AtlasWatchSupportRingTile: View {
+    let title: String
+    let value: String
+    let systemImage: String
+    let tint: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Image(systemName: systemImage)
+                .foregroundStyle(tint)
+            Text(title)
+                .atlasTextRole(.metricLabel)
+                .foregroundStyle(AtlasPalette.textSecondary)
+            Text(value)
+                .atlasTextRole(.supporting)
+                .foregroundStyle(AtlasPalette.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.68)
+        }
+        .frame(maxWidth: .infinity, minHeight: 82, alignment: .topLeading)
+        .padding(10)
+        .background(AtlasPalette.surfaceSecondary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 }
 

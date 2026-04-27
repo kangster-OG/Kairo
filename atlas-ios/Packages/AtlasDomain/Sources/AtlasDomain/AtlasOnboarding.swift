@@ -122,34 +122,91 @@ public enum AtlasOnboardingPaywallChoice: String, Codable, Equatable, Sendable {
     case basic
 }
 
+public enum AtlasOnboardingFunnelEventName: String, Codable, CaseIterable, Sendable {
+    case stepViewed
+    case answerSelected
+    case backTapped
+    case primaryTapped
+    case secondaryTapped
+    case paywallViewed
+    case trialStarted
+    case basicSelected
+    case healthConnected
+    case healthSkipped
+    case completed
+}
+
+public struct AtlasOnboardingFunnelEvent: Codable, Equatable, Identifiable, Sendable {
+    public var id: String
+    public var name: AtlasOnboardingFunnelEventName
+    public var step: AtlasOnboardingStep
+    public var metadata: [String: String]
+    public var recordedAt: Date
+
+    public init(
+        id: String = UUID().uuidString,
+        name: AtlasOnboardingFunnelEventName,
+        step: AtlasOnboardingStep,
+        metadata: [String: String] = [:],
+        recordedAt: Date
+    ) {
+        self.id = id
+        self.name = name
+        self.step = step
+        self.metadata = metadata
+        self.recordedAt = recordedAt
+    }
+}
+
 public enum AtlasHeightUnit: String, Codable, CaseIterable, Sendable {
     case cm
     case ftIn = "ft_in"
 }
 
 public enum AtlasOnboardingStep: String, Codable, CaseIterable, Identifiable, Sendable {
-    case splash
+    case intro
+    case demoToday
+    case demoProgress
+    case gender
+    case age
+    case goalWeight
+    case heightWeight
     case trackType
-    case journeyStatus
-    case protocolPreview
-    case focus
-    case goalsProfile
-    case healthDisclaimer
-    case privacyPreset
-    case premiumPreview
-    case trustVaultReveal
-    case companionPreview
-    case readinessLoop
-    case systemSurfaces
-    case personalizedUnlock
-    case todayCommandPreview
-    case protocolChangeHistory
-    case reviewOutputPreview
-    case migrationPreview
-    case trialTimeline
-    case premiumPaywall
+    case companionHatch
+    case companionChoice
+    case companionReveal
+    case companionName
+    case companionJourney
+    case usedApps
+    case longTermResults
+    case branchPath
+    case glpMedication
+    case glpFrequency
+    case glpInjectionDay
+    case glpDose
+    case glpDuration
+    case glpGoal
+    case glpChallenge
+    case peptideSelection
+    case peptideFrequency
+    case peptideExperience
+    case peptideInjectionTime
+    case peptideDose
+    case peptideGoal
     case connectApps
+    case ratingPrimer
+    case trackingPermission
+    case planLoading
+    case planPreview
     case planReady
+    case saveProgress
+    case signInModal
+    case trialIntro
+    case trialReminder
+    case trialPaywall
+    case purchaseSuccess
+    case saveProgressAgain
+    case homeEndpoint
 
     public var id: String { rawValue }
 }
@@ -309,6 +366,14 @@ public struct AtlasOnboardingDraft: Codable, Equatable, Sendable {
     public var peptide: AtlasOnboardingPeptideSetup
     public var healthConnectionPromptSeen: Bool
     public var healthDisclaimerAccepted: Bool
+    public var dreamProgressIndex: Int
+    public var dreamAnswers: [String: String]
+    public var dreamAnswerGroups: [String: [String]]
+    public var dayOnePriority: String?
+    public var companionRole: String?
+    public var companionSignalColor: String?
+    public var companionPresence: AtlasAmbientMascotPresence
+    public var firstWeekPlanPreview: [String]
 
     enum CodingKeys: String, CodingKey {
         case accountMode
@@ -324,6 +389,14 @@ public struct AtlasOnboardingDraft: Codable, Equatable, Sendable {
         case peptide
         case healthConnectionPromptSeen
         case healthDisclaimerAccepted
+        case dreamProgressIndex
+        case dreamAnswers
+        case dreamAnswerGroups
+        case dayOnePriority
+        case companionRole
+        case companionSignalColor
+        case companionPresence
+        case firstWeekPlanPreview
     }
 
     public init(
@@ -339,7 +412,15 @@ public struct AtlasOnboardingDraft: Codable, Equatable, Sendable {
         glp: AtlasOnboardingGlpSetup = .init(),
         peptide: AtlasOnboardingPeptideSetup = .init(),
         healthConnectionPromptSeen: Bool = false,
-        healthDisclaimerAccepted: Bool = false
+        healthDisclaimerAccepted: Bool = false,
+        dreamProgressIndex: Int = 0,
+        dreamAnswers: [String: String] = [:],
+        dreamAnswerGroups: [String: [String]] = [:],
+        dayOnePriority: String? = nil,
+        companionRole: String? = nil,
+        companionSignalColor: String? = nil,
+        companionPresence: AtlasAmbientMascotPresence = .subtle,
+        firstWeekPlanPreview: [String] = []
     ) {
         self.accountMode = accountMode
         self.privacy = privacy
@@ -354,6 +435,14 @@ public struct AtlasOnboardingDraft: Codable, Equatable, Sendable {
         self.peptide = peptide
         self.healthConnectionPromptSeen = healthConnectionPromptSeen
         self.healthDisclaimerAccepted = healthDisclaimerAccepted
+        self.dreamProgressIndex = dreamProgressIndex
+        self.dreamAnswers = dreamAnswers
+        self.dreamAnswerGroups = dreamAnswerGroups
+        self.dayOnePriority = dayOnePriority
+        self.companionRole = companionRole
+        self.companionSignalColor = companionSignalColor
+        self.companionPresence = companionPresence
+        self.firstWeekPlanPreview = firstWeekPlanPreview
     }
 
     public init(from decoder: Decoder) throws {
@@ -371,6 +460,14 @@ public struct AtlasOnboardingDraft: Codable, Equatable, Sendable {
         self.peptide = try container.decodeIfPresent(AtlasOnboardingPeptideSetup.self, forKey: .peptide) ?? .init()
         self.healthConnectionPromptSeen = try container.decodeIfPresent(Bool.self, forKey: .healthConnectionPromptSeen) ?? false
         self.healthDisclaimerAccepted = try container.decodeIfPresent(Bool.self, forKey: .healthDisclaimerAccepted) ?? false
+        self.dreamProgressIndex = try container.decodeIfPresent(Int.self, forKey: .dreamProgressIndex) ?? 0
+        self.dreamAnswers = try container.decodeIfPresent([String: String].self, forKey: .dreamAnswers) ?? [:]
+        self.dreamAnswerGroups = try container.decodeIfPresent([String: [String]].self, forKey: .dreamAnswerGroups) ?? [:]
+        self.dayOnePriority = try container.decodeIfPresent(String.self, forKey: .dayOnePriority)
+        self.companionRole = try container.decodeIfPresent(String.self, forKey: .companionRole)
+        self.companionSignalColor = try container.decodeIfPresent(String.self, forKey: .companionSignalColor)
+        self.companionPresence = try container.decodeIfPresent(AtlasAmbientMascotPresence.self, forKey: .companionPresence) ?? .subtle
+        self.firstWeekPlanPreview = try container.decodeIfPresent([String].self, forKey: .firstWeekPlanPreview) ?? []
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -388,6 +485,14 @@ public struct AtlasOnboardingDraft: Codable, Equatable, Sendable {
         try container.encode(peptide, forKey: .peptide)
         try container.encode(healthConnectionPromptSeen, forKey: .healthConnectionPromptSeen)
         try container.encode(healthDisclaimerAccepted, forKey: .healthDisclaimerAccepted)
+        try container.encode(dreamProgressIndex, forKey: .dreamProgressIndex)
+        try container.encode(dreamAnswers, forKey: .dreamAnswers)
+        try container.encode(dreamAnswerGroups, forKey: .dreamAnswerGroups)
+        try container.encodeIfPresent(dayOnePriority, forKey: .dayOnePriority)
+        try container.encodeIfPresent(companionRole, forKey: .companionRole)
+        try container.encodeIfPresent(companionSignalColor, forKey: .companionSignalColor)
+        try container.encode(companionPresence, forKey: .companionPresence)
+        try container.encode(firstWeekPlanPreview, forKey: .firstWeekPlanPreview)
     }
 
     public static func empty() -> Self {
@@ -435,30 +540,48 @@ public struct AtlasOnboardingDraft: Codable, Equatable, Sendable {
     }
 
     public func sequence() -> [AtlasOnboardingStep] {
-        [
-            .splash,
+        var steps: [AtlasOnboardingStep] = [
+            .intro,
+            .demoToday,
+            .gender,
+            .age,
+            .goalWeight,
+            .heightWeight,
             .trackType,
-            .journeyStatus,
-            .protocolPreview,
-            .focus,
-            .goalsProfile,
-            .healthDisclaimer,
-            .privacyPreset,
-            .premiumPreview,
-            .trustVaultReveal,
-            .companionPreview,
-            .readinessLoop,
-            .systemSurfaces,
-            .personalizedUnlock,
-            .todayCommandPreview,
-            .protocolChangeHistory,
-            .reviewOutputPreview,
-            .migrationPreview,
-            .trialTimeline,
-            .premiumPaywall,
-            .connectApps,
-            .planReady
+            .companionChoice,
+            .companionReveal,
+            .companionName,
+            .companionJourney,
+            .usedApps,
+            .longTermResults,
+            .branchPath
         ]
+
+        switch trackType {
+        case .glp:
+            steps.append(contentsOf: [.glpMedication, .glpFrequency, .glpInjectionDay, .glpDose, .glpDuration, .glpGoal, .glpChallenge])
+        case .peptide:
+            steps.append(contentsOf: [.peptideSelection, .peptideFrequency, .peptideExperience, .peptideInjectionTime, .peptideDose, .peptideGoal])
+        case .both:
+            steps.append(contentsOf: [.glpMedication, .glpFrequency, .glpInjectionDay, .glpDose, .glpDuration, .glpGoal, .glpChallenge, .peptideSelection, .peptideFrequency, .peptideExperience, .peptideInjectionTime, .peptideDose, .peptideGoal])
+        case .later, .none:
+            steps.append(contentsOf: [.peptideSelection, .peptideFrequency, .peptideGoal])
+        }
+
+        steps.append(contentsOf: [
+            .connectApps,
+            .ratingPrimer,
+            .trackingPermission,
+            .planLoading,
+            .planPreview,
+            .planReady,
+            .trialIntro,
+            .trialReminder,
+            .trialPaywall,
+            .purchaseSuccess
+        ])
+
+        return steps
     }
 }
 

@@ -38,14 +38,22 @@ public struct AtlasMedicationLevelsScreen: View {
     public var body: some View {
         AtlasScreen {
             if let detail {
-                AtlasTabHeader(
-                    title: "Medication Level",
-                    subtitle: model.renderedTitle(canonical: detail.canonicalTitle, alias: detail.aliasTitle)
-                )
-
                 if let item = detail.medicationLevel {
                     AtlasSectionCard(style: .hero) {
                         VStack(alignment: .leading, spacing: AtlasSpacing.medium) {
+                            HStack(alignment: .top, spacing: AtlasSpacing.small) {
+                                VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
+                                    Text("Medication Level")
+                                        .atlasTextRole(.cardTitle)
+                                        .foregroundStyle(AtlasPalette.textPrimary)
+                                    Text(model.renderedTitle(canonical: detail.canonicalTitle, alias: detail.aliasTitle))
+                                        .atlasTextRole(.supporting)
+                                        .foregroundStyle(AtlasPalette.textSecondary)
+                                }
+                                Spacer()
+                                AtlasStatusBadge("Tracking", tint: AtlasPalette.primary)
+                            }
+
                             ViewThatFits(in: .horizontal) {
                                 HStack {
                                     medicationHeroBadges(detail: detail)

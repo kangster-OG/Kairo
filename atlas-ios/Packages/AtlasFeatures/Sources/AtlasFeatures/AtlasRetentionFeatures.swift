@@ -129,7 +129,7 @@ private struct AtlasRetentionCompanionView: View {
                     )
                 )
                 .overlay(alignment: .bottomTrailing) {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(.white.opacity(0.94))
                         .frame(width: emphasis == .featured ? 28 : 24, height: emphasis == .featured ? 28 : 24)
                         .overlay(
@@ -140,7 +140,7 @@ private struct AtlasRetentionCompanionView: View {
                                 .foregroundStyle(companionTint)
                         )
                         .overlay(
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
                                 .stroke(companionTint.opacity(0.16), lineWidth: 1)
                         )
                         .padding(emphasis == .featured ? 8 : 6)
@@ -186,7 +186,7 @@ private struct AtlasRetentionCompanionView: View {
     @ViewBuilder
     private var backgroundSurface: some View {
         if emphasis == .featured {
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(
                     LinearGradient(
                         colors: [AtlasPalette.surfaceTop, companionTint.opacity(0.08)],
@@ -195,7 +195,7 @@ private struct AtlasRetentionCompanionView: View {
                     )
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .stroke(companionTint.opacity(0.14), lineWidth: 1)
                 )
         } else {

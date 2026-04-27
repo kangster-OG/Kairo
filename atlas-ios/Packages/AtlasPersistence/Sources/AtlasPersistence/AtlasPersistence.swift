@@ -83,6 +83,8 @@ public protocol SettingsRepository: Sendable {
 public protocol OnboardingRepository: Sendable {
     func loadBootstrapSnapshot() async throws -> AtlasBootstrapSnapshot
     func saveDraft(_ draft: AtlasOnboardingDraft, now: Date) async throws -> AtlasBootstrapSnapshot
+    func recordFunnelEvent(_ event: AtlasOnboardingFunnelEvent, now: Date) async throws
+    func fetchFunnelEvents(limit: Int) async throws -> [AtlasOnboardingFunnelEvent]
     func completeOnboarding(_ draft: AtlasOnboardingDraft, now: Date) async throws -> AtlasBootstrapSnapshot
     func resetOnboarding(now: Date) async throws -> AtlasBootstrapSnapshot
 }
@@ -144,6 +146,7 @@ public protocol CalculatorRepository: Sendable {
 public protocol MetricsRepository: Sendable {
     func fetchInsightsSnapshot(referenceDate: Date) async throws -> AtlasInsightsSnapshot
     func importWorkoutSamples(_ samples: [AtlasHealthWorkoutSample], now: Date) async throws -> Int
+    func saveWorkoutEntry(_ draft: AtlasWorkoutEntryDraft, now: Date) async throws -> AtlasWorkoutLogRecord
     func importWeightSamples(_ samples: [AtlasHealthWeightSample], now: Date) async throws -> Int
     func importNutritionSamples(_ samples: [AtlasHealthNutritionSample], now: Date) async throws -> Int
     func importHealthMetricSamples(_ samples: [AtlasHealthMetricSample], now: Date) async throws -> Int

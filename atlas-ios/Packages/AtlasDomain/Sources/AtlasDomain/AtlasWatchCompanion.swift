@@ -1,12 +1,15 @@
 import Foundation
 
 public enum AtlasWatchCompanionContextShortcut: String, Codable, CaseIterable, Sendable {
+    case proteinMeal
     case hydration
     case lowAppetite
     case giCheckIn
 
     public var title: String {
         switch self {
+        case .proteinMeal:
+            return "Protein meal"
         case .hydration:
             return "Hydration"
         case .lowAppetite:
@@ -18,6 +21,8 @@ public enum AtlasWatchCompanionContextShortcut: String, Codable, CaseIterable, S
 
     public var detail: String {
         switch self {
+        case .proteinMeal:
+            return "Fast protein signal"
         case .hydration:
             return "Fast hydration signal"
         case .lowAppetite:
@@ -29,6 +34,8 @@ public enum AtlasWatchCompanionContextShortcut: String, Codable, CaseIterable, S
 
     public var symbolName: String {
         switch self {
+        case .proteinMeal:
+            return "bolt.heart.fill"
         case .hydration:
             return "drop.fill"
         case .lowAppetite:

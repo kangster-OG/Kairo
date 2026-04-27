@@ -927,11 +927,11 @@ private struct AtlasWeeklyReviewSignalPill: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(AtlasPalette.surfaceSecondary)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .strokeBorder(Color.black.opacity(0.06), lineWidth: 1)
         )
     }
@@ -1166,11 +1166,11 @@ private struct AtlasWeeklyReviewCommandCard: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
         .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(AtlasPalette.surfaceSecondary)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .strokeBorder(Color.black.opacity(0.05), lineWidth: 1)
         )
     }
@@ -1590,7 +1590,7 @@ private struct AtlasWeeklyReviewComparisonCard: View {
             }
             .padding(AtlasSpacing.small)
             .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(AtlasPalette.surfaceSecondary)
             )
         }
@@ -1637,7 +1637,7 @@ private struct AtlasWeeklyReviewProtocolFollowUpView: View {
                 Image(systemName: "slider.horizontal.3")
                     .foregroundStyle(AtlasPalette.primary)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(summary.title ?? "Atlas protocol")
+                    Text(summary.title ?? "Kairo protocol")
                         .atlasTextRole(.cardBody)
                         .foregroundStyle(AtlasPalette.textPrimary)
                     Text(summary.summary ?? "\(summary.changeTypeTitle) is still within the follow-up window.")
@@ -2110,7 +2110,7 @@ private func atlasWeeklyReviewShifts(
                     ?? "\(protocolChangeSummary.changeCount) plan edit\(protocolChangeSummary.changeCount == 1 ? "" : "s") in this review window.",
                 facts: [
                     AtlasExplainerFact(label: "Changes", value: String(protocolChangeSummary.changeCount)),
-                    AtlasExplainerFact(label: "Latest protocol", value: protocolChangeSummary.latestTitle ?? "Atlas protocol"),
+                    AtlasExplainerFact(label: "Latest protocol", value: protocolChangeSummary.latestTitle ?? "Kairo protocol"),
                     AtlasExplainerFact(label: "Supporting logs", value: String(protocolChangeSummary.supportingLogCount)),
                     AtlasExplainerFact(label: "Supporting context", value: String(protocolChangeSummary.supportingContextCount))
                 ],
@@ -2715,8 +2715,8 @@ func atlasWeeklyReviewExportHTML(snapshot: AtlasWeeklyReviewPresentation) -> Str
         """
         <section>
           <h2>Protocol follow-up</h2>
-          <p class="eyebrow">\($0.title ?? "Atlas protocol")</p>
-          <p>\($0.summary ?? "\($0.changeTypeTitle) is still inside Atlas's follow-up window.")</p>
+          <p class="eyebrow">\($0.title ?? "Kairo protocol")</p>
+          <p>\($0.summary ?? "\($0.changeTypeTitle) is still inside Kairo's follow-up window.")</p>
           <ul>
             <li><strong>Changed</strong><span>\($0.changedAt.formatted(date: .abbreviated, time: .omitted))</span></li>
             <li><strong>Follow-up window</strong><span>\($0.windowDays) day(s)</span></li>

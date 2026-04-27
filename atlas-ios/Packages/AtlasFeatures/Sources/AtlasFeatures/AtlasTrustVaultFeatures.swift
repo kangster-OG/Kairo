@@ -32,7 +32,7 @@ public extension AtlasAppModel {
         }
     }
 
-    func unlockTrustVaultIfNeeded(reason: String = "Unlock Trust Vault") async -> Bool {
+    func unlockTrustVaultIfNeeded(reason: String = "Confirm sharing controls") async -> Bool {
         let profile = trustVaultSnapshot.privacyProfile
 
         guard profile.biometricLockEnabled,
@@ -60,7 +60,7 @@ public extension AtlasAppModel {
     }
 
     func createRawExport(_ request: AtlasRawExportRequest) async -> AtlasRawExportResult? {
-        guard await unlockTrustVaultIfNeeded(reason: "Authorize Atlas export") else {
+        guard await unlockTrustVaultIfNeeded(reason: "Create a Kairo data export") else {
             return nil
         }
 
@@ -75,7 +75,7 @@ public extension AtlasAppModel {
     }
 
     func previewSelectiveShare(_ request: AtlasSelectiveShareRequest) async -> AtlasSelectiveSharePreview? {
-        guard await unlockTrustVaultIfNeeded(reason: "Preview a selective share") else {
+        guard await unlockTrustVaultIfNeeded(reason: "Preview a share summary") else {
             return nil
         }
 
@@ -125,26 +125,26 @@ public struct AtlasTrustVaultHomeScreen: View {
     public var body: some View {
         AtlasScreen {
             AtlasCommandDeck(
-                eyebrow: "PRIVACY CONTROL",
+                eyebrow: "Privacy controls",
                 title: trustVaultDeckTitle,
                 detail: trustVaultDeckDetail,
                 metrics: trustVaultMetrics,
                 style: .hero
             ) {
                 VStack(spacing: AtlasSpacing.small) {
-                    Button("Preview selective share") {
+                    Button("Preview Share") {
                         AtlasFeedback.selection()
                         previewSelectiveShare()
                     }
                         .buttonStyle(AtlasPrimaryButtonStyle())
 
                     HStack(spacing: AtlasSpacing.small) {
-                        Button("Create encrypted snapshot") {
+                        Button("Create Share Summary") {
                             AtlasFeedback.selection()
                             createSelectiveShare()
                         }
                             .buttonStyle(AtlasSecondaryButtonStyle())
-                        Button("Open Review Mode") {
+                        Button("Share Summary") {
                             AtlasFeedback.selection()
                             model.open(.reviewMode)
                         }
@@ -161,6 +161,8 @@ public struct AtlasTrustVaultHomeScreen: View {
                 )
             }
 
+            AtlasTrustVaultSignatureCard(model: model)
+
             if let error = model.loadErrorMessage {
                 AtlasSectionCard(style: .utility, title: "Attention") {
                     Text(error)
@@ -168,7 +170,7 @@ public struct AtlasTrustVaultHomeScreen: View {
                 }
             }
 
-            AtlasSectionCard(style: .task, title: "Privacy state") {
+            AtlasSectionCard(style: .task, title: "Display & sharing") {
                 AtlasMetricStrip(metrics: [
                     AtlasMetricItem(
                         id: "render_mode",
@@ -191,7 +193,7 @@ public struct AtlasTrustVaultHomeScreen: View {
 
                 AtlasCalloutRow(
                     systemImage: "eye.slash",
-                    title: "On-screen privacy",
+                    title: "On-screen display",
                     detail: model.dependencies.privacyFormatter.summary(mode: model.trustVaultSnapshot.privacyProfile.renderMode ?? .full),
                     tint: AtlasPalette.primary
                 )
@@ -231,7 +233,7 @@ public struct AtlasTrustVaultHomeScreen: View {
                 )
 
                 Toggle(
-                    "Alias by default for raw exports",
+                    "Alias by default for data exports",
                     isOn: Binding(
                         get: { model.trustVaultSnapshot.privacyProfile.exportAliasByDefault },
                         set: { value in
@@ -246,7 +248,7 @@ public struct AtlasTrustVaultHomeScreen: View {
                 )
             }
 
-            AtlasSectionCard(style: .task, title: "Biometric gate") {
+            AtlasSectionCard(style: .task, title: "Confirm before sharing") {
                 AtlasMetricStrip(metrics: [
                     AtlasMetricItem(
                         id: "biometric_status",
@@ -269,7 +271,7 @@ public struct AtlasTrustVaultHomeScreen: View {
                     tint: model.trustVaultSnapshot.privacyProfile.biometricLockEnabled ? AtlasPalette.success : AtlasPalette.secondaryText
                 )
                 Toggle(
-                    "Require biometric gate for Trust Vault actions",
+                    "Require confirmation for sharing actions",
                     isOn: Binding(
                         get: { model.trustVaultSnapshot.privacyProfile.biometricLockEnabled },
                         set: { value in
@@ -306,7 +308,7 @@ public struct AtlasTrustVaultHomeScreen: View {
                 }
             }
 
-            AtlasSectionCard(style: .utility, title: "Aliases") {
+            AtlasSectionCard(style: .utility, title: "Protocol aliases") {
                 AtlasCalloutRow(
                     systemImage: "person.text.rectangle",
                     title: "Alias language is presentation-only",
@@ -343,11 +345,11 @@ public struct AtlasTrustVaultHomeScreen: View {
                 }
             }
 
-            AtlasSectionCard(style: .task, title: "Selective sharing") {
+            AtlasSectionCard(style: .task, title: "Share summary") {
                 AtlasCalloutRow(
                     systemImage: "square.and.arrow.up.on.square",
-                    title: "Bounded read-only sharing",
-                    detail: "Preview the scoped snapshot before creating an encrypted handoff.",
+                    title: "Preview before sharing",
+                    detail: "Choose the scope and display mode before creating a read-only summary.",
                     tint: AtlasPalette.primary
                 )
 
@@ -371,7 +373,7 @@ public struct AtlasTrustVaultHomeScreen: View {
                     }
                 }
 
-                Picker("Share render mode", selection: $selectiveShareMode) {
+                Picker("Display in summary", selection: $selectiveShareMode) {
                     Text("Full").tag(AtlasPrivacyRenderMode.full)
                     Text("Discreet").tag(AtlasPrivacyRenderMode.discreet)
                     Text("Alias").tag(AtlasPrivacyRenderMode.alias)
@@ -382,13 +384,13 @@ public struct AtlasTrustVaultHomeScreen: View {
                     DatePicker("End", selection: $customRangeEnd, displayedComponents: .date)
                 }
 
-                Button("Preview share") {
+                Button("Preview Summary") {
                     AtlasFeedback.selection()
                     previewSelectiveShare()
                 }
                 .buttonStyle(AtlasPrimaryButtonStyle())
 
-                Button("Create encrypted snapshot") {
+                Button("Create Share Summary") {
                     AtlasFeedback.selection()
                     createSelectiveShare()
                 }
@@ -420,7 +422,7 @@ public struct AtlasTrustVaultHomeScreen: View {
                 if let latestShare {
                     AtlasCalloutRow(
                         systemImage: "lock.doc",
-                        title: "Encrypted snapshot ready",
+                        title: "Share summary ready",
                         detail: "\(latestShare.fileURL.lastPathComponent) • Share code \(latestShare.shareCode)",
                         tint: AtlasPalette.success,
                         badge: "Ready"
@@ -428,11 +430,11 @@ public struct AtlasTrustVaultHomeScreen: View {
                 }
             }
 
-            AtlasSectionCard(style: .utility, title: "Raw exports") {
+            AtlasSectionCard(style: .utility, title: "Data export") {
                 AtlasCalloutRow(
                     systemImage: "arrow.down.doc",
-                    title: "Export full source data when you need it",
-                    detail: "JSON and CSV exports still respect your default Trust Vault export mode so raw access never breaks the privacy posture you set.",
+                    title: "Export data when needed",
+                    detail: "JSON and CSV exports still respect your default display mode.",
                     tint: AtlasPalette.secondaryText
                 )
 
@@ -476,26 +478,26 @@ public struct AtlasTrustVaultHomeScreen: View {
 
             AtlasProviderHandoffCard(model: model)
 
-            AtlasSectionCard(style: .task, title: "Review workspace") {
+            AtlasSectionCard(style: .task, title: "Share summary") {
                 AtlasCalloutRow(
                     systemImage: "rectangle.on.rectangle.angled",
-                    title: "Bounded review workspace",
-                    detail: "Create read-only review packs.",
+                    title: "One clean review summary",
+                    detail: "Create a read-only summary for progress or protocol review.",
                     tint: AtlasPalette.primary
                 )
-                Button("Open Review Mode") {
+                Button("Share Summary") {
                     AtlasFeedback.selection()
                     model.open(.reviewMode)
                 }
                 .buttonStyle(AtlasPrimaryButtonStyle())
             }
 
-            AtlasSectionCard(style: .utility, title: "Sensitive action audit") {
+            AtlasSectionCard(style: .utility, title: "Sharing history") {
                 if model.trustVaultSnapshot.audits.isEmpty {
                     AtlasCalloutRow(
                         systemImage: "clock.badge.shield.checkmark",
-                        title: "Audit trail starts when actions happen",
-                        detail: "Sensitive actions will appear here as you change privacy settings, preview shares, export, or hand off data.",
+                        title: "History starts when actions happen",
+                        detail: "Sharing, export, and privacy changes will appear here.",
                         tint: AtlasPalette.secondaryText
                     )
                 } else {
@@ -510,6 +512,7 @@ public struct AtlasTrustVaultHomeScreen: View {
                 }
             }
         }
+        .tint(AtlasPalette.primary)
         .trustVaultInlineNavigationTitle()
         .task {
             await model.refreshTrustVaultSnapshot()
@@ -567,19 +570,19 @@ public struct AtlasTrustVaultHomeScreen: View {
 
     private var trustVaultDeckTitle: String {
         if preview != nil || latestShare != nil {
-            return "Review every boundary before anything leaves the device."
+            return "Preview before you share."
         }
-        return "Trust Vault keeps privacy visible and deliberate."
+        return "Control what leaves Kairo."
     }
 
     private var trustVaultDeckDetail: String {
         if latestShare != nil {
-            return "An encrypted snapshot is ready. Share code and audit trail are visible."
+            return "A share summary is ready. Share code and history are visible."
         }
         if preview != nil {
-            return "The current preview uses the selected scope, render mode, and date range."
+            return "The current preview uses the selected scope, display mode, and date range."
         }
-        return "Manage privacy mode, aliases, biometric gating, selective sharing, exports, and audit history."
+        return "Set display defaults, aliases, sharing confirmation, exports, and history without making privacy the headline."
     }
 
     private func previewSelectiveShare() {

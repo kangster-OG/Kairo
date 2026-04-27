@@ -100,7 +100,7 @@ private struct AtlasTypographyAuditionView: View {
         VStack(alignment: .leading, spacing: 14) {
             AtlasStatusBadge(candidateName, tint: .white)
 
-            Text("Atlas")
+            Text("Kairo")
                 .font(AtlasTypography.brandFont(size: 46, weight: .bold, relativeTo: .largeTitle))
                 .foregroundStyle(.white)
 
@@ -206,7 +206,7 @@ private struct AtlasBootstrapFailureView: View {
             Image(systemName: "externaldrive.badge.exclamationmark")
                 .font(.system(size: 42, weight: .semibold))
                 .foregroundStyle(.orange)
-            Text("Atlas couldn't finish launch")
+            Text("Kairo couldn't finish launch")
                 .font(.title2.weight(.bold))
                 .multilineTextAlignment(.center)
             Text(message)

@@ -395,7 +395,7 @@ public struct GRDBInventoryRepository: InventoryRepository, Sendable {
                 occurrenceID: nil,
                 kind: .procurement,
                 deltaQuantity: normalized.quantityReceived,
-                note: "Procurement recorded locally.",
+                note: "Inventory note recorded locally.",
                 vendorLabel: normalized.vendorLabel,
                 sourceDetail: normalized.sourceDetail,
                 recordedAt: receivedAt
@@ -1062,7 +1062,7 @@ private func buildConsumableSummary(
         formatter.dateStyle = .medium
         formatter.timeStyle = .none
         if consumable.reorderThreshold != nil {
-            return "Projected reorder point \(formatter.string(from: targetDate))"
+            return "Projected runway threshold \(formatter.string(from: targetDate))"
         }
         return "Projected depletion \(formatter.string(from: targetDate))"
     }
@@ -1070,7 +1070,7 @@ private func buildConsumableSummary(
         leadTime > 0 ? "Lead time \(leadTime) day\(leadTime == 1 ? "" : "s")" : nil
     }
     let lowStockLabel = consumable.reorderThreshold.map {
-        "Reorder at \(formatAtlasQuantity($0, unit: consumable.unit))"
+        "Runway threshold \(formatAtlasQuantity($0, unit: consumable.unit))"
     }
     let isLowStock = consumable.reorderThreshold.map { consumable.quantityOnHand <= $0 } ?? false
     let procurementHistory = buildConsumableProcurementHistory(adjustments: adjustments)
@@ -1491,7 +1491,7 @@ private func consumableAdjustmentTitle(for kind: AtlasConsumableAdjustmentKind) 
     case .manualAdjustment:
         return "Manual adjustment"
     case .procurement:
-        return "Procurement recorded"
+        return "Inventory note recorded"
     case .protocolUse:
         return "Taken-log decrement"
     case .archived:
@@ -1508,7 +1508,7 @@ private func consumableAdjustmentFallbackDetail(for kind: AtlasConsumableAdjustm
     case .manualAdjustment:
         return "Supply count was corrected manually."
     case .procurement:
-        return "Procurement was recorded for future supply planning."
+        return "Inventory note was recorded for future planning."
     case .protocolUse:
         return "This supply moved after a taken log on the linked protocol."
     case .archived:
@@ -1533,7 +1533,7 @@ private func buildConsumableProcurementHistory(
             AtlasConsumableProcurementEntry(
                 id: adjustment.id,
                 kind: adjustment.kind,
-                title: adjustment.kind == .created ? "Opening stock" : "Procurement recorded",
+                title: adjustment.kind == .created ? "Opening stock" : "Inventory note recorded",
                 quantityLabel: formatInventoryCorrectionDelta(adjustment.deltaQuantity, unit: adjustment.quantityUnit),
                 vendorLabel: adjustment.vendorLabel,
                 sourceDetail: adjustment.sourceDetail,
@@ -1581,13 +1581,13 @@ private func buildConsumablePlanningSnapshot(
     if consumable.archivedAt != nil {
         statusLabel = "Archived for future planning."
     } else if let reorderThresholdDate, reorderThresholdDate <= referenceDate || (consumable.reorderThreshold.map { consumable.quantityOnHand <= $0 } ?? false) {
-        statusLabel = "Procurement review now."
+        statusLabel = "Supply review now."
     } else if let reviewDate {
         statusLabel = reviewDate <= referenceDate
-            ? "Review procurement now."
+            ? "Review supply runway now."
             : "Review by \(inventoryMediumDateLabel(reviewDate))."
     } else if let reorderThresholdDate, consumable.reorderThreshold != nil {
-        statusLabel = "Reorder point around \(inventoryMediumDateLabel(reorderThresholdDate))."
+        statusLabel = "Runway threshold around \(inventoryMediumDateLabel(reorderThresholdDate))."
     } else {
         statusLabel = nil
     }
@@ -1615,7 +1615,7 @@ private func lastConsumableProcurementLabel(
     guard let latest = procurementHistory.first else {
         return nil
     }
-    let prefix = latest.kind == .created ? "Opening stock" : "Last procurement"
+    let prefix = latest.kind == .created ? "Opening stock" : "Last supply note"
     return "\(prefix) \(inventoryMediumDateLabel(latest.recordedAt))"
 }
 
@@ -1634,10 +1634,10 @@ private func procurementVendorHistorySummary(
     )
     if vendors.isEmpty {
         let count = procurementHistory.count
-        return count == 1 ? "1 procurement entry recorded" : "\(count) procurement entries recorded"
+        return count == 1 ? "1 supply note recorded" : "\(count) supply notes recorded"
     }
     let count = vendors.count
-    return count == 1 ? "1 source recorded" : "\(count) sources recorded"
+    return count == 1 ? "1 inventory note recorded" : "\(count) inventory notes recorded"
 }
 
 private func inventoryMediumDateLabel(_ date: Date) -> String {

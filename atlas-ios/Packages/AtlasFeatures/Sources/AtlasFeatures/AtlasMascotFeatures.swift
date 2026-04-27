@@ -243,6 +243,47 @@ public struct AtlasMascotCelebrationState: Identifiable, Equatable, Sendable {
     }
 }
 
+public enum AtlasRewardCelebrationKind: String, Equatable, Sendable {
+    case xp
+    case goal
+    case streak
+    case badge
+    case level
+}
+
+public struct AtlasRewardCelebrationState: Identifiable, Equatable, Sendable {
+    public let id: String
+    let kind: AtlasRewardCelebrationKind
+    let title: String
+    let detail: String
+    let pointsDelta: Int
+    let totalPoints: Int
+    let level: Int
+    let symbolName: String
+    let createdAt: Date
+
+    init(
+        kind: AtlasRewardCelebrationKind,
+        title: String,
+        detail: String,
+        pointsDelta: Int,
+        totalPoints: Int,
+        level: Int,
+        symbolName: String,
+        createdAt: Date
+    ) {
+        self.kind = kind
+        self.title = title
+        self.detail = detail
+        self.pointsDelta = pointsDelta
+        self.totalPoints = totalPoints
+        self.level = level
+        self.symbolName = symbolName
+        self.createdAt = createdAt
+        self.id = "\(kind.rawValue)-\(totalPoints)-\(level)-\(createdAt.timeIntervalSince1970)"
+    }
+}
+
 struct AtlasMascotEvolutionProgress {
     let stage: AtlasMascotStage
     let currentFormName: String
@@ -293,7 +334,7 @@ struct AtlasMascotEvolutionProgress {
     var celebrationHeadline: String {
         switch stage {
         case .stage1:
-            return "\(currentFormName) has joined Atlas."
+            return "\(currentFormName) has joined Kairo."
         case .stage2:
             return "\(selection.stage1Title) evolved into \(currentFormName)."
         case .stage3:
@@ -505,17 +546,17 @@ struct AtlasMascotIllustration: View {
     private var assetName: String {
         switch (line, stage) {
         case (.aetherion, .stage1):
-            return "AtlasMascotAetherionStage1"
+            return "AtlasMascotAetherionStage1Mockup"
         case (.aetherion, .stage2):
-            return "AtlasMascotAetherionStage2"
+            return "AtlasMascotAetherionStage2Mockup"
         case (.aetherion, .stage3):
-            return "AtlasMascotAetherionStage3"
+            return "AtlasMascotAetherionStage3Mockup"
         case (.aurielle, .stage1):
-            return "AtlasMascotAurielleStage1"
+            return "AtlasMascotAurielleStage1Mockup"
         case (.aurielle, .stage2):
-            return "AtlasMascotAurielleStage2"
+            return "AtlasMascotAurielleStage2Mockup"
         case (.aurielle, .stage3):
-            return "AtlasMascotAurielleStage3"
+            return "AtlasMascotAurielleStage3Mockup"
         }
     }
 }
@@ -538,17 +579,17 @@ struct AtlasMascotSticker: View {
     private var assetName: String {
         switch (line, stage) {
         case (.aetherion, .stage1):
-            return "AtlasMascotAetherionStage1Sticker"
+            return "AtlasMascotAetherionStage1Mockup"
         case (.aetherion, .stage2):
-            return "AtlasMascotAetherionStage2Sticker"
+            return "AtlasMascotAetherionStage2Mockup"
         case (.aetherion, .stage3):
-            return "AtlasMascotAetherionStage3Sticker"
+            return "AtlasMascotAetherionStage3Mockup"
         case (.aurielle, .stage1):
-            return "AtlasMascotAurielleStage1Sticker"
+            return "AtlasMascotAurielleStage1Mockup"
         case (.aurielle, .stage2):
-            return "AtlasMascotAurielleStage2Sticker"
+            return "AtlasMascotAurielleStage2Mockup"
         case (.aurielle, .stage3):
-            return "AtlasMascotAurielleStage3Sticker"
+            return "AtlasMascotAurielleStage3Mockup"
         }
     }
 }
@@ -2372,7 +2413,7 @@ struct AtlasMascotHomeCard: View {
     private func entryLabel(for entry: AtlasMascotEvolutionRecord) -> String {
         switch entry.stage {
         case .stage1:
-            return "\(entry.selection.title(for: entry.stage)) joined Atlas"
+            return "\(entry.selection.title(for: entry.stage)) joined Kairo"
         case .stage2:
             return "\(entry.selection.stage1Title) evolved into \(entry.selection.stage2Title)"
         case .stage3:
@@ -2455,11 +2496,11 @@ private struct AtlasMascotMomentsJournalCard: View {
                                 .foregroundStyle(AtlasPalette.primary)
                                 .frame(width: 28, height: 28)
                                 .background(
-                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
                                         .fill(atlasMascotLineTint(for: selection).opacity(0.12))
                                 )
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
                                         .stroke(atlasMascotLineTint(for: selection).opacity(0.16), lineWidth: 1)
                                 )
 
@@ -2512,6 +2553,10 @@ private struct AtlasMascotMomentsJournalCard: View {
 struct AtlasMascotCelebrationSheet: View {
     let celebration: AtlasMascotCelebrationState
     let onDismiss: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var revealProgress = 0.0
+    @State private var showNewForm = false
+    @State private var auraPulse = false
 
     var body: some View {
         let evolution = atlasRewardsEvolutionProgress(
@@ -2538,44 +2583,78 @@ struct AtlasMascotCelebrationSheet: View {
 
                 AtlasSectionCard(style: .hero) {
                     VStack(alignment: .leading, spacing: AtlasSpacing.large) {
-                        HStack(alignment: .top, spacing: AtlasSpacing.large) {
-                            VStack(alignment: .leading, spacing: AtlasSpacing.small) {
-                                AtlasStatusBadge("Evolution unlocked", tint: atlasMascotLineTint(for: celebration.selection))
+                        VStack(alignment: .leading, spacing: AtlasSpacing.medium) {
+                            AtlasStatusBadge("Evolution unlocked", tint: atlasMascotLineTint(for: celebration.selection))
 
-                                Text(evolution.celebrationHeadline)
-                                    .atlasTextRole(.screenTitle)
-                                    .foregroundStyle(AtlasPalette.textPrimary)
+                            Text(evolution.celebrationHeadline)
+                                .atlasTextRole(.screenTitle)
+                                .foregroundStyle(AtlasPalette.textPrimary)
 
-                                Text(evolution.celebrationBody)
-                                    .atlasTextRole(.screenSubtitle)
-                                    .foregroundStyle(AtlasPalette.textSecondary)
+                            Text(evolution.celebrationBody)
+                                .atlasTextRole(.screenSubtitle)
+                                .foregroundStyle(AtlasPalette.textSecondary)
+                        }
+
+                        ZStack {
+                            ForEach(0..<3, id: \.self) { index in
+                                Circle()
+                                    .stroke(
+                                        atlasMascotLineHighlight(for: celebration.selection).opacity(0.34 - Double(index) * 0.08),
+                                        lineWidth: 2
+                                    )
+                                    .frame(width: 128 + CGFloat(index * 48), height: 128 + CGFloat(index * 48))
+                                    .scaleEffect(auraPulse && reduceMotion == false ? 1.12 : 0.88)
+                                    .opacity(auraPulse || reduceMotion ? 0.72 : 0.18)
+                                    .animation(
+                                        reduceMotion ? nil : .easeInOut(duration: 1.05).repeatForever(autoreverses: true).delay(Double(index) * 0.12),
+                                        value: auraPulse
+                                    )
                             }
 
-                            Spacer(minLength: 8)
-
-                            ZStack {
-                                Circle()
-                                    .fill(
-                                        RadialGradient(
-                                            colors: [
-                                                atlasMascotLineHighlight(for: celebration.selection).opacity(0.34),
-                                                atlasMascotLineTint(for: celebration.selection).opacity(0.14),
-                                                .clear
-                                            ],
-                                            center: .center,
-                                            startRadius: 16,
-                                            endRadius: 112
-                                        )
-                                    )
-                                    .frame(width: 212, height: 212)
-
+                            if let previousStage {
                                 AtlasMascotIllustration(
                                     line: atlasMascotLine(for: celebration.selection),
-                                    stage: celebration.stage,
-                                    size: 192
+                                    stage: previousStage,
+                                    size: 194
                                 )
+                                .saturation(0)
+                                .brightness(0.12)
+                                .blur(radius: showNewForm ? 14 : 0)
+                                .scaleEffect(showNewForm ? 1.18 : 1)
+                                .opacity(showNewForm ? 0 : 0.88)
+                            }
+
+                            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                                .fill(.white.opacity(showNewForm ? 0 : 0.72))
+                                .frame(width: 214, height: 214)
+                                .blur(radius: 22)
+                                .scaleEffect(showNewForm ? 1.24 : 0.18)
+                                .opacity(showNewForm ? 0 : 0.86)
+
+                            AtlasMascotIllustration(
+                                line: atlasMascotLine(for: celebration.selection),
+                                stage: celebration.stage,
+                                size: 214
+                            )
+                            .scaleEffect(showNewForm || reduceMotion ? 1 : 0.62)
+                            .opacity(showNewForm || reduceMotion ? 1 : 0)
+                            .shadow(color: atlasMascotLineHighlight(for: celebration.selection).opacity(0.55), radius: showNewForm ? 18 : 4)
+
+                            VStack {
+                                Spacer()
+                                HStack(spacing: 6) {
+                                    Image(systemName: "sparkles")
+                                    Text(evolution.stageBadge)
+                                }
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 8)
+                                .background(atlasMascotLineTint(for: celebration.selection), in: Capsule())
+                                .opacity(showNewForm || reduceMotion ? 1 : 0)
                             }
                         }
+                        .frame(maxWidth: .infinity, minHeight: 256)
 
                         AtlasMetricStrip(metrics: metrics)
 
@@ -2611,7 +2690,38 @@ struct AtlasMascotCelebrationSheet: View {
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.hidden)
         .task {
+            runEvolutionSequence()
+        }
+    }
+
+    private var previousStage: AtlasMascotStage? {
+        switch celebration.stage {
+        case .stage1:
+            return nil
+        case .stage2:
+            return .stage1
+        case .stage3:
+            return .stage2
+        }
+    }
+
+    private func runEvolutionSequence() {
+        AtlasFeedback.levelUp()
+        auraPulse = true
+        guard reduceMotion == false else {
+            showNewForm = true
+            return
+        }
+
+        withAnimation(.easeInOut(duration: 0.72)) {
+            revealProgress = 0.45
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.64) {
             AtlasFeedback.notify(.success)
+            withAnimation(.spring(response: 0.52, dampingFraction: 0.72)) {
+                revealProgress = 1
+                showNewForm = true
+            }
         }
     }
 }
@@ -2622,7 +2732,7 @@ struct AtlasMascotConfirmationCard: View {
     let onChoose: (AtlasMascotSelection) -> Void
 
     var body: some View {
-        AtlasSectionCard(style: .utility, title: "Choose your Atlas mascot") {
+        AtlasSectionCard(style: .utility, title: "Choose your Kairo mascot") {
             Text(detailText)
                 .atlasTextRole(.supporting)
                 .foregroundStyle(AtlasPalette.textSecondary)
@@ -2678,7 +2788,7 @@ struct AtlasMascotConfirmationCard: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(14)
             .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(
                         LinearGradient(
                             colors: selection == currentSelection
@@ -2690,12 +2800,193 @@ struct AtlasMascotConfirmationCard: View {
                     )
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .stroke(selection == currentSelection ? AtlasPalette.primary.opacity(0.45) : AtlasPalette.chromeStroke, lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
     }
+}
+
+struct AtlasRewardCelebrationOverlay: View {
+    let celebration: AtlasRewardCelebrationState
+    let selection: AtlasMascotSelection
+    let onDismiss: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var appeared = false
+    @State private var sparklePhase = false
+
+    var body: some View {
+        VStack {
+            Spacer()
+
+            HStack(spacing: AtlasSpacing.medium) {
+                ZStack {
+                    Circle()
+                        .fill(tint.opacity(0.16))
+                        .frame(width: 58, height: 58)
+                    Circle()
+                        .stroke(tint.opacity(0.28), lineWidth: 1)
+                        .frame(width: sparklePhase && reduceMotion == false ? 74 : 48, height: sparklePhase && reduceMotion == false ? 74 : 48)
+                        .opacity(sparklePhase || reduceMotion ? 0 : 0.72)
+                    Image(systemName: celebration.symbolName)
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundStyle(tint)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(celebration.title)
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(AtlasPalette.textPrimary)
+                    Text(celebration.detail)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 8)
+
+                VStack(alignment: .trailing, spacing: 3) {
+                    Text("+\(celebration.pointsDelta)")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundStyle(AtlasPalette.reward)
+                    Text("XP")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                }
+            }
+            .padding(14)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(tint.opacity(0.28), lineWidth: 1)
+            )
+            .shadow(color: AtlasPalette.shadow.opacity(0.22), radius: 18, x: 0, y: 10)
+            .padding(.horizontal, 16)
+            .padding(.bottom, 88)
+            .scaleEffect(appeared || reduceMotion ? 1 : 0.92)
+            .opacity(appeared ? 1 : 0)
+            .offset(y: appeared || reduceMotion ? 0 : 18)
+            .animation(reduceMotion ? nil : .spring(response: 0.36, dampingFraction: 0.78), value: appeared)
+        }
+        .allowsHitTesting(false)
+        .task(id: celebration.id) {
+            AtlasFeedback.notify(celebration.kind == .level ? .success : .warning)
+            appeared = true
+            sparklePhase = true
+            try? await Task.sleep(nanoseconds: 2_400_000_000)
+            guard Task.isCancelled == false else { return }
+            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.22)) {
+                appeared = false
+            }
+            try? await Task.sleep(nanoseconds: 260_000_000)
+            guard Task.isCancelled == false else { return }
+            onDismiss()
+        }
+        .accessibilityHidden(true)
+    }
+
+    private var tint: Color {
+        switch celebration.kind {
+        case .xp:
+            return atlasMascotLineTint(for: selection)
+        case .goal, .badge:
+            return AtlasPalette.reward
+        case .streak:
+            return AtlasPalette.success
+        case .level:
+            return atlasMascotLineHighlight(for: selection)
+        }
+    }
+}
+
+func atlasRewardCelebrationCandidate(
+    previous: AtlasRewardsSnapshot,
+    current: AtlasRewardsSnapshot,
+    selection: AtlasMascotSelection,
+    createdAt: Date
+) -> AtlasRewardCelebrationState? {
+    guard previous.settings.enabled,
+          current.settings.enabled,
+          current.totalPoints > previous.totalPoints else {
+        return nil
+    }
+
+    let pointsDelta = current.totalPoints - previous.totalPoints
+    let oldStage = AtlasMascotMilestone.stage(for: previous.totalPoints)
+    let newStage = AtlasMascotMilestone.stage(for: current.totalPoints)
+    if newStage.rank > oldStage.rank {
+        return nil
+    }
+
+    if current.level > previous.level {
+        return AtlasRewardCelebrationState(
+            kind: .level,
+            title: "Level \(current.level) reached",
+            detail: "\(selection.title(for: newStage)) felt that jump. \(current.totalPoints) XP total.",
+            pointsDelta: pointsDelta,
+            totalPoints: current.totalPoints,
+            level: current.level,
+            symbolName: "sparkles",
+            createdAt: createdAt
+        )
+    }
+
+    if let goal = current.goals.first(where: { currentGoal in
+        currentGoal.isMet && previous.goals.first(where: { $0.kind == currentGoal.kind })?.isMet != true
+    }) {
+        return AtlasRewardCelebrationState(
+            kind: .goal,
+            title: "Goal complete",
+            detail: "\(goal.title): \(goal.progressLabel)",
+            pointsDelta: pointsDelta,
+            totalPoints: current.totalPoints,
+            level: current.level,
+            symbolName: goal.symbolName,
+            createdAt: createdAt
+        )
+    }
+
+    if let badge = current.badges.first(where: { currentBadge in
+        currentBadge.isEarned && previous.badges.first(where: { $0.kind == currentBadge.kind })?.isEarned != true
+    }) {
+        return AtlasRewardCelebrationState(
+            kind: .badge,
+            title: "Badge earned",
+            detail: "\(badge.title) · \(badge.subtitle)",
+            pointsDelta: pointsDelta,
+            totalPoints: current.totalPoints,
+            level: current.level,
+            symbolName: badge.symbolName,
+            createdAt: createdAt
+        )
+    }
+
+    if let streak = current.streaks.first(where: { currentStreak in
+        currentStreak.count > (previous.streaks.first(where: { $0.kind == currentStreak.kind })?.count ?? 0)
+    }) {
+        return AtlasRewardCelebrationState(
+            kind: .streak,
+            title: "Streak extended",
+            detail: "\(streak.title): \(streak.valueLabel)",
+            pointsDelta: pointsDelta,
+            totalPoints: current.totalPoints,
+            level: current.level,
+            symbolName: streak.symbolName,
+            createdAt: createdAt
+        )
+    }
+
+    return AtlasRewardCelebrationState(
+        kind: .xp,
+        title: "XP earned",
+        detail: "Kairo updated your rewards board.",
+        pointsDelta: pointsDelta,
+        totalPoints: current.totalPoints,
+        level: current.level,
+        symbolName: "hexagon.fill",
+        createdAt: createdAt
+    )
 }
 
 private struct AtlasMascotEvolutionPathCard: View {
@@ -2745,11 +3036,11 @@ private struct AtlasMascotEvolutionPathCard: View {
                             .frame(width: 196, alignment: .leading)
                             .padding(16)
                             .background(
-                                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
                                     .fill(stage == currentStage ? AtlasPalette.secondaryFill : AtlasPalette.surfaceTop)
                             )
                             .overlay(
-                                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
                                     .stroke(stage == currentStage ? atlasMascotLineTint(for: selection).opacity(0.45) : AtlasPalette.chromeStroke, lineWidth: 1)
                             )
                         }
@@ -2907,7 +3198,7 @@ public struct AtlasMascotDetailScreen: View {
 
                         VStack(alignment: .center, spacing: AtlasSpacing.small) {
                             ZStack(alignment: .bottomTrailing) {
-                                RoundedRectangle(cornerRadius: 30, style: .continuous)
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
                                     .fill(
                                         LinearGradient(
                                             colors: [
@@ -3495,11 +3786,11 @@ private struct AtlasMascotMomentumTile: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
         .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(AtlasPalette.surfaceSecondary)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(tint.opacity(0.18), lineWidth: 1)
         )
     }

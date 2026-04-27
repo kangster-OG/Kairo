@@ -156,7 +156,7 @@ struct AtlasImportCenterScreen: View {
         AtlasScreen {
             importCenterHeader(
                 "Import Center",
-                subtitle: "Atlas JSON remains the canonical migration path. CSV and manual imports stay preview-first, deterministic, and local until you explicitly replace local data."
+                subtitle: "Kairo JSON remains the canonical migration path. CSV and manual imports stay preview-first, deterministic, and local until you explicitly replace local data."
             )
 
             if let error = model.loadErrorMessage {
@@ -186,7 +186,7 @@ struct AtlasImportCenterScreen: View {
 
             AtlasSectionCard(style: .elevated, title: "Source input") {
                 if selectedImporter == .atlasJSON {
-                    TextField("Absolute path to Atlas JSON export", text: $filePath)
+                    TextField("Absolute path to Kairo JSON export", text: $filePath)
                         .autocorrectionDisabled()
                         .atlasStandaloneInputSurface()
                 } else {
@@ -239,14 +239,14 @@ struct AtlasImportCenterScreen: View {
                     .buttonStyle(.plain)
                 }
 
-                Text("Replacing local data creates a restore point first when Atlas already has local rows.")
+                Text("Replacing local data creates a restore point first when Kairo already has local rows.")
                     .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
             }
 
             if supportsTemplates {
                 AtlasSectionCard(title: "Saved templates") {
-                    Text("Templates store mapping and import options only. Atlas never saves pasted import content into these presets.")
+                    Text("Templates store mapping and import options only. Kairo never saves pasted import content into these presets.")
                         .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
 
@@ -331,12 +331,12 @@ struct AtlasImportCenterScreen: View {
             }
 
             AtlasSectionCard(title: "Restore points") {
-                Text("Restore points preview the saved Atlas JSON snapshot before you commit a restore. Restores replace local data transactionally and append an audit entry.")
+                Text("Restore points preview the saved Kairo JSON snapshot before you commit a restore. Restores replace local data transactionally and append an audit entry.")
                     .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
 
                 if restorePoints.isEmpty {
-                    Text("No restore points available yet. Atlas creates them before destructive replace-import and restore actions.")
+                    Text("No restore points available yet. Kairo creates them before destructive replace-import and restore actions.")
                         .foregroundStyle(AtlasPalette.textSecondary)
                 } else {
                     ForEach(restorePoints) { restorePoint in

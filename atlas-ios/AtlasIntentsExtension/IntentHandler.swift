@@ -116,9 +116,9 @@ private enum AtlasIntentError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .nextDueUnavailable:
-            return "Atlas does not have a projected next-due action ready right now."
+            return "Kairo does not have a projected next-due action ready right now."
         case .nextDueProjectionStale:
-            return "Open Atlas first to refresh your local next-due action before running this shortcut."
+            return "Open Kairo first to refresh your local next-due action before running this shortcut."
         }
     }
 }
@@ -197,7 +197,7 @@ enum AtlasQuickCaptureIntentKind: String, AppEnum {
 
 struct AtlasOpenTodayIntent: AppIntent {
     static let title: LocalizedStringResource = "Open Today"
-    static let description = IntentDescription("Open Atlas to the Today tab.")
+    static let description = IntentDescription("Open Kairo to the Today tab.")
     static let openAppWhenRun = true
 
     func perform() async throws -> some IntentResult {
@@ -208,7 +208,7 @@ struct AtlasOpenTodayIntent: AppIntent {
 
 struct AtlasOpenWatchCompanionIntent: AppIntent {
     static let title: LocalizedStringResource = "Open Apple Watch Companion"
-    static let description = IntentDescription("Open Atlas to the Apple Watch companion handoff surface.")
+    static let description = IntentDescription("Open Kairo to the Apple Watch companion handoff surface.")
     static let openAppWhenRun = true
 
     func perform() async throws -> some IntentResult {
@@ -219,7 +219,7 @@ struct AtlasOpenWatchCompanionIntent: AppIntent {
 
 struct AtlasOpenRecoveryHandlingIntent: AppIntent {
     static let title: LocalizedStringResource = "Open Recovery Handling"
-    static let description = IntentDescription("Open Atlas directly to recovery handling for the watch companion.")
+    static let description = IntentDescription("Open Kairo directly to recovery handling for the watch companion.")
     static let openAppWhenRun = true
 
     func perform() async throws -> some IntentResult {
@@ -230,7 +230,7 @@ struct AtlasOpenRecoveryHandlingIntent: AppIntent {
 
 struct AtlasOpenInventoryIntent: AppIntent {
     static let title: LocalizedStringResource = "Open Inventory"
-    static let description = IntentDescription("Open Atlas to inventory and supplies.")
+    static let description = IntentDescription("Open Kairo to inventory and supplies.")
     static let openAppWhenRun = true
 
     func perform() async throws -> some IntentResult {
@@ -241,7 +241,7 @@ struct AtlasOpenInventoryIntent: AppIntent {
 
 struct AtlasOpenTrustVaultIntent: AppIntent {
     static let title: LocalizedStringResource = "Open Trust Vault"
-    static let description = IntentDescription("Open Atlas to Trust Vault privacy controls.")
+    static let description = IntentDescription("Open Kairo to Trust Vault privacy controls.")
     static let openAppWhenRun = true
 
     func perform() async throws -> some IntentResult {
@@ -252,7 +252,7 @@ struct AtlasOpenTrustVaultIntent: AppIntent {
 
 struct AtlasOpenQuickCaptureIntent: AppIntent {
     static let title: LocalizedStringResource = "Open Quick Capture"
-    static let description = IntentDescription("Open Atlas directly to the fast capture hub.")
+    static let description = IntentDescription("Open Kairo directly to the fast capture hub.")
     static let openAppWhenRun = true
 
     @Parameter(title: "Focus")
@@ -281,7 +281,7 @@ struct AtlasOpenQuickCaptureIntent: AppIntent {
 
 struct AtlasOpenProgressEvidenceIntent: AppIntent {
     static let title: LocalizedStringResource = "Open Progress Evidence"
-    static let description = IntentDescription("Open Atlas to visual progress capture and compare.")
+    static let description = IntentDescription("Open Kairo to visual progress capture and compare.")
     static let openAppWhenRun = true
 
     func perform() async throws -> some IntentResult {
@@ -292,7 +292,7 @@ struct AtlasOpenProgressEvidenceIntent: AppIntent {
 
 struct AtlasOpenRewardsIntent: AppIntent {
     static let title: LocalizedStringResource = "Open Rewards"
-    static let description = IntentDescription("Open Atlas to the rewards and mascot momentum surfaces.")
+    static let description = IntentDescription("Open Kairo to the rewards and mascot momentum surfaces.")
     static let openAppWhenRun = true
 
     func perform() async throws -> some IntentResult {
@@ -303,7 +303,7 @@ struct AtlasOpenRewardsIntent: AppIntent {
 
 struct AtlasOpenWeeklyReviewIntent: AppIntent {
     static let title: LocalizedStringResource = "Open Weekly Review"
-    static let description = IntentDescription("Open Atlas to the weekly closeout and follow-through surface.")
+    static let description = IntentDescription("Open Kairo to the weekly closeout and follow-through surface.")
     static let openAppWhenRun = true
 
     func perform() async throws -> some IntentResult {
@@ -314,7 +314,7 @@ struct AtlasOpenWeeklyReviewIntent: AppIntent {
 
 struct AtlasOpenMascotIntent: AppIntent {
     static let title: LocalizedStringResource = "Open Mascot"
-    static let description = IntentDescription("Open Atlas to the mascot detail screen.")
+    static let description = IntentDescription("Open Kairo to the mascot detail screen.")
     static let openAppWhenRun = true
 
     func perform() async throws -> some IntentResult {
@@ -325,7 +325,7 @@ struct AtlasOpenMascotIntent: AppIntent {
 
 struct AtlasCheckInWithMascotIntent: AppIntent {
     static let title: LocalizedStringResource = "Check In With Mascot"
-    static let description = IntentDescription("Open Atlas, let the mascot react, and add a fresh mascot-moment entry.")
+    static let description = IntentDescription("Open Kairo, let the mascot react, and add a fresh mascot-moment entry.")
     static let openAppWhenRun = true
 
     func perform() async throws -> some IntentResult {
@@ -339,7 +339,7 @@ struct AtlasCheckInWithMascotIntent: AppIntent {
 
 struct AtlasMarkNextDueTakenIntent: AppIntent {
     static let title: LocalizedStringResource = "Mark Next Due Taken"
-    static let description = IntentDescription("Open Atlas and mark the projected next-due item as taken.")
+    static let description = IntentDescription("Open Kairo and mark the projected next-due item as taken.")
     static let openAppWhenRun = true
 
     func perform() async throws -> some IntentResult {
@@ -350,7 +350,7 @@ struct AtlasMarkNextDueTakenIntent: AppIntent {
 
 struct AtlasSkipNextDueIntent: AppIntent {
     static let title: LocalizedStringResource = "Skip Next Due"
-    static let description = IntentDescription("Open Atlas and skip the projected next-due item.")
+    static let description = IntentDescription("Open Kairo and skip the projected next-due item.")
     static let openAppWhenRun = true
 
     func perform() async throws -> some IntentResult {
@@ -361,14 +361,14 @@ struct AtlasSkipNextDueIntent: AppIntent {
 
 struct AtlasLogWatchContextIntent: AppIntent {
     static let title: LocalizedStringResource = "Log Watch Context"
-    static let description = IntentDescription("Open Atlas and capture a fast hydration or low-appetite signal from a watch-friendly shortcut.")
+    static let description = IntentDescription("Open Kairo and capture a fast hydration or low-appetite signal from a watch-friendly shortcut.")
     static let openAppWhenRun = true
 
     @Parameter(title: "Signal")
     var signal: AtlasWatchContextShortcutKind
 
     static var parameterSummary: some ParameterSummary {
-        Summary("Log \(\.$signal) in Atlas")
+        Summary("Log \(\.$signal) in Kairo")
     }
 
     init() {
@@ -398,7 +398,7 @@ struct AtlasLogWatchContextIntent: AppIntent {
 
 struct AtlasLogWeightIntent: AppIntent {
     static let title: LocalizedStringResource = "Log Weight"
-    static let description = IntentDescription("Open Atlas and add a weight entry.")
+    static let description = IntentDescription("Open Kairo and add a weight entry.")
     static let openAppWhenRun = true
 
     @Parameter(title: "Value")
@@ -441,7 +441,7 @@ struct AtlasLogWeightIntent: AppIntent {
 
 struct AtlasLogSymptomIntent: AppIntent {
     static let title: LocalizedStringResource = "Log Symptom"
-    static let description = IntentDescription("Open Atlas and add a symptom entry.")
+    static let description = IntentDescription("Open Kairo and add a symptom entry.")
     static let openAppWhenRun = true
 
     @Parameter(title: "Symptom")

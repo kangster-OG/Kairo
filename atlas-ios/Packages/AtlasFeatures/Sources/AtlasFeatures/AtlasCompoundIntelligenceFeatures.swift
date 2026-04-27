@@ -110,7 +110,7 @@ public struct AtlasCompoundIntelligenceScreen: View {
                 }
             } else {
                 AtlasSectionCard(style: .utility, title: "Compound not found") {
-                    Text("No strong catalog match yet. Protocol detail and Change Studio are still available.")
+                    Text("No strong catalog match yet. Protocol detail and the plan editor are still available.")
                         .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }

@@ -283,11 +283,11 @@ private struct AtlasRewardSignalTile: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
         .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(AtlasPalette.surfaceSecondary)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(tint.opacity(0.18), lineWidth: 1)
         )
     }
@@ -368,7 +368,7 @@ private struct AtlasRewardBadgeRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: AtlasSpacing.small) {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill((badge.isEarned ? AtlasPalette.success : AtlasPalette.textSecondary).opacity(0.12))
                 .frame(width: 44, height: 44)
                 .overlay(

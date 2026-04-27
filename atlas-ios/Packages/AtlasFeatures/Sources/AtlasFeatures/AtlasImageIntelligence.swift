@@ -133,19 +133,19 @@ struct AtlasInlinePhotoPreview: View {
         }
         .frame(maxWidth: .infinity)
         .frame(height: height)
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         #else
         AtlasImageFallback()
             .frame(maxWidth: .infinity)
             .frame(height: height)
-            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         #endif
     }
 }
 
 private struct AtlasImageFallback: View {
     var body: some View {
-        RoundedRectangle(cornerRadius: 20, style: .continuous)
+        RoundedRectangle(cornerRadius: 8, style: .continuous)
             .fill(AtlasPalette.surfaceSecondary)
             .overlay {
                 Image(systemName: "photo")

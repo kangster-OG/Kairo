@@ -277,7 +277,7 @@ public struct AtlasProgressEvidenceScreen: View {
                         HStack(alignment: .top, spacing: AtlasSpacing.small) {
                             AtlasProgressPhotoImage(path: photo.absolutePath)
                                 .frame(width: 96, height: 112)
-                                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
 
                             VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
                                 Text(photo.angle.title)
@@ -457,7 +457,7 @@ private struct AtlasProgressPhotoComposerScreen: View {
                     ) {
                         AtlasProgressPhotoImage(path: referencePhoto.absolutePath)
                             .frame(height: 220)
-                            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                             .overlay(alignment: .bottomLeading) {
                                 Text("Reference")
                                     .atlasTextRole(.deckEyebrow)
@@ -518,7 +518,7 @@ private struct AtlasProgressPhotoComposerScreen: View {
                                 .opacity(guidedOverlayEnabled && referencePhoto != nil ? 0.88 : 1)
                         }
                         .frame(height: 240)
-                        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                     }
 
                     Picker("Angle", selection: $draft.angle) {
@@ -665,7 +665,7 @@ private struct AtlasProgressPhotoTile: View {
             AtlasProgressPhotoImage(path: photo.absolutePath)
                 .frame(maxWidth: .infinity)
                 .frame(height: 180)
-                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
 
             Text(photo.angle.title)
                 .atlasTextRole(.deckEyebrow)
@@ -699,7 +699,7 @@ private struct AtlasProgressPhotoImage: View {
                     .resizable()
                     .scaledToFill()
             } else {
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(AtlasPalette.primary.opacity(0.12))
                     .overlay {
                         Image(systemName: "photo")
@@ -707,7 +707,7 @@ private struct AtlasProgressPhotoImage: View {
                     }
             }
             #else
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(AtlasPalette.primary.opacity(0.12))
             #endif
         }
@@ -917,11 +917,11 @@ private struct AtlasProgressCompareCard: View {
                 ZStack(alignment: .leading) {
                     AtlasProgressPhotoImage(path: candidate.baseline.absolutePath)
                         .frame(width: width, height: 260)
-                        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
 
                     AtlasProgressPhotoImage(path: candidate.current.absolutePath)
                         .frame(width: width * clampedReveal, height: 260, alignment: .leading)
-                        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
 
                     Rectangle()
                         .fill(.white.opacity(0.92))
