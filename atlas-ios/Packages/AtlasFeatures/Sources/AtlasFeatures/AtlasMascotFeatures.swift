@@ -711,40 +711,15 @@ private struct AtlasAmbientMascotPolicy {
     }
 
     var allowsWakeBlink: Bool {
-        allowsAmbientPerch && suppression.suppressesAutonomousMotion == false
+        false
     }
 
     var allowsAutonomousMotion: Bool {
-        allowsAmbientPerch && suppression.suppressesAutonomousMotion == false
+        false
     }
 
     func allowsReaction(_ kind: AtlasAmbientMascotReactionKind) -> Bool {
-        guard suppression.suppressesReactions == false else {
-            return false
-        }
-
-        switch presence {
-        case .off:
-            return false
-        case .subtle:
-            switch kind {
-            case .logSuccess,
-                 .reviewComplete,
-                 .openedMascot,
-                 .openedRewards,
-                 .capturedMoment,
-                 .noticedContent,
-                 .inspectReveal,
-                 .welcomeBack,
-                 .milestone,
-                 .artifactReady:
-                return true
-            case .openedSurface:
-                return false
-            }
-        case .moreAlive:
-            return true
-        }
+        false
     }
 
     func isNotable(_ kind: AtlasAmbientMascotReactionKind) -> Bool {
@@ -2102,54 +2077,17 @@ extension View {
 }
 
 struct AtlasAmbientMascotFlightOverlay: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
     let flight: AtlasAmbientMascotFlightState
     let onFinished: () -> Void
 
-    @State private var progress: CGFloat = 0
-
     var body: some View {
-        AtlasMascotSticker(
-            line: atlasMascotLine(for: flight.selection),
-            stage: flight.stage,
-            size: currentSize
-        )
-        .rotationEffect(.degrees(-6 + Double(progress * 8)))
-        .position(currentPoint)
-        .shadow(color: atlasMascotLineTint(for: flight.selection).opacity(0.16), radius: 12, y: 8)
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
-        .onAppear {
-            guard reduceMotion == false else {
+        Color.clear
+            .frame(width: 0, height: 0)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+            .onAppear {
                 onFinished()
-                return
             }
-
-            withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
-                progress = 1
-            }
-
-            Task {
-                try? await Task.sleep(for: .milliseconds(520))
-                await MainActor.run {
-                    onFinished()
-                }
-            }
-        }
-    }
-
-    private var currentPoint: CGPoint {
-        let x = flight.startPoint.x + ((flight.endPoint.x - flight.startPoint.x) * progress)
-        let baseY = flight.startPoint.y + ((flight.endPoint.y - flight.startPoint.y) * progress)
-        let arc = sin(progress * .pi) * (flight.destinationPlacement == .tabShelf ? 38 : 52)
-        return CGPoint(x: x, y: baseY - arc)
-    }
-
-    private var currentSize: CGFloat {
-        let start: CGFloat = 58
-        let end: CGFloat = flight.destinationPlacement == .tabShelf ? 40 : 54
-        return start + ((end - start) * progress)
     }
 }
 

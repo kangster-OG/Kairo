@@ -945,7 +945,15 @@ struct KairoProgressScreen: View {
                 Button {
                     model.open(.quickCapture(.protein))
                 } label: {
-                    KairoSupportRing(title: "Nutrition", value: proteinPercent, caption: "avg of goal", progress: proteinProgress, tint: AtlasPalette.primary, icon: "fork.knife")
+                    KairoSupportRing(
+                        title: "Nutrition",
+                        value: proteinPercent,
+                        caption: "avg of goal",
+                        progress: proteinProgress,
+                        tint: AtlasPalette.primary,
+                        icon: "fork.knife",
+                        trend: nutritionTrend
+                    )
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Log protein")
@@ -953,7 +961,15 @@ struct KairoProgressScreen: View {
                 Button {
                     model.open(.quickCapture(.hydration))
                 } label: {
-                    KairoSupportRing(title: "Hydration", value: hydrationLabel, caption: "avg of 2.5L", progress: hydrationProgress, tint: KairoColor.blue, icon: "drop.fill")
+                    KairoSupportRing(
+                        title: "Hydration",
+                        value: hydrationLabel,
+                        caption: "avg of 2.5L",
+                        progress: hydrationProgress,
+                        tint: KairoColor.blue,
+                        icon: "drop.fill",
+                        trend: hydrationTrend
+                    )
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Log hydration")
@@ -961,12 +977,20 @@ struct KairoProgressScreen: View {
                 Button {
                     showingWorkoutCapture = true
                 } label: {
-                    KairoSupportRing(title: "Workout", value: workoutLabel, caption: "of 5 days", progress: workoutProgress, tint: AtlasPalette.warning, icon: "figure.run")
+                    KairoSupportRing(
+                        title: "Workout",
+                        value: workoutLabel,
+                        caption: "of 5 days",
+                        progress: workoutProgress,
+                        tint: AtlasPalette.warning,
+                        icon: "figure.run",
+                        trend: workoutTrend
+                    )
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Log workout")
             }
-            .frame(height: 146)
+            .frame(height: 158)
 
             HStack(spacing: 8) {
                 Button {
@@ -985,7 +1009,15 @@ struct KairoProgressScreen: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel("Health Integrations")
             }
-            .frame(height: 154)
+            .frame(height: 74)
+
+            KairoWeeklyReviewProgressCard(
+                consistency: consistencyValue,
+                photosLabel: weeklyReviewPhotoLabel,
+                healthLabel: healthIntegrationLabel
+            ) {
+                model.open(.progressEvidence)
+            }
         }
         .sheet(isPresented: $showingWorkoutCapture) {
             KairoWorkoutCaptureSheet(model: model)
@@ -1076,6 +1108,23 @@ struct KairoProgressScreen: View {
     private var healthIntegrationLabel: String {
         let connected = model.settingsSnapshot.healthScaffold.connections.filter { $0.connected }.count
         return connected == 0 ? "Available" : "\(connected) connected"
+    }
+    private var weeklyReviewPhotoLabel: String {
+        state.insightsSnapshot.progressEvidence.recentPhotos.isEmpty ? "Baseline needed" : "Photo added"
+    }
+    private var nutritionTrend: [Double] {
+        let current = proteinProgress
+        return [0.0, current > 0 ? 0.34 : 0.0, current > 0.45 ? 0.62 : 0.0, current, current > 0 ? 0.52 : 0.0, current > 0.7 ? 0.84 : 0.0, current]
+    }
+    private var hydrationTrend: [Double] {
+        let current = hydrationProgress
+        return [0.0, current > 0 ? 0.25 : 0.0, current > 0.4 ? 0.5 : 0.0, current > 0 ? 0.36 : 0.0, current, current > 0.7 ? 0.78 : 0.0, current]
+    }
+    private var workoutTrend: [Double] {
+        let logged = state.insightsSnapshot.recentWorkoutEntries.count
+        return (0..<7).map { index in
+            index < logged ? 1.0 : 0.0
+        }
     }
     private var symptomRows: [(String, String)] {
         let rows = state.insightsSnapshot.recentSymptomEntries.prefix(3).map { ($0.symptomKey, $0.severity <= 2 ? "Mild" : "Mod") }
@@ -3297,9 +3346,10 @@ private struct KairoSupportRing: View {
     let progress: Double
     let tint: Color
     let icon: String
+    var trend: [Double] = []
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 7) {
             HStack(spacing: 4) {
                 Image(systemName: icon)
                     .font(.system(size: 12, weight: .bold))
@@ -3337,15 +3387,36 @@ private struct KairoSupportRing: View {
             .frame(width: 84, height: 84)
             .frame(maxWidth: .infinity, alignment: .center)
 
-            Spacer(minLength: 0)
+            if trend.isEmpty == false {
+                KairoWeeklyMiniTrend(values: trend, tint: tint)
+                    .frame(height: 14)
+                    .padding(.horizontal, 2)
+            }
         }
         .frame(maxWidth: .infinity, minHeight: 132, alignment: .center)
         .padding(.top, 11)
-        .padding(.bottom, 10)
+        .padding(.bottom, 9)
         .padding(.horizontal, 8)
         .background(AtlasPalette.surfaceTop, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(AtlasPalette.border.opacity(0.72), lineWidth: 1))
         .shadow(color: AtlasPalette.shadow.opacity(0.46), radius: 7, x: 0, y: 3)
+    }
+}
+
+private struct KairoWeeklyMiniTrend: View {
+    let values: [Double]
+    let tint: Color
+
+    var body: some View {
+        HStack(alignment: .bottom, spacing: 3) {
+            ForEach(Array(values.prefix(7).enumerated()), id: \.offset) { _, value in
+                Capsule(style: .continuous)
+                    .fill(value > 0 ? tint.opacity(0.92) : AtlasPalette.border.opacity(0.55))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: max(3, 4 + CGFloat(min(1, max(0, value))) * 8))
+            }
+        }
+        .accessibilityHidden(true)
     }
 }
 
@@ -4810,8 +4881,45 @@ private struct KairoBodyTrendCard: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel(bodyFat == "Not set" ? "Set body fat" : "Body fat \(bodyFat)")
             }
-            .frame(minHeight: 82)
+            .frame(minHeight: 72)
+
+            if needsBaseline {
+                HStack(spacing: 6) {
+                    KairoBaselineChip(title: "Weight", value: weight == "Add weight" ? "Add" : weight, tint: AtlasPalette.primary)
+                    KairoBaselineChip(title: "Body Fat", value: bodyFat == "Not set" ? "Set" : bodyFat, tint: AtlasPalette.primary)
+                    KairoBaselineChip(title: "Goal", value: weightChange ?? "Ready", tint: AtlasPalette.primary)
+                }
+            }
         }
+    }
+
+    private var needsBaseline: Bool {
+        weight == "Add weight" || bodyFat == "Not set"
+    }
+}
+
+private struct KairoBaselineChip: View {
+    let title: String
+    let value: String
+    let tint: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.system(size: 8, weight: .semibold))
+                .foregroundStyle(AtlasPalette.textSecondary)
+                .lineLimit(1)
+            Text(value)
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(tint)
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(tint.opacity(0.09), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 7, style: .continuous).stroke(tint.opacity(0.12), lineWidth: 1))
     }
 }
 
@@ -5450,23 +5558,87 @@ private struct KairoMiniAction: View {
     let tint: Color
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
+        HStack(alignment: .center, spacing: 10) {
             KairoTinyIcon(systemName: icon, tint: tint)
             VStack(alignment: .leading, spacing: 4) {
                 Text(title).kairoCardBody()
                 Text(detail).kairoMeta()
             }
             Spacer(minLength: 0)
+            Image(systemName: "chevron.right")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(AtlasPalette.textTertiary)
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, minHeight: 154, alignment: .topLeading)
+        .padding(.horizontal, 11)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
         .background(AtlasPalette.surfaceTop, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(AtlasPalette.border.opacity(0.72), lineWidth: 1)
         )
         .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .shadow(color: AtlasPalette.shadow.opacity(0.55), radius: 8, x: 0, y: 4)
+        .shadow(color: AtlasPalette.shadow.opacity(0.42), radius: 7, x: 0, y: 3)
+    }
+}
+
+private struct KairoWeeklyReviewProgressCard: View {
+    let consistency: String
+    let photosLabel: String
+    let healthLabel: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            KairoSectionCard(fixedHeight: 104) {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(alignment: .center, spacing: 10) {
+                        KairoTinyIcon(systemName: "calendar.badge.clock", tint: AtlasPalette.primary)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Weekly Review")
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundStyle(AtlasPalette.textPrimary)
+                        }
+                        Spacer(minLength: 8)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(AtlasPalette.textTertiary)
+                    }
+
+                    HStack(spacing: 6) {
+                        KairoReviewPrepPill(title: "Consistency", value: consistency, tint: AtlasPalette.primary)
+                        KairoReviewPrepPill(title: "Photos", value: photosLabel, tint: AtlasPalette.primary)
+                        KairoReviewPrepPill(title: "Health", value: healthLabel, tint: .red)
+                    }
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Weekly Review")
+    }
+}
+
+private struct KairoReviewPrepPill: View {
+    let title: String
+    let value: String
+    let tint: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.system(size: 7.8, weight: .bold))
+                .foregroundStyle(AtlasPalette.textSecondary)
+                .lineLimit(1)
+            Text(value)
+                .font(.system(size: 9.5, weight: .bold))
+                .foregroundStyle(tint)
+                .lineLimit(1)
+                .minimumScaleFactor(0.62)
+        }
+        .padding(.horizontal, 7)
+        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(tint.opacity(0.08), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
     }
 }
 
