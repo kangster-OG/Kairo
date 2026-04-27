@@ -308,51 +308,51 @@ final class AtlasPhaseOneTests: XCTestCase {
         XCTAssertEqual(
             sequence,
             [
-                .splash,
+                .intro,
+                .demoToday,
+                .demoProgress,
+                .gender,
+                .age,
+                .goalWeight,
+                .heightWeight,
                 .trackType,
-                .journeyStatus,
-                .protocolPreview,
-                .focus,
-                .goalsProfile,
-                .healthDisclaimer,
-                .privacyPreset,
-                .premiumPreview,
-                .trustVaultReveal,
-                .companionPreview,
-                .readinessLoop,
-                .systemSurfaces,
-                .personalizedUnlock,
-                .todayCommandPreview,
-                .protocolChangeHistory,
-                .reviewOutputPreview,
-                .migrationPreview,
-                .trialTimeline,
-                .premiumPaywall,
+                .companionChoice,
+                .companionReveal,
+                .companionName,
+                .companionJourney,
+                .usedApps,
+                .longTermResults,
+                .branchPath,
+                .peptideSelection,
+                .peptideFrequency,
+                .peptideGoal,
                 .connectApps,
-                .planReady
+                .ratingPrimer,
+                .trackingPermission,
+                .planLoading,
+                .planPreview,
+                .planReady,
+                .trialIntro,
+                .trialReminder,
+                .trialPaywall,
+                .purchaseSuccess
             ]
         )
     }
 
     func testDreamOnboardingInventoryStaysLongAndChaptered() {
-        XCTAssertEqual(atlasDreamOnboardingSceneCountForTesting, 22)
+        XCTAssertEqual(atlasDreamOnboardingSceneCountForTesting, 28)
         XCTAssertEqual(
             atlasDreamOnboardingChapterTitlesForTesting,
             [
-                "Command center fantasy",
-                "Problem aha",
-                "Protocol reality",
-                "Goals and evidence",
-                "Friction map",
-                "Trust Vault setup",
-                "Interactive Log Shot ritual",
-                "Kairo generation",
-                "Companion awakening",
-                "Readiness reveal",
-                "First-week plan",
-                "Trial and paywall",
-                "Permissions",
-                "Populated Today handoff"
+                "Intro demo",
+                "Profile setup",
+                "Protocol branch",
+                "Companion hatching",
+                "Tracking permissions",
+                "Plan generation",
+                "Save progress",
+                "Trial unlock"
             ]
         )
     }

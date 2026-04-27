@@ -7617,7 +7617,7 @@ public struct AtlasProtocolEditorScreen: View {
                         .foregroundStyle(form.kind.editorTint)
 
                     LazyVGrid(columns: [GridItem(.flexible(), spacing: AtlasSpacing.small), GridItem(.flexible(), spacing: AtlasSpacing.small)], spacing: AtlasSpacing.small) {
-                        ForEach(AtlasProtocolAdministrationRoute.allCases, id: \.self) { route in
+                        ForEach([AtlasProtocolAdministrationRoute.injection, .oral], id: \.self) { route in
                             AtlasProtocolChoiceCard(
                                 title: route.atlasTitle,
                                 subtitle: route.editorSubtitle,
@@ -11633,7 +11633,7 @@ private extension AtlasProtocolAdministrationRoute {
     var atlasTitle: String {
         switch self {
         case .injection:
-            return "Injection"
+            return "SubQ"
         case .oral:
             return "Oral"
         case .sublingual:
@@ -11652,7 +11652,7 @@ private extension AtlasProtocolAdministrationRoute {
     var editorSubtitle: String {
         switch self {
         case .injection:
-            return "Shots and site rotation"
+            return "Injection site rotation"
         case .oral:
             return "Capsule, tablet, or liquid"
         case .sublingual:

@@ -193,10 +193,19 @@ struct KairoLogShotScreen: View {
                     }
                 }
 
-                KairoCompactSectionCard(title: "Injection Site") {
-                    HStack(alignment: .top, spacing: 5) {
+                VStack(alignment: .leading, spacing: 7) {
+                    Text("Injection Site")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(AtlasPalette.textPrimary)
+                        .padding(.top, 10)
+                        .padding(.horizontal, 10)
+
+                    HStack(alignment: .top, spacing: 10) {
                         KairoBodyMap(sites: activeSites, selectedSiteID: selectedSiteID)
-                            .frame(width: 244, height: 168)
+                            .frame(width: 250, height: 168)
+                            .background(.white, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+
                         VStack(spacing: 3) {
                             if activeSites.isEmpty {
                                 KairoEmptyLine("No site rotation set up yet.")
@@ -218,9 +227,19 @@ struct KairoLogShotScreen: View {
                                 }
                             }
                         }
+                        .padding(.trailing, 10)
                         .frame(width: 78)
                     }
+                    .padding(.bottom, 10)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(AtlasPalette.surfaceTop, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(AtlasPalette.border.opacity(0.72), lineWidth: 1)
+                )
+                .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .shadow(color: AtlasPalette.shadow.opacity(0.30), radius: 5, x: 0, y: 2)
 
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
@@ -777,7 +796,7 @@ struct KairoProtocolEditorScreen: View {
                 KairoEditorFieldLabel("Cadence")
                 KairoSegmentedOptions(options: ["Daily", "Every Other Day", "Weekly", "Custom"], selection: $form.cadenceLabel)
                 KairoEditorFieldLabel("Route")
-                KairoSegmentedOptions(options: ["SubQ", "IM"], selection: $form.routeLabel)
+                KairoSegmentedOptions(options: ["SubQ", "Oral"], selection: $form.routeLabel)
                 KairoEditorFieldLabel("Day of Week")
                 KairoWeekSelector(selected: $form.weekday)
                 DatePicker("Time", selection: $form.time, displayedComponents: .hourAndMinute)
@@ -878,6 +897,9 @@ struct KairoProgressScreen: View {
                 bodyFat: dashboardBodyFatLabel,
                 bodyFatChange: dashboardBodyFatDetail,
                 points: dashboardWeightPoints,
+                onWeightTap: {
+                    model.open(.quickCapture(.weight))
+                },
                 onBodyFatTap: {
                     showingMeasurementCapture = true
                 }
@@ -2675,27 +2697,30 @@ private struct KairoHeroMascotCard: View {
                     .clipped()
                     .accessibilityHidden(true)
 
-                HStack(spacing: 10) {
-                    Color.clear
-                        .frame(width: 118, height: 126)
-                        .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: 5) {
-                        Text(title)
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundStyle(AtlasPalette.textPrimary)
-                        Text(subtitle)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(AtlasPalette.textPrimary)
-                        HStack(spacing: 8) {
-                            KairoBadge(footnote, tint: AtlasPalette.primary)
-                            KairoProgressLine(value: progress, tint: AtlasPalette.primary)
-                        }
-                        Text(kairoIsMockupFidelityLaunch ? "1,260 / 2,000 XP" : "\(model.rewardsSnapshot.totalPoints.formatted()) / \(model.rewardsSnapshot.nextLevelPoints.formatted()) XP")
-                            .font(.system(size: 9, weight: .regular))
-                            .foregroundStyle(AtlasPalette.textSecondary)
-                    }
-                    Spacer(minLength: 0)
-                }
+	                HStack(spacing: 10) {
+	                    Color.clear
+	                        .frame(width: 118, height: 126)
+	                        .accessibilityHidden(true)
+	                    VStack(alignment: .leading, spacing: 5) {
+	                        Text(title)
+	                            .font(.system(size: 13, weight: .bold))
+	                            .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.12))
+	                        Text(subtitle)
+	                            .font(.system(size: 11, weight: .bold))
+	                            .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.12))
+	                        HStack(spacing: 8) {
+	                            KairoBadge(footnote, tint: AtlasPalette.primary)
+	                            KairoProgressLine(value: progress, tint: AtlasPalette.primary)
+	                                .background(Color(red: 0.04, green: 0.32, blue: 0.27).opacity(0.14), in: Capsule(style: .continuous))
+	                        }
+	                        Text(kairoIsMockupFidelityLaunch ? "1,260 / 2,000 XP" : "\(model.rewardsSnapshot.totalPoints.formatted()) / \(model.rewardsSnapshot.nextLevelPoints.formatted()) XP")
+	                            .font(.system(size: 10, weight: .bold))
+	                            .foregroundStyle(Color(red: 0.04, green: 0.32, blue: 0.27))
+	                    }
+	                    .padding(7)
+	                    .background(Color.white.opacity(0.92), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+	                    Spacer(minLength: 0)
+	                }
                 .padding(8)
             }
         }
@@ -3318,12 +3343,17 @@ private struct KairoCompanionEvolutionHeader: View {
     var body: some View {
         GeometryReader { proxy in
             ZStack {
-                Image("KairoBoardCompanionHeader")
-                    .resizable()
-                    .interpolation(.high)
-                    .scaledToFit()
-                    .frame(width: proxy.size.width, height: proxy.size.height)
-                    .accessibilityHidden(true)
+	                Color.white
+	                    .accessibilityHidden(true)
+
+	                Image("KairoBoardCompanionHeader")
+	                    .resizable()
+	                    .interpolation(.high)
+	                    .scaledToFill()
+	                    .frame(width: proxy.size.width, height: proxy.size.height)
+	                    .clipped()
+	                    .opacity(0.86)
+	                    .accessibilityHidden(true)
 
                 HStack(alignment: .center, spacing: 0) {
                     KairoLevelRing(
@@ -3335,21 +3365,25 @@ private struct KairoCompanionEvolutionHeader: View {
 
                     Spacer(minLength: 0)
 
-                    VStack(spacing: 6) {
-                        Text("Next Form")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(AtlasPalette.textSecondary)
-                            .shadow(color: .white.opacity(0.88), radius: 4)
-                        Image(systemName: "lock.fill")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(.white)
-                            .frame(width: 22, height: 22)
-                            .background(AtlasPalette.textSecondary.opacity(0.92), in: Circle())
-                            .shadow(color: AtlasPalette.shadow.opacity(0.24), radius: 4, y: 2)
-                        Text(model.rewardsSnapshot.level < 20 ? "Level 20" : "Level 30")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(AtlasPalette.textSecondary)
-                            .shadow(color: .white.opacity(0.88), radius: 4)
+	                    VStack(spacing: 6) {
+	                        Text("Next Form")
+	                            .font(.system(size: 10, weight: .bold))
+	                            .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.12))
+	                            .padding(.horizontal, 6)
+	                            .padding(.vertical, 3)
+	                            .background(Color.white.opacity(0.94), in: Capsule(style: .continuous))
+	                        Image(systemName: "lock.fill")
+	                            .font(.system(size: 9, weight: .bold))
+	                            .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.12))
+	                            .frame(width: 22, height: 22)
+	                            .background(Color.white.opacity(0.94), in: Circle())
+	                            .overlay(Circle().stroke(Color(red: 0.05, green: 0.14, blue: 0.12).opacity(0.16), lineWidth: 1))
+	                        Text(model.rewardsSnapshot.level < 20 ? "Level 20" : "Level 30")
+	                            .font(.system(size: 10, weight: .bold))
+	                            .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.12))
+	                            .padding(.horizontal, 6)
+	                            .padding(.vertical, 3)
+	                            .background(Color.white.opacity(0.94), in: Capsule(style: .continuous))
                     }
                     .frame(width: 74)
                 }
@@ -3359,10 +3393,11 @@ private struct KairoCompanionEvolutionHeader: View {
         }
         .frame(height: 190)
         .frame(maxWidth: .infinity)
-        .background(AtlasPalette.surfaceTop)
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-    }
-}
+	        .background(Color.white, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+	        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+	        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(AtlasPalette.border.opacity(0.48), lineWidth: 1))
+	    }
+	}
 
 private struct KairoProtocolSummaryCard: View {
     let model: AtlasAppModel
@@ -3519,10 +3554,13 @@ private struct KairoNextFormPreview: View {
     }
 
     var body: some View {
-        VStack(spacing: 7) {
-            Text("Next Form")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(AtlasPalette.textSecondary)
+	        VStack(spacing: 7) {
+	            Text("Next Form")
+	                .font(.system(size: 10, weight: .bold))
+	                .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.12))
+	                .padding(.horizontal, 6)
+	                .padding(.vertical, 3)
+	                .background(Color.white.opacity(0.94), in: Capsule(style: .continuous))
             ZStack(alignment: .bottomTrailing) {
                 Image(nextStage == .stage2 ? "AtlasMascotAetherionStage2Mockup" : "AtlasMascotAetherionStage3Mockup")
                     .resizable()
@@ -3533,20 +3571,24 @@ private struct KairoNextFormPreview: View {
                     .contrast(0.72)
                     .opacity(0.26)
                     .blur(radius: 0.25)
-                Image(systemName: "lock.fill")
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundStyle(.white)
-                    .frame(width: 18, height: 18)
-                    .background(AtlasPalette.textSecondary, in: Circle())
-                    .offset(x: -2, y: -1)
+	                Image(systemName: "lock.fill")
+	                    .font(.system(size: 9, weight: .bold))
+	                    .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.12))
+	                    .frame(width: 18, height: 18)
+	                    .background(Color.white.opacity(0.94), in: Circle())
+	                    .overlay(Circle().stroke(Color(red: 0.05, green: 0.14, blue: 0.12).opacity(0.16), lineWidth: 1))
+	                    .offset(x: -2, y: -1)
             }
             .frame(width: 70, height: 70)
-            Text(model.rewardsSnapshot.level < 20 ? "Level 20" : "Level 30")
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(AtlasPalette.textSecondary)
-        }
-    }
-}
+	            Text(model.rewardsSnapshot.level < 20 ? "Level 20" : "Level 30")
+	                .font(.system(size: 10, weight: .bold))
+	                .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.12))
+	                .padding(.horizontal, 6)
+	                .padding(.vertical, 3)
+	                .background(Color.white.opacity(0.94), in: Capsule(style: .continuous))
+	        }
+	    }
+	}
 
 private struct KairoLevelRing: View {
     let level: Int
@@ -3560,20 +3602,22 @@ private struct KairoLevelRing: View {
                 .trim(from: 0, to: min(1, max(0, progress)))
                 .stroke(AtlasPalette.primary, style: StrokeStyle(lineWidth: 7, lineCap: .round))
                 .rotationEffect(.degrees(-90))
-            VStack(spacing: 1) {
-                Text("Level")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(AtlasPalette.textSecondary)
-                Text("\(level)")
-                    .font(.system(size: 26, weight: .bold))
-                    .foregroundStyle(AtlasPalette.primary)
-                Text(detail ?? "\(Int((progress * 100).rounded()))%")
-                    .font(.system(size: detail == nil ? 9 : 7, weight: .semibold))
-                    .foregroundStyle(AtlasPalette.primary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.52)
-            }
-        }
+	            VStack(spacing: 1) {
+	                Text("Level")
+	                    .font(.system(size: 11, weight: .bold))
+	                    .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.12))
+	                Text("\(level)")
+	                    .font(.system(size: 26, weight: .bold))
+	                    .foregroundStyle(AtlasPalette.primary)
+	                Text(detail ?? "\(Int((progress * 100).rounded()))%")
+	                    .font(.system(size: detail == nil ? 9 : 8.5, weight: .bold))
+	                    .foregroundStyle(Color(red: 0.04, green: 0.32, blue: 0.27))
+	                    .lineLimit(1)
+	                    .minimumScaleFactor(0.52)
+	            }
+	            .padding(7)
+	            .background(Color.white.opacity(0.96), in: Circle())
+	        }
         .frame(width: 116, height: 116)
     }
 }
@@ -4235,11 +4279,10 @@ private struct KairoBodyMap: View {
         Image("KairoBoardBodyMap")
             .resizable()
             .interpolation(.high)
-            .scaledToFill()
-            .scaleEffect(1.16)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .clipped()
-        .accessibilityLabel("Injection site body map")
+            .scaledToFit()
+            .padding(6)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .accessibilityLabel("Injection site body map")
     }
 
     private func sitePosition(for site: AtlasSiteSummary, fallbackIndex: Int, in size: CGSize) -> CGPoint {
@@ -4305,18 +4348,28 @@ private struct KairoSiteRotationSheet: View {
         KairoScrollSurface {
             KairoNavigationHeader(title: "Site Rotation")
 
-            KairoSectionCard {
-                HStack(alignment: .top, spacing: 14) {
-                    KairoBodyMap(sites: activeSites, selectedSiteID: siteOptions?.suggestedSiteID)
-                        .frame(width: 136, height: 170)
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(protocolTitle)
-                            .kairoCardTitle()
-                        KairoSimpleRow(icon: "figure.arms.open", title: "Saved sites", value: "\(activeSites.count)", tint: AtlasPalette.primary)
-                        KairoSimpleRow(icon: "scope", title: "Next suggestion", value: suggestedSiteName ?? "Add sites", tint: AtlasPalette.primary)
-                    }
+            HStack(alignment: .top, spacing: 12) {
+                KairoBodyMap(sites: activeSites, selectedSiteID: siteOptions?.suggestedSiteID)
+                    .frame(width: 164, height: 190)
+                    .background(.white, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(protocolTitle)
+                        .kairoCardTitle()
+                    KairoSimpleRow(icon: "figure.arms.open", title: "Saved sites", value: "\(activeSites.count)", tint: AtlasPalette.primary)
+                    KairoSimpleRow(icon: "scope", title: "Next suggestion", value: suggestedSiteName ?? "Add sites", tint: AtlasPalette.primary)
                 }
+                .padding(.vertical, 10)
+                .padding(.trailing, 10)
+                .frame(maxWidth: .infinity, minHeight: 190, alignment: .topLeading)
             }
+            .frame(maxWidth: .infinity, minHeight: 190, alignment: .topLeading)
+            .background(AtlasPalette.surfaceTop, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(AtlasPalette.border.opacity(0.72), lineWidth: 1)
+            )
 
             KairoSectionCard(title: "Protocol Settings") {
                 Toggle("Enable site tracking", isOn: $siteTrackingEnabled)
@@ -4701,23 +4754,28 @@ private struct KairoBodyTrendCard: View {
     let bodyFat: String
     let bodyFatChange: String?
     let points: [Double]
+    let onWeightTap: () -> Void
     let onBodyFatTap: () -> Void
 
     var body: some View {
         KairoSectionCard(title: "Body Trend") {
             HStack(alignment: .center, spacing: 10) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Weight")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(AtlasPalette.textSecondary)
-                    Text(weight)
-                        .font(.system(size: 20, weight: .bold))
-                        .foregroundStyle(AtlasPalette.primary)
-                    if let weightChange {
-                        KairoTrendDelta(text: weightChange)
+                Button(action: onWeightTap) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Weight")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(AtlasPalette.textSecondary)
+                        Text(weight)
+                            .font(.system(size: 20, weight: .bold))
+                            .foregroundStyle(AtlasPalette.primary)
+                        if let weightChange {
+                            KairoTrendDelta(text: weightChange)
+                        }
                     }
+                    .frame(width: 76, alignment: .leading)
                 }
-                .frame(width: 76, alignment: .leading)
+                .buttonStyle(.plain)
+                .accessibilityLabel(weight == "Add weight" ? "Add weight" : "Weight \(weight)")
 
                 KairoTinyLineChart(points: points, tint: AtlasPalette.primary)
                     .frame(maxWidth: .infinity)
@@ -5745,7 +5803,7 @@ private struct KairoProtocolForm {
             case .everyNDays: return "Custom"
             }
         }()
-        routeLabel = detail.editableDraft.administrationRoute == .injection ? "SubQ" : "IM"
+        routeLabel = detail.editableDraft.administrationRoute == .injection ? "SubQ" : "Oral"
         weekday = KairoWeekday.selectorIndex(fromCalendarWeekday: detail.editableDraft.weekday ?? 1)
         if let defaultTime = detail.editableDraft.defaultTimeOfDay,
            let parsedTime = KairoTimeOfDay.date(fromStorageString: defaultTime) {
@@ -5758,7 +5816,7 @@ private struct KairoProtocolForm {
         AtlasProtocolDraft(
             name: name,
             kind: .glp,
-            administrationRoute: routeLabel == "SubQ" ? .injection : .injection,
+            administrationRoute: routeLabel == "SubQ" ? .injection : .oral,
             supplyType: .vial,
             dosesPerSupply: 12,
             cadenceType: cadenceType,
@@ -6257,12 +6315,8 @@ private struct KairoPeptideCatalogPicker: View {
                 }
             )) {
                 ForEach(options) { option in
-                    VStack(spacing: 2) {
-                        Text(option.displayName)
-                            .font(.system(size: 13, weight: .semibold))
-                        Text(option.categoryLabel)
-                            .font(.system(size: 8, weight: .medium))
-                    }
+                    Text(option.displayName)
+                        .font(.system(size: 13, weight: .semibold))
                     .tag(option.displayName)
                 }
             }

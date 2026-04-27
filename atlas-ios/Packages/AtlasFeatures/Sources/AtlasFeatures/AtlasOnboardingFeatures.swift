@@ -93,9 +93,9 @@ public struct AtlasOnboardingFlowScreen: View {
         case .intro:
             KairoIntroScreen()
         case .demoToday:
-            KairoDemoTodayScreen()
+            KairoDemoTodayScreen(onComplete: primaryAction)
         case .demoProgress:
-            KairoDemoTodayScreen()
+            KairoDemoProgressScreen(onComplete: primaryAction)
         case .gender:
             KairoOptionQuestion(
                 title: "Select your gender",
@@ -194,10 +194,12 @@ public struct AtlasOnboardingFlowScreen: View {
             KairoOptionQuestion(title: "How often do you take it?", subtitle: "Select one.", options: ["Weekly injection", "Daily injection", "Other"], selected: draft.glp.frequency, allowsMultiple: false) { value in updateDraft { $0.glp.frequency = value } }
         case .glpInjectionDay:
             KairoOptionQuestion(title: "What day do you typically inject?", subtitle: "", options: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], selected: draft.glp.injectionDay, allowsMultiple: false, compact: true) { value in updateDraft { $0.glp.injectionDay = value } }
+        case .glpInjectionTime:
+            KairoOptionQuestion(title: "What time do you usually inject?", subtitle: "", options: ["Morning", "Midday", "Evening", "Bedtime"], selected: draft.glp.usualTime, allowsMultiple: false) { value in updateDraft { $0.glp.usualTime = value } }
         case .glpDose:
             KairoOptionQuestion(title: "What's your current dose?", subtitle: "", options: ["0.25 mg", "0.5 mg", "1 mg", "1.7 mg", "2.4 mg", "5 mg", "7.5 mg", "10 mg", "12.5 mg", "15 mg"], selected: draft.glp.dose, allowsMultiple: false) { value in updateDraft { $0.glp.dose = value } }
         case .glpDuration:
-            KairoOptionQuestion(title: "How long have you been on GLP-1s?", subtitle: "Select one.", options: ["Just starting", "< 1 month", "1-3 months", "3-12 months", "1+ years"], selected: draft.glp.duration, allowsMultiple: false) { value in updateDraft { $0.glp.duration = value } }
+            KairoOptionQuestion(title: "How experienced are you?", subtitle: "Select one.", options: ["Just starting", "< 3 months", "3-12 months", "1+ years"], selected: draft.glp.duration, allowsMultiple: false) { value in updateDraft { $0.glp.duration = value } }
         case .glpGoal:
             KairoOptionQuestion(title: "What's your main goal?", subtitle: "Select one.", options: ["Lose weight", "Maintain weight", "Build muscle", "Metabolic health"], selected: draft.glp.goal, allowsMultiple: false) { value in updateDraft { $0.glp.goal = value; $0.focus = .understandPatterns } }
         case .glpChallenge:
@@ -266,7 +268,7 @@ public struct AtlasOnboardingFlowScreen: View {
     private var currentIndex: Int { sequence.firstIndex(of: step) ?? 0 }
     private var progress: Double { sequence.isEmpty ? 0 : Double(currentIndex + 1) / Double(sequence.count) }
     private var canGoBack: Bool { currentIndex > 0 }
-    private var showsFooter: Bool { step != .planLoading && step != .companionReveal }
+    private var showsFooter: Bool { step != .demoToday && step != .demoProgress && step != .planLoading && step != .companionReveal }
     private var resolvedCompanionName: String {
         let trimmed = companionName.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty == false { return trimmed }
@@ -292,7 +294,7 @@ public struct AtlasOnboardingFlowScreen: View {
         case .companionHatch, .companionChoice, .companionReveal, .companionName, .companionJourney: "Companion"
         case .usedApps, .longTermResults: "Tracking fit"
         case .branchPath: "Protocol path"
-        case .glpMedication, .glpFrequency, .glpInjectionDay, .glpDose, .glpDuration, .glpGoal, .glpChallenge: "GLP setup"
+        case .glpMedication, .glpFrequency, .glpInjectionDay, .glpInjectionTime, .glpDose, .glpDuration, .glpGoal, .glpChallenge: "GLP setup"
         case .peptideSelection, .peptideFrequency, .peptideExperience, .peptideInjectionTime, .peptideDose, .peptideGoal: "Peptide setup"
         case .connectApps, .ratingPrimer, .trackingPermission: "Connections"
         case .planLoading, .planPreview, .planReady: "Your plan"
@@ -451,10 +453,12 @@ public struct AtlasOnboardingFlowScreen: View {
             updateDraft { $0.glp.frequency = "Weekly injection" }
         case .glpInjectionDay where draft.glp.injectionDay == nil:
             updateDraft { $0.glp.injectionDay = "Wed" }
+        case .glpInjectionTime where draft.glp.usualTime == nil:
+            updateDraft { $0.glp.usualTime = "Morning" }
         case .glpDose where draft.glp.dose == nil:
             updateDraft { $0.glp.dose = "0.5 mg" }
         case .glpDuration where draft.glp.duration == nil:
-            updateDraft { $0.glp.duration = "1-3 months" }
+            updateDraft { $0.glp.duration = "< 3 months" }
         case .glpGoal where draft.glp.goal == nil:
             updateDraft { $0.glp.goal = "Metabolic health" }
         case .glpChallenge where draft.glp.challenge == nil:
@@ -611,19 +615,25 @@ private struct KairoIntroScreen: View {
 }
 
 private struct KairoDemoTodayScreen: View {
+    let onComplete: () -> Void
+
     var body: some View {
         KairoAnimatedDemoScreen(
             mode: .today,
-            headline: "Protocol tracking\nmade easy"
+            headline: "Protocol tracking\nmade easy",
+            onComplete: onComplete
         )
     }
 }
 
 private struct KairoDemoProgressScreen: View {
+    let onComplete: () -> Void
+
     var body: some View {
         KairoAnimatedDemoScreen(
             mode: .progress,
-            headline: "Progress clarity\nmade easy"
+            headline: "Progress\nmade easy",
+            onComplete: onComplete
         )
     }
 }
@@ -740,9 +750,9 @@ private struct CrystalVialPodView: View {
                     burstProgress: burstProgress,
                     pulse: pulse
                 )
-                .frame(width: height * 0.96, height: height * 0.96)
+                .frame(width: height * 0.86, height: height * 0.86)
                 .offset(y: -height * 0.02)
-                .opacity(phase == .dormant ? 0 : 1)
+                .opacity(phase == .dormant ? 0 : 0.46)
             }
 
             podArtwork
@@ -756,7 +766,7 @@ private struct CrystalVialPodView: View {
                     .opacity(phase == .dormant ? 0 : 1)
 
                 KairoPodParticleField(active: phase != .dormant, drifting: particleDrift)
-                    .opacity(phase == .dormant ? 0.16 : 0.72)
+                    .opacity(phase == .dormant ? 0.10 : 0.38)
             }
 
             if phase == .hatching || phase == .revealed || phase == .idle {
@@ -802,6 +812,7 @@ private struct CrystalVialPodView: View {
                     .frame(width: height * 0.64, height: height * 0.64)
                     .offset(y: -height * 0.05)
                     .rotationEffect(.degrees(orbitRotation))
+                    .opacity(0.56)
             }
         }
         .frame(maxWidth: .infinity)
@@ -1803,19 +1814,20 @@ private struct KairoMascotPortrait: View {
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            Circle()
                 .fill(
                     RadialGradient(
                         colors: [
-                            AtlasPalette.primaryGlow.opacity(0.20),
-                            AtlasPalette.secondaryFill.opacity(0.68),
+                            AtlasPalette.primaryGlow.opacity(0.22),
+                            AtlasPalette.secondaryFill.opacity(0.54),
                             AtlasPalette.surfaceTop.opacity(0.0)
                         ],
                         center: .center,
-                        startRadius: 10,
-                        endRadius: height * 0.72
+                        startRadius: 8,
+                        endRadius: height * 0.58
                     )
                 )
+                .frame(width: height * 1.22, height: height * 1.22)
             Image(imageName)
                 .resizable()
                 .scaledToFit()
@@ -2141,7 +2153,7 @@ private struct KairoPlanPreviewScreen: View {
                     KairoPlanTile(icon: "syringe.fill", title: track == .glp ? "GLP tracking" : "Peptide tracking", detail: "Schedules and logs", checked: true)
                     KairoPlanTile(icon: "shippingbox.fill", title: "Inventory", detail: "Runway and supplies", checked: true)
                     KairoPlanTile(icon: "waveform.path.ecg", title: "Symptoms", detail: "Pattern context", checked: true)
-                    KairoPlanTile(icon: "sparkles", title: "Weekly review", detail: "Context and rhythm", checked: true)
+                KairoPlanTile(icon: "sparkles", title: "Weekly review", detail: "Progress and rhythm", checked: true)
                 }
                 KairoConsistencyScore()
             }
@@ -2194,11 +2206,31 @@ private struct KairoTrialIntroScreen: View {
         KairoQuestionScaffold(title: "Try Kairo Pro free", subtitle: "") {
             VStack(spacing: 12) {
                 KairoTrialTimeline()
-                KairoChecklistRow("Unlimited protocol schedules")
-                KairoChecklistRow("Inventory and runway alerts")
-                KairoChecklistRow("Guided review exports")
-                KairoChecklistRow("Weekly review export")
+                KairoTrialChecklistRow("Unlimited protocol schedules")
+                KairoTrialChecklistRow("Inventory and runway alerts")
+                KairoTrialChecklistRow("Guided review exports")
+                KairoTrialChecklistRow("Weekly review export")
             }
+        }
+    }
+}
+
+private struct KairoTrialChecklistRow: View {
+    let text: String
+
+    init(_ text: String) {
+        self.text = text
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(AtlasPalette.primary)
+            Text(text)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(AtlasPalette.textPrimary)
+            Spacer()
         }
     }
 }
@@ -2211,7 +2243,7 @@ private struct KairoTrialReminderScreen: View {
                 .foregroundStyle(AtlasPalette.reward)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 50)
-            KairoInfoBanner(text: "No payment due now during the free trial setup.")
+                KairoInfoBanner(text: "No payment due now!")
         }
     }
 }
@@ -2630,9 +2662,18 @@ private enum KairoDemoClipMode {
     var stages: [KairoDemoClipScreen] {
         switch self {
         case .today:
-            [.todayHome, .protocols, .protocolCreate, .companion, .logShot, .todayResult]
+            [.todayHome, .protocols, .protocolCreate, .logShot, .todayResult]
         case .progress:
             [.progressHome, .companion, .weeklyReview, .progressResult]
+        }
+    }
+
+    var interval: TimeInterval {
+        switch self {
+        case .today:
+            1.32
+        case .progress:
+            1.42
         }
     }
 }
@@ -2640,76 +2681,117 @@ private enum KairoDemoClipMode {
 private struct KairoAnimatedDemoScreen: View {
     let mode: KairoDemoClipMode
     let headline: String
+    let onComplete: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var phase = 0
-    private let timer = Timer.publish(every: 1.55, on: .main, in: .common).autoconnect()
+    @State private var introZoom = true
+    @State private var didComplete = false
+    private let timer = Timer.publish(every: 0.66, on: .main, in: .common).autoconnect()
 
     var body: some View {
         VStack(spacing: 0) {
             ZStack {
                 ForEach(Array(mode.stages.enumerated()), id: \.element) { index, screen in
-                    KairoDemoClipPhone(screen: screen)
+                    KairoDemoClipPhone(screen: screen, isActive: index == phase)
                         .scaleEffect(scale(for: index))
+                        .rotationEffect(.degrees(rotation(for: index)))
+                        .rotation3DEffect(.degrees(rotation3D(for: index)), axis: (x: 0.0, y: 1.0, z: 0.0), perspective: 0.68)
                         .offset(x: offset(for: index).width, y: offset(for: index).height)
                         .opacity(opacity(for: index))
+                        .blur(radius: blur(for: index))
                         .zIndex(zIndex(for: index))
                 }
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 574)
+            .frame(height: 642)
             .clipped()
-            .padding(.top, -12)
+            .padding(.top, 2)
 
-            Spacer(minLength: 2)
+            Spacer(minLength: 18)
 
             Text(headline)
                 .font(.system(size: 21, weight: .black))
                 .foregroundStyle(AtlasPalette.textPrimary)
                 .multilineTextAlignment(.center)
                 .lineSpacing(2)
-                .padding(.bottom, 4)
+                .padding(.bottom, 10)
 
             Spacer(minLength: 12)
         }
-        .frame(maxWidth: .infinity, minHeight: 650, alignment: .top)
+        .frame(maxWidth: .infinity, minHeight: 730, alignment: .top)
         .onAppear {
             phase = 0
+            introZoom = true
+            didComplete = false
+            withAnimation(.easeOut(duration: 0.82)) {
+                introZoom = false
+            }
         }
         .onReceive(timer) { _ in
-            advanceDemo()
+            tickDemo()
         }
     }
 
     private func scale(for index: Int) -> CGFloat {
-        guard index == phase else { return 1.0 }
-        return phase == 0 ? 1.08 : 1.0
+        if index == phase {
+            if phase == 0 {
+                return introZoom ? 1.36 : 1.02
+            }
+            return 1.0
+        }
+        return 0.86
     }
 
     private func offset(for index: Int) -> CGSize {
         if index == phase {
-            return phase == 0 ? CGSize(width: 0, height: -18) : .zero
+            return phase == 0 ? CGSize(width: 0, height: introZoom ? 58 : -4) : .zero
         }
         if index < phase {
-            return CGSize(width: -312, height: 8)
+            return CGSize(width: -250, height: 16)
         }
-        return CGSize(width: 312, height: 8)
+        return CGSize(width: 250, height: 16)
     }
 
     private func opacity(for index: Int) -> Double {
-        index == phase ? 1 : 0
+        if index == phase { return 1 }
+        return 0
+    }
+
+    private func rotation(for index: Int) -> Double {
+        if index == phase { return 0 }
+        return index < phase ? -8 : 8
+    }
+
+    private func rotation3D(for index: Int) -> Double {
+        if index == phase { return 0 }
+        return index < phase ? 18 : -18
+    }
+
+    private func blur(for index: Int) -> CGFloat {
+        index == phase ? 0 : 1.5
     }
 
     private func zIndex(for index: Int) -> Double {
         index == phase ? 2 : 0
     }
 
+    private func tickDemo() {
+        guard didComplete == false else { return }
+        advanceDemo()
+    }
+
     private func advanceDemo() {
+        if phase == mode.stages.indices.last {
+            didComplete = true
+            onComplete()
+            return
+        }
         let nextPhase = (phase + 1) % mode.stages.count
         if reduceMotion {
             phase = nextPhase
         } else {
-            withAnimation(.spring(response: 0.58, dampingFraction: 0.88)) {
+            withAnimation(.spring(response: mode.interval * 0.34, dampingFraction: 0.84)) {
                 phase = nextPhase
             }
         }
@@ -2777,40 +2859,85 @@ private enum KairoDemoClipScreen: Hashable {
             "KairoOnboardingDemoProgress"
         }
     }
+
 }
 
 private struct KairoDemoClipPhone: View {
     let screen: KairoDemoClipScreen
+    let isActive: Bool
 
     var body: some View {
-        Image(screen.assetName)
-            .resizable()
-            .scaledToFill()
-            .frame(width: 266, height: 576)
-            .clipShape(RoundedRectangle(cornerRadius: 31, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 31, style: .continuous).stroke(.black.opacity(0.08), lineWidth: 1))
-            .shadow(color: AtlasPalette.shadow.opacity(0.20), radius: 18, x: 0, y: 10)
-            .frame(width: 266, height: 576)
+        ZStack {
+            KairoPhoneSideButtons()
+
+            RoundedRectangle(cornerRadius: 43, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color(red: 0.08, green: 0.09, blue: 0.09),
+                            Color(red: 0.01, green: 0.015, blue: 0.016)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 43, style: .continuous)
+                        .stroke(.white.opacity(0.22), lineWidth: 1)
+                        .padding(1)
+                )
+
+            Image(screen.assetName)
+                .resizable()
+                .scaledToFill()
+                .frame(width: 266, height: 576)
+                .clipShape(RoundedRectangle(cornerRadius: 34, style: .continuous))
+                .overlay(alignment: .top) {
+                    KairoDemoDynamicIsland()
+                        .padding(.top, 9)
+                }
+                .overlay(
+                    RoundedRectangle(cornerRadius: 34, style: .continuous)
+                        .stroke(.black.opacity(0.10), lineWidth: 1)
+                )
+                .padding(7)
+        }
+        .frame(width: 282, height: 592)
+        .shadow(color: AtlasPalette.shadow.opacity(isActive ? 0.28 : 0.14), radius: isActive ? 22 : 12, x: 0, y: isActive ? 14 : 8)
+        .accessibilityLabel("\(screen.title) demo in iPhone frame")
     }
 }
 
-private struct KairoDemoClipStatusBar: View {
+private struct KairoPhoneSideButtons: View {
     var body: some View {
-        HStack {
-            Text("9:41")
-                .font(.system(size: 7, weight: .black))
-            Spacer()
-            HStack(spacing: 2) {
-                Image(systemName: "cellularbars")
-                Image(systemName: "wifi")
-                Image(systemName: "battery.100")
-            }
-            .font(.system(size: 6, weight: .bold))
+        ZStack {
+            RoundedRectangle(cornerRadius: 2.5, style: .continuous)
+                .fill(.black.opacity(0.42))
+                .frame(width: 4, height: 58)
+                .offset(x: -144, y: -164)
+            RoundedRectangle(cornerRadius: 2.5, style: .continuous)
+                .fill(.black.opacity(0.42))
+                .frame(width: 4, height: 86)
+                .offset(x: 144, y: -106)
+            RoundedRectangle(cornerRadius: 2.5, style: .continuous)
+                .fill(.black.opacity(0.42))
+                .frame(width: 4, height: 44)
+                .offset(x: -144, y: -72)
         }
-        .foregroundStyle(AtlasPalette.textPrimary)
-        .padding(.horizontal, 12)
-        .padding(.top, 6)
-        .frame(height: 28)
+    }
+}
+
+private struct KairoDemoDynamicIsland: View {
+    var body: some View {
+        Capsule(style: .continuous)
+            .fill(.black)
+            .frame(width: 70, height: 21)
+            .overlay(alignment: .trailing) {
+                Circle()
+                    .fill(Color(red: 0.08, green: 0.08, blue: 0.09))
+                    .frame(width: 8, height: 8)
+                    .padding(.trailing, 8)
+            }
     }
 }
 
@@ -3447,7 +3574,7 @@ private struct KairoLineChartCard: View {
 private struct KairoLongTermComparisonChart: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Your protocol")
+            Text("Your weight")
                 .font(.system(size: 15, weight: .black))
                 .foregroundStyle(AtlasPalette.textPrimary)
 
@@ -3513,7 +3640,9 @@ private struct KairoLongTermComparisonChart: View {
                     Text("Unstructured")
                         .font(.system(size: 10, weight: .black))
                         .foregroundStyle(AtlasPalette.textPrimary)
-                        .position(x: size.width * 0.74, y: size.height * 0.34)
+                        .padding(.horizontal, 3)
+                        .background(AtlasPalette.surfaceTop.opacity(0.92), in: Capsule())
+                        .position(x: size.width * 0.68, y: size.height * 0.30)
                 }
             }
             .frame(height: 158)

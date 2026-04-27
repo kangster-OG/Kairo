@@ -1059,19 +1059,30 @@ private struct AtlasForwardMascotHero: View {
                 VStack(alignment: .leading, spacing: atlasForwardMockupFidelityActive ? 5 : 7) {
                     Text("Good morning\(nicknameSuffix)")
                         .atlasTextRole(.cardTitle)
-                        .foregroundStyle(AtlasPalette.textPrimary)
+                        .foregroundStyle(Color(red: 0.06, green: 0.12, blue: 0.11))
 
                     HStack(alignment: .center, spacing: 8) {
-                        AtlasStatusBadge("Lv. \(displayLevel)", tint: AtlasPalette.primary)
+                        Text("Lv. \(displayLevel)")
+                            .font(.system(size: 11, weight: .bold, design: .default))
+                            .foregroundStyle(Color(red: 0.04, green: 0.32, blue: 0.27))
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 5)
+                            .background(Color.white.opacity(0.96), in: Capsule(style: .continuous))
                         VStack(alignment: .trailing, spacing: 3) {
                             AtlasForwardThinProgress(value: progressValue, tint: AtlasPalette.primary)
+                                .background(Color(red: 0.04, green: 0.32, blue: 0.27).opacity(0.16), in: Capsule(style: .continuous))
                             Text(displayXPLabel)
-                                .atlasTextRole(.metricLabel)
-                                .foregroundStyle(AtlasPalette.textSecondary)
+                                .font(.system(size: 10.5, weight: .bold, design: .default))
+                                .foregroundStyle(Color(red: 0.04, green: 0.32, blue: 0.27))
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.72)
                         }
                     }
+                }
+                .padding(7)
+                .background {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(Color.white.opacity(0.86))
                 }
                 .padding(.trailing, atlasForwardMockupFidelityActive ? 1 : 2)
             }
@@ -1390,12 +1401,17 @@ private struct AtlasForwardSupportRingGrid: View {
         model.rewardsSnapshot.goals.first(where: { $0.kind == .weeklyWorkouts })
     }
 
-    private var proteinProgress: Double { atlasForwardMockupFidelityActive ? 0.7 : (proteinTarget?.progress ?? 0.7) }
-    private var hydrationProgress: Double { atlasForwardMockupFidelityActive ? 0.64 : (hydrationTarget?.progress ?? 0.64) }
-    private var workoutProgress: Double { atlasForwardMockupFidelityActive ? 0.66 : (workoutGoal?.progress ?? 0.66) }
-    private var proteinCenter: String { atlasForwardMockupFidelityActive ? "84 g" : "\(proteinGrams) g" }
-    private var hydrationCenter: String { atlasForwardMockupFidelityActive ? "1.6 L" : hydrationLiters.formatted(.number.precision(.fractionLength(1))) + " L" }
-    private var workoutCenter: String { atlasForwardMockupFidelityActive ? "30" : "\(workoutMinutes)" }
+    private var proteinProgress: Double { proteinTarget?.progress ?? 0 }
+    private var hydrationProgress: Double { hydrationTarget?.progress ?? 0 }
+    private var workoutProgress: Double {
+        if let workoutGoal {
+            return workoutGoal.progress
+        }
+        return model.insightsSnapshot.recentWorkoutEntries.isEmpty ? 0 : min(1, Double(model.insightsSnapshot.recentWorkoutEntries.count) / 3)
+    }
+    private var proteinCenter: String { "\(proteinGrams) g" }
+    private var hydrationCenter: String { hydrationLiters.formatted(.number.precision(.fractionLength(1))) + " L" }
+    private var workoutCenter: String { "\(workoutMinutes)" }
     private var proteinDetail: String { "of 120 g" }
     private var hydrationDetail: String { "of 2.5 L" }
     private var workoutDetail: String { "of 45 min" }
@@ -1406,7 +1422,7 @@ private struct AtlasForwardSupportRingGrid: View {
     }
 
     private var hydrationLiters: Double {
-        let logged = hydrationTarget?.currentValue ?? (model.insightsSnapshot.contextTrend.lowHydrationEntryCount == 0 ? 2 : 1)
+        let logged = hydrationTarget?.currentValue ?? 0
         return min(2.5, Double(max(0, logged)) * 0.8)
     }
 
@@ -3664,16 +3680,14 @@ private struct AtlasForwardCompanionHero: View {
                 )
                 .frame(width: atlasForwardMockupFidelityActive ? 66 : 62)
         }
-        .padding(.horizontal, 0)
-        .padding(.vertical, atlasForwardMockupFidelityActive ? 1 : 0)
-        .background(
-            LinearGradient(
-                colors: [AtlasPalette.background.opacity(0.05), AtlasPalette.surfaceSecondary.opacity(0.46), AtlasPalette.background.opacity(0.02)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        )
+        .padding(.horizontal, 8)
+        .padding(.vertical, 8)
+        .background(Color.white, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(AtlasPalette.border.opacity(0.48), lineWidth: 1)
+        )
     }
 }
 
@@ -3742,8 +3756,11 @@ private struct AtlasForwardNextFormPreview: View {
     var body: some View {
         VStack(spacing: atlasForwardMockupFidelityActive ? 2 : 4) {
             Text("Next Form")
-                .atlasTextRole(.metricLabel)
-                .foregroundStyle(AtlasPalette.textSecondary)
+                .font(.system(size: 9.5, weight: .bold, design: .default))
+                .foregroundStyle(Color(red: 0.06, green: 0.12, blue: 0.11))
+                .padding(.horizontal, 5)
+                .padding(.vertical, 3)
+                .background(Color.white.opacity(0.92), in: Capsule(style: .continuous))
 
             ZStack(alignment: .bottomTrailing) {
                 AtlasForwardMascotArt(selection: selection, stage: nextStage, size: atlasForwardMockupFidelityActive ? 54 : 48)
@@ -3753,21 +3770,24 @@ private struct AtlasForwardNextFormPreview: View {
                     .frame(width: atlasForwardMockupFidelityActive ? 58 : 54, height: atlasForwardMockupFidelityActive ? 42 : 40)
 
                 if nextFormName != nil {
-                    Image(systemName: "lock.fill")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(AtlasPalette.textTertiary)
-                        .frame(width: 18, height: 18)
-                        .background(AtlasPalette.surfaceTop, in: Circle())
-                        .overlay(Circle().stroke(AtlasPalette.border.opacity(0.6), lineWidth: 1))
+                        Image(systemName: "lock.fill")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(Color(red: 0.06, green: 0.12, blue: 0.11))
+                            .frame(width: 18, height: 18)
+                            .background(Color.white.opacity(0.94), in: Circle())
+                            .overlay(Circle().stroke(Color(red: 0.06, green: 0.12, blue: 0.11).opacity(0.16), lineWidth: 1))
                 }
             }
 
             Text(nextFormLabel)
-                .atlasTextRole(.metricLabel)
-                .foregroundStyle(AtlasPalette.textPrimary)
+                .font(.system(size: 9.5, weight: .bold, design: .default))
+                .foregroundStyle(Color(red: 0.06, green: 0.12, blue: 0.11))
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
                 .minimumScaleFactor(0.72)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 3)
+                .background(Color.white.opacity(0.92), in: Capsule(style: .continuous))
         }
     }
 
@@ -4022,15 +4042,17 @@ private struct AtlasForwardLevelRing: View {
                 .rotationEffect(.degrees(-90))
             VStack(spacing: atlasForwardMockupFidelityActive ? 2 : 3) {
                 Text("Level")
-                    .atlasTextRole(.metricLabel)
-                    .foregroundStyle(AtlasPalette.textSecondary)
+                    .font(.system(size: 11, weight: .bold, design: .default))
+                    .foregroundStyle(Color(red: 0.06, green: 0.12, blue: 0.11))
                 Text("\(level)")
                     .font(AtlasTypography.brandFont(size: atlasForwardMockupFidelityActive ? 25 : 27, weight: .bold, relativeTo: .title))
-                    .foregroundStyle(AtlasPalette.textPrimary)
+                    .foregroundStyle(AtlasPalette.primary)
                 Text("\(points.formatted()) / \(max(points, next).formatted()) XP")
-                    .font(.system(size: atlasForwardMockupFidelityActive ? 7.5 : 8.5, weight: .semibold, design: .default))
-                    .foregroundStyle(AtlasPalette.textSecondary)
+                    .font(.system(size: atlasForwardMockupFidelityActive ? 8.8 : 9, weight: .bold, design: .default))
+                    .foregroundStyle(Color(red: 0.04, green: 0.32, blue: 0.27))
             }
+            .padding(7)
+            .background(Color.white.opacity(0.96), in: Circle())
         }
     }
 
@@ -4079,9 +4101,6 @@ private struct AtlasForwardQuestCard: View {
     }
 
     private var proteinProgress: String {
-        if atlasForwardMockupFidelityActive {
-            return "1 / 2"
-        }
         return model.insightsSnapshot.nutritionSnapshot.dailyTargets.first(where: { $0.kind == .proteinMeals })?.progressLabel ?? "0 / 1"
     }
 
@@ -5204,10 +5223,10 @@ struct AtlasForwardProtocolEditorScreen: View {
                     }
                     .buttonStyle(AtlasForwardChipButtonStyle(isSelected: draft.route == .injection))
 
-                    Button("IM") {
-                        draft.route = .other
+                    Button("Oral") {
+                        draft.route = .oral
                     }
-                    .buttonStyle(AtlasForwardChipButtonStyle(isSelected: draft.route == .other))
+                    .buttonStyle(AtlasForwardChipButtonStyle(isSelected: draft.route == .oral))
                 }
             }
 

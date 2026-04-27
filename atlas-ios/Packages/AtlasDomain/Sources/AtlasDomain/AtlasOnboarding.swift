@@ -183,6 +183,7 @@ public enum AtlasOnboardingStep: String, Codable, CaseIterable, Identifiable, Se
     case glpMedication
     case glpFrequency
     case glpInjectionDay
+    case glpInjectionTime
     case glpDose
     case glpDuration
     case glpGoal
@@ -303,6 +304,7 @@ public struct AtlasOnboardingGlpSetup: Codable, Equatable, Sendable {
     public var medication: String?
     public var frequency: String?
     public var injectionDay: String?
+    public var usualTime: String?
     public var dose: String?
     public var duration: String?
     public var goal: String?
@@ -312,6 +314,7 @@ public struct AtlasOnboardingGlpSetup: Codable, Equatable, Sendable {
         medication: String? = nil,
         frequency: String? = nil,
         injectionDay: String? = nil,
+        usualTime: String? = nil,
         dose: String? = nil,
         duration: String? = nil,
         goal: String? = nil,
@@ -320,6 +323,7 @@ public struct AtlasOnboardingGlpSetup: Codable, Equatable, Sendable {
         self.medication = medication
         self.frequency = frequency
         self.injectionDay = injectionDay
+        self.usualTime = usualTime
         self.dose = dose
         self.duration = duration
         self.goal = goal
@@ -543,6 +547,7 @@ public struct AtlasOnboardingDraft: Codable, Equatable, Sendable {
         var steps: [AtlasOnboardingStep] = [
             .intro,
             .demoToday,
+            .demoProgress,
             .gender,
             .age,
             .goalWeight,
@@ -559,11 +564,11 @@ public struct AtlasOnboardingDraft: Codable, Equatable, Sendable {
 
         switch trackType {
         case .glp:
-            steps.append(contentsOf: [.glpMedication, .glpFrequency, .glpInjectionDay, .glpDose, .glpDuration, .glpGoal, .glpChallenge])
+            steps.append(contentsOf: [.glpMedication, .glpFrequency, .glpInjectionDay, .glpDuration, .glpInjectionTime, .glpDose, .glpGoal, .glpChallenge])
         case .peptide:
             steps.append(contentsOf: [.peptideSelection, .peptideFrequency, .peptideExperience, .peptideInjectionTime, .peptideDose, .peptideGoal])
         case .both:
-            steps.append(contentsOf: [.glpMedication, .glpFrequency, .glpInjectionDay, .glpDose, .glpDuration, .glpGoal, .glpChallenge, .peptideSelection, .peptideFrequency, .peptideExperience, .peptideInjectionTime, .peptideDose, .peptideGoal])
+            steps.append(contentsOf: [.glpMedication, .glpFrequency, .glpInjectionDay, .glpDuration, .glpInjectionTime, .glpDose, .glpGoal, .glpChallenge, .peptideSelection, .peptideFrequency, .peptideExperience, .peptideInjectionTime, .peptideDose, .peptideGoal])
         case .later, .none:
             steps.append(contentsOf: [.peptideSelection, .peptideFrequency, .peptideGoal])
         }
