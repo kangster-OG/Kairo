@@ -1441,41 +1441,48 @@ private struct AtlasForwardRingTile: View {
     let systemImage: String
 
     var body: some View {
-        AtlasForwardCard(padding: atlasForwardMockupFidelityActive ? 7 : 8) {
-            VStack(spacing: atlasForwardMockupFidelityActive ? 5 : 6) {
-                HStack {
+        AtlasForwardCard(padding: atlasForwardMockupFidelityActive ? 9 : 10) {
+            VStack(spacing: 0) {
+                HStack(spacing: 5) {
                     Image(systemName: systemImage)
-                        .font(.caption.weight(.semibold))
+                        .font(.system(size: 12, weight: .bold))
                         .foregroundStyle(tint)
                     Text(title)
-                        .atlasTextRole(.metricLabel)
+                        .font(.system(size: 12, weight: .bold))
                         .foregroundStyle(AtlasPalette.textPrimary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.72)
                     Spacer(minLength: 0)
                 }
 
+                Spacer(minLength: 8)
+
                 ZStack {
                     Circle()
-                        .stroke(tint.opacity(0.14), lineWidth: atlasForwardMockupFidelityActive ? 5.5 : 6)
+                        .stroke(tint.opacity(0.14), lineWidth: atlasForwardMockupFidelityActive ? 6.5 : 7)
                     Circle()
                         .trim(from: 0, to: min(max(value, 0), 1))
-                        .stroke(tint, style: StrokeStyle(lineWidth: atlasForwardMockupFidelityActive ? 5.5 : 6, lineCap: .round))
+                        .stroke(tint, style: StrokeStyle(lineWidth: atlasForwardMockupFidelityActive ? 6.5 : 7, lineCap: .round))
                         .rotationEffect(.degrees(-90))
-                    VStack(spacing: 1) {
+                    VStack(spacing: 2) {
                         Text(center)
-                            .atlasTextRole(.metricValue)
+                            .font(.system(size: 20, weight: .black))
                             .foregroundStyle(AtlasPalette.textPrimary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.62)
                         Text(detail)
-                            .font(.system(size: 8.5, weight: .semibold, design: .default))
+                            .font(.system(size: 10.5, weight: .bold, design: .default))
                             .foregroundStyle(AtlasPalette.textSecondary)
                             .lineLimit(1)
                             .minimumScaleFactor(0.6)
                     }
                 }
-                .frame(width: atlasForwardMockupFidelityActive ? 60 : 62, height: atlasForwardMockupFidelityActive ? 60 : 62)
+                .frame(width: atlasForwardMockupFidelityActive ? 82 : 86, height: atlasForwardMockupFidelityActive ? 82 : 86)
+                .frame(maxWidth: .infinity, alignment: .center)
+
+                Spacer(minLength: 2)
             }
-            .frame(maxWidth: .infinity, minHeight: atlasForwardMockupFidelityActive ? 86 : 90)
+            .frame(maxWidth: .infinity, minHeight: atlasForwardMockupFidelityActive ? 128 : 136, alignment: .center)
         }
     }
 }

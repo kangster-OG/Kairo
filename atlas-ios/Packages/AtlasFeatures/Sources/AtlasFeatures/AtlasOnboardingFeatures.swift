@@ -197,7 +197,7 @@ public struct AtlasOnboardingFlowScreen: View {
         case .glpInjectionTime:
             KairoOptionQuestion(title: "What time do you usually inject?", subtitle: "", options: ["Morning", "Midday", "Evening", "Bedtime"], selected: draft.glp.usualTime, allowsMultiple: false) { value in updateDraft { $0.glp.usualTime = value } }
         case .glpDose:
-            KairoOptionQuestion(title: "What's your current dose?", subtitle: "", options: ["0.25 mg", "0.5 mg", "1 mg", "1.7 mg", "2.4 mg", "5 mg", "7.5 mg", "10 mg", "12.5 mg", "15 mg"], selected: draft.glp.dose, allowsMultiple: false) { value in updateDraft { $0.glp.dose = value } }
+            KairoOptionQuestion(title: "What's your current dose?", subtitle: "", options: currentDoseOptions, selected: draft.glp.dose, allowsMultiple: false) { value in updateDraft { $0.glp.dose = value } }
         case .glpDuration:
             KairoOptionQuestion(title: "How experienced are you?", subtitle: "Select one.", options: ["Just starting", "< 3 months", "3-12 months", "1+ years"], selected: draft.glp.duration, allowsMultiple: false) { value in updateDraft { $0.glp.duration = value } }
         case .glpGoal:
@@ -208,6 +208,8 @@ public struct AtlasOnboardingFlowScreen: View {
             KairoOptionQuestion(title: "Which peptides are you currently taking?", subtitle: "Select all that apply.", options: peptideOptions, selectedValues: Set(draft.peptide.selections), allowsMultiple: true) { values in updateDraft { $0.peptide.selections = Array(values).sorted() } }
         case .peptideFrequency:
             KairoOptionQuestion(title: "How often do you take it?", subtitle: "Select one.", options: ["Weekly injection", "2-3x a week", "Daily injection", "Other"], selected: draft.peptide.frequency, allowsMultiple: false) { value in updateDraft { $0.peptide.frequency = value } }
+        case .peptideInjectionDay:
+            KairoOptionQuestion(title: "What day do you typically inject?", subtitle: "", options: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], selected: draft.peptide.injectionDay, allowsMultiple: false, compact: true) { value in updateDraft { $0.peptide.injectionDay = value } }
         case .peptideExperience:
             KairoOptionQuestion(title: "How experienced are you?", subtitle: "Select one.", options: ["Just starting", "< 3 months", "3-12 months", "1+ years"], selected: draft.peptide.experience, allowsMultiple: false) { value in updateDraft { $0.peptide.experience = value } }
         case .peptideInjectionTime:
@@ -295,7 +297,7 @@ public struct AtlasOnboardingFlowScreen: View {
         case .usedApps, .longTermResults: "Tracking fit"
         case .branchPath: "Protocol path"
         case .glpMedication, .glpFrequency, .glpInjectionDay, .glpInjectionTime, .glpDose, .glpDuration, .glpGoal, .glpChallenge: "GLP setup"
-        case .peptideSelection, .peptideFrequency, .peptideExperience, .peptideInjectionTime, .peptideDose, .peptideGoal: "Peptide setup"
+        case .peptideSelection, .peptideFrequency, .peptideInjectionDay, .peptideExperience, .peptideInjectionTime, .peptideDose, .peptideGoal: "Peptide setup"
         case .connectApps, .ratingPrimer, .trackingPermission: "Connections"
         case .planLoading, .planPreview, .planReady: "Your plan"
         case .saveProgress, .signInModal, .trialIntro, .trialReminder, .trialPaywall, .purchaseSuccess, .saveProgressAgain, .homeEndpoint: "Unlock Kairo"
@@ -352,6 +354,10 @@ public struct AtlasOnboardingFlowScreen: View {
             "NAD+",
             "Other"
         ]
+    }
+
+    private var currentDoseOptions: [String] {
+        ["0.25 mg", "0.5 mg", "1 mg", "2 mg", "5 mg", "Custom"]
     }
 
     private func primaryAction() {
@@ -467,6 +473,8 @@ public struct AtlasOnboardingFlowScreen: View {
             updateDraft { $0.peptide.selections = ["BPC-157"] }
         case .peptideFrequency where draft.peptide.frequency == nil:
             updateDraft { $0.peptide.frequency = "Weekly injection" }
+        case .peptideInjectionDay where draft.peptide.injectionDay == nil:
+            updateDraft { $0.peptide.injectionDay = "Wed" }
         case .peptideExperience where draft.peptide.experience == nil:
             updateDraft { $0.peptide.experience = "Just starting" }
         case .peptideInjectionTime where draft.peptide.usualTime == nil:
@@ -2687,7 +2695,7 @@ private struct KairoAnimatedDemoScreen: View {
     @State private var phase = 0
     @State private var introZoom = true
     @State private var didComplete = false
-    private let timer = Timer.publish(every: 0.66, on: .main, in: .common).autoconnect()
+    private let timer = Timer.publish(every: 0.82, on: .main, in: .common).autoconnect()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -3320,7 +3328,7 @@ private struct KairoMiniTodayPreview: View {
         case .glp, .both:
             "\(doseText) • SubQ • 12:30 PM"
         case .peptide, .later:
-            "\(doseText) • \(peptide.usualTime?.trimmedNonEmpty ?? "Time not set")"
+            "\(doseText) • \(peptide.injectionDay?.trimmedNonEmpty ?? "Day not set") • \(peptide.usualTime?.trimmedNonEmpty ?? "Time not set")"
         }
     }
 

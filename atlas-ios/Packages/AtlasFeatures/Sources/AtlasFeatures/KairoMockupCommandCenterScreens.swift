@@ -468,12 +468,20 @@ struct KairoCompanionScreen: View {
     }
 
     private var questRows: [KairoQuest] {
-        [
+        let protein = proteinQuestProgress
+        return [
             KairoQuest(icon: "syringe.fill", title: "Log shot", progress: shotDone ? "1 / 1" : "0 / 1", value: shotDone ? 1 : 0, reward: "20 XP"),
-            KairoQuest(icon: "fork.knife", title: "Protein meal", progress: "1 / 2", value: 0.5, reward: "20 XP"),
+            KairoQuest(icon: "fork.knife", title: "Protein meal", progress: protein.label, value: protein.value, reward: "20 XP"),
             KairoQuest(icon: "figure.strengthtraining.traditional", title: "Workout", progress: "\(model.insightsSnapshot.recentWorkoutEntries.isEmpty ? 0 : 1) / 1", value: model.insightsSnapshot.recentWorkoutEntries.isEmpty ? 0 : 1, reward: "20 XP"),
             KairoQuest(icon: "camera.fill", title: "Progress photo", progress: "\(model.insightsSnapshot.progressEvidence.recentPhotos.isEmpty ? 0 : 1) / 1", value: model.insightsSnapshot.progressEvidence.recentPhotos.isEmpty ? 0 : 1, reward: "15 XP")
         ]
+    }
+
+    private var proteinQuestProgress: (label: String, value: Double) {
+        guard let target = model.insightsSnapshot.nutritionSnapshot.dailyTargets.first(where: { $0.kind == .proteinMeals }) else {
+            return ("0 / 1", 0)
+        }
+        return ("\(target.currentValue) / \(target.targetValue)", target.progress)
     }
 
     private var shotDone: Bool {
@@ -3291,48 +3299,53 @@ private struct KairoSupportRing: View {
     let icon: String
 
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 8) {
             HStack(spacing: 4) {
                 Image(systemName: icon)
-                    .font(.system(size: 10, weight: .bold))
+                    .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(tint)
                 Text(title)
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(AtlasPalette.textPrimary)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.78)
+                    .minimumScaleFactor(0.74)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-                ZStack {
-                    Circle()
-                    .stroke(tint.opacity(0.16), lineWidth: 5)
-                    Circle()
-                        .trim(from: 0, to: min(1, max(0, progress)))
-                        .stroke(tint, style: StrokeStyle(lineWidth: 5, lineCap: .round))
-                        .rotationEffect(.degrees(-90))
-                    VStack(spacing: 1) {
-                        Text(value)
-                        .font(.system(size: 15, weight: .bold))
-                            .foregroundStyle(AtlasPalette.textPrimary)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.72)
-                        Text(caption)
-                            .font(.system(size: 8, weight: .medium))
-                            .foregroundStyle(tint)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.72)
-                    }
+            Spacer(minLength: 2)
+
+            ZStack {
+                Circle()
+                    .stroke(tint.opacity(0.16), lineWidth: 7)
+                Circle()
+                    .trim(from: 0, to: min(1, max(0, progress)))
+                    .stroke(tint, style: StrokeStyle(lineWidth: 7, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                VStack(spacing: 2) {
+                    Text(value)
+                        .font(.system(size: 19, weight: .black))
+                        .foregroundStyle(AtlasPalette.textPrimary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.62)
+                    Text(caption)
+                        .font(.system(size: 10.5, weight: .bold))
+                        .foregroundStyle(tint)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.58)
                 }
-            .frame(width: 62, height: 62)
             }
-            .frame(maxWidth: .infinity, minHeight: 132, alignment: .top)
-            .padding(.top, 9)
-            .padding(.bottom, 8)
-            .padding(.horizontal, 7)
-            .background(AtlasPalette.surfaceTop, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(AtlasPalette.border.opacity(0.72), lineWidth: 1))
-            .shadow(color: AtlasPalette.shadow.opacity(0.46), radius: 7, x: 0, y: 3)
+            .frame(width: 84, height: 84)
+            .frame(maxWidth: .infinity, alignment: .center)
+
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, minHeight: 132, alignment: .center)
+        .padding(.top, 11)
+        .padding(.bottom, 10)
+        .padding(.horizontal, 8)
+        .background(AtlasPalette.surfaceTop, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(AtlasPalette.border.opacity(0.72), lineWidth: 1))
+        .shadow(color: AtlasPalette.shadow.opacity(0.46), radius: 7, x: 0, y: 3)
     }
 }
 
@@ -3616,7 +3629,6 @@ private struct KairoLevelRing: View {
 	                    .minimumScaleFactor(0.52)
 	            }
 	            .padding(7)
-	            .background(Color.white.opacity(0.96), in: Circle())
 	        }
         .frame(width: 116, height: 116)
     }
