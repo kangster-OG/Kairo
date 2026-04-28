@@ -5051,17 +5051,15 @@ private struct KairoProgressPhotoBoardTile: View {
             ZStack(alignment: .bottom) {
                 LinearGradient(
                     colors: [
-                        Color(red: 0.92, green: 0.80, blue: 0.68),
-                        Color(red: 0.80, green: 0.58, blue: 0.43)
+                        AtlasPalette.surfaceTop,
+                        AtlasPalette.primary.opacity(0.055),
+                        AtlasPalette.reward.opacity(0.06)
                     ],
                     startPoint: .top,
                     endPoint: .bottom
                 )
-                KairoTorsoSilhouette(pose: pose)
-                    .fill(Color(red: 0.71, green: 0.48, blue: 0.34).opacity(0.72))
-                    .padding(.horizontal, pose == .side ? 22 : 14)
-                    .padding(.top, 16)
-                    .padding(.bottom, 0)
+
+                KairoProgressPoseFigure(pose: pose)
             }
             .frame(height: 118)
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -5077,28 +5075,37 @@ private struct KairoProgressPhotoBoardTile: View {
     }
 }
 
-private struct KairoTorsoSilhouette: Shape {
+private struct KairoProgressPoseFigure: View {
     let pose: KairoProgressPhotoPose
 
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        let width = rect.width
-        let height = rect.height
-        switch pose {
-        case .front, .back:
-            path.addEllipse(in: CGRect(x: width * 0.36, y: height * 0.02, width: width * 0.28, height: height * 0.18))
-            path.addRoundedRect(in: CGRect(x: width * 0.26, y: height * 0.18, width: width * 0.48, height: height * 0.50), cornerSize: CGSize(width: 18, height: 18))
-            path.addRoundedRect(in: CGRect(x: width * 0.11, y: height * 0.22, width: width * 0.18, height: height * 0.42), cornerSize: CGSize(width: 12, height: 12))
-            path.addRoundedRect(in: CGRect(x: width * 0.71, y: height * 0.22, width: width * 0.18, height: height * 0.42), cornerSize: CGSize(width: 12, height: 12))
-            path.addRoundedRect(in: CGRect(x: width * 0.28, y: height * 0.66, width: width * 0.19, height: height * 0.34), cornerSize: CGSize(width: 10, height: 10))
-            path.addRoundedRect(in: CGRect(x: width * 0.53, y: height * 0.66, width: width * 0.19, height: height * 0.34), cornerSize: CGSize(width: 10, height: 10))
-        case .side:
-            path.addEllipse(in: CGRect(x: width * 0.45, y: height * 0.02, width: width * 0.24, height: height * 0.17))
-            path.addRoundedRect(in: CGRect(x: width * 0.32, y: height * 0.18, width: width * 0.34, height: height * 0.52), cornerSize: CGSize(width: 18, height: 18))
-            path.addRoundedRect(in: CGRect(x: width * 0.24, y: height * 0.27, width: width * 0.18, height: height * 0.38), cornerSize: CGSize(width: 10, height: 10))
-            path.addRoundedRect(in: CGRect(x: width * 0.38, y: height * 0.68, width: width * 0.20, height: height * 0.32), cornerSize: CGSize(width: 10, height: 10))
+    var body: some View {
+        GeometryReader { proxy in
+            Image(assetName)
+                .resizable()
+                .interpolation(.high)
+                .scaledToFit()
+                .frame(width: proxy.size.width, height: proxy.size.height)
+                .scaleEffect(x: scale.width, y: scale.height, anchor: .center)
+                .offset(y: 0)
+                .clipped()
+                .shadow(color: AtlasPalette.primary.opacity(0.08), radius: 8, x: 0, y: 3)
+                .accessibilityHidden(true)
         }
-        return path
+    }
+
+    private var assetName: String {
+        switch pose {
+        case .front:
+            "KairoProgressPoseFront"
+        case .side:
+            "KairoProgressPoseSide"
+        case .back:
+            "KairoProgressPoseBack"
+        }
+    }
+
+    private var scale: CGSize {
+        pose == .side ? CGSize(width: 1.00, height: 1.00) : CGSize(width: 1.54, height: 0.98)
     }
 }
 

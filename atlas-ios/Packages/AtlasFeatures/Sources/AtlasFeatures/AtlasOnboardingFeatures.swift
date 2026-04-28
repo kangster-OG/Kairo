@@ -191,9 +191,18 @@ public struct AtlasOnboardingFlowScreen: View {
         case .glpMedication:
             KairoOptionQuestion(title: "Which GLP-1 are you currently taking?", subtitle: "Select one.", options: glpMedicationOptions, selected: draft.glp.medication, allowsMultiple: false) { value in updateDraft { $0.glp.medication = value } }
         case .glpFrequency:
-            KairoOptionQuestion(title: "How often do you take it?", subtitle: "Select one.", options: ["Weekly injection", "Daily injection", "Other"], selected: draft.glp.frequency, allowsMultiple: false) { value in updateDraft { $0.glp.frequency = value } }
+            KairoOptionQuestion(title: "How often do you take it?", subtitle: "Select one.", options: ["Weekly injection", "Daily injection", "Other"], selected: draft.glp.frequency, allowsMultiple: false) { value in
+                updateDraft {
+                    $0.glp.frequency = value
+                    if value.isDailyInjectionFrequency {
+                        $0.glp.injectionDay = nil
+                    }
+                }
+            }
         case .glpInjectionDay:
-            KairoOptionQuestion(title: "What day do you typically inject?", subtitle: "", options: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], selected: draft.glp.injectionDay, allowsMultiple: false, compact: true) { value in updateDraft { $0.glp.injectionDay = value } }
+            KairoOptionQuestion(title: "What day do you typically inject?", subtitle: "Select all that apply.", options: injectionDayOptions, selectedValues: selectedOnboardingValues(from: draft.glp.injectionDay), allowsMultiple: true, compact: true) { values in
+                updateDraft { $0.glp.injectionDay = joinedOnboardingValues(values, orderedBy: injectionDayOptions) }
+            }
         case .glpInjectionTime:
             KairoOptionQuestion(title: "What time do you usually inject?", subtitle: "", options: ["Morning", "Midday", "Evening", "Bedtime"], selected: draft.glp.usualTime, allowsMultiple: false) { value in updateDraft { $0.glp.usualTime = value } }
         case .glpDose:
@@ -201,15 +210,29 @@ public struct AtlasOnboardingFlowScreen: View {
         case .glpDuration:
             KairoOptionQuestion(title: "How experienced are you?", subtitle: "Select one.", options: ["Just starting", "< 3 months", "3-12 months", "1+ years"], selected: draft.glp.duration, allowsMultiple: false) { value in updateDraft { $0.glp.duration = value } }
         case .glpGoal:
-            KairoOptionQuestion(title: "What's your main goal?", subtitle: "Select one.", options: ["Lose weight", "Maintain weight", "Build muscle", "Metabolic health"], selected: draft.glp.goal, allowsMultiple: false) { value in updateDraft { $0.glp.goal = value; $0.focus = .understandPatterns } }
+            KairoOptionQuestion(title: "What's your main goal?", subtitle: "Select all that apply.", options: glpGoalOptions, selectedValues: selectedOnboardingValues(from: draft.glp.goal), allowsMultiple: true) { values in
+                updateDraft {
+                    $0.glp.goal = joinedOnboardingValues(values, orderedBy: glpGoalOptions)
+                    $0.focus = .understandPatterns
+                }
+            }
         case .glpChallenge:
             KairoOptionQuestion(title: "Biggest challenge right now?", subtitle: "Select one.", options: ["Cravings", "Side effects", "Forgetting doses", "Low energy", "Staying consistent"], selected: draft.glp.challenge, allowsMultiple: false) { value in updateDraft { $0.glp.challenge = value } }
         case .peptideSelection:
             KairoOptionQuestion(title: "Which peptides are you currently taking?", subtitle: "Select all that apply.", options: peptideOptions, selectedValues: Set(draft.peptide.selections), allowsMultiple: true) { values in updateDraft { $0.peptide.selections = Array(values).sorted() } }
         case .peptideFrequency:
-            KairoOptionQuestion(title: "How often do you take it?", subtitle: "Select one.", options: ["Weekly injection", "2-3x a week", "Daily injection", "Other"], selected: draft.peptide.frequency, allowsMultiple: false) { value in updateDraft { $0.peptide.frequency = value } }
+            KairoOptionQuestion(title: "How often do you take it?", subtitle: "Select one.", options: ["Weekly injection", "2-3x a week", "Daily injection", "Other"], selected: draft.peptide.frequency, allowsMultiple: false) { value in
+                updateDraft {
+                    $0.peptide.frequency = value
+                    if value.isDailyInjectionFrequency {
+                        $0.peptide.injectionDay = nil
+                    }
+                }
+            }
         case .peptideInjectionDay:
-            KairoOptionQuestion(title: "What day do you typically inject?", subtitle: "", options: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], selected: draft.peptide.injectionDay, allowsMultiple: false, compact: true) { value in updateDraft { $0.peptide.injectionDay = value } }
+            KairoOptionQuestion(title: "What day do you typically inject?", subtitle: "Select all that apply.", options: injectionDayOptions, selectedValues: selectedOnboardingValues(from: draft.peptide.injectionDay), allowsMultiple: true, compact: true) { values in
+                updateDraft { $0.peptide.injectionDay = joinedOnboardingValues(values, orderedBy: injectionDayOptions) }
+            }
         case .peptideExperience:
             KairoOptionQuestion(title: "How experienced are you?", subtitle: "Select one.", options: ["Just starting", "< 3 months", "3-12 months", "1+ years"], selected: draft.peptide.experience, allowsMultiple: false) { value in updateDraft { $0.peptide.experience = value } }
         case .peptideInjectionTime:
@@ -217,7 +240,12 @@ public struct AtlasOnboardingFlowScreen: View {
         case .peptideDose:
             KairoOptionQuestion(title: "What's your current dose?", subtitle: "", options: ["0.25 mg", "0.5 mg", "1 mg", "2 mg", "5 mg", "Custom"], selected: draft.peptide.dose, allowsMultiple: false) { value in updateDraft { $0.peptide.dose = value } }
         case .peptideGoal:
-            KairoOptionQuestion(title: "What's your main goal?", subtitle: "Select all that apply.", options: ["Fat loss", "Muscle growth", "Skin care", "Performance", "Injury / Recovery"], selected: draft.peptide.goal, allowsMultiple: false) { value in updateDraft { $0.peptide.goal = value; $0.focus = .manageStack } }
+            KairoOptionQuestion(title: "What's your main goal?", subtitle: "Select all that apply.", options: peptideGoalOptions, selectedValues: selectedOnboardingValues(from: draft.peptide.goal), allowsMultiple: true) { values in
+                updateDraft {
+                    $0.peptide.goal = joinedOnboardingValues(values, orderedBy: peptideGoalOptions)
+                    $0.focus = .manageStack
+                }
+            }
         case .connectApps:
             KairoConnectAppsScreen()
         case .ratingPrimer:
@@ -354,6 +382,18 @@ public struct AtlasOnboardingFlowScreen: View {
             "NAD+",
             "Other"
         ]
+    }
+
+    private var injectionDayOptions: [String] {
+        ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    }
+
+    private var glpGoalOptions: [String] {
+        ["Lose weight", "Maintain weight", "Build muscle", "Metabolic health"]
+    }
+
+    private var peptideGoalOptions: [String] {
+        ["Fat loss", "Muscle growth", "Skin care", "Performance", "Injury / Recovery"]
     }
 
     private var currentDoseOptions: [String] {
@@ -2416,6 +2456,28 @@ private struct KairoOptionQuestion: View {
             return "hand.thumbsdown.fill"
         }
         return allowsMultiple ? "square.stack.3d.up.fill" : "circle.fill"
+    }
+}
+
+private func selectedOnboardingValues(from storedValue: String?) -> Set<String> {
+    guard let storedValue else { return [] }
+    return Set(
+        storedValue
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { $0.isEmpty == false }
+    )
+}
+
+private func joinedOnboardingValues(_ values: Set<String>, orderedBy options: [String]) -> String? {
+    let orderedValues = options.filter { values.contains($0) }
+    guard orderedValues.isEmpty == false else { return nil }
+    return orderedValues.joined(separator: ", ")
+}
+
+private extension String {
+    var isDailyInjectionFrequency: Bool {
+        localizedCaseInsensitiveContains("daily")
     }
 }
 

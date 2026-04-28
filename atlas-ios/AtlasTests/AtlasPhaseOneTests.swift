@@ -340,6 +340,42 @@ final class AtlasPhaseOneTests: XCTestCase {
         )
     }
 
+    func testDailyGlpFrequencySkipsInjectionDayQuestion() {
+        var draft = AtlasOnboardingDraft.empty()
+        draft.trackType = .glp
+        draft.glp.frequency = "Daily injection"
+
+        let sequence = draft.sequence()
+
+        XCTAssertTrue(sequence.contains(.glpFrequency))
+        XCTAssertFalse(sequence.contains(.glpInjectionDay))
+        XCTAssertTrue(sequence.contains(.glpInjectionTime))
+    }
+
+    func testDailyPeptideFrequencySkipsInjectionDayQuestion() {
+        var draft = AtlasOnboardingDraft.empty()
+        draft.trackType = .peptide
+        draft.peptide.frequency = "Daily injection"
+
+        let sequence = draft.sequence()
+
+        XCTAssertTrue(sequence.contains(.peptideFrequency))
+        XCTAssertFalse(sequence.contains(.peptideInjectionDay))
+        XCTAssertTrue(sequence.contains(.peptideInjectionTime))
+    }
+
+    func testNonDailyFrequenciesKeepInjectionDayQuestion() {
+        var draft = AtlasOnboardingDraft.empty()
+        draft.trackType = .both
+        draft.glp.frequency = "Weekly injection"
+        draft.peptide.frequency = "2-3x a week"
+
+        let sequence = draft.sequence()
+
+        XCTAssertTrue(sequence.contains(.glpInjectionDay))
+        XCTAssertTrue(sequence.contains(.peptideInjectionDay))
+    }
+
     func testDreamOnboardingInventoryStaysLongAndChaptered() {
         XCTAssertEqual(atlasDreamOnboardingSceneCountForTesting, 28)
         XCTAssertEqual(

@@ -568,11 +568,11 @@ public struct AtlasOnboardingDraft: Codable, Equatable, Sendable {
 
         switch trackType {
         case .glp:
-            steps.append(contentsOf: [.glpMedication, .glpFrequency, .glpInjectionDay, .glpDuration, .glpInjectionTime, .glpDose, .glpGoal, .glpChallenge])
+            steps.append(contentsOf: glpSetupSteps)
         case .peptide:
-            steps.append(contentsOf: [.peptideSelection, .peptideFrequency, .peptideInjectionDay, .peptideExperience, .peptideInjectionTime, .peptideDose, .peptideGoal])
+            steps.append(contentsOf: peptideSetupSteps)
         case .both:
-            steps.append(contentsOf: [.glpMedication, .glpFrequency, .glpInjectionDay, .glpDuration, .glpInjectionTime, .glpDose, .glpGoal, .glpChallenge, .peptideSelection, .peptideFrequency, .peptideInjectionDay, .peptideExperience, .peptideInjectionTime, .peptideDose, .peptideGoal])
+            steps.append(contentsOf: glpSetupSteps + peptideSetupSteps)
         case .later, .none:
             steps.append(contentsOf: [.peptideSelection, .peptideFrequency, .peptideGoal])
         }
@@ -591,6 +591,30 @@ public struct AtlasOnboardingDraft: Codable, Equatable, Sendable {
         ])
 
         return steps
+    }
+
+    private var glpSetupSteps: [AtlasOnboardingStep] {
+        var steps: [AtlasOnboardingStep] = [.glpMedication, .glpFrequency]
+        if glp.frequency?.atlasOnboardingIsDailyInjection != true {
+            steps.append(.glpInjectionDay)
+        }
+        steps.append(contentsOf: [.glpDuration, .glpInjectionTime, .glpDose, .glpGoal, .glpChallenge])
+        return steps
+    }
+
+    private var peptideSetupSteps: [AtlasOnboardingStep] {
+        var steps: [AtlasOnboardingStep] = [.peptideSelection, .peptideFrequency]
+        if peptide.frequency?.atlasOnboardingIsDailyInjection != true {
+            steps.append(.peptideInjectionDay)
+        }
+        steps.append(contentsOf: [.peptideExperience, .peptideInjectionTime, .peptideDose, .peptideGoal])
+        return steps
+    }
+}
+
+private extension String {
+    var atlasOnboardingIsDailyInjection: Bool {
+        localizedCaseInsensitiveContains("daily")
     }
 }
 
