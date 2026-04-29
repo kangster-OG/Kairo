@@ -17,36 +17,45 @@ Before doing anything else, please read:
 5. `docs/backlog-execution-handoff.md`
 6. `docs/current-thread-handoff-2026-04-21.md`
 7. `docs/current-thread-handoff-2026-04-24.md`
-8. `docs/atlas-post-onboarding-visual-north-star-2026-04-23.md`
-9. `docs/atlas-true-fidelity-pass-handoff-2026-04-22.md`
-10. `docs/fresh-codex-visual-fidelity-prompt-2026-04-23.md` if the work involves visual fidelity or post-onboarding UI direction
+8. `docs/current-thread-handoff-2026-04-25-kairo-fidelity.md`
+9. `docs/current-thread-handoff-2026-04-26-onboarding-aetherion-logo.md`
+10. `docs/current-thread-handoff-2026-04-29-launch-widgets-watch.md`
+11. `docs/atlas-post-onboarding-visual-north-star-2026-04-23.md`
+12. `docs/atlas-true-fidelity-pass-handoff-2026-04-22.md`
+13. `docs/fresh-codex-visual-fidelity-prompt-2026-04-23.md` if the work involves visual fidelity or post-onboarding UI direction
 
 If this thread touches UI, UX, design, widgets, SwiftUI presentation, mascot, rewards, motion, or polish, also read:
 
-11. `docs/ios-premium-ui-rubric.md`
-12. `docs/ios-ui-audit-2026-04-10.md`
-13. `docs/ios-ui-skill-stack.md`
-14. `docs/ios-ux-execution-playbook-2026-04-15.md`
-15. `docs/ios-redesign-context-2026-04-14.md`
-16. `docs/ios-ui-polish-thread-handoff-2026-04-16.md`
-17. `docs/ios-ambient-mascot-system-handoff-2026-04-16.md` if mascot/rewards/motion/polish are involved
-18. `docs/mascot-concepts/atlas-mascot-asset-matrix.md` if mascot/rewards/media/widgets are involved
-19. `docs/ios-onboarding-paywall-handoff-2026-04-16.md` if onboarding, trial paywalls, premium conversion, or protocol setup ordering are involved
-20. `docs/atlas-onboarding-ux-deep-dive-2026-04-21.md` if onboarding, app UX, or competitor research is involved
-21. `docs/atlas-cal-ai-finch-dream-ux-2026-04-21.md` if Cal AI, Finch, companion hatching, or dream-product UX is involved
-22. `docs/atlas-dream-onboarding-locked-storyboard-2026-04-21.md` if onboarding sequence, density, or copy structure is involved
-23. `docs/atlas-dream-onboarding-motion-spec-2026-04-21.md` if onboarding transitions, animation, or interaction polish is involved
+14. `docs/ios-premium-ui-rubric.md`
+15. `docs/ios-ui-audit-2026-04-10.md`
+16. `docs/ios-ui-skill-stack.md`
+17. `docs/ios-ux-execution-playbook-2026-04-15.md`
+18. `docs/ios-redesign-context-2026-04-14.md`
+19. `docs/ios-ui-polish-thread-handoff-2026-04-16.md`
+20. `docs/ios-ambient-mascot-system-handoff-2026-04-16.md` if mascot/rewards/motion/polish are involved
+21. `docs/mascot-concepts/atlas-mascot-asset-matrix.md` if mascot/rewards/media/widgets are involved
+22. `docs/ios-onboarding-paywall-handoff-2026-04-16.md` if onboarding, trial paywalls, premium conversion, or protocol setup ordering are involved
+23. `docs/atlas-onboarding-ux-deep-dive-2026-04-21.md` if onboarding, app UX, or competitor research is involved
+24. `docs/atlas-cal-ai-finch-dream-ux-2026-04-21.md` if Cal AI, Finch, companion hatching, or dream-product UX is involved
+25. `docs/atlas-dream-onboarding-locked-storyboard-2026-04-21.md` if onboarding sequence, density, or copy structure is involved
+26. `docs/atlas-dream-onboarding-motion-spec-2026-04-21.md` if onboarding transitions, animation, or interaction polish is involved
 
 Important context:
 
-- Atlas is a premium iPhone peptide protocol command center.
+- Atlas is a premium iPhone peptide protocol system.
+- The user-facing app name is now Kairo, though older docs, project names, and bundle identifiers may still say Atlas.
 - It is not a marketplace, sourcing app, social app, or medical advice app.
 - The native iOS app in `atlas-ios/` is the primary product path.
 - The current post-onboarding product direction is calm, tactile, premium, simple, mascot-forward, comprehensive, and utility-first.
 - Privacy/trust still matters, but it should no longer be overemphasized as the headline differentiator.
-- The main product promise is: `Build your peptide protocol command center.`
-- The April 24 handoff confirms the post-onboarding app has been rebuilt around the locked mockup board. Do not restart the mockup rebuild from scratch.
+- The main product promise is: `Build your peptide protocol.`
+- The April 24 and April 25 handoffs confirm the post-onboarding app has been rebuilt around the locked mockup board. Do not restart the mockup rebuild from scratch.
+- The April 29 launch/widgets/watch handoff captures the latest launch-readiness, Supabase, onboarding, progress-photo, Aetherion, widget, and App Intents state.
+- The user expects exact mockup-board visual fidelity while preserving real app functionality. Do not strip functionality or make a static shell to match screenshots.
 - The next default phase is release hardening and concrete regression fixes, not broad feature expansion.
+- App Store payments expect real StoreKit/App Store Connect products `com.dkang2000.Atlas.kairo.pro.annual` and `com.dkang2000.Atlas.kairo.pro.monthly`, each with a 7-day introductory free trial configured.
+- Supabase is still part of the launch architecture for auth/sync/live review. Do not remove it as dead code without a fresh architecture decision.
+- Widgets exist through `AtlasWidgetsExtension`; Watch-accessible functions currently exist through embedded App Intents/Shortcuts in `AtlasIntentsExtension`, not a full standalone watchOS app.
 - Avoid generic health-app UI and avoid noisy/childish gamification.
 - For mascot art:
   - portrait art = in-app hero/detail/export
@@ -77,8 +86,10 @@ Additional UX / copy rules:
 - The current docked bottom tab shelf is the baseline; do not default to transparent tab-bar experiments unless explicitly asked.
 - For mascot work, prefer event-based reactions over adding more permanent mascot homes.
 - For visual fidelity work, use `docs/fresh-codex-visual-fidelity-prompt-2026-04-23.md` as the copy-paste starter prompt and `docs/atlas-post-onboarding-visual-north-star-2026-04-23.md` as the mockup design reference.
+- Also use `docs/current-thread-handoff-2026-04-25-kairo-fidelity.md` for the latest Kairo visual-fidelity state, latest screenshot artifacts, test result, and known simulator workflow.
+- Use `docs/current-thread-handoff-2026-04-29-launch-widgets-watch.md` for the latest launch-readiness, backend, widgets, watch-functions, onboarding, progress-photo, Aetherion, and App Store caveats.
 - Treat the new mockup direction as the visual standard for the entire post-onboarding app, including deep editors, widgets, compact states, and settings, not only Today / Log Shot / Companion.
-- Ignore onboarding for now unless explicitly asked; it will be rebuilt separately.
+- Only touch onboarding when explicitly asked, and when you do, preserve the latest branching/multi-select fixes and make onboarding inputs drive preview/app state.
 - If doing UI work, use the screenshot QA harness in `scripts/atlas-mockup-screenshot-qa.sh` and compare against the latest intentional references. The latest closeout sweep captured 37 routes at `output/mockup-screenshot-qa/final-confidence-2026-04-24/`.
 
 Once you’ve read the docs above, run `git status --short`, give me a very short summary of what Atlas is building and what you understand the current product/design direction to be, then wait for my feature request.
