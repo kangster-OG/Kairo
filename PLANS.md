@@ -1,4 +1,57 @@
-# Atlas Build Plan
+# Kairo Build Plan
+
+## Active milestone
+### Android Native Clone + Google Play Launch
+Depends on:
+- current native iOS product under `atlas-ios/` remaining the shipped reference implementation
+- Kairo staying a premium peptide/GLP protocol tracker, not a marketplace, medical advice app, AI chatbot, social app, or calorie tracker
+- local-first and guest-first behavior carrying over to Android
+- Supabase auth/sync/live review remaining additive to local storage
+- Google Play Billing, Health Connect, Android widgets, notifications, and Play policy requirements being implemented with Android-native APIs
+
+Status:
+- planned on 2026-05-01
+- decision: keep Android in this repo as `kairo-android/`
+- decision: build native Android with Kotlin + Jetpack Compose, not React Native
+- detailed plan: `docs/kairo-android-google-play-plan.md`
+
+Will deliver:
+- an Android-native clone of Kairo's core app and launch feature set
+- five-tab Android shell matching the Kairo product model: Today, Log, Protocols, Progress, Companion
+- local-first Android persistence with deterministic protocol, shot log, inventory, progress, and companion behavior
+- limited preview gating and Pro upgrade prompts equivalent to iOS
+- Google Play Billing products matching Kairo's subscription strategy
+- Supabase-backed account/auth/sync/live review where appropriate
+- Health Connect integration for explicit opt-in health data
+- Android widgets and notification/reminder behavior that matches Kairo's privacy posture
+- Google Play internal/closed testing readiness, store metadata, health declaration, data safety, privacy links, and production release checklist
+
+Constraints:
+- do not rewrite or downgrade the iOS SwiftUI app
+- do not resurrect React Native as the primary app path
+- do not add dosing advice, medical recommendations, sourcing, vendor comparison, marketplace, social, or chatbot behavior
+- do not require cloud sign-in for core local tracking
+- do not secretly map the $39.99 last-chance annual offer to the normal $59.99 annual product
+- preserve current legal links:
+  - Privacy Policy: `https://chloeverse.io/kairo/privacy`
+  - Terms/EULA: `https://www.apple.com/legal/internet-services/itunes/dev/stdeula/` until Android-specific terms are approved
+
+Execution order:
+- create `kairo-android/` native Android scaffold
+- port domain contract and persistence schema before broad UI polish
+- implement the Kairo five-tab shell and limited preview route guard
+- ship a vertical slice: onboarding, Today, Log Shot, Protocols, local SQLite/Room, and upgrade prompt
+- add Google Play Billing and subscription entitlement state
+- add Supabase account/auth/sync/live review
+- add Progress, Companion, widgets, reminders, Health Connect, review/export, and settings
+- run Play internal testing, then closed testing, then production readiness
+
+Verification goals:
+- Gradle clean build for debug and release app bundle
+- unit tests for protocol scheduling, shot logging, inventory runway, limited preview gating, billing entitlement mapping, and export/import contracts
+- Android emulator QA on phone and large-screen/tablet classes
+- real-device QA for notifications, Health Connect, Google sign-in, billing sandbox, widgets, camera/photos, biometric/privacy gates, and file sharing
+- Play Console checklist complete for app content, health declaration, data safety, subscriptions, privacy policy, support URL, signing, and testing tracks
 
 ## Current direction
 - Atlas React Native remains the product oracle, Android path, and migration source.
