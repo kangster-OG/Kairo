@@ -1,6 +1,7 @@
 import AtlasDesignSystem
 import AtlasDomain
 import SwiftUI
+import StoreKit
 
 public let atlasDreamOnboardingSceneCountForTesting = AtlasOnboardingDraft.empty().sequence().count
 
@@ -9,7 +10,7 @@ public let atlasDreamOnboardingChapterTitlesForTesting = [
     "Profile setup",
     "Protocol branch",
     "Companion hatching",
-    "Tracking permissions",
+    "Connection setup",
     "Plan generation",
     "Save progress",
     "Trial unlock"
@@ -19,6 +20,7 @@ public struct AtlasOnboardingFlowScreen: View {
     let model: AtlasAppModel
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.requestReview) private var requestReview
     @State private var draft: AtlasOnboardingDraft
     @State private var companionName: String
 
@@ -251,7 +253,13 @@ public struct AtlasOnboardingFlowScreen: View {
         case .ratingPrimer:
             KairoRatingPrimerScreen()
         case .trackingPermission:
-            KairoTrackingPermissionScreen()
+            KairoPlanLoadingScreen {
+                Task { @MainActor in
+                    await model.saveOnboardingDraft(draft)
+                    model.advanceOnboarding()
+                    syncFromModel()
+                }
+            }
         case .planLoading:
             KairoPlanLoadingScreen {
                 Task { @MainActor in
@@ -277,6 +285,8 @@ public struct AtlasOnboardingFlowScreen: View {
         case .trialPaywall:
             KairoTrialPaywallScreen(plan: draft.premiumPlan) { plan in
                 updateDraft { $0.premiumPlan = plan }
+            } onLastChanceDiscount: {
+                Task { await purchaseLastChanceDiscountAndAdvance() }
             }
         case .purchaseSuccess:
             KairoPurchaseSuccessScreen(
@@ -326,7 +336,8 @@ public struct AtlasOnboardingFlowScreen: View {
         case .branchPath: "Protocol path"
         case .glpMedication, .glpFrequency, .glpInjectionDay, .glpInjectionTime, .glpDose, .glpDuration, .glpGoal, .glpChallenge: "GLP setup"
         case .peptideSelection, .peptideFrequency, .peptideInjectionDay, .peptideExperience, .peptideInjectionTime, .peptideDose, .peptideGoal: "Peptide setup"
-        case .connectApps, .ratingPrimer, .trackingPermission: "Connections"
+        case .connectApps, .ratingPrimer: "Connections"
+        case .trackingPermission: "Your plan"
         case .planLoading, .planPreview, .planReady: "Your plan"
         case .saveProgress, .signInModal, .trialIntro, .trialReminder, .trialPaywall, .purchaseSuccess, .saveProgressAgain, .homeEndpoint: "Unlock Kairo"
         }
@@ -337,7 +348,7 @@ public struct AtlasOnboardingFlowScreen: View {
         case .intro: "Get started"
         case .planReady: "Let's get started"
         case .homeEndpoint: "Enter Kairo"
-        case .trialPaywall: "Start 3-day free trial"
+        case .trialPaywall: "Start 7-day free trial"
         case .purchaseSuccess: "Enter Kairo"
         default: "Next"
         }
@@ -347,7 +358,6 @@ public struct AtlasOnboardingFlowScreen: View {
         switch step {
         case .intro: "Already have an account? Sign in"
         case .connectApps: "Not now"
-        case .trackingPermission: "Ask later"
         case .trialPaywall: "Continue with limited preview"
         case .signInModal: "Continue as guest"
         default: nil
@@ -404,6 +414,22 @@ public struct AtlasOnboardingFlowScreen: View {
         persistDefaultsForStep()
         model.recordOnboardingFunnelEvent(.primaryTapped, step: step)
 
+        switch step {
+        case .connectApps:
+            Task { await connectHealthAndAdvance() }
+            return
+        case .ratingPrimer:
+            requestReview()
+        case .trialReminder:
+            Task { await enableRemindersAndAdvance() }
+            return
+        case .trialPaywall:
+            Task { await purchaseTrialAndAdvance() }
+            return
+        default:
+            break
+        }
+
         if step == .homeEndpoint || step == .purchaseSuccess {
             Task {
                 var completed = draft
@@ -420,11 +446,6 @@ public struct AtlasOnboardingFlowScreen: View {
             draft = next
         }
 
-        if step == .trialPaywall {
-            updateDraft { $0.paywallChoice = .trialStarted }
-            model.recordOnboardingFunnelEvent(.trialStarted, step: step)
-        }
-
         Task {
             await model.saveOnboardingDraft(draft)
             model.advanceOnboarding()
@@ -435,16 +456,15 @@ public struct AtlasOnboardingFlowScreen: View {
     private func secondaryAction() {
         model.recordOnboardingFunnelEvent(.secondaryTapped, step: step)
         switch step {
+        case .intro:
+            Task { await startExistingAccountSignIn() }
+            return
         case .connectApps:
             updateDraft { $0.healthConnectionPromptSeen = true }
-        case .trackingPermission:
-            updateDraft {
-                $0.privacy.analyticsOptIn = false
-                $0.dreamAnswers["trackingPermission"] = "Later"
-            }
         case .trialPaywall:
-            updateDraft { $0.paywallChoice = .basic }
+            Task { await startLimitedPreview() }
             model.recordOnboardingFunnelEvent(.basicSelected, step: step)
+            return
         case .signInModal:
             updateDraft { $0.accountMode = .guest }
         default:
@@ -455,6 +475,71 @@ public struct AtlasOnboardingFlowScreen: View {
             model.advanceOnboarding()
             syncFromModel()
         }
+    }
+
+    private func connectHealthAndAdvance() async {
+        await model.connectHealthKit()
+        var next = draft
+        next.healthConnectionPromptSeen = true
+        let connected = model.settingsSnapshot.healthScaffold.connections.contains {
+            $0.providerKey == .appleHealth && $0.connected
+        }
+        model.recordOnboardingFunnelEvent(connected ? .healthConnected : .healthSkipped, step: step)
+        await saveAndAdvance(next)
+    }
+
+    private func enableRemindersAndAdvance() async {
+        await model.requestReminderPermission()
+        await model.updateReminderSettings(
+            AtlasReminderPreferenceUpdate(
+                remindersEnabled: true,
+                privacyMode: draft.privacy.discreetNotifications ? .generic : .fullDetail,
+                leadTimeMinutes: 0
+            )
+        )
+        await saveAndAdvance(draft)
+    }
+
+    private func purchaseTrialAndAdvance() async {
+        let purchased = await model.purchaseKairoPro(plan: draft.premiumPlan)
+        guard purchased else { return }
+
+        var next = draft
+        next.paywallChoice = .trialStarted
+        model.recordOnboardingFunnelEvent(.trialStarted, step: step)
+        await saveAndAdvance(next)
+    }
+
+    private func purchaseLastChanceDiscountAndAdvance() async {
+        let purchased = await model.purchaseKairoPro(plan: .annualLastChance)
+        guard purchased else { return }
+
+        var next = draft
+        next.premiumPlan = .annualLastChance
+        next.paywallChoice = .trialStarted
+        model.recordOnboardingFunnelEvent(.trialStarted, step: step)
+        await saveAndAdvance(next)
+    }
+
+    private func startLimitedPreview() async {
+        var next = draft
+        next.paywallChoice = .basic
+        await model.saveOnboardingDraft(next)
+        await model.completeOnboardingForLimitedPreview()
+    }
+
+    private func startExistingAccountSignIn() async {
+        var next = draft
+        next.accountMode = .signIn
+        await model.saveOnboardingDraft(next)
+        await model.completeOnboardingForExistingAccountSignIn()
+    }
+
+    private func saveAndAdvance(_ next: AtlasOnboardingDraft) async {
+        draft = next
+        await model.saveOnboardingDraft(next)
+        model.advanceOnboarding()
+        syncFromModel()
     }
 
     private func goBack() {
@@ -523,11 +608,6 @@ public struct AtlasOnboardingFlowScreen: View {
             updateDraft { $0.peptide.dose = "Custom" }
         case .peptideGoal where draft.peptide.goal == nil:
             updateDraft { $0.peptide.goal = "Performance" }
-        case .connectApps:
-            updateDraft { $0.healthConnectionPromptSeen = true }
-            model.recordOnboardingFunnelEvent(.healthConnected, step: step)
-        case .trackingPermission:
-            updateDraft { $0.privacy.analyticsOptIn = true; $0.dreamAnswers["trackingPermission"] = "Allowed" }
         default:
             break
         }
@@ -1757,7 +1837,7 @@ private struct KairoCompanionChoiceScreen: View {
                 KairoCompanionChoiceCard(name: "Aurielle", subtitle: "Crystal guardian", imageName: "KairoOnboardingAurielleStage1", selected: selection == .aurielle) {
                     onSelect(.aurielle)
                 }
-                KairoCompanionChoiceCard(name: "Aetherion", subtitle: "Storm dragon", imageName: "KairoOnboardingAetherionStage1", selected: selection == .aetherion) {
+                KairoCompanionChoiceCard(name: "Aetherion", subtitle: "Storm-forged drake", imageName: "KairoOnboardingAetherionStage1", selected: selection == .aetherion) {
                     onSelect(.aetherion)
                 }
             }
@@ -1943,13 +2023,13 @@ private struct KairoConnectAppsScreen: View {
                 .padding(.top, 34)
 
             VStack(spacing: 14) {
-                Text("Connect your\nhealth apps")
+                Text("Connect\nApple Health")
                     .font(.system(size: 28, weight: .black))
                     .foregroundStyle(AtlasPalette.textPrimary)
                     .multilineTextAlignment(.center)
                     .lineSpacing(1)
 
-                Text("Sync weight, workouts, hydration,\nsleep, and steps into Kairo.")
+                Text("Sync Health data like weight,\nworkouts, hydration, sleep, and steps.")
                     .font(.system(size: 16, weight: .medium))
                     .foregroundStyle(AtlasPalette.textPrimary)
                     .multilineTextAlignment(.center)
@@ -2109,18 +2189,6 @@ private struct KairoCleanArrow: View {
     enum ArrowHead {
         case down
         case up
-    }
-}
-
-private struct KairoTrackingPermissionScreen: View {
-    var body: some View {
-        KairoQuestionScaffold(title: "Allow tracking", subtitle: "") {
-            VStack(spacing: 12) {
-                KairoPermissionRow(icon: "lock.shield.fill", title: "No medical data sold", detail: "Kairo is not a marketplace or sourcing product.")
-                KairoPermissionRow(icon: "bell.badge.fill", title: "Smarter nudges", detail: "Learn which setup moments create follow-through.")
-                KairoPermissionRow(icon: "person.crop.circle.badge.checkmark", title: "You control it", detail: "Change preferences later from settings.")
-            }
-        }
     }
 }
 
@@ -2299,13 +2367,16 @@ private struct KairoTrialReminderScreen: View {
 private struct KairoTrialPaywallScreen: View {
     let plan: AtlasOnboardingPremiumPlan
     let onPlan: (AtlasOnboardingPremiumPlan) -> Void
+    let onLastChanceDiscount: () -> Void
 
     var body: some View {
-        KairoQuestionScaffold(title: "Start your 3-day free trial to continue", subtitle: "") {
+        KairoQuestionScaffold(title: "Start your 7-day free trial to continue", subtitle: "") {
             VStack(spacing: 12) {
                 KairoTrialTimeline()
                 KairoPlanPriceRow(title: "Annual", price: "$59.99 / year", selected: plan == .annual) { onPlan(.annual) }
                 KairoPlanPriceRow(title: "Monthly", price: "$9.99 / month", selected: plan == .monthly) { onPlan(.monthly) }
+                KairoLastChanceDiscountButton(action: onLastChanceDiscount)
+                KairoInfoBanner(text: "Limited preview saves your setup and lets you inspect Kairo locally without starting Pro.")
                 KairoInfoBanner(text: "Cancel anytime. Kairo does not provide dosing or medical advice.")
             }
         }
@@ -2757,7 +2828,7 @@ private struct KairoAnimatedDemoScreen: View {
     @State private var phase = 0
     @State private var introZoom = true
     @State private var didComplete = false
-    private let timer = Timer.publish(every: 0.82, on: .main, in: .common).autoconnect()
+    private let timer = Timer.publish(every: 0.76, on: .main, in: .common).autoconnect()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -2794,7 +2865,7 @@ private struct KairoAnimatedDemoScreen: View {
             phase = 0
             introZoom = true
             didComplete = false
-            withAnimation(.easeOut(duration: 0.82)) {
+            withAnimation(.easeOut(duration: 0.76)) {
                 introZoom = false
             }
         }
@@ -4269,9 +4340,9 @@ private struct KairoTrialTimeline: View {
         HStack(spacing: 0) {
             KairoTrialTimelineItem(icon: "checkmark.circle.fill", title: "Today", detail: "Full access")
             Rectangle().fill(AtlasPalette.border).frame(height: 1)
-            KairoTrialTimelineItem(icon: "bell.badge.fill", title: "Day 2", detail: "Reminder")
+            KairoTrialTimelineItem(icon: "bell.badge.fill", title: "Day 6", detail: "Reminder")
             Rectangle().fill(AtlasPalette.border).frame(height: 1)
-            KairoTrialTimelineItem(icon: "crown.fill", title: "Day 3", detail: "Renewal")
+            KairoTrialTimelineItem(icon: "crown.fill", title: "Day 7", detail: "Renewal")
         }
         .padding(12)
         .background(AtlasPalette.surfaceTop, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -4336,6 +4407,34 @@ private struct KairoTextFieldPreview: View {
         }
         .padding(15)
         .background(AtlasPalette.surfaceSecondary, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+}
+
+private struct KairoLastChanceDiscountButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: "tag.fill")
+                    .font(.system(size: 17, weight: .black))
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Last chance discount")
+                        .font(.system(size: 16, weight: .black))
+                    Text("$39.99 / year")
+                        .font(.system(size: 13, weight: .bold))
+                        .opacity(0.82)
+                }
+                Spacer()
+                Image(systemName: "arrow.right.circle.fill")
+                    .font(.system(size: 19, weight: .bold))
+            }
+            .foregroundStyle(.white)
+            .padding(15)
+            .background(AtlasPalette.reward, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Last chance discount, 39.99 dollars per year")
     }
 }
 

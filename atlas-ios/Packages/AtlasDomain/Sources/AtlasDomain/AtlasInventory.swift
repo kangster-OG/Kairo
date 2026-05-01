@@ -75,6 +75,7 @@ public struct AtlasVialSummary: Identifiable, Hashable, Sendable {
     public var quantityLabel: String
     public var lowStockLabel: String?
     public var projectedDepletionLabel: String?
+    public var projectedDepletionAt: Date?
     public var autoDecrementLabel: String?
     public var remainingQuantity: Double
     public var startingQuantity: Double
@@ -95,6 +96,7 @@ public struct AtlasVialSummary: Identifiable, Hashable, Sendable {
         quantityLabel: String,
         lowStockLabel: String?,
         projectedDepletionLabel: String?,
+        projectedDepletionAt: Date? = nil,
         autoDecrementLabel: String?,
         remainingQuantity: Double,
         startingQuantity: Double,
@@ -114,6 +116,7 @@ public struct AtlasVialSummary: Identifiable, Hashable, Sendable {
         self.quantityLabel = quantityLabel
         self.lowStockLabel = lowStockLabel
         self.projectedDepletionLabel = projectedDepletionLabel
+        self.projectedDepletionAt = projectedDepletionAt
         self.autoDecrementLabel = autoDecrementLabel
         self.remainingQuantity = remainingQuantity
         self.startingQuantity = startingQuantity

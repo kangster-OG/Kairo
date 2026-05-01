@@ -23,7 +23,11 @@ private enum AtlasWidgetProjectionStore {
         guard let data = try? Data(contentsOf: url) else {
             return nil
         }
-        return try? JSONDecoder().decode(AtlasWidgetProjectionSnapshot.self, from: data)
+        guard var snapshot = try? JSONDecoder().decode(AtlasWidgetProjectionSnapshot.self, from: data) else {
+            return nil
+        }
+        snapshot.sanitizeLegacyMascotNames()
+        return snapshot
     }
 }
 
@@ -95,12 +99,32 @@ private struct AtlasWidgetSupportRingsSnapshot: Codable {
     var score: Int
     var summary: String
     var rings: [AtlasWidgetSupportRingSnapshot]
+    var showsHealthSteps: Bool? = nil
+    var stepCount: Int? = nil
+    var stepLabel: String? = nil
     var updatedAt: String
+}
+
+private struct AtlasWidgetCompanionSnapshot: Codable {
+    var levelLabel: String
+    var xpLabel: String
+    var xpProgress: Double
+    var nextShotDaysLabel: String
+    var vialReplacementDaysLabel: String
 }
 
 private enum AtlasWidgetMascotSelection: String, Codable {
     case aetherion
     case aurielle
+
+    var displayTitle: String {
+        switch self {
+        case .aetherion:
+            return "Aetherion"
+        case .aurielle:
+            return "Aurielle"
+        }
+    }
 }
 
 private enum AtlasWidgetMascotStage: String, Codable {
@@ -144,6 +168,44 @@ private struct AtlasWidgetMascotSnapshot: Codable {
     var latestMomentDetail: String?
     var latestMomentSymbolName: String?
     var latestMomentRecordedAt: String?
+}
+
+private extension AtlasWidgetProjectionSnapshot {
+    mutating func sanitizeLegacyMascotNames() {
+        guard var mascot else {
+            return
+        }
+        mascot.sanitizeLegacyNames()
+        self.mascot = mascot
+    }
+}
+
+private extension AtlasWidgetMascotSnapshot {
+    mutating func sanitizeLegacyNames() {
+        let companionName = selection.displayTitle
+        displayName = sanitizedLegacyMascotText(displayName, replacement: companionName)
+        currentFormName = companionName
+        nextFormName = nextFormName.map { sanitizedLegacyMascotText($0, replacement: companionName) }
+        milestoneHeadline = sanitizedLegacyMascotSentence(milestoneHeadline, replacement: companionName)
+        progressLabel = sanitizedLegacyMascotSentence(progressLabel, replacement: companionName)
+        statusLine = sanitizedLegacyMascotSentence(statusLine, replacement: companionName)
+        reactionTitle = reactionTitle.map { sanitizedLegacyMascotSentence($0, replacement: companionName) }
+        latestMomentTitle = latestMomentTitle.map { sanitizedLegacyMascotSentence($0, replacement: companionName) }
+        latestMomentDetail = latestMomentDetail.map { sanitizedLegacyMascotSentence($0, replacement: companionName) }
+    }
+
+    private func sanitizedLegacyMascotSentence(_ text: String, replacement: String) -> String {
+        var sanitized = sanitizedLegacyMascotText(text, replacement: replacement)
+        sanitized = sanitized.replacingOccurrences(of: "Next form:", with: "Next companion milestone:")
+        sanitized = sanitized.replacingOccurrences(of: "Current form:", with: "Companion:")
+        return sanitized
+    }
+
+    private func sanitizedLegacyMascotText(_ text: String, replacement: String) -> String {
+        ["Moppet", "Glisshare", "Cindlet", "Voltflare"].reduce(text) { partial, legacyName in
+            partial.replacingOccurrences(of: legacyName, with: replacement)
+        }
+    }
 }
 
 private enum AtlasMascotWidgetFocus: String, AppEnum, Codable {
@@ -202,6 +264,7 @@ private struct AtlasWidgetProjectionSnapshot: Codable {
     var lowStock: AtlasWidgetLowStockSnapshot
     var support: AtlasWidgetSupportRingsSnapshot?
     var mascot: AtlasWidgetMascotSnapshot?
+    var companion: AtlasWidgetCompanionSnapshot? = nil
     var featureFlags: AtlasWidgetFeatureFlagProjection
 }
 
@@ -239,7 +302,12 @@ private enum AtlasWidgetTime {
     static func date(from value: String) -> Date? {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter.date(from: value)
+        if let date = formatter.date(from: value) {
+            return date
+        }
+        let fallback = ISO8601DateFormatter()
+        fallback.formatOptions = [.withInternetDateTime]
+        return fallback.date(from: value)
     }
 }
 
@@ -429,6 +497,49 @@ private struct AtlasMascotProvider: AppIntentTimelineProvider {
     }
 }
 
+private struct AtlasMascotStaticProvider: TimelineProvider {
+    func placeholder(in context: Context) -> AtlasMascotWidgetEntry {
+        AtlasMascotWidgetEntry(
+            date: .now,
+            snapshot: atlasWidgetPreviewProjectionSnapshot(),
+            configuration: AtlasMascotWidgetConfigurationIntent()
+        )
+    }
+
+    func getSnapshot(in context: Context, completion: @escaping (AtlasMascotWidgetEntry) -> Void) {
+        completion(
+            AtlasMascotWidgetEntry(
+                date: .now,
+                snapshot: AtlasWidgetProjectionStore.load(),
+                configuration: AtlasMascotWidgetConfigurationIntent()
+            )
+        )
+    }
+
+    func getTimeline(in context: Context, completion: @escaping (Timeline<AtlasMascotWidgetEntry>) -> Void) {
+        let snapshot = AtlasWidgetProjectionStore.load()
+        let entries = [
+            AtlasMascotWidgetEntry(
+                date: .now,
+                snapshot: snapshot,
+                configuration: AtlasMascotWidgetConfigurationIntent()
+            )
+        ]
+        completion(Timeline(entries: entries, policy: .after(.now.addingTimeInterval(900))))
+    }
+
+    private func automaticFocuses(for mascot: AtlasWidgetMascotSnapshot) -> [AtlasMascotWidgetFocus] {
+        var focuses: [AtlasMascotWidgetFocus] = [.progress, .status]
+        if mascot.latestMomentTitle != nil || mascot.reactionTitle != nil {
+            focuses.append(.moments)
+        }
+        if mascot.lastEvolution != nil {
+            focuses.append(.history)
+        }
+        return focuses
+    }
+}
+
 private func atlasWidgetPreviewProjectionSnapshot() -> AtlasWidgetProjectionSnapshot {
     let now = Date()
     let iso = ISO8601DateFormatter()
@@ -467,16 +578,16 @@ private func atlasWidgetPreviewProjectionSnapshot() -> AtlasWidgetProjectionSnap
         mascot: AtlasWidgetMascotSnapshot(
             selection: .aetherion,
             nickname: nil,
-            displayName: "Cindlet",
+            displayName: "Aetherion",
             stage: .stage1,
             pose: .milestone,
-            currentFormName: "Cindlet",
-            nextFormName: "Voltflare",
+            currentFormName: "Aetherion",
+            nextFormName: "Aetherion",
             nextThresholdPoints: 500,
             totalPoints: 182,
-            milestoneHeadline: "Cindlet evolves into Voltflare at 500 points.",
-            progressLabel: "318 points to Voltflare.",
-            statusLine: "Cindlet is growing with every step toward weekly workout goal.",
+            milestoneHeadline: "Aetherion is building toward the next milestone.",
+            progressLabel: "318 points to the next milestone.",
+            statusLine: "Aetherion is staying close to the weekly workout goal.",
             reactionTitle: "Momentum building",
             reactionSymbolName: "sparkles",
             lastEvolution: AtlasWidgetMascotEvolutionRecord(
@@ -1168,6 +1279,427 @@ private struct AtlasWidgetMascotStickerArt: View {
     }
 }
 
+private struct AtlasKairoCompanionWidgetBackdrop: View {
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack {
+                if let image = UIImage(named: "KairoBoardTodayHeroBackground", in: .main, compatibleWith: nil) {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: proxy.size.width * 1.75, height: proxy.size.height)
+                        .offset(x: -proxy.size.width * 0.72)
+                        .clipped()
+                        .saturation(1.06)
+                        .contrast(1.08)
+                        .brightness(-0.02)
+                } else {
+                    LinearGradient(
+                        colors: [
+                            Color(red: 0.86, green: 0.94, blue: 0.88),
+                            Color(red: 0.98, green: 0.95, blue: 0.88)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                }
+
+                LinearGradient(
+                    colors: [
+                        Color.white.opacity(0.02),
+                        Color(red: 0.98, green: 0.96, blue: 0.91).opacity(0.18),
+                        Color(red: 0.80, green: 0.91, blue: 0.84).opacity(0.28)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            }
+        }
+    }
+}
+
+private struct AtlasCompanionSceneWidget: View {
+    var mascot: AtlasWidgetMascotSnapshot
+    var headline: String
+    var statusLine: String
+    var focusLabel: String
+    var stageLabel: String
+    var progress: CGFloat
+    var isStale: Bool
+    @Environment(\.widgetFamily) private var family
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack {
+                AtlasKairoCompanionWidgetBackdrop()
+
+                if family == .systemSmall {
+                    smallLayout(size: proxy.size)
+                } else {
+                    mediumLayout(size: proxy.size)
+                }
+            }
+            .clipped()
+        }
+        .containerBackground(AtlasWidgetPalette.textPrimary, for: .widget)
+    }
+
+    private func smallLayout(size: CGSize) -> some View {
+        ZStack(alignment: .bottomLeading) {
+            AtlasWidgetMascotStickerArt(snapshot: mascot, size: 96)
+                .position(x: size.width * 0.35, y: size.height * 0.46)
+                .shadow(color: Color.black.opacity(0.18), radius: 9, y: 5)
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text("KAIRO COMPANION")
+                    .font(.system(size: 9, weight: .black, design: .rounded))
+                    .foregroundStyle(Color.white.opacity(0.72))
+                    .lineLimit(1)
+                Text(mascot.displayName)
+                    .font(.system(size: 17, weight: .black, design: .rounded))
+                    .foregroundStyle(Color.white)
+                    .lineLimit(1)
+                AtlasCompanionMiniBoard(
+                    progress: progress,
+                    focusLabel: focusLabel,
+                    stageLabel: stageLabel,
+                    nextLabel: nextLabel,
+                    tint: accentTint
+                )
+                .frame(width: 128)
+            }
+            .padding(12)
+        }
+    }
+
+    private func mediumLayout(size: CGSize) -> some View {
+        HStack(alignment: .center, spacing: 10) {
+            ZStack(alignment: .bottomLeading) {
+                AtlasWidgetMascotStickerArt(snapshot: mascot, size: min(size.height * 0.80, 132))
+                    .offset(x: size.width * 0.10, y: -2)
+                    .shadow(color: Color.black.opacity(0.22), radius: 10, y: 6)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Text("KAIRO COMPANION")
+                            .font(.system(size: 10, weight: .black, design: .rounded))
+                            .foregroundStyle(Color.white.opacity(0.70))
+                        if isStale {
+                            Text("REFRESH")
+                                .font(.system(size: 9, weight: .black, design: .rounded))
+                                .foregroundStyle(AtlasWidgetPalette.textPrimary)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 3)
+                                .background(AtlasWidgetPalette.primarySoft, in: Capsule())
+                        }
+                    }
+                    Text(mascot.displayName)
+                        .font(.system(size: 24, weight: .black, design: .rounded))
+                        .foregroundStyle(Color.white)
+                        .lineLimit(1)
+                    Text(statusLine)
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .foregroundStyle(Color.white.opacity(0.78))
+                        .lineLimit(2)
+                }
+                .padding(.leading, 16)
+                .padding(.bottom, 14)
+                .frame(width: size.width * 0.56, alignment: .leading)
+            }
+
+            Spacer(minLength: 0)
+
+            AtlasCompanionStatBoard(
+                totalPoints: mascot.totalPoints,
+                progress: progress,
+                focusLabel: focusLabel,
+                stageLabel: stageLabel,
+                nextLabel: nextLabel,
+                tint: accentTint
+            )
+            .frame(width: min(size.width * 0.31, 128))
+            .padding(.trailing, 14)
+            .padding(.vertical, 14)
+        }
+    }
+
+    private var nextLabel: String {
+        mascot.nextFormName ?? mascot.currentFormName
+    }
+
+    private var sceneInk: Color {
+        AtlasWidgetPalette.textPrimary
+    }
+
+    private var accentTint: Color {
+        switch mascot.selection {
+        case .aetherion:
+            return Color(red: 0.17, green: 0.47, blue: 0.92)
+        case .aurielle:
+            return Color(red: 0.31, green: 0.66, blue: 0.84)
+        }
+    }
+}
+
+private struct AtlasCompanionStatBoard: View {
+    var totalPoints: Int
+    var progress: CGFloat
+    var focusLabel: String
+    var stageLabel: String
+    var nextLabel: String
+    var tint: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("COMPANION")
+                .font(.system(size: 10, weight: .black, design: .rounded))
+                .foregroundStyle(Color.white.opacity(0.72))
+                .frame(maxWidth: .infinity, alignment: .center)
+
+            AtlasCompanionBoardRow(title: "XP", value: "\(totalPoints)", progress: progress, tint: tint)
+            AtlasCompanionBoardRow(title: "FOCUS", value: focusLabel, progress: 0.72, tint: Color(red: 0.50, green: 0.77, blue: 0.39))
+            AtlasCompanionBoardRow(title: "NEXT", value: nextLabel, progress: 0.55, tint: Color(red: 0.91, green: 0.65, blue: 0.20))
+
+            Text(stageLabel.uppercased())
+                .font(.system(size: 9, weight: .black, design: .rounded))
+                .foregroundStyle(Color.white.opacity(0.66))
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .center)
+        }
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(Color(red: 0.08, green: 0.18, blue: 0.15).opacity(0.90))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .stroke(Color.white.opacity(0.14), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.14), radius: 7, y: 4)
+    }
+
+    private var ink: Color {
+        Color(red: 0.20, green: 0.18, blue: 0.13)
+    }
+}
+
+private struct AtlasCompanionMiniBoard: View {
+    var progress: CGFloat
+    var focusLabel: String
+    var stageLabel: String
+    var nextLabel: String
+    var tint: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text("KAIRO")
+                .font(.system(size: 8, weight: .black, design: .rounded))
+            AtlasCompanionBoardRow(title: "XP", value: "", progress: progress, tint: tint)
+            AtlasCompanionBoardRow(title: "FOCUS", value: "", progress: 0.72, tint: Color(red: 0.50, green: 0.77, blue: 0.39))
+            Text(stageLabel.replacingOccurrences(of: "Stage ", with: "S"))
+                .font(.system(size: 8, weight: .black, design: .rounded))
+                .lineLimit(1)
+        }
+        .foregroundStyle(Color.white.opacity(0.78))
+        .padding(8)
+        .background(Color(red: 0.08, green: 0.18, blue: 0.15).opacity(0.90), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .stroke(Color.white.opacity(0.14), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.12), radius: 5, y: 3)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(focusLabel), next \(nextLabel)")
+    }
+}
+
+private struct AtlasCompanionBoardRow: View {
+    var title: String
+    var value: String
+    var progress: CGFloat
+    var tint: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 4) {
+                Text(title)
+                    .font(.system(size: 8, weight: .black, design: .rounded))
+                    .foregroundStyle(Color.white.opacity(0.62))
+                if value.isEmpty == false {
+                    Text(value)
+                        .font(.system(size: 8, weight: .black, design: .rounded))
+                        .foregroundStyle(Color.white.opacity(0.88))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                }
+            }
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 2, style: .continuous)
+                        .fill(Color.white.opacity(0.16))
+                    RoundedRectangle(cornerRadius: 2, style: .continuous)
+                        .fill(tint)
+                        .frame(width: proxy.size.width * min(max(progress, 0.08), 1))
+                }
+            }
+            .frame(height: 6)
+            .overlay(
+                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                    .stroke(Color.white.opacity(0.10), lineWidth: 1)
+            )
+        }
+    }
+}
+
+private struct AtlasCompanionProtocolWidget: View {
+    var mascot: AtlasWidgetMascotSnapshot
+    var companion: AtlasWidgetCompanionSnapshot
+    var isStale: Bool
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack {
+                AtlasKairoCompanionWidgetBackdrop()
+
+                HStack(spacing: 12) {
+                    mascotPanel(size: proxy.size)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        AtlasCompanionMetricPanel(
+                            title: companion.levelLabel,
+                            value: companion.xpLabel,
+                            symbol: "sparkles",
+                            tint: accentTint,
+                            progress: companion.xpProgress
+                        )
+
+                        HStack(spacing: 8) {
+                            AtlasCompanionMetricPanel(
+                                title: "Shot",
+                                value: companion.nextShotDaysLabel,
+                                symbol: "syringe.fill",
+                                tint: Color(red: 0.10, green: 0.43, blue: 0.34),
+                                progress: nil
+                            )
+                            AtlasCompanionMetricPanel(
+                                title: "Vial",
+                                value: companion.vialReplacementDaysLabel,
+                                symbol: "drop.triangle.fill",
+                                tint: Color(red: 0.70, green: 0.50, blue: 0.16),
+                                progress: nil
+                            )
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .padding(.leading, 14)
+                .padding(.trailing, 14)
+                .padding(.vertical, 13)
+            }
+            .clipped()
+        }
+        .containerBackground(Color(red: 0.90, green: 0.95, blue: 0.88), for: .widget)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(mascot.displayName), \(companion.levelLabel), \(companion.xpLabel), next shot \(companion.nextShotDaysLabel), vial replacement \(companion.vialReplacementDaysLabel)")
+    }
+
+    private func mascotPanel(size: CGSize) -> some View {
+        let width = size.width * 0.40
+        return ZStack {
+            Circle()
+                .fill(accentTint.opacity(0.22))
+                .blur(radius: 18)
+                .frame(width: width * 0.78, height: width * 0.78)
+                .offset(x: -width * 0.02, y: -size.height * 0.14)
+
+            AtlasWidgetMascotStickerArt(snapshot: mascot, size: min(size.height * 0.82, width * 0.84))
+                .offset(y: -size.height * 0.11)
+                .shadow(color: Color.black.opacity(0.16), radius: 10, y: 6)
+
+            VStack {
+                Spacer(minLength: 0)
+                Text(mascot.displayName)
+                    .font(.system(size: 20, weight: .black, design: .rounded))
+                    .foregroundStyle(AtlasWidgetPalette.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.62)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Color.white.opacity(0.68), in: Capsule())
+                    .overlay(
+                        Capsule()
+                            .stroke(Color(red: 0.16, green: 0.25, blue: 0.20).opacity(0.08), lineWidth: 1)
+                    )
+                    .shadow(color: Color.white.opacity(0.38), radius: 4, y: 1)
+            }
+            .padding(.bottom, 1)
+        }
+        .frame(width: width)
+    }
+
+    private var accentTint: Color {
+        switch mascot.selection {
+        case .aetherion:
+            return Color(red: 0.91, green: 0.64, blue: 0.23)
+        case .aurielle:
+            return Color(red: 0.56, green: 0.82, blue: 0.96)
+        }
+    }
+}
+
+private struct AtlasCompanionMetricPanel: View {
+    var title: String
+    var value: String
+    var symbol: String
+    var tint: Color
+    var progress: Double?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Image(systemName: symbol)
+                    .font(.system(size: 10, weight: .black))
+                    .foregroundStyle(tint)
+                Text(title.uppercased())
+                    .font(.system(size: 8, weight: .black, design: .rounded))
+                    .foregroundStyle(Color(red: 0.26, green: 0.31, blue: 0.28).opacity(0.66))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
+
+            Text(value)
+                .font(.system(size: progress == nil ? 13 : 15, weight: .black, design: .rounded))
+                .foregroundStyle(AtlasWidgetPalette.textPrimary)
+                .lineLimit(progress == nil ? 2 : 1)
+                .minimumScaleFactor(0.72)
+
+            if let progress {
+                GeometryReader { proxy in
+                    ZStack(alignment: .leading) {
+                        Capsule()
+                            .fill(Color(red: 0.78, green: 0.81, blue: 0.73).opacity(0.55))
+                        Capsule()
+                            .fill(tint)
+                            .frame(width: proxy.size.width * min(max(progress, 0), 1))
+                    }
+                }
+                .frame(height: 7)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 9)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.white.opacity(0.70))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color(red: 0.16, green: 0.25, blue: 0.20).opacity(0.10), lineWidth: 1)
+        )
+    }
+}
+
 private struct AtlasMascotWidgetView: View {
     var entry: AtlasMascotWidgetEntry
     @Environment(\.widgetFamily) private var family
@@ -1181,6 +1713,7 @@ private struct AtlasMascotWidgetView: View {
                 let focus = resolvedFocus(for: mascot, configuredFocus: entry.configuration.focus)
                 liveContent(
                     mascot: mascot,
+                    companion: context.snapshot.companion ?? fallbackCompanionMetrics(for: mascot, snapshot: context.snapshot),
                     focus: focus,
                     freshness: context.freshness
                 )
@@ -1194,7 +1727,7 @@ private struct AtlasMascotWidgetView: View {
             }
         }
         .unredacted()
-        .widgetURL(URL(string: "atlas://mascot"))
+        .widgetURL(URL(string: "atlas://companion"))
     }
 
     private func lastEvolutionLabel(for record: AtlasWidgetMascotEvolutionRecord) -> String {
@@ -1202,15 +1735,15 @@ private struct AtlasMascotWidgetView: View {
         let title: String
         switch (selection, record.stage) {
         case (.aetherion, .stage1):
-            title = "Cindlet"
+            title = "Aetherion"
         case (.aetherion, .stage2):
-            title = "Voltflare"
+            title = "Aetherion"
         case (.aetherion, .stage3):
             title = "Aetherion"
         case (.aurielle, .stage1):
-            title = "Moppet"
+            title = "Aurielle"
         case (.aurielle, .stage2):
-            title = "Glisshare"
+            title = "Aurielle"
         case (.aurielle, .stage3):
             title = "Aurielle"
         }
@@ -1240,6 +1773,7 @@ private struct AtlasMascotWidgetView: View {
     @ViewBuilder
     private func liveContent(
         mascot: AtlasWidgetMascotSnapshot,
+        companion: AtlasWidgetCompanionSnapshot,
         focus: AtlasMascotWidgetFocus,
         freshness: AtlasWidgetProjectionFreshness
     ) -> some View {
@@ -1325,178 +1859,17 @@ private struct AtlasMascotWidgetView: View {
                 Spacer(minLength: 0)
             }
         case .systemSmall:
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(alignment: .top, spacing: 8) {
-                    VStack(alignment: .leading, spacing: 5) {
-                        HStack(spacing: 6) {
-                            AtlasStatusBadge(text: widgetStageBadge(for: mascot))
-                            AtlasStatusBadge(text: widgetFocusBadge(for: focus))
-                        }
-                        Text(mascot.displayName)
-                            .font(.headline.weight(.bold))
-                            .foregroundStyle(AtlasWidgetPalette.textPrimary)
-                            .lineLimit(1)
-                        Text(focusHeadline(for: mascot, focus: focus))
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(widgetHighlightTint(for: mascot))
-                            .lineLimit(2)
-                    }
-
-                    Spacer(minLength: 6)
-
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(
-                                LinearGradient(
-                                    colors: [
-                                        widgetAccentTint(for: mascot).opacity(0.3),
-                                        widgetHighlightTint(for: mascot).opacity(0.12),
-                                        AtlasWidgetPalette.surface.opacity(0.03)
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                    .stroke(AtlasWidgetPalette.surface.opacity(0.08), lineWidth: 1)
-                            )
-                        AtlasWidgetMascotStickerArt(snapshot: mascot, size: 60)
-                    }
-                    .frame(width: 76, height: 76)
-                }
-
-                Text(focusBody(for: mascot, focus: focus))
-                    .font(.caption2)
-                    .foregroundStyle(AtlasWidgetPalette.textPrimary.opacity(0.82))
-                    .lineLimit(3)
-
-                HStack(spacing: 8) {
-                    AtlasWidgetMetricPill(
-                        title: "Points",
-                        value: "\(mascot.totalPoints)",
-                        tint: widgetHighlightTint(for: mascot)
-                    )
-                    if let nextFormName = mascot.nextFormName {
-                        AtlasWidgetMetricPill(
-                            title: "Next",
-                            value: nextFormName,
-                            tint: widgetAccentTint(for: mascot)
-                        )
-                    } else {
-                        AtlasWidgetMetricPill(
-                            title: "Form",
-                            value: mascot.currentFormName,
-                            tint: widgetAccentTint(for: mascot)
-                        )
-                    }
-                }
-
-                if let footer = focusFooter(for: mascot, focus: focus) {
-                    Label(footer.text, systemImage: footer.symbol)
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(AtlasWidgetPalette.textPrimary.opacity(0.86))
-                        .lineLimit(1)
-                }
-            }
-            .atlasWidgetCardBackground()
+            AtlasCompanionProtocolWidget(
+                mascot: mascot,
+                companion: companion,
+                isStale: freshness.isStale
+            )
         default:
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .top, spacing: 8) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack(spacing: 6) {
-                            Text(widgetLineLabel(for: mascot))
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(AtlasWidgetPalette.textPrimary.opacity(0.72))
-                            AtlasStatusBadge(text: widgetFocusBadge(for: focus))
-                            AtlasStatusBadge(text: widgetStageBadge(for: mascot))
-                            if freshness.isStale {
-                                AtlasStatusBadge(text: "Needs refresh")
-                            }
-                        }
-                        Text(mascot.displayName)
-                            .font(.title3.weight(.bold))
-                            .foregroundStyle(AtlasWidgetPalette.textPrimary)
-                            .lineLimit(2)
-                        Text(focusHeadline(for: mascot, focus: focus))
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(widgetHighlightTint(for: mascot))
-                            .lineLimit(2)
-                    }
-
-                    Spacer(minLength: 8)
-
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(
-                                LinearGradient(
-                                    colors: [
-                                        widgetAccentTint(for: mascot).opacity(0.28),
-                                        widgetHighlightTint(for: mascot).opacity(0.12),
-                                        AtlasWidgetPalette.surface.opacity(0.04)
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                    .stroke(AtlasWidgetPalette.surface.opacity(0.08), lineWidth: 1)
-                            )
-                        AtlasWidgetMascotStickerArt(snapshot: mascot, size: 98)
-                    }
-                    .frame(width: 126, height: 126)
-                }
-
-                Text(focusBody(for: mascot, focus: focus))
-                    .font(.caption)
-                    .foregroundStyle(AtlasWidgetPalette.textPrimary.opacity(0.8))
-                    .lineLimit(2)
-
-                HStack(spacing: 8) {
-                    AtlasWidgetMetricPill(
-                        title: "Points",
-                        value: "\(mascot.totalPoints)",
-                        tint: widgetHighlightTint(for: mascot)
-                    )
-                    AtlasWidgetMetricPill(
-                        title: "Focus",
-                        value: widgetFocusBadge(for: focus),
-                        tint: widgetAccentTint(for: mascot)
-                    )
-                    if let nextFormName = mascot.nextFormName {
-                        AtlasWidgetMetricPill(
-                            title: "Next",
-                            value: nextFormName,
-                            tint: AtlasWidgetPalette.surface.opacity(0.9)
-                        )
-                    }
-                }
-
-                if let footer = focusFooter(for: mascot, focus: focus) {
-                    Label(footer.text, systemImage: footer.symbol)
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(AtlasWidgetPalette.textPrimary.opacity(0.88))
-                        .lineLimit(2)
-                }
-
-                Spacer(minLength: 0)
-
-                HStack {
-                    Button(intent: AtlasOpenMascotWidgetIntent()) {
-                        Label("Open Companion", systemImage: "sparkles")
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(AtlasWidgetPalette.primarySoft)
-
-                    Spacer(minLength: 8)
-
-                    if let generatedAt = freshness.generatedAt {
-                        AtlasProjectionTimestampLine(prefix: "Updated", date: generatedAt)
-                    }
-                }
-            }
-            .atlasWidgetCardBackground()
+            AtlasCompanionProtocolWidget(
+                mascot: mascot,
+                companion: companion,
+                isStale: freshness.isStale
+            )
         }
     }
 
@@ -1508,7 +1881,7 @@ private struct AtlasMascotWidgetView: View {
     ) -> some View {
         switch family {
         case .accessoryInline:
-            Text(isStale ? "Open Kairo to refresh mascot" : "Turn on rewards to enable mascot")
+            Text(isStale ? "Open Kairo to refresh companion" : "Open Kairo to sync companion")
         case .accessoryCircular:
             ZStack {
                 Circle()
@@ -1532,7 +1905,7 @@ private struct AtlasMascotWidgetView: View {
                 Text(
                     isStale
                         ? "Open Kairo to refresh companion progression."
-                        : "Turn on rewards to bring the companion widget to life."
+                        : "Open Kairo to sync the companion widget."
                 )
                 .font(.caption2)
                 .lineLimit(3)
@@ -1560,7 +1933,7 @@ private struct AtlasMascotWidgetView: View {
                 Text(
                     isStale
                         ? "Open Kairo to refresh companion progression."
-                        : "Turn on rewards to activate the companion widget."
+                        : "Open Kairo to sync the companion widget."
                 )
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(AtlasWidgetPalette.textPrimary)
@@ -1595,7 +1968,7 @@ private struct AtlasMascotWidgetView: View {
                 Text(
                     isStale
                         ? "Open Kairo to refresh your companion progression and sprite state."
-                        : "Turn on rewards in Kairo to bring the \(focus.rawValue) companion widget to life."
+                        : "Open Kairo to sync the \(focus.rawValue) companion widget."
                 )
                     .font(.headline.weight(.semibold))
                     .foregroundStyle(AtlasWidgetPalette.textPrimary)
@@ -1732,7 +2105,7 @@ private struct AtlasMascotWidgetView: View {
             }
             return nil
         case .status:
-            return ("Current form: \(mascot.currentFormName)", "person.crop.circle.badge.checkmark")
+            return ("Companion active: \(mascot.displayName)", "person.crop.circle.badge.checkmark")
         case .moments:
             if let latestMomentTitle = mascot.latestMomentTitle {
                 return (latestMomentTitle, mascot.latestMomentSymbolName ?? "sparkles")
@@ -1744,6 +2117,43 @@ private struct AtlasMascotWidgetView: View {
             }
             return nil
         }
+    }
+
+    private func fallbackCompanionMetrics(
+        for mascot: AtlasWidgetMascotSnapshot,
+        snapshot: AtlasWidgetProjectionSnapshot
+    ) -> AtlasWidgetCompanionSnapshot {
+        let level = max((mascot.totalPoints / 250) + 1, 1)
+        let nextLevelPoints = max(level * 250, mascot.totalPoints)
+        let xpLabel = "\(mascot.totalPoints) / \(nextLevelPoints) XP"
+        let xpProgress = nextLevelPoints > 0
+            ? min(max(Double(mascot.totalPoints) / Double(nextLevelPoints), 0), 1)
+            : 1
+
+        return AtlasWidgetCompanionSnapshot(
+            levelLabel: "Level \(level)",
+            xpLabel: xpLabel,
+            xpProgress: xpProgress,
+            nextShotDaysLabel: snapshot.nextDue
+                .flatMap { AtlasWidgetTime.date(from: $0.scheduledAt) }
+                .map { daysRemainingLabel(until: $0) }
+                ?? "No shot due",
+            vialReplacementDaysLabel: snapshot.lowStock.items.first(where: { $0.kind == .vial })?.detail ?? "No vial linked"
+        )
+    }
+
+    private func daysRemainingLabel(until targetDate: Date) -> String {
+        let calendar = Calendar.current
+        let start = calendar.startOfDay(for: Date())
+        let target = calendar.startOfDay(for: targetDate)
+        let days = max(calendar.dateComponents([.day], from: start, to: target).day ?? 0, 0)
+        if days == 0 {
+            return "Today"
+        }
+        if days == 1 {
+            return "1 day"
+        }
+        return "\(days) days"
     }
 
     private func widgetStageBadge(for mascot: AtlasWidgetMascotSnapshot) -> String {
@@ -1876,6 +2286,176 @@ private struct AtlasWidgetMetricPill: View {
     }
 }
 
+private struct AtlasQuickCaptureCardWidget: View {
+    var support: AtlasWidgetSupportRingsSnapshot
+
+    var body: some View {
+        GeometryReader { proxy in
+            let rings = support.rings
+            ZStack {
+                LinearGradient(
+                    colors: [
+                        Color(red: 0.965, green: 0.952, blue: 0.916),
+                        Color(red: 0.900, green: 0.936, blue: 0.894),
+                        Color(red: 0.835, green: 0.912, blue: 0.838)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .frame(width: proxy.size.width, height: proxy.size.height)
+
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 10) {
+                        AtlasLoopRing(
+                            title: "Protein",
+                            value: ringValue("protein", rings: rings),
+                            progress: ringProgress("protein", rings: rings),
+                            tint: Color(red: 0.15, green: 0.58, blue: 0.36),
+                            symbol: "bolt.heart.fill"
+                        )
+
+                        AtlasLoopRing(
+                            title: "Hydration",
+                            value: ringValue("hydration", rings: rings),
+                            progress: ringProgress("hydration", rings: rings),
+                            tint: Color(red: 0.16, green: 0.55, blue: 0.84),
+                            symbol: "drop.fill"
+                        )
+
+                        AtlasLoopRing(
+                            title: "Workout",
+                            value: ringValue("workout", rings: rings),
+                            progress: ringProgress("workout", rings: rings),
+                            tint: Color(red: 0.75, green: 0.49, blue: 0.16),
+                            symbol: "figure.strengthtraining.traditional"
+                        )
+                    }
+                    .frame(maxHeight: .infinity)
+
+                    if support.showsHealthSteps == true, let stepLabel = support.stepLabel {
+                        HStack(spacing: 7) {
+                            Image(systemName: "figure.walk")
+                                .font(.system(size: 12, weight: .black))
+                                .foregroundStyle(AtlasWidgetPalette.primary)
+                            Text("\(stepLabel) steps")
+                                .font(.system(size: 13, weight: .black, design: .rounded))
+                                .foregroundStyle(AtlasWidgetPalette.textPrimary)
+                                .lineLimit(1)
+                            Spacer(minLength: 0)
+                            Text("Apple Health")
+                                .font(.system(size: 9, weight: .bold, design: .rounded))
+                                .foregroundStyle(AtlasWidgetPalette.textSecondary)
+                        }
+                        .padding(.horizontal, 11)
+                        .padding(.vertical, 8)
+                        .background(Color.white.opacity(0.46), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, support.showsHealthSteps == true ? 13 : 18)
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height)
+            .clipped()
+        }
+        .containerBackground(Color(red: 0.90, green: 0.94, blue: 0.88), for: .widget)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private func ringValue(_ kind: String, rings: [AtlasWidgetSupportRingSnapshot]) -> String {
+        rings.first(where: { $0.kind == kind })?.valueLabel ?? "0"
+    }
+
+    private func ringProgress(_ kind: String, rings: [AtlasWidgetSupportRingSnapshot]) -> Double {
+        rings.first(where: { $0.kind == kind })?.progress ?? 0
+    }
+
+    private var accessibilityLabel: String {
+        let steps = support.showsHealthSteps == true && support.stepLabel != nil ? ", \(support.stepLabel ?? "") steps" : ""
+        return "Protein \(ringValue("protein", rings: support.rings)), hydration \(ringValue("hydration", rings: support.rings)), workout \(ringValue("workout", rings: support.rings))\(steps)"
+    }
+}
+
+private struct AtlasHydrationGauge: View {
+    var progress: Double
+
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color.white.opacity(0.16), lineWidth: 5)
+                .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(Color(red: 0.30, green: 0.77, blue: 0.98))
+                .frame(height: 74 * min(max(progress, 0.22), 1))
+                .padding(.horizontal, 8)
+                .padding(.bottom, 8)
+            Text("WATER")
+                .font(.system(size: 8, weight: .black, design: .rounded))
+                .foregroundStyle(Color.white.opacity(0.62))
+                .padding(.bottom, 88)
+        }
+        .frame(width: 64, height: 106)
+        .accessibilityLabel("Log water")
+    }
+}
+
+private struct AtlasLoopRing: View {
+    var title: String
+    var value: String
+    var progress: Double
+    var tint: Color
+    var symbol: String
+
+    var body: some View {
+        VStack(spacing: 7) {
+            ZStack {
+                Circle()
+                    .fill(Color.white.opacity(0.42))
+                Circle()
+                    .stroke(Color(red: 0.72, green: 0.76, blue: 0.68).opacity(0.45), lineWidth: 8)
+                    .padding(4)
+                Circle()
+                    .trim(from: 0, to: min(max(progress, 0.08), 1))
+                    .stroke(tint, style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .padding(4)
+                Image(systemName: symbol)
+                    .font(.system(size: 16, weight: .black))
+                    .foregroundStyle(tint)
+            }
+            .frame(width: 64, height: 64)
+
+            Text(value)
+                .font(.system(size: 13, weight: .black, design: .rounded))
+                .foregroundStyle(AtlasWidgetPalette.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.62)
+            Text(title.uppercased())
+                .font(.system(size: 8, weight: .black, design: .rounded))
+                .foregroundStyle(AtlasWidgetPalette.textSecondary)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+private struct AtlasQuickCaptureIconButton<Intent: AppIntent>: View {
+    var intent: Intent
+    var symbol: String
+    var label: String
+
+    var body: some View {
+        Button(intent: intent) {
+            Image(systemName: symbol)
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(Color.white.opacity(0.90))
+                .frame(width: 34, height: 34)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+    }
+}
+
 private struct AtlasQuickCaptureWidgetView: View {
     var entry: AtlasWidgetEntry?
     @Environment(\.widgetFamily) private var family
@@ -1884,80 +2464,33 @@ private struct AtlasQuickCaptureWidgetView: View {
         switch family {
         case .accessoryRectangular:
             VStack(alignment: .leading, spacing: 4) {
-                Text("Quick Capture")
+                Text("Daily support")
                     .font(.caption.weight(.semibold))
-                Text("Shot, protein, hydration, workout context, and progress actions stay one tap away.")
+                Text("Protein, hydration, workout\(support?.showsHealthSteps == true ? ", and steps." : ".")")
                     .font(.caption2)
                     .lineLimit(3)
             }
         default:
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Quick Capture")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(AtlasWidgetPalette.textPrimary.opacity(0.72))
-
-                Text("Fast Kairo actions for the daily loop.")
-                    .font(.headline.weight(.semibold))
-                    .foregroundStyle(AtlasWidgetPalette.textPrimary)
-
-                if let support {
-                    AtlasWidgetSupportScoreStrip(support: support)
+            if let support {
+                AtlasQuickCaptureCardWidget(support: support)
+            } else {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Daily support")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(AtlasWidgetPalette.textSecondary)
+                    Text("Open Kairo to sync protein, hydration, and workout rings.")
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(AtlasWidgetPalette.textPrimary)
+                        .lineLimit(3)
+                    Spacer(minLength: 0)
                 }
-
-                VStack(spacing: 8) {
-                    HStack(spacing: 8) {
-                        Button(intent: AtlasOpenQuickCaptureWidgetIntent(focus: .shot)) {
-                            Label("Shot", systemImage: "syringe.fill")
-                        }
-                        .buttonStyle(.borderedProminent)
-
-                        Button(intent: AtlasOpenQuickCaptureWidgetIntent(focus: .weight)) {
-                            Label("Weight", systemImage: "scalemass.fill")
-                        }
-                        .buttonStyle(.bordered)
-                    }
-                    .tint(AtlasWidgetPalette.primarySoft)
-
-                    HStack(spacing: 8) {
-                        Button(intent: AtlasOpenQuickCaptureWidgetIntent(focus: .protein)) {
-                            Label("Protein", systemImage: "bolt.heart.fill")
-                        }
-                        .buttonStyle(.bordered)
-
-                        Button(intent: AtlasOpenQuickCaptureWidgetIntent(focus: .hydration)) {
-                            Label("Water", systemImage: "drop.fill")
-                        }
-                        .buttonStyle(.bordered)
-                    }
-                    .tint(AtlasWidgetPalette.primarySoft)
-
-                    HStack(spacing: 8) {
-                        Button(intent: AtlasOpenQuickCaptureWidgetIntent(focus: .symptom)) {
-                            Label("Symptom", systemImage: "waveform.path.ecg")
-                        }
-                        .buttonStyle(.bordered)
-
-                        Button(intent: AtlasOpenProgressEvidenceWidgetIntent()) {
-                            Label("Photos", systemImage: "camera.fill")
-                        }
-                        .buttonStyle(.bordered)
-                    }
-                    .tint(AtlasWidgetPalette.primarySoft)
-                }
-
-                Spacer(minLength: 0)
-
-                Text("Widgets support next shot, vial runway, companion state, and support signals.")
-                    .font(.caption2)
-                    .foregroundStyle(AtlasWidgetPalette.textPrimary.opacity(0.68))
-                    .lineLimit(2)
+                .atlasWidgetCardBackground()
             }
-            .atlasWidgetCardBackground()
         }
     }
 
     private var support: AtlasWidgetSupportRingsSnapshot? {
-        entry?.snapshot?.support ?? atlasWidgetPreviewProjectionSnapshot().support
+        entry?.snapshot?.support
     }
 }
 
@@ -2020,42 +2553,17 @@ private struct AtlasWidgetSupportScoreStrip: View {
     }
 }
 
-private struct AtlasNextDueWidget: Widget {
-    let kind = "AtlasNextDueWidget"
-
-    var body: some WidgetConfiguration {
-        StaticConfiguration(kind: kind, provider: AtlasNextDueProvider()) { entry in
-            AtlasNextDueWidgetView(entry: entry)
-        }
-        .configurationDisplayName("Kairo Next Shot")
-        .description("See the next Kairo shot and open a quick log action.")
-        .supportedFamilies([.systemSmall, .systemMedium])
-    }
-}
-
-private struct AtlasLowStockWidget: Widget {
-    let kind = "AtlasLowStockWidget"
-
-    var body: some WidgetConfiguration {
-        StaticConfiguration(kind: kind, provider: AtlasLowStockProvider()) { entry in
-            AtlasLowStockWidgetView(entry: entry)
-        }
-        .configurationDisplayName("Kairo Vial Runway")
-        .description("See Kairo supply, vial runway, and inventory status.")
-        .supportedFamilies([.systemSmall, .systemMedium])
-    }
-}
-
 private struct AtlasMascotWidget: Widget {
     let kind = "AtlasMascotWidget"
 
     var body: some WidgetConfiguration {
-        AppIntentConfiguration(kind: kind, intent: AtlasMascotWidgetConfigurationIntent.self, provider: AtlasMascotProvider()) { entry in
+        StaticConfiguration(kind: kind, provider: AtlasMascotStaticProvider()) { entry in
             AtlasMascotWidgetView(entry: entry)
         }
         .configurationDisplayName("Kairo Companion")
-        .description("Track your Kairo companion with a configurable focus on progress, status, moments, or history.")
-        .supportedFamilies([.systemSmall, .systemMedium, .accessoryInline, .accessoryCircular, .accessoryRectangular])
+        .description("Track your selected companion, level, next shot, and vial replacement timing.")
+        .supportedFamilies([.systemMedium])
+        .contentMarginsDisabled()
     }
 }
 
@@ -2066,17 +2574,16 @@ private struct AtlasQuickCaptureWidget: Widget {
         StaticConfiguration(kind: kind, provider: AtlasNextDueProvider()) { entry in
             AtlasQuickCaptureWidgetView(entry: entry)
         }
-        .configurationDisplayName("Kairo Quick Capture")
-        .description("Keep Kairo daily actions within easy reach from the Home Screen or Lock Screen.")
-        .supportedFamilies([.systemSmall, .accessoryRectangular])
+        .configurationDisplayName("Kairo Daily Support")
+        .description("Track protein, hydration, workouts, and Apple Health steps when connected.")
+        .supportedFamilies([.systemMedium])
+        .contentMarginsDisabled()
     }
 }
 
 @main
 struct AtlasWidgetsBundle: WidgetBundle {
     var body: some Widget {
-        AtlasNextDueWidget()
-        AtlasLowStockWidget()
         AtlasQuickCaptureWidget()
         AtlasMascotWidget()
     }

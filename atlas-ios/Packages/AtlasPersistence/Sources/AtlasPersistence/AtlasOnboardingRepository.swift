@@ -106,6 +106,18 @@ public struct GRDBOnboardingRepository: OnboardingRepository, Sendable {
             let accountMode = draft.accountMode ?? .guest
             try writeAppSetting(db: db, key: "account_start_mode", value: accountMode.rawValue, now: now)
             try writeAppSetting(db: db, key: "onboarding_paywall_choice", value: draft.paywallChoice?.rawValue, now: now)
+            try writeAppSetting(
+                db: db,
+                key: "kairo_premium_access",
+                value: draft.paywallChoice == .trialStarted ? "pro_trial" : "limited_preview",
+                now: now
+            )
+            try writeAppSetting(
+                db: db,
+                key: "kairo_limited_preview_started_at",
+                value: draft.paywallChoice == .basic ? atlasTimestamp(from: now) : nil,
+                now: now
+            )
             try writeAppSetting(db: db, key: "onboarding_premium_plan", value: draft.premiumPlan.rawValue, now: now)
             try writeAppSetting(db: db, key: "onboarding_primary_focus", value: draft.focus?.rawValue, now: now)
             try writeAppSetting(db: db, key: "onboarding_journey_status", value: draft.journeyStatus?.rawValue, now: now)
@@ -170,26 +182,20 @@ public struct GRDBOnboardingRepository: OnboardingRepository, Sendable {
             profile.updatedAt = atlasTimestamp(from: now)
             try AtlasPrivacyProfileDBRecord(record: profile).save(db)
 
-            _ = try AtlasHealthConnectionDBRecord
+            let existingHealthConnection = try AtlasHealthConnectionDBRecord
                 .filter(Column("provider_key") == AtlasHealthProviderKey.appleHealth.rawValue)
-                .fetchOne(db)?.domain ?? AtlasHealthConnectionRecord.make(
-                    providerKey: .appleHealth,
+                .fetchOne(db)?.domain
+            if existingHealthConnection == nil {
+                try writeHealthConnection(
+                    db: db,
+                    provider: .appleHealth,
                     enabled: false,
                     connected: false,
                     lastSyncAt: nil,
                     lastError: nil,
-                    createdAt: atlasTimestamp(from: now),
-                    updatedAt: atlasTimestamp(from: now)
+                    now: now
                 )
-            try writeHealthConnection(
-                db: db,
-                provider: .appleHealth,
-                enabled: false,
-                connected: false,
-                lastSyncAt: nil,
-                lastError: nil,
-                now: now
-            )
+            }
             try seedOnboardingWeightLogIfNeeded(db: db, draft: draft, now: now)
 
             return try buildBootstrapSnapshot(
@@ -208,6 +214,8 @@ public struct GRDBOnboardingRepository: OnboardingRepository, Sendable {
             try writeAppSetting(db: db, key: "onboarding_completed_at", value: nil, now: now)
             try writeAppSetting(db: db, key: "account_start_mode", value: nil, now: now)
             try writeAppSetting(db: db, key: "onboarding_paywall_choice", value: nil, now: now)
+            try writeAppSetting(db: db, key: "kairo_premium_access", value: nil, now: now)
+            try writeAppSetting(db: db, key: "kairo_limited_preview_started_at", value: nil, now: now)
             try writeAppSetting(db: db, key: "onboarding_premium_plan", value: nil, now: now)
             try writeAppSetting(db: db, key: "onboarding_primary_focus", value: nil, now: now)
             try writeAppSetting(db: db, key: "onboarding_journey_status", value: nil, now: now)

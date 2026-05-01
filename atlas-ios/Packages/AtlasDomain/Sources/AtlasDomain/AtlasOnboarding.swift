@@ -106,6 +106,7 @@ public enum AtlasOnboardingPrivacyPreset: String, Codable, CaseIterable, Sendabl
 public enum AtlasOnboardingPremiumPlan: String, Codable, CaseIterable, Sendable {
     case annual
     case monthly
+    case annualLastChance
 
     public var title: String {
         switch self {
@@ -113,6 +114,8 @@ public enum AtlasOnboardingPremiumPlan: String, Codable, CaseIterable, Sendable 
             "Annual"
         case .monthly:
             "Monthly"
+        case .annualLastChance:
+            "Last chance annual"
         }
     }
 }
@@ -580,7 +583,6 @@ public struct AtlasOnboardingDraft: Codable, Equatable, Sendable {
         steps.append(contentsOf: [
             .connectApps,
             .ratingPrimer,
-            .trackingPermission,
             .planLoading,
             .planPreview,
             .planReady,

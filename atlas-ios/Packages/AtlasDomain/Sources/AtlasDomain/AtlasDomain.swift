@@ -738,30 +738,15 @@ public enum AtlasMascotSelection: String, Codable, CaseIterable, Sendable {
     }
 
     public var stage1Title: String {
-        switch self {
-        case .aetherion:
-            return "Cindlet"
-        case .aurielle:
-            return "Moppet"
-        }
+        title
     }
 
     public var stage2Title: String {
-        switch self {
-        case .aetherion:
-            return "Voltflare"
-        case .aurielle:
-            return "Glisshare"
-        }
+        title
     }
 
     public var stage3Title: String {
-        switch self {
-        case .aetherion:
-            return "Aetherion"
-        case .aurielle:
-            return "Aurielle"
-        }
+        title
     }
 
     public func title(for stage: AtlasMascotStage) -> String {
@@ -1395,18 +1380,49 @@ public struct AtlasSharedSupportRingsSnapshot: Codable, Equatable, Sendable {
     public var score: Int
     public var summary: String
     public var rings: [AtlasSharedSupportRingSnapshot]
+    public var showsHealthSteps: Bool
+    public var stepCount: Int?
+    public var stepLabel: String?
     public var updatedAt: String
 
     public init(
         score: Int,
         summary: String,
         rings: [AtlasSharedSupportRingSnapshot],
+        showsHealthSteps: Bool = false,
+        stepCount: Int? = nil,
+        stepLabel: String? = nil,
         updatedAt: String
     ) {
         self.score = score
         self.summary = summary
         self.rings = rings
+        self.showsHealthSteps = showsHealthSteps
+        self.stepCount = stepCount
+        self.stepLabel = stepLabel
         self.updatedAt = updatedAt
+    }
+}
+
+public struct AtlasSharedCompanionWidgetSnapshot: Codable, Equatable, Sendable {
+    public var levelLabel: String
+    public var xpLabel: String
+    public var xpProgress: Double
+    public var nextShotDaysLabel: String
+    public var vialReplacementDaysLabel: String
+
+    public init(
+        levelLabel: String,
+        xpLabel: String,
+        xpProgress: Double,
+        nextShotDaysLabel: String,
+        vialReplacementDaysLabel: String
+    ) {
+        self.levelLabel = levelLabel
+        self.xpLabel = xpLabel
+        self.xpProgress = xpProgress
+        self.nextShotDaysLabel = nextShotDaysLabel
+        self.vialReplacementDaysLabel = vialReplacementDaysLabel
     }
 }
 
@@ -1499,6 +1515,7 @@ public struct AtlasSharedExtensionProjectionSnapshot: Codable, Equatable, Sendab
     public var lowStock: AtlasSharedLowStockSnapshot
     public var support: AtlasSharedSupportRingsSnapshot?
     public var mascot: AtlasSharedMascotSnapshot?
+    public var companion: AtlasSharedCompanionWidgetSnapshot?
     public var watchCompanion: AtlasSharedWatchCompanionSnapshot?
     public var featureFlags: AtlasSharedFeatureFlagProjection
 
@@ -1510,6 +1527,7 @@ public struct AtlasSharedExtensionProjectionSnapshot: Codable, Equatable, Sendab
         lowStock: AtlasSharedLowStockSnapshot,
         support: AtlasSharedSupportRingsSnapshot? = nil,
         mascot: AtlasSharedMascotSnapshot? = nil,
+        companion: AtlasSharedCompanionWidgetSnapshot? = nil,
         watchCompanion: AtlasSharedWatchCompanionSnapshot? = nil,
         featureFlags: AtlasSharedFeatureFlagProjection
     ) {
@@ -1520,6 +1538,7 @@ public struct AtlasSharedExtensionProjectionSnapshot: Codable, Equatable, Sendab
         self.lowStock = lowStock
         self.support = support
         self.mascot = mascot
+        self.companion = companion
         self.watchCompanion = watchCompanion
         self.featureFlags = featureFlags
     }

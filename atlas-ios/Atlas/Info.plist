@@ -36,7 +36,7 @@
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
-	<string>2026042801</string>
+	<string>2026043001</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>LSRequiresIPhoneOS</key>
@@ -44,7 +44,7 @@
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>Kairo can sync your scheduled protocols to a calendar you choose so upcoming routines stay visible outside the app.</string>
 	<key>NSHealthShareUsageDescription</key>
-	<string>Kairo can read your Apple Health weight history so your logs stay consistent across Kairo and Health.</string>
+	<string>Kairo can read selected Apple Health data, including weight, workouts, hydration, nutrition, steps, sleep, heart metrics, blood pressure, and body fat, so your protocol review stays consistent across Kairo and Health.</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>Kairo can write weight entries to Apple Health when you choose to keep Kairo and Health in sync.</string>
 	<key>UIApplicationSceneManifest</key>

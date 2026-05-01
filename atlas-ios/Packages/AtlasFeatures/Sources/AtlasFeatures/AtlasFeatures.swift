@@ -15,6 +15,7 @@ import PhotosUI
 private enum AtlasPendingExtensionActionStore {
     static let appGroupIdentifier = "group.com.dkang2000.Atlas.shared"
     static let fileName = "atlas-pending-extension-action.json"
+    static let maxActionAge: TimeInterval = 15 * 60
 
     struct Payload: Codable {
         var urlString: String
@@ -38,7 +39,16 @@ private enum AtlasPendingExtensionActionStore {
         guard let payload = try? JSONDecoder().decode(Payload.self, from: data) else {
             return nil
         }
-        return URL(string: payload.urlString)
+
+        let formatter = ISO8601DateFormatter()
+        guard let createdAt = formatter.date(from: payload.createdAt),
+              Date().timeIntervalSince(createdAt) <= maxActionAge,
+              let url = URL(string: payload.urlString),
+              url.scheme?.lowercased() == "atlas" else {
+            return nil
+        }
+
+        return url
     }
 }
 
@@ -245,6 +255,14 @@ struct AtlasUndoBannerState: Identifiable, Equatable {
     }
 }
 
+public struct AtlasLimitedPreviewUpgradePrompt: Identifiable, Equatable {
+    public let id: String
+
+    init(id: String = UUID().uuidString.lowercased()) {
+        self.id = id
+    }
+}
+
 private struct AtlasMascotReturnBaseline: Equatable {
     let totalPoints: Int
     let level: Int
@@ -322,6 +340,8 @@ public final class AtlasAppModel {
     public var cloudSession: AtlasCloudSessionSnapshot?
     public var cloudStatusDescription: String
     public var isPerformingCloudAction: Bool
+    public var isPurchasingPremium: Bool
+    public var limitedPreviewUpgradePrompt: AtlasLimitedPreviewUpgradePrompt?
     public var isLoading: Bool
     public var loadErrorMessage: String?
     public private(set) var widgetProjectionVersion: Int
@@ -444,6 +464,8 @@ public final class AtlasAppModel {
             ? "Cloud sync is ready for sign-in."
             : "Cloud sync is not configured yet. The app continues to work locally."
         self.isPerformingCloudAction = false
+        self.isPurchasingPremium = false
+        self.limitedPreviewUpgradePrompt = nil
         self.isLoading = false
         self.loadErrorMessage = nil
         self.widgetProjectionVersion = 0
@@ -465,7 +487,30 @@ public final class AtlasAppModel {
     }
 
     public func open(_ route: AtlasRoute) {
+        guard allowsLimitedPreviewInteraction else {
+            presentLimitedPreviewUpgradePrompt()
+            return
+        }
         routePath.append(route)
+    }
+
+    public var isLimitedPreviewMode: Bool {
+        bootstrapSnapshot.destination == .app
+            && bootstrapSnapshot.onboardingCompleted
+            && bootstrapSnapshot.onboardingDraft.paywallChoice == .basic
+    }
+
+    public var allowsLimitedPreviewInteraction: Bool {
+        isLimitedPreviewMode == false
+    }
+
+    public func presentLimitedPreviewUpgradePrompt() {
+        guard isLimitedPreviewMode else { return }
+        limitedPreviewUpgradePrompt = AtlasLimitedPreviewUpgradePrompt()
+    }
+
+    public func dismissLimitedPreviewUpgradePrompt() {
+        limitedPreviewUpgradePrompt = nil
     }
 
     #if DEBUG
@@ -1172,6 +1217,36 @@ public final class AtlasAppModel {
         }
     }
 
+    public func completeOnboardingForLimitedPreview() async {
+        var completed = onboardingCompletionDraft(
+            from: bootstrapSnapshot.onboardingDraft,
+            accountMode: bootstrapSnapshot.onboardingDraft.accountMode ?? .guest,
+            paywallChoice: .basic
+        )
+        completed.accountMode = completed.accountMode ?? .guest
+        await completeOnboarding(with: completed)
+    }
+
+    public func completeOnboardingForExistingAccountSignIn() async {
+        let completed = onboardingCompletionDraft(
+            from: bootstrapSnapshot.onboardingDraft,
+            accountMode: .signIn,
+            paywallChoice: .basic
+        )
+        await completeOnboarding(with: completed)
+
+        guard bootstrapSnapshot.destination == .app else { return }
+        routePath.removeAll()
+        await refreshCloudStatus()
+        if cloudSession != nil {
+            activeTab = .today
+            return
+        }
+
+        activeTab = .settings
+        routePath.append(.settingsAccount)
+    }
+
     public func resetOnboarding() async {
         do {
             bootstrapSnapshot = try await dependencies.persistence.onboarding.resetOnboarding(now: currentDate())
@@ -1182,6 +1257,38 @@ public final class AtlasAppModel {
         } catch {
             setLoadErrorMessage(error.localizedDescription)
         }
+    }
+
+    private func completeOnboarding(with draft: AtlasOnboardingDraft) async {
+        do {
+            await saveOnboardingDraft(draft)
+            await completeOnboarding()
+        }
+    }
+
+    private func onboardingCompletionDraft(
+        from draft: AtlasOnboardingDraft,
+        accountMode: AtlasOnboardingAccountMode,
+        paywallChoice: AtlasOnboardingPaywallChoice
+    ) -> AtlasOnboardingDraft {
+        var completed = draft
+        completed.accountMode = accountMode
+        completed.trackType = completed.trackType ?? .peptide
+        completed.journeyStatus = completed.journeyStatus ?? .active
+        completed.focus = completed.focus ?? .neverMiss
+        completed.privacyPreset = completed.privacyPreset ?? .discreet
+        completed.healthDisclaimerAccepted = true
+        completed.healthConnectionPromptSeen = true
+        completed.paywallChoice = paywallChoice
+        completed.profile.mascotSelection = completed.profile.mascotSelection ?? .aurielle
+        completed.profile.mascotNickname = completed.profile.mascotNickname ?? completed.profile.mascotSelection?.title ?? "Aurielle"
+        completed.firstWeekPlanPreview = completed.firstWeekPlanPreview.isEmpty ? [
+            "Confirm protocol schedule",
+            "Add vial inventory",
+            "Log first adherence check-in",
+            "Review weekly pattern"
+        ] : completed.firstWeekPlanPreview
+        return completed
     }
 
     public func refreshTimeline() async {
@@ -1231,6 +1338,10 @@ public final class AtlasAppModel {
     }
 
     public func createProtocol(_ draft: AtlasProtocolDraft) async -> AtlasProtocolDetailSnapshot? {
+        guard allowsLimitedPreviewInteraction else {
+            presentLimitedPreviewUpgradePrompt()
+            return nil
+        }
         do {
             let now = currentDate()
             let detail = try await dependencies.persistence.protocols.createProtocol(draft, now: now)
@@ -1246,6 +1357,10 @@ public final class AtlasAppModel {
     }
 
     public func updateProtocol(id: String, draft: AtlasProtocolDraft) async -> AtlasProtocolDetailSnapshot? {
+        guard allowsLimitedPreviewInteraction else {
+            presentLimitedPreviewUpgradePrompt()
+            return nil
+        }
         do {
             let now = currentDate()
             let detail = try await dependencies.persistence.protocols.updateProtocol(id: id, draft: draft, now: now)
@@ -1261,6 +1376,10 @@ public final class AtlasAppModel {
     }
 
     public func logOccurrence(_ request: AtlasOccurrenceLogRequest) async {
+        guard allowsLimitedPreviewInteraction else {
+            presentLimitedPreviewUpgradePrompt()
+            return
+        }
         do {
             let now = currentDate()
             try await dependencies.persistence.coreLoop.logOccurrence(request, now: now)
@@ -1277,6 +1396,10 @@ public final class AtlasAppModel {
     }
 
     public func requestReminderPermission() async {
+        guard allowsLimitedPreviewInteraction else {
+            presentLimitedPreviewUpgradePrompt()
+            return
+        }
         do {
             notificationPermissionStatus = try await dependencies.reminders.requestAuthorization()
             await refreshShellData()
@@ -1286,9 +1409,67 @@ public final class AtlasAppModel {
     }
 
     public func requestCalendarPermission() async {
+        guard allowsLimitedPreviewInteraction else {
+            presentLimitedPreviewUpgradePrompt()
+            return
+        }
         do {
             calendarPermissionStatus = try await dependencies.calendarSync.requestAuthorization()
             await refreshShellData()
+        } catch {
+            setLoadErrorMessage(error.localizedDescription)
+        }
+    }
+
+    public func purchaseKairoPro(plan: AtlasOnboardingPremiumPlan) async -> Bool {
+        guard isPurchasingPremium == false else { return false }
+        isPurchasingPremium = true
+        defer { isPurchasingPremium = false }
+
+        do {
+            let purchased = try await KairoPremiumStore.purchase(plan: plan)
+            if purchased {
+                await scheduleKairoTrialRenewalReminder()
+            }
+            return purchased
+        } catch {
+            setLoadErrorMessage(error.localizedDescription)
+            return false
+        }
+    }
+
+    public func purchaseKairoProFromLimitedPreview(plan: AtlasOnboardingPremiumPlan) async {
+        let purchased = await purchaseKairoPro(plan: plan)
+        guard purchased else { return }
+
+        let completed = onboardingCompletionDraft(
+            from: bootstrapSnapshot.onboardingDraft,
+            accountMode: bootstrapSnapshot.onboardingDraft.accountMode ?? settingsSnapshot.accountStartMode ?? .guest,
+            paywallChoice: .trialStarted
+        )
+        var upgraded = completed
+        upgraded.premiumPlan = plan
+        await completeOnboarding(with: upgraded)
+        dismissLimitedPreviewUpgradePrompt()
+    }
+
+    public func scheduleKairoTrialRenewalReminder() async {
+        let status = await dependencies.notifications.authorizationStatus()
+        guard status == .authorized || status == .provisional || status == .ephemeral else {
+            return
+        }
+        let triggerAt = Calendar.current.date(byAdding: .day, value: 6, to: currentDate()) ?? currentDate().addingTimeInterval(6 * 24 * 60 * 60)
+        do {
+            _ = try await dependencies.notifications.scheduleMascotNotification(
+                AtlasMascotNotificationRequest(
+                    identifier: "kairo.pro.trial.day6",
+                    title: "Kairo trial reminder",
+                    body: "Your Kairo Pro trial renews tomorrow. Review your plan before it continues.",
+                    triggerAt: triggerAt,
+                    isSilent: false,
+                    route: "trialPaywall"
+                )
+            )
         } catch {
             setLoadErrorMessage(error.localizedDescription)
         }
@@ -2415,6 +2596,9 @@ public final class AtlasAppModel {
             routePath.removeAll()
             activeTab = .today
             open(.mascot)
+        case "companion":
+            routePath.removeAll()
+            activeTab = .settings
         case "mascot-moment":
             routePath.removeAll()
             activeTab = .today
@@ -3041,7 +3225,7 @@ public struct AtlasRootView: View {
                         case .quickCapture(let kind):
                             KairoQuickCaptureScreen(model: model, initialKind: kind)
                         case .watchCompanion:
-                            KairoSettingsServicesScreen(model: model)
+                            AtlasWatchCompanionScreen(model: model)
                         case .insightsLogs:
                             KairoInsightsLogsScreen(model: model)
                         case .insightsAnalysis:
@@ -3081,8 +3265,19 @@ private struct AtlasShellView: View {
             ZStack {
                 AtlasAppBackground()
 
-                currentScreen
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                ZStack {
+                    currentScreen
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+
+                    if model.isLimitedPreviewMode {
+                        AtlasLimitedPreviewInteractionGate {
+                            model.presentLimitedPreviewUpgradePrompt()
+                        }
+                        .padding(.bottom, 74)
+                        .transition(.opacity)
+                        .zIndex(10)
+                    }
+                }
 
                 if let mascotFlight {
                     AtlasAmbientMascotFlightOverlay(flight: mascotFlight) {
@@ -3115,6 +3310,40 @@ private struct AtlasShellView: View {
                 AtlasMascotCelebrationSheet(celebration: celebration) {
                     model.dismissMascotCelebration()
                 }
+            }
+            .confirmationDialog(
+                "Start Kairo Pro",
+                isPresented: Binding(
+                    get: { model.limitedPreviewUpgradePrompt != nil },
+                    set: { isPresented in
+                        if isPresented == false {
+                            model.dismissLimitedPreviewUpgradePrompt()
+                        }
+                    }
+                ),
+                titleVisibility: .visible
+            ) {
+                Button("Start 7-day free trial") {
+                    Task {
+                        await model.purchaseKairoProFromLimitedPreview(
+                            plan: model.bootstrapSnapshot.onboardingDraft.premiumPlan
+                        )
+                    }
+                }
+                Button("Monthly - $9.99/month") {
+                    Task { await model.purchaseKairoProFromLimitedPreview(plan: .monthly) }
+                }
+                Button("Annual - $59.99/year") {
+                    Task { await model.purchaseKairoProFromLimitedPreview(plan: .annual) }
+                }
+                Button("Last chance discount - $39.99/year") {
+                    Task { await model.purchaseKairoProFromLimitedPreview(plan: .annualLastChance) }
+                }
+                Button("Not now", role: .cancel) {
+                    model.dismissLimitedPreviewUpgradePrompt()
+                }
+            } message: {
+                Text("Limited preview lets you browse Kairo's tabs. Start Kairo Pro to use logging, protocols, progress, companion features, and sync.")
             }
             .safeAreaInset(edge: .top, spacing: 0) {
                 if let banner = model.undoBanner {
@@ -3217,7 +3446,11 @@ private struct AtlasShellView: View {
             if companionTabShowsSettings {
                 KairoSettingsScreen(model: model, embeddedInTab: true)
             } else {
-                KairoCompanionScreen(model: model)
+                KairoCompanionScreen(model: model) {
+                    withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
+                        companionTabShowsSettings = true
+                    }
+                }
             }
         }
     }
@@ -3329,6 +3562,21 @@ private struct AtlasShellView: View {
             x: outerPadding + innerPadding + (index * tabWidth) + (tabWidth / 2),
             y: containerSize.height - safeAreaInsets.bottom - 66
         )
+    }
+}
+
+private struct AtlasLimitedPreviewInteractionGate: View {
+    let onAttemptInteraction: () -> Void
+
+    var body: some View {
+        Button(action: onAttemptInteraction) {
+            Color.clear
+                .contentShape(Rectangle())
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Start Kairo Pro")
+        .accessibilityHint("Opens subscription options for the full app.")
     }
 }
 
@@ -3682,7 +3930,7 @@ public struct AtlasTodayScreen: View {
 
             AtlasReadinessStripCard(model: model, todaySnapshot: state.todaySnapshot)
 
-            AtlasDayOneCommandCenterCard(model: model, todaySnapshot: state.todaySnapshot)
+            AtlasDayOneProtocolCard(model: model, todaySnapshot: state.todaySnapshot)
 
             AtlasQuickActionDockCard(model: model)
 
@@ -8115,9 +8363,9 @@ public struct AtlasSettingsScreen: View {
 
     private var settingsDeckTitle: String {
         if model.cloudSession != nil {
-            return "Command center is synced and ready."
+            return "Protocol sync is ready."
         }
-        return "Tune your protocol command center."
+        return "Tune your peptide protocol."
     }
 
     private var settingsStatusCallout: (

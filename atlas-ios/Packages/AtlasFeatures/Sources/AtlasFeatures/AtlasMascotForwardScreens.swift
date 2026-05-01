@@ -426,7 +426,7 @@ private struct AtlasForwardProtocolEmptyState: View {
                         .frame(width: 46, height: 46)
                         .background(AtlasPalette.secondaryFill, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Build your command center")
+                        Text("Build your peptide protocol")
                             .atlasTextRole(.cardTitle)
                             .foregroundStyle(AtlasPalette.textPrimary)
                     }
@@ -3993,7 +3993,8 @@ private struct AtlasForwardXPEconomyCard: View {
     private var nextUnlockTitle: String {
         let evolution = atlasRewardsEvolutionProgress(for: model.rewardsSnapshot, selection: model.settingsSnapshot.mascotSelection)
         if let next = evolution.nextFormName {
-            return "Next form: \(next)"
+            _ = next
+            return "Next companion milestone"
         }
         return "Final form mastered"
     }

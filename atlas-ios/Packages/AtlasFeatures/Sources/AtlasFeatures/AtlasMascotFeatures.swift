@@ -298,16 +298,18 @@ struct AtlasMascotEvolutionProgress {
             return "Final form unlocked."
         }
         _ = nextThresholdPoints
-        return "Next form: \(nextFormName)."
+        _ = nextFormName
+        return "Next companion milestone."
     }
 
     var progressLabel: String {
         guard let nextFormName, let nextThresholdPoints else {
             return "Final form unlocked."
         }
+        _ = nextFormName
 
         let remainingPoints = max(nextThresholdPoints - totalPoints, 0)
-        return "\(atlasMascotPointLabel(remainingPoints)) to \(nextFormName)."
+        return "\(atlasMascotPointLabel(remainingPoints)) to the next companion milestone."
     }
 
     var stageBadge: String {
@@ -336,9 +338,9 @@ struct AtlasMascotEvolutionProgress {
         case .stage1:
             return "\(currentFormName) has joined Kairo."
         case .stage2:
-            return "\(selection.stage1Title) evolved into \(currentFormName)."
+            return "\(currentFormName) reached the second companion milestone."
         case .stage3:
-            return "\(selection.stage2Title) evolved into \(currentFormName)."
+            return "\(currentFormName) reached the final companion milestone."
         }
     }
 

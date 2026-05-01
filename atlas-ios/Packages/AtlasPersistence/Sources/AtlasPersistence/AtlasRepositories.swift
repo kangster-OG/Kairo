@@ -920,8 +920,20 @@ private func buildProjectionWriteState(
     )
     let featureFlagProjection = AtlasSharedFeatureFlagProjection(flags: featureFlags)
     let insightsSnapshot = try buildInsightsSnapshot(db: db, referenceDate: referenceDate, featureFlags: featureFlags, privacyFormatter: privacyFormatter)
-    let supportSnapshot = buildSupportRingsProjectionSnapshot(insights: insightsSnapshot, referenceDate: referenceDate)
-    let mascotSnapshot = try buildMascotProjection(db: db, referenceDate: referenceDate)
+    let supportSnapshot = try buildSupportRingsProjectionSnapshot(insights: insightsSnapshot, referenceDate: referenceDate, db: db)
+    let rewardsSnapshot = try buildRewardsSnapshot(db: db, referenceDate: referenceDate)
+    let mascotSnapshot = try buildMascotProjection(
+        db: db,
+        referenceDate: referenceDate,
+        rewardsSnapshot: rewardsSnapshot
+    )
+    let companionSnapshot = buildCompanionWidgetProjectionSnapshot(
+        mascot: mascotSnapshot,
+        rewardsSnapshot: rewardsSnapshot,
+        nextDue: nextDue,
+        inventorySnapshot: inventorySnapshot,
+        referenceDate: referenceDate
+    )
     let watchCompanionSnapshot = buildWatchCompanionProjectionSnapshot(
         referenceDate: referenceDate,
         nextDue: nextDue,
@@ -944,6 +956,7 @@ private func buildProjectionWriteState(
             lowStock: lowStockSnapshot,
             support: supportSnapshot,
             mascot: mascotSnapshot,
+            companion: companionSnapshot,
             watchCompanion: watchCompanionSnapshot,
             featureFlags: featureFlagProjection
         )
@@ -997,13 +1010,15 @@ private func buildWatchCompanionProjectionSnapshot(
 
 private func buildSupportRingsProjectionSnapshot(
     insights: AtlasInsightsSnapshot,
-    referenceDate: Date
-) -> AtlasSharedSupportRingsSnapshot {
+    referenceDate: Date,
+    db: Database
+) throws -> AtlasSharedSupportRingsSnapshot {
     let protein = insights.nutritionSnapshot.dailyTargets.first { $0.kind == .proteinMeals }
     let hydration = insights.nutritionSnapshot.dailyTargets.first { $0.kind == .hydrationCheckins }
     let workoutProgress: Double = insights.recentWorkoutEntries.isEmpty ? 0 : 1
     let proteinProgress = protein?.progress ?? 0
     let hydrationProgress = hydration?.progress ?? 0
+    let healthSteps = try latestAppleHealthStepCount(db: db)
     let score = min(
         100,
         max(
@@ -1041,15 +1056,97 @@ private func buildSupportRingsProjectionSnapshot(
                 symbolName: "dumbbell.fill"
             )
         ],
+        showsHealthSteps: healthSteps.isConnected,
+        stepCount: healthSteps.count,
+        stepLabel: healthSteps.count.map(formatStepCount),
         updatedAt: atlasTimestamp(from: referenceDate)
     )
 }
 
+private func buildCompanionWidgetProjectionSnapshot(
+    mascot: AtlasSharedMascotSnapshot?,
+    rewardsSnapshot: AtlasRewardsSnapshot,
+    nextDue: AtlasSharedNextDueSnapshot?,
+    inventorySnapshot: AtlasInventorySnapshot,
+    referenceDate: Date
+) -> AtlasSharedCompanionWidgetSnapshot? {
+    guard let mascot else {
+        return nil
+    }
+
+    let nextLevelPoints = max(rewardsSnapshot.nextLevelPoints, rewardsSnapshot.totalPoints)
+    let xpLabel = "\(rewardsSnapshot.totalPoints) / \(nextLevelPoints) XP"
+    let xpProgress = nextLevelPoints > 0
+        ? min(max(Double(rewardsSnapshot.totalPoints) / Double(nextLevelPoints), 0), 1)
+        : 1
+
+    let linkedVial = nextDue.flatMap { due in
+        inventorySnapshot.vials.first { $0.linkedProtocolID == due.protocolID && $0.archivedAt == nil }
+    } ?? inventorySnapshot.vials.first { $0.archivedAt == nil && $0.projectedDepletionAt != nil }
+
+    return AtlasSharedCompanionWidgetSnapshot(
+        levelLabel: "Level \(rewardsSnapshot.level)",
+        xpLabel: xpLabel,
+        xpProgress: xpProgress,
+        nextShotDaysLabel: nextDue
+            .map { daysRemainingLabel(until: atlasDate(from: $0.scheduledAt), referenceDate: referenceDate) }
+            ?? "No shot due",
+        vialReplacementDaysLabel: linkedVial?.projectedDepletionAt
+            .map { daysRemainingLabel(until: $0, referenceDate: referenceDate) }
+            ?? "No vial linked"
+    )
+}
+
+private func daysRemainingLabel(until targetDate: Date, referenceDate: Date) -> String {
+    let calendar = Calendar.current
+    let start = calendar.startOfDay(for: referenceDate)
+    let target = calendar.startOfDay(for: targetDate)
+    let days = max(calendar.dateComponents([.day], from: start, to: target).day ?? 0, 0)
+    if days == 0 {
+        return "Today"
+    }
+    if days == 1 {
+        return "1 day"
+    }
+    return "\(days) days"
+}
+
+private func latestAppleHealthStepCount(db: Database) throws -> (isConnected: Bool, count: Int?) {
+    let isConnected = (try Int.fetchOne(
+        db,
+        sql: "SELECT COUNT(*) FROM health_connections WHERE provider_key = ? AND enabled = 1 AND connected = 1",
+        arguments: [AtlasHealthProviderKey.appleHealth.rawValue]
+    ) ?? 0) > 0
+    guard isConnected else {
+        return (false, nil)
+    }
+
+    let value = try Double.fetchOne(
+        db,
+        sql: """
+        SELECT metric_value_logs.number_value
+        FROM metric_value_logs
+        JOIN custom_metrics ON custom_metrics.id = metric_value_logs.metric_id
+        WHERE metric_value_logs.source = ? AND custom_metrics.metric_key = ?
+        ORDER BY metric_value_logs.logged_at DESC
+        LIMIT 1
+        """,
+        arguments: [AtlasHealthDataSource.health.rawValue, AtlasHealthMetricKind.steps.metricKey]
+    )
+    return (true, value.map { max(Int($0.rounded()), 0) })
+}
+
+private func formatStepCount(_ count: Int) -> String {
+    let formatter = NumberFormatter()
+    formatter.numberStyle = .decimal
+    return formatter.string(from: NSNumber(value: count)) ?? "\(count)"
+}
+
 private func buildMascotProjection(
     db: Database,
-    referenceDate: Date
+    referenceDate: Date,
+    rewardsSnapshot: AtlasRewardsSnapshot
 ) throws -> AtlasSharedMascotSnapshot? {
-    let rewardsSnapshot = try buildRewardsSnapshot(db: db, referenceDate: referenceDate)
     let onboardingDraft = try readMascotProjectionOnboardingDraft(db: db)
     let selectionRaw = try String.fetchOne(
         db,
@@ -1083,8 +1180,9 @@ private func buildMascotProjection(
     let progressLabel: String
     if let nextThresholdPoints, let nextFormName {
         _ = nextThresholdPoints
-        milestoneHeadline = "Next form: \(nextFormName)."
-        progressLabel = "Next form: \(nextFormName)."
+        _ = nextFormName
+        milestoneHeadline = "Next companion milestone."
+        progressLabel = "Next companion milestone."
     } else {
         milestoneHeadline = "Final form unlocked."
         progressLabel = "Final form unlocked."

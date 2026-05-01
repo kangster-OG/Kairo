@@ -328,7 +328,6 @@ final class AtlasPhaseOneTests: XCTestCase {
                 .peptideGoal,
                 .connectApps,
                 .ratingPrimer,
-                .trackingPermission,
                 .planLoading,
                 .planPreview,
                 .planReady,
@@ -377,7 +376,7 @@ final class AtlasPhaseOneTests: XCTestCase {
     }
 
     func testDreamOnboardingInventoryStaysLongAndChaptered() {
-        XCTAssertEqual(atlasDreamOnboardingSceneCountForTesting, 28)
+        XCTAssertEqual(atlasDreamOnboardingSceneCountForTesting, 27)
         XCTAssertEqual(
             atlasDreamOnboardingChapterTitlesForTesting,
             [
@@ -385,7 +384,7 @@ final class AtlasPhaseOneTests: XCTestCase {
                 "Profile setup",
                 "Protocol branch",
                 "Companion hatching",
-                "Tracking permissions",
+                "Connection setup",
                 "Plan generation",
                 "Save progress",
                 "Trial unlock"
@@ -651,7 +650,7 @@ final class AtlasPhaseOneTests: XCTestCase {
             selection: .aetherion,
             stage: .stage2,
             kind: .evolution,
-            title: "Voltflare unlocked",
+            title: "Aetherion unlocked",
             detail: "Aetherion reached the second form.",
             symbolName: "sparkles",
             recordedAt: atlasMascotMomentTimestamp(from: referenceDate),
@@ -727,8 +726,8 @@ final class AtlasPhaseOneTests: XCTestCase {
                 kind: AtlasMascotRecapCardKind.weeklyRecap.rawValue,
                 audience: .personal,
                 privacyMode: .fullDetail,
-                displayName: "Cindlet",
-                currentFormName: "Cindlet",
+                displayName: "Aetherion",
+                currentFormName: "Aetherion",
                 eyebrow: "Weekly recap",
                 headline: "One",
                 detail: "Detail",
@@ -745,8 +744,8 @@ final class AtlasPhaseOneTests: XCTestCase {
                 kind: AtlasMascotRecapCardKind.latestMoment.rawValue,
                 audience: .personal,
                 privacyMode: .fullDetail,
-                displayName: "Cindlet",
-                currentFormName: "Cindlet",
+                displayName: "Aetherion",
+                currentFormName: "Aetherion",
                 eyebrow: "Latest moment",
                 headline: "Two",
                 detail: "Detail",
@@ -763,8 +762,8 @@ final class AtlasPhaseOneTests: XCTestCase {
                 kind: AtlasMascotRecapCardKind.evolutionMilestone.rawValue,
                 audience: .personal,
                 privacyMode: .fullDetail,
-                displayName: "Cindlet",
-                currentFormName: "Cindlet",
+                displayName: "Aetherion",
+                currentFormName: "Aetherion",
                 eyebrow: "Milestone",
                 headline: "Three",
                 detail: "Detail",
@@ -816,7 +815,7 @@ final class AtlasPhaseOneTests: XCTestCase {
             stage: .stage2,
             kind: .interaction,
             title: "Nova glides closer",
-            detail: "Glisshare mirrors your momentum with quiet focus.",
+            detail: "Aurielle mirrors your momentum with quiet focus.",
             symbolName: "wind",
             recordedAt: "2026-04-12T11:00:00.000Z"
         )
@@ -834,7 +833,7 @@ final class AtlasPhaseOneTests: XCTestCase {
 
         XCTAssertEqual(descriptor.stage, .stage2)
         XCTAssertEqual(descriptor.headline, "Nova glides closer")
-        XCTAssertEqual(descriptor.detail, "Glisshare mirrors your momentum with quiet focus.")
+        XCTAssertEqual(descriptor.detail, "Aurielle mirrors your momentum with quiet focus.")
         XCTAssertEqual(descriptor.symbolName, "wind")
         XCTAssertTrue(descriptor.footer.contains("points"))
     }
@@ -848,10 +847,10 @@ final class AtlasPhaseOneTests: XCTestCase {
             audience: .personal,
             privacyMode: .fullDetail,
             displayName: "Nova",
-            currentFormName: "Glisshare",
+            currentFormName: "Aurielle",
             eyebrow: "Latest moment",
             headline: "Nova glides closer",
-            detail: "Glisshare mirrors your momentum with quiet focus.",
+            detail: "Aurielle mirrors your momentum with quiet focus.",
             secondaryDetail: "Recorded recently.",
             footer: "30 points to Aurielle.",
             symbolName: "wind",
@@ -908,8 +907,8 @@ final class AtlasPhaseOneTests: XCTestCase {
             kind: AtlasMascotRecapCardKind.weeklyRecap.rawValue,
             audience: .personal,
             privacyMode: .fullDetail,
-            displayName: "Cindlet",
-            currentFormName: "Cindlet",
+            displayName: "Aetherion",
+            currentFormName: "Aetherion",
             eyebrow: "Weekly recap",
             headline: "Older recap",
             detail: "Older detail",
@@ -926,8 +925,8 @@ final class AtlasPhaseOneTests: XCTestCase {
             kind: AtlasMascotRecapCardKind.evolutionMilestone.rawValue,
             audience: .coach,
             privacyMode: .privacySafe,
-            displayName: "Voltflare",
-            currentFormName: "Voltflare",
+            displayName: "Aetherion",
+            currentFormName: "Aetherion",
             eyebrow: "Evolution milestone",
             headline: "Newer recap",
             detail: "Newer detail",
@@ -984,7 +983,7 @@ final class AtlasPhaseOneTests: XCTestCase {
             selection: .aetherion,
             stage: .stage2,
             kind: .goal,
-            title: "Voltflare noticed the closeout",
+            title: "Aetherion noticed the closeout",
             detail: "Weekly workouts were completed and recorded.",
             symbolName: "flag.checkered",
             recordedAt: recordedAt
@@ -1030,7 +1029,7 @@ final class AtlasPhaseOneTests: XCTestCase {
                 stage: .stage1,
                 kind: .interaction,
                 title: "Nova perks up",
-                detail: "Moppet brightens the moment when you stop by.",
+                detail: "Aurielle brightens the moment when you stop by.",
                 symbolName: "star.fill",
                 recordedAt: atlasMascotMomentTimestamp(from: now)
             ),
@@ -1042,13 +1041,17 @@ final class AtlasPhaseOneTests: XCTestCase {
 
         XCTAssertEqual(snapshot?.mascot?.selection, .aurielle)
         XCTAssertEqual(snapshot?.mascot?.stage, .stage1)
-        XCTAssertEqual(snapshot?.mascot?.currentFormName, "Moppet")
+        XCTAssertEqual(snapshot?.mascot?.currentFormName, "Aurielle")
         XCTAssertEqual(snapshot?.mascot?.nickname, "Nova")
         XCTAssertEqual(snapshot?.mascot?.displayName, "Nova")
         XCTAssertFalse(snapshot?.mascot?.statusLine.isEmpty ?? true)
         XCTAssertEqual(snapshot?.mascot?.nextThresholdPoints, 500)
         XCTAssertEqual(snapshot?.mascot?.latestMomentTitle, "Nova perks up")
         XCTAssertEqual(snapshot?.mascot?.latestMomentSymbolName, "star.fill")
+        let projectionJSON = try XCTUnwrap(String(data: JSONEncoder().encode(snapshot), encoding: .utf8))
+        for legacyName in ["Moppet", "Glisshare", "Cindlet", "Voltflare"] {
+            XCTAssertFalse(projectionJSON.contains(legacyName), "\(legacyName) should not leak into extension projections.")
+        }
     }
 
     func testExtensionProjectionFreshnessUsesSurfaceSpecificWindows() {
@@ -4817,6 +4820,111 @@ final class AtlasPhaseOneTests: XCTestCase {
 
         XCTAssertEqual(model.bootstrapSnapshot.destination, .app)
         XCTAssertTrue(model.bootstrapSnapshot.onboardingCompleted)
+    }
+
+    @MainActor
+    func testLimitedPreviewCompletesOnboardingAsLocalPreview() async throws {
+        let controller = try makeInMemoryController()
+        let model = makeAppModel(controller: controller)
+
+        await model.loadBootstrapIfNeeded()
+        await model.saveOnboardingDraft(AtlasOnboardingDraft.empty())
+        await model.completeOnboardingForLimitedPreview()
+
+        XCTAssertEqual(model.bootstrapSnapshot.destination, .app)
+        XCTAssertTrue(model.bootstrapSnapshot.onboardingCompleted)
+        XCTAssertEqual(model.bootstrapSnapshot.onboardingDraft.paywallChoice, .basic)
+        XCTAssertEqual(model.settingsSnapshot.accountMode, .guest)
+        XCTAssertEqual(model.settingsSnapshot.accountStartMode, .guest)
+        XCTAssertEqual(model.settingsSnapshot.syncStatus, .localOnly)
+        XCTAssertTrue(model.isLimitedPreviewMode)
+    }
+
+    @MainActor
+    func testLimitedPreviewAllowsTabsButGatesFeatureRoutes() async throws {
+        let controller = try makeInMemoryController()
+        let model = makeAppModel(controller: controller)
+
+        await model.loadBootstrapIfNeeded()
+        await model.saveOnboardingDraft(AtlasOnboardingDraft.empty())
+        await model.completeOnboardingForLimitedPreview()
+
+        model.activeTab = .timeline
+        XCTAssertEqual(model.activeTab, .timeline)
+
+        model.activeTab = .library
+        XCTAssertEqual(model.activeTab, .library)
+
+        model.open(.progressEvidence)
+
+        XCTAssertTrue(model.routePath.isEmpty)
+        XCTAssertNotNil(model.limitedPreviewUpgradePrompt)
+    }
+
+    @MainActor
+    func testLimitedPreviewGatesProtocolCreation() async throws {
+        let controller = try makeInMemoryController()
+        let model = makeAppModel(controller: controller)
+
+        await model.loadBootstrapIfNeeded()
+        await model.saveOnboardingDraft(AtlasOnboardingDraft.empty())
+        await model.completeOnboardingForLimitedPreview()
+
+        let detail = await model.createProtocol(
+            AtlasProtocolDraft(
+                name: "Preview protocol",
+                kind: .glp,
+                cadenceType: .weekly,
+                intervalDays: 7,
+                weekday: 2,
+                defaultTimeOfDay: "09:00",
+                doseAmount: 1,
+                doseUnit: "mg"
+            )
+        )
+
+        XCTAssertNil(detail)
+        XCTAssertTrue(model.libraryProtocols.isEmpty)
+        XCTAssertNotNil(model.limitedPreviewUpgradePrompt)
+    }
+
+    @MainActor
+    func testExistingAccountSignInSkipsOnboardingAndOpensAccountSettings() async throws {
+        let controller = try makeInMemoryController()
+        let model = makeAppModel(controller: controller)
+
+        await model.loadBootstrapIfNeeded()
+        await model.saveOnboardingDraft(AtlasOnboardingDraft.empty())
+        await model.completeOnboardingForExistingAccountSignIn()
+
+        XCTAssertEqual(model.bootstrapSnapshot.destination, .app)
+        XCTAssertTrue(model.bootstrapSnapshot.onboardingCompleted)
+        XCTAssertEqual(model.bootstrapSnapshot.onboardingDraft.accountMode, .signIn)
+        XCTAssertEqual(model.settingsSnapshot.accountMode, .account)
+        XCTAssertEqual(model.settingsSnapshot.accountStartMode, .signIn)
+        XCTAssertEqual(model.activeTab, .settings)
+        XCTAssertEqual(model.routePath.last, .settingsAccount)
+    }
+
+    @MainActor
+    func testExistingAccountSignInWithSavedSessionSkipsOnboardingIntoApp() async throws {
+        let controller = try makeInMemoryController()
+        let cloudSync = TestCloudSyncManager(
+            session: AtlasCloudSessionSnapshot(email: "saved@kairo.example", userID: "saved-user")
+        )
+        let model = makeAppModel(controller: controller, cloudSync: cloudSync)
+
+        await model.loadBootstrapIfNeeded()
+        await model.saveOnboardingDraft(AtlasOnboardingDraft.empty())
+        await model.completeOnboardingForExistingAccountSignIn()
+
+        XCTAssertEqual(model.bootstrapSnapshot.destination, .app)
+        XCTAssertTrue(model.bootstrapSnapshot.onboardingCompleted)
+        XCTAssertEqual(model.cloudSession?.email, "saved@kairo.example")
+        XCTAssertEqual(model.settingsSnapshot.accountMode, .account)
+        XCTAssertEqual(model.settingsSnapshot.accountStartMode, .signIn)
+        XCTAssertEqual(model.activeTab, .today)
+        XCTAssertTrue(model.routePath.isEmpty)
     }
 
     func testImportedUserBootstrapBypassesForcedOnboarding() async throws {

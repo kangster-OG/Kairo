@@ -11,6 +11,7 @@
 		05E17E884245BB29302345DA /* AtlasSystem in Frameworks */ = {isa = PBXBuildFile; productRef = ABCE5395E103D945CB382D58 /* AtlasSystem */; };
 		12A8B77F5E554A0C8B0D1201 /* AtlasWidgetsExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = C61EA6D3F09A3EFB580FDF92 /* AtlasWidgetsExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		175267A05D364918AD5D64BD /* IntentHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F63219A98B1D1057BD3F5BC /* IntentHandler.swift */; };
+		1A8D4A8E92E349D3B07C1D20 /* AtlasIntentsExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 6E7396EFBAD67B506FC02779 /* AtlasIntentsExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		22DB838E8A66B4BDEABF198B /* AtlasPersistence in Frameworks */ = {isa = PBXBuildFile; productRef = C0FFA7AE014615512E0C6051 /* AtlasPersistence */; };
 		2C13CEC6C0AE0F4C711BA5B0 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 54344F38290975D53F442715 /* Foundation.framework */; };
 			31AB44EF90CC47C3AAFD7021 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 31AB44EF90CC47C3AAFD7022 /* Assets.xcassets */; };
@@ -39,6 +40,13 @@
 			remoteGlobalIDString = 76D3BD6E611D36A09BCEE631;
 			remoteInfo = AtlasWidgetsExtension;
 		};
+		9D67A44A208B4E70A31958BB /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 21CFD5DC1ACA145F22686D11 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F24A9CD048BE22623BAA8CD1;
+			remoteInfo = AtlasIntentsExtension;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -49,6 +57,7 @@
 			dstSubfolderSpec = 13;
 			files = (
 				12A8B77F5E554A0C8B0D1201 /* AtlasWidgetsExtension.appex in Embed App Extensions */,
+				1A8D4A8E92E349D3B07C1D20 /* AtlasIntentsExtension.appex in Embed App Extensions */,
 			);
 			name = "Embed App Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -274,6 +283,7 @@
 			);
 			dependencies = (
 				13E8453A4C2B48399A861101 /* PBXTargetDependency */,
+				8E2D1B88D6244C5891B19713 /* PBXTargetDependency */,
 			);
 			name = Atlas;
 			packageProductDependencies = (
@@ -416,6 +426,11 @@
 			isa = PBXTargetDependency;
 			target = 76D3BD6E611D36A09BCEE631 /* AtlasWidgetsExtension */;
 			targetProxy = 6A4EAD5A8E4A4D09B7C90101 /* PBXContainerItemProxy */;
+		};
+		8E2D1B88D6244C5891B19713 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = F24A9CD048BE22623BAA8CD1 /* AtlasIntentsExtension */;
+			targetProxy = 9D67A44A208B4E70A31958BB /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 

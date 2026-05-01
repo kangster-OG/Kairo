@@ -410,12 +410,13 @@ struct KairoLogShotScreen: View {
 
 struct KairoCompanionScreen: View {
     let model: AtlasAppModel
+    let onOpenSettings: () -> Void
     @State private var showingWorkoutCapture = false
     @State private var selectedRewardArtifact: KairoRewardArtifact?
 
     var body: some View {
         KairoScrollSurface {
-            KairoCompanionEvolutionHeader(model: model, progress: rewardProgress)
+            KairoCompanionEvolutionHeader(model: model, progress: rewardProgress, onOpenSettings: onOpenSettings)
 
             KairoSectionCard(title: "Quests") {
                 ForEach(questRows) { row in
@@ -3423,6 +3424,7 @@ private struct KairoWeeklyMiniTrend: View {
 private struct KairoCompanionEvolutionHeader: View {
     let model: AtlasAppModel
     let progress: Double
+    let onOpenSettings: () -> Void
 
     var body: some View {
         GeometryReader { proxy in
@@ -3472,6 +3474,34 @@ private struct KairoCompanionEvolutionHeader: View {
                     .frame(width: 74)
                 }
                 .padding(.horizontal, 10)
+
+                VStack {
+                    HStack {
+                        Spacer()
+
+                        Button {
+                            AtlasFeedback.selection()
+                            onOpenSettings()
+                        } label: {
+                            Image(systemName: "gearshape.fill")
+                                .font(.system(size: 15, weight: .bold))
+                                .foregroundStyle(Color(red: 0.05, green: 0.14, blue: 0.12))
+                                .frame(width: 44, height: 44)
+                                .background(Color.white.opacity(0.94), in: Circle())
+                                .overlay(
+                                    Circle()
+                                        .stroke(Color(red: 0.05, green: 0.14, blue: 0.12).opacity(0.14), lineWidth: 1)
+                                )
+                                .shadow(color: AtlasPalette.shadow.opacity(0.18), radius: 7, y: 4)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Settings")
+                        .accessibilityHint("Opens Kairo settings.")
+                    }
+
+                    Spacer(minLength: 0)
+                }
+                .padding(10)
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
         }
@@ -3637,6 +3667,23 @@ private struct KairoNextFormPreview: View {
         }
     }
 
+    private var nextStageAssetName: String {
+        switch (selection, nextStage) {
+        case (.aetherion, .stage1):
+            return "AtlasMascotAetherionStage1Mockup"
+        case (.aetherion, .stage2):
+            return "AtlasMascotAetherionStage2Mockup"
+        case (.aetherion, .stage3):
+            return "AtlasMascotAetherionStage3Mockup"
+        case (.aurielle, .stage1):
+            return "AtlasMascotAurielleStage1Mockup"
+        case (.aurielle, .stage2):
+            return "AtlasMascotAurielleStage2Mockup"
+        case (.aurielle, .stage3):
+            return "AtlasMascotAurielleStage3Mockup"
+        }
+    }
+
     var body: some View {
 	        VStack(spacing: 7) {
 	            Text("Next Form")
@@ -3646,7 +3693,7 @@ private struct KairoNextFormPreview: View {
 	                .padding(.vertical, 3)
 	                .background(Color.white.opacity(0.94), in: Capsule(style: .continuous))
             ZStack(alignment: .bottomTrailing) {
-                Image(nextStage == .stage2 ? "AtlasMascotAetherionStage2Mockup" : "AtlasMascotAetherionStage3Mockup")
+                Image(nextStageAssetName)
                     .resizable()
                     .interpolation(.high)
                     .scaledToFit()

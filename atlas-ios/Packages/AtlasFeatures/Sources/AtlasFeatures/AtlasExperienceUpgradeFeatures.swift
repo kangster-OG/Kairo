@@ -20,7 +20,7 @@ struct AtlasTrustStatusBanner: View {
                         AtlasStatusBadge(renderModeLabel, tint: AtlasPalette.primary)
                     }
 
-                    Text(compact ? "Privacy rendering is active across surfaces." : "Kairo keeps the command center local-first, review-safe, and privacy-rendered before anything leaves the device.")
+                    Text(compact ? "Privacy rendering is active across surfaces." : "Kairo keeps your peptide protocol local-first, review-safe, and privacy-rendered before anything leaves the device.")
                         .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -121,13 +121,13 @@ struct AtlasReadinessStripCard: View {
     }
 }
 
-struct AtlasDayOneCommandCenterCard: View {
+struct AtlasDayOneProtocolCard: View {
     let model: AtlasAppModel
     let todaySnapshot: AtlasTodaySnapshot
 
     var body: some View {
         AtlasCommandDeck(
-            eyebrow: "DAY 1 COMMAND CENTER",
+            eyebrow: "DAY 1 PROTOCOL",
             title: title,
             detail: "Your first session is not empty. Kairo keeps a short activation path visible until the operating record is real.",
             metrics: metrics,

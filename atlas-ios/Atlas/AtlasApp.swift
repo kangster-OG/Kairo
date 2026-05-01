@@ -37,6 +37,7 @@ struct AtlasApp: App {
                 .task {
                     model.dependencies.diagnostics.markLaunchCompleted()
                     AtlasWidgetRefreshCoordinator.reloadAll()
+                    await model.consumePendingExtensionActionIfNeeded()
                 }
                 .onOpenURL { url in
                     Task {
@@ -161,7 +162,7 @@ private struct AtlasTypographyAuditionView: View {
             title: "Mascot momentum"
         ) {
             VStack(alignment: .leading, spacing: 10) {
-                Text("Cindlet is close to Voltflare.")
+                Text("Aetherion is close to the next milestone.")
                     .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
 
@@ -170,7 +171,7 @@ private struct AtlasTypographyAuditionView: View {
                     VStack(alignment: .leading, spacing: 5) {
                         Text("Evolution path")
                             .atlasTextRole(.deckEyebrow)
-                        Text("Cindlet -> Voltflare -> Aetherion")
+                        Text("Aetherion companion milestone path")
                             .atlasTextRole(.cardBody)
                             .foregroundStyle(AtlasPalette.textPrimary)
                     }
@@ -224,8 +225,6 @@ private struct AtlasBootstrapFailureView: View {
 
 private enum AtlasWidgetRefreshCoordinator {
     private static let widgetKinds = [
-        "AtlasNextDueWidget",
-        "AtlasLowStockWidget",
         "AtlasQuickCaptureWidget",
         "AtlasMascotWidget"
     ]

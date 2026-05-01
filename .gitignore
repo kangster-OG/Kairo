@@ -33,6 +33,18 @@ npm-debug.*
 yarn-debug.*
 yarn-error.*
 
+# local build / QA artifacts
+.playwright-cli/
+build/
+output/
+atlas-ios/.derived-data*/
+atlas-ios/build/
+atlas-ios/*.png
+tmp/
+tmp-*.png
+*.xcresult/
+*.xcarchive/
+
 # macOS
 .DS_Store
 *.pem
@@ -48,3 +60,8 @@ app-example
 # generated native folders
 /ios
 /android
+
+# generated UX research captures; keep authored research docs/scripts tracked.
+docs/ux-research/competitor-frame-analysis*/
+docs/ux-research/competitor-recordings/
+docs/ux-research/generated-ui-concepts/

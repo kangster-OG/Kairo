@@ -22,20 +22,24 @@ public struct AtlasWatchCompanionScreen: View {
         )
         let currentOccurrence = model.todaySnapshot.overdue.first ?? model.todaySnapshot.nextDue ?? model.todaySnapshot.upcoming.first
         let shortcutPhrases = [
-            "Log Next Shot",
-            "Skip Next Shot",
-            "Open Protocol Recovery",
+            "Open Watch Companion",
+            "Mark Next Due",
+            "Skip Next Due",
+            "Open Recovery",
             "Log Protein Meal",
             "Log Hydration",
-            "Log Workout Context"
+            "Log Low Appetite",
+            "Log GI Check-In",
+            "Log Weight",
+            "Log Symptom"
         ]
 
         AtlasScreen {
             AtlasCommandDeck(
-                eyebrow: "Apple Watch",
-                title: "Wrist-ready protocol loop",
+                eyebrow: "Kairo Watch",
+                title: "Wrist-ready companion loop",
                 detail: guidance?.headline
-                    ?? "Next shot, support signals, and companion progress.",
+                    ?? "Next due actions, support signals, and companion progress.",
                 metrics: [
                     AtlasMetricItem(id: "next", title: "Next", value: currentOccurrence?.scheduledAt.formatted(date: .omitted, time: .shortened) ?? "Idle", tint: currentOccurrence?.state == .overdue ? AtlasPalette.warning : AtlasPalette.primary),
                     AtlasMetricItem(id: "shortcuts", title: "Shortcuts", value: "\(shortcutPhrases.count)", tint: AtlasPalette.secondaryText)
@@ -45,7 +49,7 @@ public struct AtlasWatchCompanionScreen: View {
             ) {
                 Text(
                     guidance?.summary
-                    ?? "Keep the wrist view narrow."
+                    ?? "Keep the watch layer focused on the next due action, recovery, and fast support capture."
                 )
                 .atlasTextRole(.supporting)
                 .foregroundStyle(AtlasPalette.textSecondary)
@@ -89,14 +93,14 @@ public struct AtlasWatchCompanionScreen: View {
             }
 
             if let currentOccurrence {
-                AtlasWatchSectionHeader(title: "Next Shot Actions")
-                AtlasSectionCard(title: "Next shot actions") {
+                AtlasWatchSectionHeader(title: "Next Due Actions")
+                AtlasSectionCard(title: "Next due actions") {
                     Text("These are the same fast actions available through Apple Watch Shortcuts and Siri.")
                         .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
 
                     HStack(spacing: AtlasSpacing.small) {
-                        Button("Log shot") {
+                        Button("Log due") {
                             Task {
                                 await model.logOccurrence(
                                     AtlasOccurrenceLogRequest(
@@ -207,7 +211,7 @@ public struct AtlasWatchCompanionScreen: View {
 
             AtlasWatchSectionHeader(title: "Quick Context")
             AtlasSectionCard(title: "Quick context") {
-                Text("Protein, hydration, appetite, and GI context are one-tap actions here. Deeper notes hand back to iPhone.")
+                Text("Protein, hydration, appetite, and GI context are one-tap actions here. Fuller notes hand back to iPhone.")
                     .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
 
@@ -235,9 +239,9 @@ public struct AtlasWatchCompanionScreen: View {
                 }
             }
 
-            AtlasWatchSectionHeader(title: "Apple Watch Shortcuts")
-            AtlasSectionCard(title: "Apple Watch shortcuts") {
-                Text("Use the watch for next shot, support rings, recovery, and quick context.")
+            AtlasWatchSectionHeader(title: "Watch Companion Shortcuts")
+            AtlasSectionCard(title: "Watch companion shortcuts") {
+                Text("Use Apple Watch Shortcuts and Siri for next due, recovery, support capture, weight, and symptom logging.")
                     .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
 
@@ -252,12 +256,12 @@ public struct AtlasWatchCompanionScreen: View {
                         }
                     }
                 }
-                Text("This companion layer is sourced from local data and hands deeper work back to iPhone.")
+                Text("This layer is sourced from local data. Quick signals can save immediately; deeper review opens the matching iPhone flow.")
                     .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
             }
         }
-        .navigationTitle("Apple Watch")
+        .navigationTitle("Watch Companion")
         .navigationBarTitleDisplayMode(.inline)
         .task {
             await model.loadShellDataIfNeeded()
@@ -341,7 +345,7 @@ private struct AtlasWatchCompanionGlanceCard: View {
                     Text("Level \(model.rewardsSnapshot.level) - \(model.rewardsSnapshot.totalPoints.formatted()) XP")
                         .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
-                    Text(evolution.nextFormName.map { "Next form: \($0)" } ?? "Final form mastered")
+                    Text(companionMilestoneLabel(nextThresholdPoints: evolution.nextThresholdPoints))
                         .atlasTextRole(.deckEyebrow)
                         .foregroundStyle(AtlasPalette.reward)
                 }
@@ -362,6 +366,18 @@ private struct AtlasWatchCompanionGlanceCard: View {
 
     private var questCount: Int {
         model.rewardsSnapshot.goals.filter { $0.isMet == false }.count
+    }
+
+    private func companionMilestoneLabel(nextThresholdPoints: Int?) -> String {
+        guard let nextThresholdPoints else {
+            return "Final companion milestone reached"
+        }
+
+        let remainingPoints = max(nextThresholdPoints - model.rewardsSnapshot.totalPoints, 0)
+        if remainingPoints == 0 {
+            return "Next companion milestone ready"
+        }
+        return "\(remainingPoints.formatted()) XP to next milestone"
     }
 }
 

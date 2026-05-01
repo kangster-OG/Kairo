@@ -166,14 +166,22 @@ enum AtlasShortcutWeightUnit: String, AppEnum {
 }
 
 enum AtlasWatchContextShortcutKind: String, AppEnum {
+    case proteinMeal
     case hydration
     case lowAppetite
+    case giCheckIn
 
     static let typeDisplayRepresentation: TypeDisplayRepresentation = "Watch Context"
     static let caseDisplayRepresentations: [AtlasWatchContextShortcutKind: DisplayRepresentation] = [
+        .proteinMeal: "Protein Meal",
         .hydration: "Hydration",
-        .lowAppetite: "Low Appetite"
+        .lowAppetite: "Low Appetite",
+        .giCheckIn: "GI Check-In"
     ]
+
+    var routeValue: String {
+        rawValue
+    }
 }
 
 enum AtlasQuickCaptureIntentKind: String, AppEnum {
@@ -361,7 +369,7 @@ struct AtlasSkipNextDueIntent: AppIntent {
 
 struct AtlasLogWatchContextIntent: AppIntent {
     static let title: LocalizedStringResource = "Log Watch Context"
-    static let description = IntentDescription("Open Kairo and capture a fast hydration or low-appetite signal from a watch-friendly shortcut.")
+    static let description = IntentDescription("Open Kairo and capture a fast watch-friendly support signal.")
     static let openAppWhenRun = true
 
     @Parameter(title: "Signal")
@@ -380,17 +388,65 @@ struct AtlasLogWatchContextIntent: AppIntent {
     }
 
     func perform() async throws -> some IntentResult {
-        let kind: String
-        switch signal {
-        case .hydration:
-            kind = "hydration"
-        case .lowAppetite:
-            kind = "lowAppetite"
-        }
-
         try AtlasPendingIntentActionStore.write(
             route: "context-shortcut",
-            query: [URLQueryItem(name: "kind", value: kind)]
+            query: [URLQueryItem(name: "kind", value: signal.routeValue)]
+        )
+        return .result()
+    }
+}
+
+struct AtlasLogHydrationIntent: AppIntent {
+    static let title: LocalizedStringResource = "Log Hydration"
+    static let description = IntentDescription("Open Kairo and add a fast hydration check-in.")
+    static let openAppWhenRun = true
+
+    func perform() async throws -> some IntentResult {
+        try AtlasPendingIntentActionStore.write(
+            route: "context-shortcut",
+            query: [URLQueryItem(name: "kind", value: AtlasWatchContextShortcutKind.hydration.routeValue)]
+        )
+        return .result()
+    }
+}
+
+struct AtlasLogProteinMealIntent: AppIntent {
+    static let title: LocalizedStringResource = "Log Protein Meal"
+    static let description = IntentDescription("Open Kairo and start a protein meal check-in.")
+    static let openAppWhenRun = true
+
+    func perform() async throws -> some IntentResult {
+        try AtlasPendingIntentActionStore.write(
+            route: "context-shortcut",
+            query: [URLQueryItem(name: "kind", value: AtlasWatchContextShortcutKind.proteinMeal.routeValue)]
+        )
+        return .result()
+    }
+}
+
+struct AtlasLogLowAppetiteIntent: AppIntent {
+    static let title: LocalizedStringResource = "Log Low Appetite"
+    static let description = IntentDescription("Open Kairo and add a fast low-appetite signal.")
+    static let openAppWhenRun = true
+
+    func perform() async throws -> some IntentResult {
+        try AtlasPendingIntentActionStore.write(
+            route: "context-shortcut",
+            query: [URLQueryItem(name: "kind", value: AtlasWatchContextShortcutKind.lowAppetite.routeValue)]
+        )
+        return .result()
+    }
+}
+
+struct AtlasLogGIRecoveryIntent: AppIntent {
+    static let title: LocalizedStringResource = "Log GI Check-In"
+    static let description = IntentDescription("Open Kairo and start a fuller GI recovery note.")
+    static let openAppWhenRun = true
+
+    func perform() async throws -> some IntentResult {
+        try AtlasPendingIntentActionStore.write(
+            route: "context-shortcut",
+            query: [URLQueryItem(name: "kind", value: AtlasWatchContextShortcutKind.giCheckIn.routeValue)]
         )
         return .result()
     }
@@ -486,58 +542,22 @@ struct AtlasShortcutsProvider: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         return [
             AppShortcut(
-                intent: AtlasOpenTodayIntent(),
+                intent: AtlasOpenWatchCompanionIntent(),
                 phrases: [
-                    "Open Today in \(.applicationName)",
-                    "Show \(.applicationName) Today"
+                    "Open Apple Watch companion in \(.applicationName)",
+                    "Show \(.applicationName) watch companion"
                 ],
-                shortTitle: "Open Today",
-                systemImageName: "sparkles"
+                shortTitle: "Watch Companion",
+                systemImageName: "applewatch"
             ),
             AppShortcut(
-                intent: AtlasOpenQuickCaptureIntent(),
+                intent: AtlasOpenRecoveryHandlingIntent(),
                 phrases: [
-                    "Open quick capture in \(.applicationName)",
-                    "Show fast capture in \(.applicationName)"
+                    "Open recovery handling in \(.applicationName)",
+                    "Show \(.applicationName) recovery handling"
                 ],
-                shortTitle: "Quick Capture",
-                systemImageName: "bolt.badge.clock"
-            ),
-            AppShortcut(
-                intent: AtlasOpenRewardsIntent(),
-                phrases: [
-                    "Open rewards in \(.applicationName)",
-                    "Show mascot rewards in \(.applicationName)"
-                ],
-                shortTitle: "Open Rewards",
-                systemImageName: "sparkles.rectangle.stack"
-            ),
-            AppShortcut(
-                intent: AtlasOpenWeeklyReviewIntent(),
-                phrases: [
-                    "Open weekly review in \(.applicationName)",
-                    "Show weekly closeout in \(.applicationName)"
-                ],
-                shortTitle: "Weekly Review",
-                systemImageName: "calendar.badge.clock"
-            ),
-            AppShortcut(
-                intent: AtlasOpenMascotIntent(),
-                phrases: [
-                    "Open mascot in \(.applicationName)",
-                    "Show guardian detail in \(.applicationName)"
-                ],
-                shortTitle: "Open Mascot",
-                systemImageName: "sparkles"
-            ),
-            AppShortcut(
-                intent: AtlasCheckInWithMascotIntent(),
-                phrases: [
-                    "Check in with mascot in \(.applicationName)",
-                    "Capture mascot moment in \(.applicationName)"
-                ],
-                shortTitle: "Mascot Moment",
-                systemImageName: "star.bubble.fill"
+                shortTitle: "Recovery",
+                systemImageName: "cross.case.fill"
             ),
             AppShortcut(
                 intent: AtlasMarkNextDueTakenIntent(),
@@ -556,6 +576,42 @@ struct AtlasShortcutsProvider: AppShortcutsProvider {
                 ],
                 shortTitle: "Skip Next Due",
                 systemImageName: "forward.fill"
+            ),
+            AppShortcut(
+                intent: AtlasLogHydrationIntent(),
+                phrases: [
+                    "Log hydration in \(.applicationName)",
+                    "Add hydration in \(.applicationName)"
+                ],
+                shortTitle: "Log Hydration",
+                systemImageName: "drop.fill"
+            ),
+            AppShortcut(
+                intent: AtlasLogProteinMealIntent(),
+                phrases: [
+                    "Log protein meal in \(.applicationName)",
+                    "Add protein meal in \(.applicationName)"
+                ],
+                shortTitle: "Log Protein",
+                systemImageName: "bolt.heart.fill"
+            ),
+            AppShortcut(
+                intent: AtlasLogLowAppetiteIntent(),
+                phrases: [
+                    "Log low appetite in \(.applicationName)",
+                    "Add low appetite in \(.applicationName)"
+                ],
+                shortTitle: "Low Appetite",
+                systemImageName: "fork.knife.circle.fill"
+            ),
+            AppShortcut(
+                intent: AtlasLogGIRecoveryIntent(),
+                phrases: [
+                    "Log GI check-in in \(.applicationName)",
+                    "Add GI recovery note in \(.applicationName)"
+                ],
+                shortTitle: "GI Check-In",
+                systemImageName: "waveform.path.ecg.rectangle"
             ),
             AppShortcut(
                 intent: AtlasLogWeightIntent(),

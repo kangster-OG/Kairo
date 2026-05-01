@@ -995,8 +995,8 @@ private func buildVialSummary(
             vial: vial
         )
     }
-    let depletionLabel = linkedProtocol.flatMap { protocolRecord in
-        inventoryProjectedDepletionLabel(
+    let depletionDate = linkedProtocol.flatMap { protocolRecord in
+        inventoryProjectedDepletionDate(
             protocolRecord: protocolRecord,
             context: context,
             nextScheduledAt: nextOccurrence.map { atlasDate(from: $0.scheduledAt) },
@@ -1022,7 +1022,8 @@ private func buildVialSummary(
         calculatorProfileLabel: vial.calculatorProfileId.flatMap { calculatorProfiles[$0]?.label },
         quantityLabel: "\(formatAtlasQuantity(vial.remainingQuantity, unit: vial.quantityUnit)) remaining of \(formatAtlasQuantity(vial.startingQuantity, unit: vial.quantityUnit))",
         lowStockLabel: lowStockLabel,
-        projectedDepletionLabel: depletionLabel,
+        projectedDepletionLabel: depletionDate.map { inventoryProjectedDepletionLabel(for: $0) },
+        projectedDepletionAt: depletionDate,
         autoDecrementLabel: decrement.map { "Auto-decrements \(formatAtlasQuantity($0.amount, unit: $0.unit)) per taken log" },
         remainingQuantity: vial.remainingQuantity,
         startingQuantity: vial.startingQuantity,
@@ -1432,6 +1433,21 @@ private func inventoryProjectedDepletionLabel(
     nextScheduledAt: Date?,
     vial: AtlasVialRecord
 ) -> String? {
+    inventoryProjectedDepletionDate(
+        protocolRecord: protocolRecord,
+        context: context,
+        nextScheduledAt: nextScheduledAt,
+        vial: vial
+    )
+    .map { inventoryProjectedDepletionLabel(for: $0) }
+}
+
+private func inventoryProjectedDepletionDate(
+    protocolRecord: AtlasProtocolRecord,
+    context: AtlasCoreLoopContext,
+    nextScheduledAt: Date?,
+    vial: AtlasVialRecord
+) -> Date? {
     guard let nextScheduledAt else {
         return nil
     }
@@ -1452,7 +1468,10 @@ private func inventoryProjectedDepletionLabel(
     }
 
     let remainingEvents = Int(ceil(vial.remainingQuantity / decrement.amount))
-    let depletion = nextScheduledAt.addingTimeInterval(TimeInterval(max(remainingEvents - 1, 0) * cadenceDays) * 86_400)
+    return nextScheduledAt.addingTimeInterval(TimeInterval(max(remainingEvents - 1, 0) * cadenceDays) * 86_400)
+}
+
+private func inventoryProjectedDepletionLabel(for depletion: Date) -> String {
     let formatter = DateFormatter()
     formatter.dateStyle = .medium
     formatter.timeStyle = .none
