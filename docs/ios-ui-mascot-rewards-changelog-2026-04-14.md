@@ -11,7 +11,7 @@ Fresh Codex threads should use this file as the high-level "what changed and why
 - `docs/ios-ui-skill-stack.md`
 - `docs/ios-redesign-context-2026-04-14.md`
 - `docs/ios-ambient-mascot-system-handoff-2026-04-16.md`
-- `docs/mascot-concepts/atlas-mascot-asset-matrix.md`
+- current native mascot assets and active Kairo companion/widget code; do not use archived mascot concept docs
 
 ## Product direction locked in
 
@@ -39,7 +39,7 @@ These rules are now part of the product:
 - sticker art = medium cards and medium mascot/reward surfaces
 - pixel art = widgets and compact live-state surfaces
 
-If mascot UI work is requested, also read `docs/mascot-concepts/atlas-mascot-asset-matrix.md`.
+If mascot UI work is requested, use current native mascot assets and active Kairo companion/widget code. Do not use archived mascot concept docs.
 
 ## Major implementation waves
 
@@ -205,5 +205,5 @@ When future threads touch this area, preserve:
 - `docs/ios-ui-skill-stack.md` for which skills and references to use
 - `docs/ios-redesign-context-2026-04-14.md` for product/design intent
 - `docs/ios-ambient-mascot-system-handoff-2026-04-16.md` for ambient mascot placement, policy, suppression, and QA rules
-- `docs/mascot-concepts/atlas-mascot-asset-matrix.md` for mascot asset deployment rules
+- current native mascot assets and active Kairo companion/widget code for mascot asset deployment rules; do not use archived mascot concept docs
 - `docs/fresh-codex-thread-prompt.md` for a ready-to-paste fresh-thread starter

@@ -8,7 +8,7 @@ It assumes the direction already established in the Cal AI, Finch, Shotsy, Quitt
 - Borrow Finch's emotional personalization, companion hatching payoff, no-empty-home loop, long progress rail, and reward loop.
 - Borrow Shotsy's medication-specific setup depth, but make it more private, more operational, and less narrow.
 - Borrow Quittr and Noom's assessment-to-plan mechanics, but avoid shame, diagnosis, fear, or manipulative urgency.
-- Keep Atlas's strongest differentiators: private local-first setup, Trust Vault, Protocol Change Studio, Review Output, Universal Migration, rewards, mascots, health connections, and a real Day 1 command center.
+- Keep Atlas's strongest differentiators: private local-first setup, Trust Vault, Protocol Change Studio, Review Output, Universal Migration, rewards, mascots, health connections, and a real Day 1 protocol system.
 
 The locked target is intentionally long:
 
@@ -27,7 +27,7 @@ The emotional beat is:
 1. "This app understands the operational mess I am managing."
 2. "It built a private system around my situation."
 3. "Now my Atlas has awakened."
-4. "I have an actual Day 1 command center, not an empty app."
+4. "I have an actual Day 1 protocol system, not an empty app."
 
 ## Visual Thesis
 
@@ -63,7 +63,7 @@ Recommended structure:
 - `AtlasOnboardingDraft`: extended with friction, privacy, companion, plan, and activation fields.
 - `AtlasProtocolReadinessMap`: deterministic generated output from answers.
 - `AtlasOnboardingFirstWeekPlan`: deterministic seven-day plan preview.
-- `AtlasDayOneChecklistItem`: seeded into the real Today command center after onboarding.
+- `AtlasDayOneChecklistItem`: seeded into the real Today protocol system after onboarding.
 
 Keep the current `AtlasOnboardingStep` temporarily as a compatibility wrapper if needed, but the dream build should be scene-driven so the flow can stay long, skippable where appropriate, resumable, testable, and easy to reorder.
 
@@ -109,7 +109,7 @@ Keep the current `AtlasOnboardingStep` temporarily as a compatibility wrapper if
 | First-week plan | 205-216 | Show seven-day no-empty-home plan. |
 | Trial and paywall | 217-229 | Transparent trial, value, plan selection, and basic path. |
 | Permissions | 230-239 | Notifications, Health, widgets, and account prompts only after value. |
-| Day 1 handoff | 240-250 | Morph onboarding into the real Today command center. |
+| Day 1 handoff | 240-250 | Morph onboarding into the real Today protocol system. |
 
 Note: The table above uses 250 internal beats so the storyboard can include animation and transition beats. The user-facing progression should display these as **180 tappable or timed states** by combining quick animation-only beats into the same state. The implementation inventory below is the canonical 180-state user-facing version.
 
@@ -163,7 +163,7 @@ Shared pattern: one question per screen, selected card compresses 2 percent, bor
 | 22 | Start protocol map | Continue | Map background appears faintly | No data write |
 | 23 | Track type | Pick GLP, peptides, both, custom, exploring | Selected path lights corresponding surface | `trackType` |
 | 24 | Track type detail | Confirm or edit | Draft strip adds track chip | Branches follow track |
-| 25 | Multi-track explanation | Continue if both or custom | Two streams braid into one command center | Conditional |
+| 25 | Multi-track explanation | Continue if both or custom | Two streams braid into one protocol system | Conditional |
 | 26 | Exploring mode explanation | Continue if exploring | Setup becomes "research-safe tracking" | Conditional |
 | 27 | Journey status | Pick not started, active, changing, restarting, importing | Timeline marker moves to current stage | `journeyStatus` |
 | 28 | Start date posture | Choose not started, recent, established, long-running | Timeline scale adjusts | New field `journeyAge` |
@@ -338,7 +338,7 @@ This should be hands-on. The user should tap real controls in a safe demo shell.
 
 | # | State | User action | Motion and payoff | Data or build note |
 | ---: | --- | --- | --- | --- |
-| 141 | Today command center | Tap next action | Today opens with generated Day 1 checklist | Demo shell |
+| 141 | Today protocol system | Tap next action | Today opens with generated Day 1 checklist | Demo shell |
 | 142 | Complete a demo action | Tap check | Row completes, readiness strip improves | Haptic success |
 | 143 | Quick log demo | Tap plus | Floating action menu opens with relevant actions | Borrow Cal AI speed |
 | 144 | Missed-step recovery | Choose recovery option | Gap becomes repaired, skipped, or left open | Demo only |
@@ -389,7 +389,7 @@ Goal: Ask permissions only after value, then land the user in the real app with 
 | 175 | Account backup | Choose local-only or sign in later | Local remains first-class | Existing account mode |
 | 176 | Final readiness receipt | Continue | Readiness strip, Trust Vault, Day 1, companion all show final states | Pre-handoff |
 | 177 | Shell morph | Continue | Onboarding header/footer dissolve into app shell | Matched geometry |
-| 178 | Today live | Continue | Real Today command center appears with checklist | App state seeded |
+| 178 | Today live | Continue | Real Today protocol system appears with checklist | App state seeded |
 | 179 | First real action | Complete one action or skip | Rewards, readiness, and companion response update | Real action |
 | 180 | Onboarding complete | Open Atlas | Companion settles, Atlas lands in Today | `completeOnboarding()` |
 
@@ -428,7 +428,7 @@ Permissions:
 3. Ask Apple Health only if the user expressed interest.
 4. Explain exactly which Health signals Atlas can use.
 5. Make Health skippable.
-6. Offer widgets or shortcuts after the real Today command center is visible.
+6. Offer widgets or shortcuts after the real Today protocol system is visible.
 7. Offer account backup last, with local-first still respected.
 
 ## Motion and Transition Lock
@@ -480,7 +480,7 @@ Use this tone: direct, private, operational, calm.
 Hero:
 
 - "Atlas"
-- "Run your protocol from a private command center."
+- "Run your protocol from a private protocol system."
 - "Build my Atlas"
 - "Continue privately"
 
@@ -501,7 +501,7 @@ Generation:
 
 - "Your Atlas is taking shape."
 - "Building your Protocol Readiness Map."
-- "Preparing your Day 1 command center."
+- "Preparing your Day 1 protocol system."
 - "Sealing your Trust Vault posture."
 
 Hatch:
@@ -696,7 +696,7 @@ Phase 6: Readiness, proof, first week, paywall
 Phase 7: Permissions and handoff
 
 - Gate notification and Health prompts after value.
-- Seed Day 1 checklist into the real Today command center.
+- Seed Day 1 checklist into the real Today protocol system.
 - Morph onboarding shell into app shell.
 
 ## Test Plan

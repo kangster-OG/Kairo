@@ -145,4 +145,4 @@ Read this with:
 - `docs/ios-ui-skill-stack.md`
 - `docs/ios-ux-execution-playbook-2026-04-15.md`
 - `docs/ios-ui-mascot-rewards-changelog-2026-04-14.md`
-- `docs/mascot-concepts/atlas-mascot-asset-matrix.md`
+- current native mascot assets and active Kairo companion/widget code; do not use archived mascot concept docs

@@ -4,7 +4,7 @@
 
 Atlas should keep its long, proof-led onboarding. The market evidence does not point toward a shorter flow. It points toward a more earned flow: enough input to feel personal, visible output before payment, a clear trial timeline, and a first session that lands the user in a useful Day 1 loop instead of an empty app.
 
-The strongest competitor pattern is not "ask many questions." It is "ask, show why it matters, turn the answer into a concrete artifact, then unlock the product." Cal AI, Shotsy, Finch, Quittr, and Noom all use versions of this. Atlas already has the right strategic foundation in `AtlasOnboardingDraft.sequence()`, but the next leap is making the flow feel less like premium explanation and more like the app is assembling a real command center around the user's answers.
+The strongest competitor pattern is not "ask many questions." It is "ask, show why it matters, turn the answer into a concrete artifact, then unlock the product." Cal AI, Shotsy, Finch, Quittr, and Noom all use versions of this. Atlas already has the right strategic foundation in `AtlasOnboardingDraft.sequence()`, but the next leap is making the flow feel less like premium explanation and more like the app is assembling a real protocol system around the user's answers.
 
 Atlas has a better trust story than most of the category. That should become a visible competitive weapon. Cal AI and Quittr show how aggressive subscription or privacy tactics can drive growth while creating backlash. Atlas should win by being serious, clear, local-first, and unusually useful before the paywall.
 
@@ -89,7 +89,7 @@ Weaknesses:
 
 Atlas implication:
 
-Atlas should beat Pep AI by showing a prebuilt local command center, Trust Vault artifact, review preview, migration preview, and Day 1 plan before payment. Atlas should not copy the repeated interruptive paywall pattern.
+Atlas should beat Pep AI by showing a prebuilt local protocol system, Trust Vault artifact, review preview, migration preview, and Day 1 plan before payment. Atlas should not copy the repeated interruptive paywall pattern.
 
 ### Recording 02: Shotsy
 
@@ -443,7 +443,7 @@ This makes premium feel like a system and sets expectations for trial value.
 
 The paywall should reference what the user just saw:
 
-- "Unlock your command center"
+- "Unlock your protocol system"
 - "Keep protocol history and review packs"
 - "Use Trust Vault privacy controls"
 - "Bring messy history in safely"
@@ -507,7 +507,7 @@ Atlas already has onboarding funnel event concepts. Make sure the analysis can a
 
 ### Today
 
-Today is the core product. It should become even more like a command center:
+Today is the core product. It should become even more like a protocol system:
 
 - One primary action should dominate.
 - "Why this matters now" should be compact and specific.
@@ -619,7 +619,7 @@ Avoid rewards for sheer app opening if it creates pressure.
 
 This preserves the long flow but makes the payoff clearer:
 
-1. Atlas promise: "Run your protocol from a private local command center."
+1. Atlas promise: "Run your protocol from a private local protocol system."
 2. Track type and stage.
 3. Current reality: not started, already running, changing, restarting, multi-protocol.
 4. Primary friction: schedule, inventory, privacy, review, symptoms/context, nutrition, progress.

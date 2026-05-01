@@ -30,7 +30,7 @@ Fresh Codex threads should treat the following repo files as the current high-va
 - `docs/ios-ui-polish-thread-handoff-2026-04-16.md` for the April 16 practical cleanup rules around copy density, stat tiles, keyboard exits, quick actions, Account & Sync, recap clutter, and mascot restraint
 - `docs/ios-ui-mascot-rewards-changelog-2026-04-14.md`
 - `docs/ios-ambient-mascot-system-handoff-2026-04-16.md` for ambient mascot placement, motion policy, suppression, and QA rules
-- `docs/mascot-concepts/atlas-mascot-asset-matrix.md` for mascot/rewards/media/widget work
+- current native mascot assets plus active Kairo companion/widget code for mascot/rewards/media/widget work; do not use archived mascot concept docs
 - `docs/ios-onboarding-paywall-handoff-2026-04-16.md` for the proof-led onboarding, free-trial paywall, and premium conversion strategy
 - `docs/fresh-codex-thread-prompt.md` for a copy/paste fresh-thread starter prompt
 
@@ -156,6 +156,11 @@ This work is code-complete locally, but the Supabase migration and edge function
 
 ## Remaining launch work
 
+- App Store Connect StoreKit setup for Kairo Pro:
+  - create/configure `com.dkang2000.Atlas.kairo.pro.annual`
+  - create/configure `com.dkang2000.Atlas.kairo.pro.monthly`
+  - both products must have a 7-day introductory free trial configured before App Store submission/TestFlight paywall validation
+  - the native paywall code now expects those exact product IDs and fails safely if the products or 7-day intro offers are missing
 - Real in-app Google sign-in validation on simulator/device
 - Real in-app Apple sign-in validation on device
 - Sign-out and session restore validation after provider sign-in

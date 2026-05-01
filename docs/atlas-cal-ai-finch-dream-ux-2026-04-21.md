@@ -26,7 +26,7 @@ Then the setup engine builds:
 - Day 1 plan
 - privacy posture
 - first-week trial preview
-- Today command center
+- Today protocol system
 - companion signal
 
 At the end of that generation sequence, the sealed capsule opens and the existing Atlas companion awakens.
@@ -203,7 +203,7 @@ Atlas lesson:
 This is the biggest upgrade opportunity. Atlas should create a serious generated artifact:
 
 - Protocol Readiness Map
-- Today command-center draft
+- Today protocol-system draft
 - Day 1 activation plan
 - first-week Atlas plan
 - Trust Vault privacy posture
@@ -265,7 +265,7 @@ Atlas lesson:
 
 Borrow the timeline, not the pressure. Atlas should say:
 
-- Today: unlock the generated command center.
+- Today: unlock the generated protocol system.
 - Day 2: finish first protocol/import.
 - Day 5: weekly review preview.
 - Day 6: renewal reminder.
@@ -399,7 +399,7 @@ Atlas should not hatch first. But it can use a low-stakes early interaction:
 
 - choose privacy mode style
 - choose signal color
-- choose "what kind of command center do you want?"
+- choose "what kind of protocol system do you want?"
 - choose "how should Atlas feel: discreet, precise, encouraging, minimal?"
 
 The actual companion hatch should come after the map generation.
@@ -672,7 +672,7 @@ Goal: show why Atlas exists before asking personal questions.
 
 Screens:
 
-1. Atlas hero: "Run your protocol from a private command center."
+1. Atlas hero: "Run your protocol from a private protocol system."
 2. Animated phone preview: Today -> Trust Vault -> Review Output -> Migration -> Protocol Change Studio.
 3. Local-first promise: "Start private. Sign in later."
 4. Boundary screen: no diagnosis, no sourcing, no dosing advice.
@@ -750,7 +750,7 @@ Screens:
 27. "Your Atlas is taking shape."
 28. Generation step 1: organizing protocol context.
 29. Generation step 2: building readiness map.
-30. Generation step 3: preparing Day 1 command center.
+30. Generation step 3: preparing Day 1 protocol system.
 31. Generation step 4: sealing Trust Vault posture.
 32. Generation step 5: waking companion signal.
 
@@ -894,7 +894,7 @@ The user should never land on a blank dashboard and wonder what to do.
 
 ## Dream Atlas App UI/UX
 
-### Today: The Living Command Center
+### Today: The Living Protocol System
 
 Today should be the soul of Atlas.
 
@@ -1174,7 +1174,7 @@ This is the Finch loop translated into Atlas language.
 
 Atlas onboarding should feel like this:
 
-> I told Atlas what I am actually managing, watched it build a private command center around my reality, saw my companion come online when the system was ready, and landed in an app that already knew the first useful thing to do.
+> I told Atlas what I am actually managing, watched it build a private protocol system around my reality, saw my companion come online when the system was ready, and landed in an app that already knew the first useful thing to do.
 
 That is the dream.
 

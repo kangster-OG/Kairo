@@ -24,15 +24,27 @@ If the user asks about UI, UX, design, polish, motion, typography, layout, inter
 5. `docs/ios-redesign-context-2026-04-14.md`
 6. `docs/ios-ui-mascot-rewards-changelog-2026-04-14.md`
 7. `docs/ios-ui-polish-thread-handoff-2026-04-16.md`
-8. `docs/ios-ambient-mascot-system-handoff-2026-04-16.md` when the work touches mascot/rewards/motion/polish
-9. `docs/mascot-concepts/atlas-mascot-asset-matrix.md` when the work touches mascot/rewards/media/widgets
-10. `docs/ios-onboarding-paywall-handoff-2026-04-16.md` when the work touches onboarding, free trials, paywalls, or premium conversion
-11. `docs/current-thread-handoff-2026-04-21.md` when the work touches current DREAM onboarding, latest TestFlight context, or the recent app UX upgrade
-12. `docs/atlas-onboarding-ux-deep-dive-2026-04-21.md` and `docs/atlas-cal-ai-finch-dream-ux-2026-04-21.md` when the work touches competitor-informed onboarding or app UX
-13. `docs/atlas-dream-onboarding-locked-storyboard-2026-04-21.md` and `docs/atlas-dream-onboarding-motion-spec-2026-04-21.md` when the work touches onboarding length, sequencing, transitions, or companion hatch moments
-14. `docs/current-thread-handoff-2026-04-24.md` and `docs/atlas-post-onboarding-visual-north-star-2026-04-23.md` when the work touches the post-onboarding peptide command-center app, locked mockup fidelity, feature scope, or release-hardening direction
+8. `docs/ios-ambient-mascot-system-handoff-2026-04-16.md` when the work touches mascot/rewards/motion/polish, but ignore any references from that older handoff to archived mascot concept docs
+9. `docs/ios-onboarding-paywall-handoff-2026-04-16.md` when the work touches onboarding, free trials, paywalls, or premium conversion
+10. `docs/current-thread-handoff-2026-04-21.md` when the work touches current DREAM onboarding, latest TestFlight context, or the recent app UX upgrade
+11. `docs/atlas-onboarding-ux-deep-dive-2026-04-21.md` and `docs/atlas-cal-ai-finch-dream-ux-2026-04-21.md` when the work touches competitor-informed onboarding or app UX
+12. `docs/atlas-dream-onboarding-locked-storyboard-2026-04-21.md` and `docs/atlas-dream-onboarding-motion-spec-2026-04-21.md` when the work touches onboarding length, sequencing, transitions, or companion hatch moments
+13. `docs/current-thread-handoff-2026-04-24.md` and `docs/atlas-post-onboarding-visual-north-star-2026-04-23.md` when the work touches the post-onboarding peptide protocol app, locked mockup fidelity, feature scope, or release-hardening direction
 
 Treat those files as the standing Atlas UI design system brief for future Codex threads.
+
+## Deprecated mascot archive
+Do not use `docs/archive/deprecated-mascot-concepts/` or the former `docs/mascot-concepts/` material as implementation guidance. Those files are historical only and contain retired companion names and an obsolete form-evolution model.
+
+Retired names are banned from user-facing implementation unless the user explicitly asks to inspect historical docs:
+- `Cindlet`
+- `Voltflare`
+- `Moppet`
+- `Glisshare`
+
+Current Kairo companion identity must use the approved companion names:
+- `Aetherion`
+- `Aurielle`
 
 ## Source-of-truth rule
 If repo docs disagree, use this order:
@@ -49,9 +61,9 @@ If repo docs disagree, use this order:
 Do not treat older migration docs, the legacy Expo root, or empty placeholder docs as higher-authority than the current native product.
 
 ## Product summary
-Atlas is a premium iPhone peptide protocol command center for protocol tracking, shot logging, vial runway, site rotation, side effects, protein, hydration, workouts, health integrations, widgets, companion progress, quests, badges, collectibles, progress evidence, and share/export review.
+Atlas is a premium iPhone peptide protocol system for protocol tracking, shot logging, vial runway, site rotation, side effects, protein, hydration, workouts, health integrations, widgets, companion progress, quests, badges, collectibles, progress evidence, and share/export review.
 
-Privacy/trust still matters, but it is no longer the product headline. It should feel built into the product rather than becoming the front-stage identity. The primary post-onboarding promise is: `Build your peptide protocol command center.`
+Privacy/trust still matters, but it is no longer the product headline. It should feel built into the product rather than becoming the front-stage identity. The primary post-onboarding promise is: `Build your peptide protocol.`
 
 This app must not include:
 - dosing advice
@@ -124,6 +136,9 @@ For UI-related work:
 - preserve the locked post-onboarding mockup board language across root tabs, deep editors, quick-capture sheets, settings, widgets, review/export, and empty states
 - keep nutrition and fitness narrow: protein, hydration, workouts, weight/progress photos, and Apple Health passthrough, not a full calorie app
 - keep onboarding copy concise and human; avoid AI-ish strategy language such as `privacy posture`, `generated artifact`, `operating system fantasy`, or overexplained helper narration
+- do not use muted gray explanatory subtitles/helper copy as filler in onboarding or premium Kairo surfaces; either remove the copy or make it purposeful, concise, and visually integrated with primary Kairo styling
+- do not invent nested onboarding cards, pills, boxes, or bordered containers unless the approved mockup explicitly shows that framing; prefer open spacing, typography, icons, and one intentional surface when the board uses one
+- do not place generated onboarding art, mascot art, Crystal Vial Pod art, or hatch/evolution visuals inside card shells, bordered boxes, clipped rounded rectangles, or decorative containers unless the user explicitly authorizes that treatment
 - default to simulator QA for UI changes, then note any remaining manual/device checks explicitly
 
 ## Done when

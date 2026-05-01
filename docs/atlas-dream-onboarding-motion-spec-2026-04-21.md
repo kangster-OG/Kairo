@@ -114,7 +114,7 @@ Every animation must have a Reduce Motion equivalent:
 Copy:
 
 - "Atlas"
-- "Run your protocol from a private command center."
+- "Run your protocol from a private protocol system."
 - CTA: "Build my Atlas"
 - Secondary: "Continue privately"
 
@@ -248,7 +248,7 @@ Each screen has:
 
 Animation:
 
-- The Atlas draft strip grows from "Private shell" into a labeled mini command center.
+- The Atlas draft strip grows from "Private shell" into a labeled mini protocol system.
 - By the end, the strip has track, stage, friction, and privacy placeholder.
 
 ## Chapter 3: Goals and Body Context
@@ -434,7 +434,7 @@ Animation:
 3. "Preparing Trust Vault posture"
    - lock seal closes.
 
-4. "Drafting Day 1 command center"
+4. "Drafting Day 1 protocol system"
    - Today mini surface appears.
 
 5. "Preparing first-week plan"
@@ -615,7 +615,7 @@ Important:
 
 This is where Atlas earns a long onboarding.
 
-### Proof 1: Today Command Center
+### Proof 1: Today Protocol System
 
 Interactive demo:
 
@@ -779,7 +779,7 @@ Visual:
 
 - The generated artifacts stack behind the paywall:
   - Readiness Map
-  - Today Command Center
+  - Today Protocol System
   - Trust Vault
   - Review Output
   - First-Week Plan
@@ -886,7 +886,7 @@ Animation:
 
 Visual:
 
-- Today command center preview becomes the real Today screen.
+- Today protocol system preview becomes the real Today screen.
 - The onboarding chrome dissolves.
 - Day 1 checklist is already present.
 - Companion sits subtly in the hero.

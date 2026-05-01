@@ -4,7 +4,7 @@ Use this as the short context bridge for fresh Codex threads after the major Apr
 
 ## What Atlas Is Building
 
-Atlas is a private, local-first iPhone protocol command center for injectables, reminders, logs, inventory, calculators, injection sites, Trust Vault controls, bounded sharing, review outputs, and deterministic pattern insights.
+Atlas is a private, local-first iPhone protocol system for injectables, reminders, logs, inventory, calculators, injection sites, Trust Vault controls, bounded sharing, review outputs, and deterministic pattern insights.
 
 Atlas is not medical advice, dosing advice, diagnostics, sourcing, a marketplace, or a social app. The native iOS app under `atlas-ios/` is the primary product path.
 
@@ -96,7 +96,7 @@ Core takeaways:
 
 The app now has more proof-led Day 1 and protocol affordances across the main experience:
 
-- Today trust/readiness and Day 1 command-center affordances
+- Today trust/readiness and Day 1 protocol-system affordances
 - quick action dock
 - Timeline review delta card
 - Library protocol infrastructure card

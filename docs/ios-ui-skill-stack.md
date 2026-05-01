@@ -143,7 +143,7 @@ Asset deployment rules:
 - sticker art for medium cards and compact in-app companion surfaces
 - pixel art for widgets and tiny live-state surfaces
 
-See `docs/mascot-concepts/atlas-mascot-asset-matrix.md` for the authoritative asset matrix.
+Use current native mascot assets and active Kairo companion/widget code as the authoritative mascot reference. Do not use archived mascot concept docs.
 
 When the work touches ambient mascot motion or placement, also read `docs/ios-ambient-mascot-system-handoff-2026-04-16.md`. The current direction is anchored, event-based companion behavior, not free roaming or always-on animation.
 
@@ -173,4 +173,4 @@ When possible, also do:
 - `docs/ios-ux-execution-playbook-2026-04-15.md`
 - `docs/ios-redesign-context-2026-04-14.md`
 - `docs/ios-ambient-mascot-system-handoff-2026-04-16.md`
-- `docs/mascot-concepts/atlas-mascot-asset-matrix.md`
+- current native mascot assets and active Kairo companion/widget code; do not use archived mascot concept docs

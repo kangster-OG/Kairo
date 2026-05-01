@@ -4,11 +4,11 @@ This handoff preserves the durable decisions and verification results from the l
 
 ## Product Direction Locked In This Thread
 
-Atlas is now a premium iPhone peptide protocol command center.
+Atlas is now a premium iPhone peptide protocol system.
 
 The headline is no longer privacy-first. Privacy, local-first behavior, aliases, explicit sharing, and deterministic exports still matter, but they should feel built in rather than becoming the product identity. The user-facing promise is:
 
-> Build your peptide protocol command center.
+> Build your peptide protocol.
 
 Atlas should be comprehensive but simple:
 

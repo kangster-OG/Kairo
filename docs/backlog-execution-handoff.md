@@ -470,7 +470,7 @@ Wave 8 is now in a strong state locally:
   - new context, weight, symptom, and custom-metric captures now surface a premium undo banner
   - vial archive and supply archive/restore actions also register immediate undo affordances
   - Today and Insights landing surfaces are now user-configurable with persisted visibility and ordering
-- Insights is now a stronger command center:
+- Insights is now a stronger protocol system:
   - recent context, weight, symptom, and metric entries can be reopened as fast reuse/edit starting points
   - optional stack dashboard surfaces multi-protocol burden, timing load, and inventory risk without forcing stack framing on single-protocol users
   - optional biometrics/lab overlays group numeric trends into reusable panels and can show recent protocol-change markers

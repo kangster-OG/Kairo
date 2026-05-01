@@ -159,7 +159,7 @@ The current deployment rule is:
 - sticker art for medium in-app cards
 - pixel art for widgets and compact live-state surfaces
 
-Use `docs/mascot-concepts/atlas-mascot-asset-matrix.md` as the authoritative reference.
+Use current native mascot assets and active Kairo companion/widget code as the authoritative reference. Do not use archived mascot concept docs.
 
 ### Moment depth
 
@@ -224,7 +224,7 @@ Fresh UI threads should read these together:
 - `docs/ios-premium-ui-rubric.md`
 - `docs/ios-ui-audit-2026-04-10.md`
 - `docs/ios-ui-skill-stack.md`
-- `docs/mascot-concepts/atlas-mascot-asset-matrix.md`
+- current native mascot assets and active Kairo companion/widget code; do not use archived mascot concept docs
 
 ## What to preserve
 
