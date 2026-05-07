@@ -6,6 +6,32 @@ import SwiftUI
 
 extension AtlasAppModel {
     public func changeStudioContext(protocolID: String) async -> AtlasProtocolChangeStudioContext? {
+        if protocolID == "mockup-tirzepatide" {
+            return AtlasProtocolChangeStudioContext(
+                protocolID: protocolID,
+                canonicalTitle: "Tirzepatide",
+                aliasTitle: nil,
+                protocolKind: .glp,
+                kindLabel: "GLP",
+                cadenceLabel: "Weekly",
+                doseLabel: "5.0 mg",
+                effectiveTimeOfDay: "12:30",
+                currentMissedDosePolicy: .skipAndContinue,
+                currentTimezone: TimeZone.current.identifier,
+                currentTimezoneStrategy: .keepLocalClock,
+                currentLinkedVialID: "mockup-tirzepatide-vial",
+                availableVials: [
+                    AtlasProtocolChangeVialOption(
+                        id: "mockup-tirzepatide-vial",
+                        label: "Tirzepatide 10 mg vial",
+                        remainingLabel: "12 doses",
+                        isArchived: false
+                    )
+                ],
+                siteWarnings: []
+            )
+        }
+
         do {
             return try await dependencies.persistence.changeStudio.loadStudio(
                 protocolID: protocolID,
@@ -69,47 +95,40 @@ public struct AtlasProtocolChangeStudioScreen: View {
     @State private var committedResult: AtlasProtocolChangeCommitResult?
 
     public var body: some View {
-        List {
+        AtlasScreen {
             if let error = model.loadErrorMessage {
-                Section {
-                    Text(error)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.red)
-                }
+                Text(error)
+                    .atlasTextRole(.deckEyebrow)
+                    .foregroundStyle(.red)
             }
 
             if isLoading {
-                Section {
-                    ProgressView("Loading Protocol Change Studio")
-                }
+                ProgressView("Loading plan editor")
             } else if let context {
-                Section {
-                    VStack(alignment: .leading, spacing: AtlasSpacing.small) {
-                        Text(model.renderedTitle(canonical: context.canonicalTitle, alias: context.aliasTitle))
-                            .font(.title3.weight(.bold))
-                        Text("\(context.kindLabel) • \(context.cadenceLabel)")
-                            .foregroundStyle(AtlasPalette.textSecondary)
-                        if let doseLabel = context.doseLabel {
-                            Text("Current saved amount \(doseLabel)")
-                                .foregroundStyle(AtlasPalette.textSecondary)
-                        }
-                    }
-                    .padding(.vertical, AtlasSpacing.small)
-                }
+                let planning = atlasProtocolPlanningSummary(context: context, draft: draft)
+
+                AtlasPlanEditorHeroCard(
+                    title: model.renderedTitle(canonical: context.canonicalTitle, alias: context.aliasTitle),
+                    detail: "\(context.kindLabel) • \(context.cadenceLabel)",
+                    doseLabel: context.doseLabel,
+                    changeType: draft.changeType,
+                    previewReady: preview != nil
+                )
 
                 if let knowledge = context.compoundKnowledge {
-                    Section("Compound context") {
+                    AtlasSectionCard(title: "Compound context") {
                         VStack(alignment: .leading, spacing: AtlasSpacing.small) {
                             Text(knowledge.protocolSummary)
+                                .atlasTextRole(.supporting)
                                 .foregroundStyle(AtlasPalette.textSecondary)
                             Text("\(knowledge.categoryLabel) • \(knowledge.routeLabel)")
-                                .font(.caption)
+                                .atlasTextRole(.supporting)
                                 .foregroundStyle(AtlasPalette.textSecondary)
                             Text("Typical cadence: \(knowledge.typicalCadenceLabel)")
-                                .font(.caption)
+                                .atlasTextRole(.supporting)
                                 .foregroundStyle(AtlasPalette.textSecondary)
                             Text("Common units: \(knowledge.commonDoseUnits.joined(separator: ", "))")
-                                .font(.caption)
+                                .atlasTextRole(.supporting)
                                 .foregroundStyle(AtlasPalette.textSecondary)
 
                             ScrollView(.horizontal, showsIndicators: false) {
@@ -119,42 +138,53 @@ public struct AtlasProtocolChangeStudioScreen: View {
                                     }
                                 }
                             }
+
+                            Button("Open compound intelligence") {
+                                model.open(.compoundIntelligence(knowledge.slug))
+                            }
+                            .buttonStyle(AtlasSecondaryButtonStyle())
                         }
-                        .padding(.vertical, AtlasSpacing.xSmall)
                     }
                 }
 
                 if context.activeCompanions.isEmpty == false {
-                    Section("Active alongside") {
+                    AtlasSectionCard(title: "Active alongside") {
                         ForEach(context.activeCompanions) { companion in
                             AtlasCompanionProtocolRow(model: model, companion: companion)
                         }
                     }
                 }
 
-                Section("Change") {
-                    Picker("Operation", selection: $draft.changeType) {
-                        ForEach(AtlasProtocolChangeType.allCases) { type in
-                            Text(type.title).tag(type)
+                AtlasPlanEditorCard(title: "Change") {
+                    AtlasPlanEditorMenuRow(
+                        title: "Edit",
+                        value: draft.changeType.title,
+                        systemImage: "slider.horizontal.3"
+                    ) {
+                        Picker("Edit", selection: $draft.changeType) {
+                            ForEach(AtlasProtocolChangeType.allCases) { type in
+                                Text(type.title).tag(type)
+                            }
                         }
+                    }
+                    .onChange(of: draft.changeType) { _, _ in
+                        preview = nil
+                        committedResult = nil
                     }
 
                     Text(draft.changeType.description)
-                        .font(.caption)
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
+                        .lineLimit(2)
 
-                    DatePicker(
-                        "Effective date",
-                        selection: $draft.effectiveDate,
-                        displayedComponents: .date
-                    )
+                    AtlasPlanEditorDateRow(title: "Effective date", date: $draft.effectiveDate)
                 }
 
-                Section("Future values") {
+                AtlasSectionCard(title: "Future values") {
                     changeSpecificFields(context: context)
                 }
 
-                Section("Preview window") {
+                AtlasSectionCard(title: "Preview window") {
                     Picker("Preview window", selection: $draft.previewWindow) {
                         ForEach(AtlasProtocolChangePreviewWindow.allCases) { window in
                             Text(window.title).tag(window)
@@ -163,7 +193,7 @@ public struct AtlasProtocolChangeStudioScreen: View {
                     .pickerStyle(.segmented)
                 }
 
-                Section("Notes") {
+                AtlasSectionCard(title: "Notes") {
                     TextField(
                         "Optional change note",
                         text: Binding(
@@ -173,9 +203,10 @@ public struct AtlasProtocolChangeStudioScreen: View {
                         axis: .vertical
                     )
                     .lineLimit(3...5)
+                    .atlasStandaloneInputSurface()
                 }
 
-                Section {
+                AtlasSectionCard(style: .utility, title: "Preview") {
                     Button(preview == nil ? "Build preview" : "Refresh preview") {
                         Task {
                             committedResult = nil
@@ -185,21 +216,34 @@ public struct AtlasProtocolChangeStudioScreen: View {
                     .buttonStyle(AtlasPrimaryButtonStyle())
                 }
 
+                AtlasPlanOptionsSection(
+                    planning: planning,
+                    selectedChangeType: $draft.changeType
+                ) {
+                    preview = nil
+                    committedResult = nil
+                }
+
                 if let preview {
-                    Section("What changed") {
+                    if let commitCheck = atlasProtocolCommitCheck(preview: preview) {
+                        AtlasSectionCard(title: "Commit check") {
+                            AtlasProtocolCommitCheckCard(check: commitCheck)
+                        }
+                    }
+
+                    AtlasSectionCard(title: "What changed") {
                         VStack(alignment: .leading, spacing: AtlasSpacing.small) {
                             Text(preview.summary)
-                                .font(.headline)
+                                .atlasTextRole(.cardBody)
                             if let adherenceNote = preview.adherenceNote {
                                 Text(adherenceNote)
-                                    .font(.caption)
+                                    .atlasTextRole(.supporting)
                                     .foregroundStyle(AtlasPalette.textSecondary)
                             }
                         }
-                        .padding(.vertical, AtlasSpacing.xSmall)
                     }
 
-                    Section("Impact") {
+                    AtlasSectionCard(title: "Impact") {
                         AtlasBeforeAfterRow(
                             title: "Next due",
                             beforeValue: preview.nextDueBefore?.whenLabel ?? "No future occurrence",
@@ -217,7 +261,7 @@ public struct AtlasProtocolChangeStudioScreen: View {
                         )
                     }
 
-                    Section("Future occurrences") {
+                    AtlasSectionCard(title: "Future occurrences") {
                         if preview.occurrenceChanges.isEmpty {
                             Text("No visible future occurrence changes inside this preview window.")
                                 .foregroundStyle(AtlasPalette.textSecondary)
@@ -225,16 +269,16 @@ public struct AtlasProtocolChangeStudioScreen: View {
                             ForEach(preview.occurrenceChanges) { change in
                                 VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
                                     Text(change.kind.rawValue.replacingOccurrences(of: "_", with: " ").capitalized)
-                                        .font(.caption.weight(.semibold))
+                                        .atlasTextRole(.deckEyebrow)
                                         .foregroundStyle(AtlasPalette.primary)
                                     if let beforeLabel = change.beforeLabel {
                                         Text("Before: \(beforeLabel)")
-                                            .font(.caption)
+                                            .atlasTextRole(.supporting)
                                             .foregroundStyle(AtlasPalette.textSecondary)
                                     }
                                     if let afterLabel = change.afterLabel {
                                         Text("After: \(afterLabel)")
-                                            .font(.caption)
+                                            .atlasTextRole(.supporting)
                                             .foregroundStyle(AtlasPalette.textSecondary)
                                     }
                                 }
@@ -242,9 +286,9 @@ public struct AtlasProtocolChangeStudioScreen: View {
                         }
                     }
 
-                    Section("Interaction guidance") {
+                    AtlasSectionCard(title: "Interaction guidance") {
                         if preview.interactionWarnings.isEmpty {
-                            Text("No obvious operational conflicts detected for this draft. Atlas still expects clear unit, cadence, and overlap intent before you commit.")
+                            Text("No obvious conflicts detected. Check unit, cadence, and overlap before you save.")
                                 .foregroundStyle(AtlasPalette.textSecondary)
                         } else {
                             ForEach(preview.interactionWarnings) { warning in
@@ -254,16 +298,16 @@ public struct AtlasProtocolChangeStudioScreen: View {
                     }
 
                     if preview.siteWarnings.isEmpty == false {
-                        Section("Site rotation") {
+                        AtlasSectionCard(title: "Site rotation") {
                             ForEach(preview.siteWarnings, id: \.self) { warning in
                                 Text(warning)
-                                    .font(.caption)
+                                    .atlasTextRole(.supporting)
                                     .foregroundStyle(AtlasPalette.textSecondary)
                             }
                         }
                     }
 
-                    Section {
+                    AtlasSectionCard(style: .utility, title: "Commit change") {
                         Button("Commit change") {
                             showingCommitConfirmation = true
                         }
@@ -273,30 +317,29 @@ public struct AtlasProtocolChangeStudioScreen: View {
                 }
 
                 if let committedResult {
-                    Section("Commit summary") {
+                    AtlasSectionCard(title: "Commit summary") {
                         VStack(alignment: .leading, spacing: AtlasSpacing.small) {
                             Text(committedResult.impactSummary.title)
-                                .font(.headline)
+                                .atlasTextRole(.cardBody)
                             ForEach(committedResult.impactSummary.facts) { fact in
                                 VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
                                     Text(fact.label)
-                                        .font(.caption.weight(.semibold))
+                                        .atlasTextRole(.deckEyebrow)
                                         .foregroundStyle(AtlasPalette.primary)
                                     Text(fact.value)
-                                        .font(.caption)
+                                        .atlasTextRole(.supporting)
                                         .foregroundStyle(AtlasPalette.textSecondary)
                                 }
                             }
                             ForEach(committedResult.impactSummary.notes, id: \.self) { note in
                                 Text(note)
-                                    .font(.caption)
+                                    .atlasTextRole(.supporting)
                                     .foregroundStyle(AtlasPalette.textSecondary)
                             }
                         }
-                        .padding(.vertical, AtlasSpacing.xSmall)
                     }
 
-                    Section {
+                    AtlasSectionCard(style: .utility, title: "Done") {
                         Button("Done") {
                             dismiss()
                         }
@@ -304,15 +347,12 @@ public struct AtlasProtocolChangeStudioScreen: View {
                     }
                 }
             } else {
-                Section {
-                    Text("Atlas could not load this protocol yet.")
-                        .foregroundStyle(AtlasPalette.textSecondary)
-                }
+                Text("This plan could not load yet.")
+                    .foregroundStyle(AtlasPalette.textSecondary)
             }
         }
-        .atlasFormSurface()
-        .listStyle(.plain)
-        .navigationTitle("Change Studio")
+        .tint(AtlasPalette.primary)
+        .navigationTitle("Plan Editor")
         .changeStudioInlineNavigationTitle()
         .task {
             guard isLoading else {
@@ -360,7 +400,7 @@ public struct AtlasProtocolChangeStudioScreen: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Atlas will preserve past logs, regenerate future occurrences from the new effective revision, and refresh reminders for affected future occurrences.")
+            Text("Past logs stay in place. Future occurrences and reminders update from the new revision.")
         }
     }
 
@@ -368,16 +408,8 @@ public struct AtlasProtocolChangeStudioScreen: View {
     private func changeSpecificFields(context: AtlasProtocolChangeStudioContext) -> some View {
         switch draft.changeType {
         case .futureDose:
-            TextField(
-                "Dose amount",
-                value: Binding(
-                    get: { draft.doseAmount ?? 0 },
-                    set: { draft.doseAmount = $0 }
-                ),
-                format: .number
-            )
-            .changeStudioDecimalKeyboard()
-            TextField("Dose unit", text: $draft.doseUnit)
+            AtlasPlanEditorDoseAmountRow(title: "Dose", value: $draft.doseAmount)
+            AtlasPlanEditorTextRow(title: "Unit", text: $draft.doseUnit)
         case .futureTime:
             DatePicker(
                 "Time of day",
@@ -409,18 +441,11 @@ public struct AtlasProtocolChangeStudioScreen: View {
             )
         case .pause, .resume:
             Text("This change only needs an effective date.")
+                .atlasTextRole(.supporting)
                 .foregroundStyle(AtlasPalette.textSecondary)
         case .titration:
-            TextField(
-                "Titration amount",
-                value: Binding(
-                    get: { draft.titrationDoseAmount ?? 0 },
-                    set: { draft.titrationDoseAmount = $0 }
-                ),
-                format: .number
-            )
-            .changeStudioDecimalKeyboard()
-            TextField("Titration unit", text: $draft.titrationDoseUnit)
+            AtlasPlanEditorDoseAmountRow(title: "Dose", value: $draft.titrationDoseAmount)
+            AtlasPlanEditorTextRow(title: "Unit", text: $draft.titrationDoseUnit)
             Stepper(value: $draft.titrationLengthDays, in: 1...60) {
                 Text("Length \(draft.titrationLengthDays) day\(draft.titrationLengthDays == 1 ? "" : "s")")
             }
@@ -442,6 +467,7 @@ public struct AtlasProtocolChangeStudioScreen: View {
         case .timezone:
             TextField("Timezone identifier", text: $draft.timezone)
                 .changeStudioPlainTextInput()
+                .atlasStandaloneInputSurface()
             Picker("Timezone strategy", selection: $draft.timezoneStrategy) {
                 Text("Keep local clock").tag(AtlasProtocolTimezoneStrategy.keepLocalClock)
                 Text("Keep home timezone").tag(AtlasProtocolTimezoneStrategy.keepHomeTimezone)
@@ -487,23 +513,425 @@ private struct AtlasCompanionProtocolRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
             Text(model.renderedTitle(canonical: companion.canonicalTitle, alias: companion.aliasTitle))
-                .font(.body.weight(.semibold))
+                .atlasTextRole(.cardBody)
                 .foregroundStyle(AtlasPalette.textPrimary)
             Text("\(companion.kindLabel) • \(companion.cadenceLabel)")
-                .font(.caption)
+                .atlasTextRole(.supporting)
                 .foregroundStyle(AtlasPalette.textSecondary)
             if let doseLabel = companion.doseLabel {
                 Text("Dose \(doseLabel)")
-                    .font(.caption)
+                    .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
             }
             if let knowledge = companion.compoundKnowledge {
                 Text(knowledge.protocolSummary)
-                    .font(.caption)
+                    .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
             }
         }
         .padding(.vertical, AtlasSpacing.xSmall)
+    }
+}
+
+private struct AtlasPlanEditorHeroCard: View {
+    let title: String
+    let detail: String
+    let doseLabel: String?
+    let changeType: AtlasProtocolChangeType
+    let previewReady: Bool
+
+    var body: some View {
+        AtlasForwardCard(padding: 10) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .center, spacing: 10) {
+                    Image(systemName: "calendar.badge.clock")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(AtlasPalette.primary)
+                        .frame(width: 34, height: 34)
+                        .background(AtlasPalette.secondaryFill, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(title)
+                            .font(.system(size: 15, weight: .semibold, design: .default))
+                            .foregroundStyle(AtlasPalette.textPrimary)
+                            .lineLimit(1)
+                        Text(detail)
+                            .atlasTextRole(.supporting)
+                            .foregroundStyle(AtlasPalette.textSecondary)
+                    }
+
+                    Spacer(minLength: 0)
+
+                    AtlasStatusBadge(previewReady ? "Ready" : "Preview", tint: previewReady ? AtlasPalette.success : AtlasPalette.secondaryText)
+                }
+
+                HStack(spacing: 8) {
+                    AtlasPlanEditorSignalPill(title: "Change", value: changeType.title, tint: AtlasPalette.primary)
+                    AtlasPlanEditorSignalPill(title: "Saved", value: doseLabel ?? "As logged", tint: AtlasPalette.secondaryText)
+                }
+
+                Text("Updates future schedule, reminders, and runway. Past logs stay untouched.")
+                    .atlasTextRole(.supporting)
+                    .foregroundStyle(AtlasPalette.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+}
+
+private struct AtlasPlanEditorCard<Content: View>: View {
+    let title: String?
+    @ViewBuilder let content: () -> Content
+
+    init(title: String? = nil, @ViewBuilder content: @escaping () -> Content) {
+        self.title = title
+        self.content = content
+    }
+
+    var body: some View {
+        AtlasForwardCard(padding: 10) {
+            VStack(alignment: .leading, spacing: 9) {
+                if let title {
+                    Text(title)
+                        .atlasTextRole(.cardBody)
+                        .foregroundStyle(AtlasPalette.textPrimary)
+                }
+                content()
+            }
+        }
+    }
+}
+
+private struct AtlasPlanEditorSignalPill: View {
+    let title: String
+    let value: String
+    let tint: Color
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text(title)
+                .atlasTextRole(.metricLabel)
+                .foregroundStyle(AtlasPalette.textSecondary)
+            Text(value)
+                .atlasTextRole(.deckEyebrow)
+                .foregroundStyle(tint)
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
+        }
+        .padding(.horizontal, 9)
+        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AtlasPalette.surfaceSecondary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(AtlasPalette.border.opacity(0.42), lineWidth: 1)
+        )
+    }
+}
+
+private struct AtlasPlanEditorMenuRow<MenuContent: View>: View {
+    let title: String
+    let value: String
+    let systemImage: String
+    @ViewBuilder let menuContent: () -> MenuContent
+
+    var body: some View {
+        Menu {
+            menuContent()
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(AtlasPalette.primary)
+                    .frame(width: 28, height: 28)
+                    .background(AtlasPalette.secondaryFill, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+                Text(title)
+                    .atlasTextRole(.cardBody)
+                    .foregroundStyle(AtlasPalette.textPrimary)
+
+                Spacer(minLength: 8)
+
+                Text(value)
+                    .atlasTextRole(.supporting)
+                    .foregroundStyle(AtlasPalette.primary)
+                    .lineLimit(1)
+
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(AtlasPalette.primary.opacity(0.78))
+            }
+            .padding(9)
+            .background(AtlasPalette.surfaceSecondary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(AtlasPalette.border.opacity(0.48), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct AtlasPlanEditorDoseAmountRow: View {
+    let title: String
+    @Binding var value: Double?
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text(title)
+                .atlasTextRole(.cardBody)
+                .foregroundStyle(AtlasPalette.textPrimary)
+
+            Spacer(minLength: 8)
+
+            Button {
+                step(by: -0.5)
+            } label: {
+                Image(systemName: "minus")
+                    .font(.system(size: 12, weight: .semibold))
+                    .frame(width: 30, height: 30)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(AtlasPalette.textSecondary)
+            .background(AtlasPalette.surfaceMuted, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+            TextField("0", text: amountText)
+                .font(.system(size: 14, weight: .semibold, design: .default))
+                .multilineTextAlignment(.center)
+                .foregroundStyle(AtlasPalette.textPrimary)
+                .keyboardType(.decimalPad)
+                .frame(width: 72, height: 30)
+                .background(AtlasPalette.surfaceTop, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(AtlasPalette.border.opacity(0.48), lineWidth: 1)
+                )
+
+            Button {
+                step(by: 0.5)
+            } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 12, weight: .semibold))
+                    .frame(width: 30, height: 30)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(AtlasPalette.primary)
+            .background(AtlasPalette.secondaryFill, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+        .padding(9)
+        .background(AtlasPalette.surfaceSecondary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(AtlasPalette.border.opacity(0.42), lineWidth: 1)
+        )
+    }
+
+    private var amountText: Binding<String> {
+        Binding(
+            get: {
+                guard let value else { return "" }
+                if value.rounded() == value {
+                    return String(Int(value))
+                }
+                return String(format: "%.1f", value)
+            },
+            set: { rawValue in
+                let normalized = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                value = normalized.isEmpty ? nil : Double(normalized)
+            }
+        )
+    }
+
+    private func step(by delta: Double) {
+        let nextValue = max(0, (value ?? 0) + delta)
+        value = (nextValue * 10).rounded() / 10
+    }
+}
+
+private struct AtlasPlanEditorTextRow: View {
+    let title: String
+    @Binding var text: String
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text(title)
+                .atlasTextRole(.cardBody)
+                .foregroundStyle(AtlasPalette.textPrimary)
+
+            Spacer(minLength: 8)
+
+            TextField("mg", text: $text)
+                .font(.system(size: 14, weight: .semibold, design: .default))
+                .multilineTextAlignment(.trailing)
+                .foregroundStyle(AtlasPalette.primary)
+                .frame(maxWidth: 120, minHeight: 30)
+        }
+        .padding(9)
+        .background(AtlasPalette.surfaceSecondary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(AtlasPalette.border.opacity(0.42), lineWidth: 1)
+        )
+    }
+}
+
+private struct AtlasPlanEditorDateRow: View {
+    let title: String
+    @Binding var date: Date
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text(title)
+                .atlasTextRole(.cardBody)
+                .foregroundStyle(AtlasPalette.textPrimary)
+
+            Spacer(minLength: 8)
+
+            DatePicker(
+                "",
+                selection: $date,
+                displayedComponents: .date
+            )
+            .labelsHidden()
+            .datePickerStyle(.compact)
+            .tint(AtlasPalette.primary)
+            .scaleEffect(0.78, anchor: .trailing)
+            .frame(width: 128, height: 30, alignment: .trailing)
+            .clipped()
+        }
+        .padding(9)
+        .background(AtlasPalette.surfaceSecondary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(AtlasPalette.border.opacity(0.42), lineWidth: 1)
+        )
+    }
+}
+
+private struct AtlasPlanningChecklistCard: View {
+    let item: AtlasProtocolPlanningChecklistItem
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: item.severity == .advisory ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(item.severityColor)
+                .frame(width: 28, height: 28)
+                .background(item.severityColor.opacity(0.1), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(item.title)
+                    .atlasTextRole(.cardBody)
+                    .foregroundStyle(AtlasPalette.textPrimary)
+                    .lineLimit(1)
+
+                Text(item.detail)
+                    .atlasTextRole(.supporting)
+                    .foregroundStyle(AtlasPalette.textSecondary)
+                    .lineLimit(2)
+            }
+        }
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(AtlasPalette.surfaceSecondary)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(item.severityColor.opacity(0.22), lineWidth: 1)
+        )
+    }
+}
+
+private struct AtlasPlanOptionsSection: View {
+    let planning: AtlasProtocolPlanningSummary
+    @Binding var selectedChangeType: AtlasProtocolChangeType
+    let onSelectionChanged: () -> Void
+
+    var body: some View {
+        AtlasPlanEditorCard(title: "Plan options") {
+            VStack(alignment: .leading, spacing: 5) {
+                Text(planning.headline)
+                    .atlasTextRole(.cardBody)
+                    .foregroundStyle(AtlasPalette.textPrimary)
+                Text(planning.summary)
+                    .atlasTextRole(.supporting)
+                    .foregroundStyle(AtlasPalette.textSecondary)
+                    .lineLimit(2)
+            }
+
+            if planning.recommendedMoves.isEmpty == false {
+                LazyVGrid(columns: [
+                    GridItem(.flexible(), spacing: 8),
+                    GridItem(.flexible(), spacing: 8)
+                ], alignment: .leading, spacing: 8) {
+                    ForEach(planning.recommendedMoves.prefix(4)) { move in
+                        Button {
+                            selectedChangeType = move.changeType
+                            onSelectionChanged()
+                        } label: {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(move.title)
+                                    .atlasTextRole(.deckEyebrow)
+                                    .foregroundStyle(AtlasPalette.textPrimary)
+                                    .lineLimit(1)
+                                Text(move.detail)
+                                    .atlasTextRole(.metricLabel)
+                                    .foregroundStyle(AtlasPalette.textSecondary)
+                                    .lineLimit(2)
+                                    .minimumScaleFactor(0.82)
+                            }
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 8)
+                            .frame(maxWidth: .infinity, minHeight: 58, alignment: .leading)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .fill(move.changeType == selectedChangeType ? AtlasPalette.primary.opacity(0.13) : AtlasPalette.surfaceSecondary)
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .stroke(move.changeType == selectedChangeType ? AtlasPalette.primary.opacity(0.3) : AtlasPalette.border.opacity(0.38), lineWidth: 1)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+
+                if planning.recommendedMoves.count > 4 {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(planning.recommendedMoves.dropFirst(4)) { move in
+                                Button {
+                                    selectedChangeType = move.changeType
+                                    onSelectionChanged()
+                                } label: {
+                                    Text(move.title)
+                                        .atlasTextRole(.deckEyebrow)
+                                        .foregroundStyle(move.changeType == selectedChangeType ? AtlasPalette.primary : AtlasPalette.textSecondary)
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 7)
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                                .fill(move.changeType == selectedChangeType ? AtlasPalette.primary.opacity(0.13) : AtlasPalette.surfaceSecondary)
+                                        )
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                                .stroke(AtlasPalette.border.opacity(0.4), lineWidth: 1)
+                                        )
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                }
+
+                VStack(spacing: 8) {
+                    ForEach(Array(planning.checklist.prefix(2))) { item in
+                        AtlasPlanningChecklistCard(item: item)
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -512,7 +940,7 @@ private struct AtlasChangeStudioTagChip: View {
 
     var body: some View {
         Text(label)
-            .font(.caption.weight(.semibold))
+            .atlasTextRole(.deckEyebrow)
             .foregroundStyle(AtlasPalette.primary)
             .padding(.horizontal, AtlasSpacing.small)
             .padding(.vertical, 6)
@@ -523,6 +951,41 @@ private struct AtlasChangeStudioTagChip: View {
     }
 }
 
+private struct AtlasProtocolCommitCheckCard: View {
+    let check: AtlasProtocolCommitCheck
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+            Text(check.headline)
+                .atlasTextRole(.cardBody)
+                .foregroundStyle(AtlasPalette.textPrimary)
+
+            ForEach(check.facts) { fact in
+                HStack(spacing: AtlasSpacing.small) {
+                    Text(fact.label)
+                        .atlasTextRole(.deckEyebrow)
+                        .foregroundStyle(AtlasPalette.primary)
+                    Spacer()
+                    Text(fact.value)
+                        .atlasTextRole(.supporting)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                }
+            }
+
+            if check.notes.isEmpty == false {
+                Divider()
+
+                ForEach(check.notes, id: \.self) { note in
+                    Text(note)
+                        .atlasTextRole(.supporting)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                }
+            }
+        }
+        .padding(.vertical, AtlasSpacing.xSmall)
+    }
+}
+
 private struct AtlasInteractionWarningCard: View {
     let warning: AtlasInteractionWarning
 
@@ -530,25 +993,25 @@ private struct AtlasInteractionWarningCard: View {
         VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
             HStack {
                 Text(warning.severity.title)
-                    .font(.caption.weight(.bold))
+                    .atlasTextRole(.deckEyebrow)
                     .foregroundStyle(severityColor)
                 Spacer()
                 Text(warning.title)
-                    .font(.caption.weight(.semibold))
+                    .atlasTextRole(.deckEyebrow)
                     .foregroundStyle(AtlasPalette.textPrimary)
             }
 
             Text(warning.detail)
-                .font(.caption)
+                .atlasTextRole(.supporting)
                 .foregroundStyle(AtlasPalette.textSecondary)
         }
         .padding(AtlasSpacing.medium)
         .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(severityColor.opacity(0.08))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(severityColor.opacity(0.28), lineWidth: 1)
         )
     }
@@ -573,13 +1036,13 @@ private struct AtlasBeforeAfterRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
             Text(title)
-                .font(.caption.weight(.semibold))
+                .atlasTextRole(.deckEyebrow)
                 .foregroundStyle(AtlasPalette.primary)
             Text("Before: \(beforeValue)")
-                .font(.caption)
+                .atlasTextRole(.supporting)
                 .foregroundStyle(AtlasPalette.textSecondary)
             Text("After: \(afterValue)")
-                .font(.caption)
+                .atlasTextRole(.supporting)
                 .foregroundStyle(AtlasPalette.textSecondary)
         }
     }
@@ -621,6 +1084,246 @@ private func atlasParseLocalDateTime(dateValue: String, timeOfDay: String) -> Da
     components.minute = timeParts[1]
     components.second = 0
     return Calendar.current.date(from: components)
+}
+
+struct AtlasProtocolPlanningMove: Identifiable, Equatable {
+    let id: String
+    let title: String
+    let detail: String
+    let changeType: AtlasProtocolChangeType
+}
+
+struct AtlasProtocolPlanningChecklistItem: Identifiable, Equatable {
+    let id: String
+    let title: String
+    let detail: String
+    let severity: AtlasInteractionSeverity
+
+    var severityColor: Color {
+        switch severity {
+        case .advisory:
+            return AtlasPalette.primary
+        case .caution:
+            return .orange
+        case .elevated:
+            return .red
+        }
+    }
+}
+
+struct AtlasProtocolPlanningSummary: Equatable {
+    let headline: String
+    let summary: String
+    let recommendedMoves: [AtlasProtocolPlanningMove]
+    let checklist: [AtlasProtocolPlanningChecklistItem]
+}
+
+struct AtlasProtocolCommitCheck: Equatable {
+    let headline: String
+    let facts: [AtlasExplainerFact]
+    let notes: [String]
+}
+
+func atlasProtocolPlanningSummary(
+    context: AtlasProtocolChangeStudioContext,
+    draft: AtlasProtocolChangeDraft
+) -> AtlasProtocolPlanningSummary {
+    var checklist: [AtlasProtocolPlanningChecklistItem] = [
+        AtlasProtocolPlanningChecklistItem(
+            id: "effective-date",
+            title: "Effective date",
+            detail: "Starts \(draft.effectiveDate.formatted(date: .abbreviated, time: .omitted)); past logs stay untouched.",
+            severity: .advisory
+        )
+    ]
+
+    if draft.changeType == .futureDose || draft.changeType == .titration {
+        let hasAmount = draft.changeType == .titration ? draft.titrationDoseAmount != nil : draft.doseAmount != nil
+        let unit = draft.changeType == .titration ? draft.titrationDoseUnit : draft.doseUnit
+        checklist.append(
+            AtlasProtocolPlanningChecklistItem(
+                id: "dose-explicit",
+                title: "Dose and unit",
+                detail: hasAmount && unit.isEmpty == false
+                    ? "Amount and unit are ready for preview."
+                    : "Set both amount and unit before preview.",
+                severity: hasAmount && unit.isEmpty == false ? .advisory : .caution
+            )
+        )
+    }
+
+    if draft.changeType == .timezone {
+        checklist.append(
+            AtlasProtocolPlanningChecklistItem(
+                id: "timezone",
+                title: "Timezone strategy",
+                detail: draft.timezone.isEmpty
+                    ? "Choose a timezone identifier so travel handling does not fall back to the current device state."
+                    : "Uses \(draft.timezoneStrategy.explanationTitle.lowercased()) in \(draft.timezone).",
+                severity: draft.timezone.isEmpty ? .caution : .advisory
+            )
+        )
+    }
+
+    if draft.changeType == .vialSwitch {
+        checklist.append(
+            AtlasProtocolPlanningChecklistItem(
+                id: "vial",
+                title: "Future vial selection",
+                detail: draft.linkedVialID == nil
+                    ? "Choose the future vial before you preview so inventory and reminder changes stay aligned."
+                    : "The preview will rewire future inventory coverage onto the selected vial only.",
+                severity: draft.linkedVialID == nil ? .caution : .advisory
+            )
+        )
+    }
+
+    if context.activeCompanions.isEmpty == false {
+        checklist.append(
+            AtlasProtocolPlanningChecklistItem(
+                id: "companions",
+                title: "Active companions",
+                detail: "\(context.activeCompanions.count) other active plan\(context.activeCompanions.count == 1 ? " sits" : "s sit") alongside this one, so preview warnings matter more than usual.",
+                severity: .caution
+            )
+        )
+    }
+
+    if context.siteWarnings.isEmpty == false {
+        checklist.append(
+            AtlasProtocolPlanningChecklistItem(
+                id: "site-rotation",
+                title: "Site rotation",
+                detail: context.siteWarnings.first ?? "There is a site rotation reminder for this protocol.",
+                severity: .caution
+            )
+        )
+    }
+
+    if draft.notes?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
+        checklist.append(
+            AtlasProtocolPlanningChecklistItem(
+                id: "notes",
+                title: "Change note",
+                detail: "An optional note helps the timeline explain why this edit happened later without changing the medical meaning of the plan.",
+                severity: .advisory
+            )
+        )
+    }
+
+    let headline: String
+    let summary: String
+    switch draft.changeType {
+    case .futureDose:
+        headline = "Update upcoming doses only."
+        summary = "Past logs stay in place. Preview shows the next schedule before save."
+    case .missedDosePolicy:
+        headline = "Set the future recovery rule."
+        summary = "Keep missed-dose handling simple before the next schedule run."
+    case .pause, .resume:
+        headline = "Set the next plan state."
+        summary = "Choose the effective date, then preview upcoming rows."
+    case .timezone:
+        headline = "Set the clock rule."
+        summary = "Choose home time or local time before saving."
+    default:
+        headline = "Preview the future plan."
+        summary = "Make the next schedule clear before it touches reminders or inventory."
+    }
+
+    return AtlasProtocolPlanningSummary(
+        headline: headline,
+        summary: summary,
+        recommendedMoves: atlasProtocolPlanningMoves(context: context),
+        checklist: checklist
+    )
+}
+
+func atlasProtocolPlanningMoves(
+    context: AtlasProtocolChangeStudioContext
+) -> [AtlasProtocolPlanningMove] {
+    var moves: [AtlasProtocolPlanningMove] = [
+        AtlasProtocolPlanningMove(
+            id: AtlasProtocolChangeType.futureDose.rawValue,
+            title: "Dose update",
+            detail: "Adjust the future amount without touching prior logs.",
+            changeType: .futureDose
+        ),
+        AtlasProtocolPlanningMove(
+            id: AtlasProtocolChangeType.futureTime.rawValue,
+            title: "Time shift",
+            detail: "Move the future time of day while keeping the cadence shape.",
+            changeType: .futureTime
+        ),
+        AtlasProtocolPlanningMove(
+            id: AtlasProtocolChangeType.missedDosePolicy.rawValue,
+            title: "Recovery rule",
+            detail: "Clarify how future missed doses should behave when the week slips.",
+            changeType: .missedDosePolicy
+        )
+    ]
+
+    let cadenceMove: AtlasProtocolPlanningMove
+    if context.cadenceLabel.localizedCaseInsensitiveContains("weekly") {
+        cadenceMove = AtlasProtocolPlanningMove(
+            id: AtlasProtocolChangeType.dayOfWeek.rawValue,
+            title: "Weekday move",
+            detail: "Shift the weekly anchor to a different day instead of changing the whole cadence.",
+            changeType: .dayOfWeek
+        )
+    } else {
+        cadenceMove = AtlasProtocolPlanningMove(
+            id: AtlasProtocolChangeType.everyNDays.rawValue,
+            title: "Interval change",
+            detail: "Move the plan to a fixed every-N-days rhythm.",
+            changeType: .everyNDays
+        )
+    }
+    moves.append(cadenceMove)
+
+    if context.availableVials.contains(where: { $0.isArchived == false }) {
+        moves.append(
+            AtlasProtocolPlanningMove(
+                id: AtlasProtocolChangeType.vialSwitch.rawValue,
+                title: "Vial handoff",
+                detail: "Route future inventory usage onto the right vial before the next run begins.",
+                changeType: .vialSwitch
+            )
+        )
+    }
+
+    return Array(moves.prefix(4))
+}
+
+func atlasProtocolCommitCheck(preview: AtlasProtocolChangePreview) -> AtlasProtocolCommitCheck? {
+    let occurrenceCount = preview.occurrenceChanges.count
+    let warningCount = preview.interactionWarnings.count + preview.siteWarnings.count
+    let facts = [
+        AtlasExplainerFact(label: "Preview window", value: preview.previewWindow.title),
+        AtlasExplainerFact(label: "Future rows touched", value: occurrenceCount == 0 ? "None visible" : String(occurrenceCount)),
+        AtlasExplainerFact(label: "Reminder result", value: preview.draftReminderLabel ?? "No upcoming reminder"),
+        AtlasExplainerFact(label: "Inventory outlook", value: preview.inventoryForecastAfter ?? "No depletion forecast yet")
+    ]
+
+    let notes = ([preview.adherenceNote].compactMap { $0 })
+        + preview.interactionWarnings.map(\.detail)
+        + preview.siteWarnings
+
+    if occurrenceCount == 0 && warningCount == 0 && preview.adherenceNote == nil {
+        return AtlasProtocolCommitCheck(
+            headline: "The preview is operationally quiet.",
+            facts: facts,
+            notes: ["No obvious schedule conflicts were found in the selected preview window."]
+        )
+    }
+
+    return AtlasProtocolCommitCheck(
+        headline: warningCount > 0
+            ? "This change is plausible, but it deserves one more operational pass."
+            : "The preview is readable enough to commit if the future rows look right.",
+        facts: facts,
+        notes: notes
+    )
 }
 
 private extension View {

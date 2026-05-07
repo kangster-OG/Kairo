@@ -571,7 +571,7 @@ private func buildInteractionWarnings(
                 AtlasInteractionWarning(
                     id: "tightened-weekly-cadence",
                     severity: .caution,
-                    title: "Cadence got tighter than Atlas usually expects",
+                    title: "Cadence got tighter than usual",
                     detail: "\(knowledge.displayName) is commonly run on a weekly rhythm. Moving it to every \(draft.intervalDays) days changes reminder, refill, and missed-dose behavior in a meaningful way."
                 )
             )
@@ -603,7 +603,7 @@ private func buildInteractionWarnings(
                     id: "glp-overlap-\(companion.protocolID)",
                     severity: .elevated,
                     title: "Overlapping GLP-style protocols",
-                    detail: "\(primary.displayName) and \(companionTitle) both read like active GLP-style plans. Atlas should treat this as an intentional overlap only if the transition window is clearly planned."
+                    detail: "\(primary.displayName) and \(companionTitle) both read like active GLP-style plans. Treat this as an intentional overlap only if the transition window is clearly planned."
                 )
             )
         }
@@ -647,7 +647,7 @@ private func buildInteractionWarnings(
                     id: "androgen-stack-\(companion.protocolID)",
                     severity: .elevated,
                     title: "Androgen stack burden",
-                    detail: "\(primary.displayName) and \(companionTitle) both add androgenic load. Atlas should treat the future plan as a higher-monitoring protocol, not as a routine side-by-side reminder."
+                    detail: "\(primary.displayName) and \(companionTitle) both add androgenic load. Treat the future plan as a higher-monitoring protocol, not as a routine side-by-side reminder."
                 )
             )
         }
@@ -1547,7 +1547,7 @@ private func buildProtocolChangeImpactSummary(
             AtlasExplainerFact(label: "Historical logs", value: "Unchanged")
         ],
         notes: [
-            "Atlas regenerated future occurrences from the committed revision.",
+            "Future occurrences were regenerated from the committed revision.",
             "Reminder updates now follow the committed future plan."
         ]
     )

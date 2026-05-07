@@ -155,6 +155,9 @@ final class AtlasDatabaseStack: @unchecked Sendable {
                 table.column("linked_vial_id", .text)
                 table.column("name", .text).notNull()
                 table.column("kind", .text).notNull()
+                table.column("administration_route", .text)
+                table.column("supply_type", .text)
+                table.column("doses_per_supply", .integer)
                 table.column("status", .text).notNull()
                 table.column("timezone", .text).notNull()
                 table.column("start_date", .text).notNull()
@@ -202,6 +205,9 @@ final class AtlasDatabaseStack: @unchecked Sendable {
                 table.column("lifecycle_state", .text).notNull()
                 table.column("timezone", .text).notNull()
                 table.column("timezone_strategy", .text).notNull()
+                table.column("administration_route", .text)
+                table.column("supply_type", .text)
+                table.column("doses_per_supply", .integer)
                 table.column("default_time_of_day", .text)
                 table.column("dose_amount", .double)
                 table.column("dose_unit", .text)
@@ -246,6 +252,7 @@ final class AtlasDatabaseStack: @unchecked Sendable {
                 table.column("id", .text).primaryKey()
                 table.column("name", .text).notNull()
                 table.column("body_area", .text)
+                table.column("map_region_key", .text)
                 table.column("notes", .text)
                 table.column("created_at", .text).notNull()
                 table.column("updated_at", .text).notNull()
@@ -266,6 +273,8 @@ final class AtlasDatabaseStack: @unchecked Sendable {
                 table.column("quantity_unit", .text).notNull()
                 table.column("opened_at", .text)
                 table.column("expires_at", .text)
+                table.column("reference_photo_relative_path", .text)
+                table.column("label_scan_text", .text)
                 table.column("created_at", .text).notNull()
                 table.column("updated_at", .text).notNull()
             }
@@ -635,6 +644,116 @@ final class AtlasDatabaseStack: @unchecked Sendable {
                 table.add(column: "vendor_label", .text)
                 table.add(column: "source_detail", .text)
             }
+        }
+
+        migrator.registerMigration("v16_add_progress_evidence") { db in
+            try db.create(table: "progress_measurements") { table in
+                table.column("id", .text).primaryKey()
+                table.column("protocol_id", .text).references("protocols", onDelete: .setNull)
+                table.column("kind", .text).notNull()
+                table.column("value", .double).notNull()
+                table.column("unit", .text).notNull()
+                table.column("note", .text)
+                table.column("logged_at", .text).notNull()
+                table.column("created_at", .text).notNull()
+                table.column("updated_at", .text).notNull()
+            }
+
+            try db.create(table: "progress_photos") { table in
+                table.column("id", .text).primaryKey()
+                table.column("protocol_id", .text).references("protocols", onDelete: .setNull)
+                table.column("angle", .text).notNull()
+                table.column("note", .text)
+                table.column("relative_asset_path", .text).notNull()
+                table.column("logged_at", .text).notNull()
+                table.column("created_at", .text).notNull()
+                table.column("updated_at", .text).notNull()
+            }
+
+            try db.create(index: "idx_progress_measurements_logged_at", on: "progress_measurements", columns: ["logged_at"])
+            try db.create(index: "idx_progress_photos_logged_at", on: "progress_photos", columns: ["logged_at"])
+        }
+
+        migrator.registerMigration("v17_add_protocol_delivery_metadata") { db in
+            let protocolColumns = Set(try String.fetchAll(db, sql: "SELECT name FROM pragma_table_info('protocols')"))
+            if protocolColumns.contains("administration_route") == false ||
+                protocolColumns.contains("supply_type") == false ||
+                protocolColumns.contains("doses_per_supply") == false {
+                try db.alter(table: "protocols") { table in
+                    if protocolColumns.contains("administration_route") == false {
+                        table.add(column: "administration_route", .text)
+                    }
+                    if protocolColumns.contains("supply_type") == false {
+                        table.add(column: "supply_type", .text)
+                    }
+                    if protocolColumns.contains("doses_per_supply") == false {
+                        table.add(column: "doses_per_supply", .integer)
+                    }
+                }
+            }
+
+            let revisionColumns = Set(try String.fetchAll(db, sql: "SELECT name FROM pragma_table_info('protocol_revisions')"))
+            if revisionColumns.contains("administration_route") == false ||
+                revisionColumns.contains("supply_type") == false ||
+                revisionColumns.contains("doses_per_supply") == false {
+                try db.alter(table: "protocol_revisions") { table in
+                    if revisionColumns.contains("administration_route") == false {
+                        table.add(column: "administration_route", .text)
+                    }
+                    if revisionColumns.contains("supply_type") == false {
+                        table.add(column: "supply_type", .text)
+                    }
+                    if revisionColumns.contains("doses_per_supply") == false {
+                        table.add(column: "doses_per_supply", .integer)
+                    }
+                }
+            }
+        }
+
+        migrator.registerMigration("v18_add_vial_media_capture") { db in
+            let vialColumns = Set(try String.fetchAll(db, sql: "SELECT name FROM pragma_table_info('vials')"))
+            if vialColumns.contains("reference_photo_relative_path") == false ||
+                vialColumns.contains("label_scan_text") == false {
+                try db.alter(table: "vials") { table in
+                    if vialColumns.contains("reference_photo_relative_path") == false {
+                        table.add(column: "reference_photo_relative_path", .text)
+                    }
+                    if vialColumns.contains("label_scan_text") == false {
+                        table.add(column: "label_scan_text", .text)
+                    }
+                }
+            }
+        }
+
+        migrator.registerMigration("v19_add_site_map_regions") { db in
+            let siteColumns = Set(try String.fetchAll(db, sql: "SELECT name FROM pragma_table_info('sites')"))
+            if siteColumns.contains("map_region_key") == false {
+                try db.alter(table: "sites") { table in
+                    table.add(column: "map_region_key", .text)
+                }
+            }
+        }
+
+        migrator.registerMigration("v20_add_external_calendar_sync") { db in
+            try db.create(table: "external_calendar_events", ifNotExists: true) { table in
+                table.column("id", .text).primaryKey()
+                table.column("occurrence_id", .text).notNull().unique()
+                table.column("protocol_id", .text).notNull().references("protocols", onDelete: .cascade)
+                table.column("calendar_id", .text).notNull()
+                table.column("event_identifier", .text).notNull()
+                table.column("title", .text).notNull()
+                table.column("notes", .text).notNull()
+                table.column("starts_at", .text).notNull()
+                table.column("ends_at", .text).notNull()
+                table.column("created_at", .text).notNull()
+                table.column("updated_at", .text).notNull()
+            }
+            try db.create(
+                index: "idx_external_calendar_events_protocol_start",
+                on: "external_calendar_events",
+                columns: ["protocol_id", "starts_at"],
+                ifNotExists: true
+            )
         }
 
         return migrator

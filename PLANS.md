@@ -1,8 +1,138 @@
-# Atlas Build Plan
+# Kairo Build Plan
+
+## Active milestone
+### iOS App Store Rejection Recovery + Evidence-Gated Resubmission
+Depends on:
+- native iOS under `atlas-ios/` remaining the submitted App Store product
+- App Store Connect state being verified from the automated Playwright browser, not assumed from docs
+- the final submission action stopping before `Update Review` / final App Review submission until the user explicitly approves it
+
+Status:
+- started on 2026-05-07 after the third App Review rejection
+- latest rejection: Guideline `2.3.0 Performance: Accurate Metadata`
+- rejected build: `1.0 (2026050401)`
+- Apple issue: uploaded build metadata listed `UIRequiredDeviceCapabilities` / Required Capabilities as `arm64`, blocking install on the review devices
+- upload validation finding: App Store Connect rejects removing `arm64` from `UIRequiredDeviceCapabilities` for 64-bit app/extension binaries, so `arm64` must be present
+- current binary: build `2026050709`, with `arm64` explicitly present in the app, widget extension, and intents extension plists
+- upload status: `2026050709` upload succeeded on 2026-05-07 and is validated in App Store Connect
+- App Store Connect version page now has build `2026050709` selected for iOS version `1.0`; previously selected build `2026050708` and rejected build `2026050401` were removed from the selected build slot
+- App Review notes were updated to address the May 7, 2026 `2.3.0` device-capability rejection and to name build `2026050709`
+- App Store Connect `Update Review` / final submission has not been clicked
+
+Will deliver:
+- local binary metadata, entitlements, privacy manifest, permission, StoreKit, paywall, and legal-link audit
+- fresh signed archive/IPA inspection before upload
+- App Store Connect verification that the selected build and uploaded build metadata match the fixed IPA
+- review-like smoke pass on iPhone and iPad targets where local tooling allows
+- final evidence report and App Review response draft
+- no final submission click until explicit user approval
+
+Verification goals:
+- lint all shipped plists
+- inspect actual archived `Atlas.app` and embedded extension `Info.plist` files
+- verify App Store Connect build metadata matches the uploaded IPA and does not introduce any required capability beyond Apple-required `arm64`
+- verify selected App Store Connect build is the new fixed build, not `2026050401`
+- verify subscriptions, screenshots, privacy/support/legal metadata, review notes, and release mode before stopping
+
+Evidence captured:
+- rejected sanitized upload attempt proved App Store Connect error `90502`: 64-bit app/extension binaries must include `arm64`
+- accepted upload artifact: `output/app-store-builds/export-2026050709-arm64/Atlas.ipa`
+- accepted archive: `output/app-store-builds/Kairo-1.0-2026050709-arm64.xcarchive`
+- local smoke screenshots: `output/app-store-builds/iphone-17-pro-max-2026050702-clean-launch.jpg`, `output/app-store-builds/iphone-17-pro-max-2026050702-track-disclaimer.jpg`, `output/app-store-builds/iphone-17-pro-max-2026050702-rating-primer-no-system-prompt.jpg`, `output/app-store-builds/iphone-17-pro-max-2026050702-plan-ready-copy.jpg`, `output/app-store-builds/iphone-17-pro-max-2026050702-trial-reminder.jpg`, `output/app-store-builds/iphone-17-pro-max-2026050702-paywall.jpg`, `output/app-store-builds/iphone-17-pro-max-2026050702-limited-preview-home.jpg`, `output/app-store-builds/iphone-17-pro-max-2026050702-limited-upgrade-prompt.jpg`, and `output/app-store-builds/iphone-17-pro-max-2026050702-limited-log-tab.jpg`
+- App Store Connect build metadata for `1.0 (2026050709)` on 2026-05-07: Binary State `Validated`, Bundle Version `2026050709`, Bundle ID `com.dkang2000.Atlas`, Minimum iOS `17.0`, Supported Architectures `arm64`, Device Family `iPhone`, Required Capabilities `arm64`, `get-task-allow=false`
+- App Store Connect subscriptions verified on 2026-05-07: monthly `com.dkang2000.Atlas.kairo.pro.monthly`, annual `com.dkang2000.Atlas.kairo.pro.annual`, and last-chance annual `com.dkang2000.Atlas.kairo.pro.annual.lastchance` all show `Waiting for Review`; monthly and annual have current introductory offers `Free for the first week` in 175 countries/regions; last-chance has no introductory offer
+- App Store Connect privacy metadata verified on 2026-05-07: Privacy Policy URL `https://chloeverse.io/kairo/privacy`; product page preview lists collected data categories for Health & Fitness, Contact Info, Purchases, Identifiers, User Content, and Usage Data
+- Privacy and EULA URLs returned HTTP `200` during local link checks
+
+## Active milestone
+### Android Native Clone + Google Play Launch
+Depends on:
+- current native iOS product under `atlas-ios/` remaining the shipped reference implementation
+- Kairo staying a premium peptide/GLP protocol tracker, not a marketplace, medical advice app, AI chatbot, social app, or calorie tracker
+- local-first and guest-first behavior carrying over to Android
+- Supabase auth/sync/live review remaining additive to local storage
+- Google Play Billing, Health Connect, Android widgets, notifications, and Play policy requirements being implemented with Android-native APIs
+
+Status:
+- planned on 2026-05-01
+- decision: keep Android in this repo as `kairo-android/`
+- decision: build native Android with Kotlin + Jetpack Compose, not React Native
+- detailed plan: `docs/kairo-android-google-play-plan.md`
+- release checklist: `docs/kairo-android-play-readiness-checklist.md`
+- implementation started on 2026-05-01 with a native Android scaffold, local-first domain/persistence vertical slice, five-tab Compose shell, platform integration boundaries, and focused domain tests
+- local workstation verification unblocked on 2026-05-01 by installing local JDK 17 + Android SDK 35 under `/Users/donghokang/.codex/android-toolchain/`
+- `./gradlew testDebugUnitTest assembleDebug bundleRelease` passed on 2026-05-01; Android 15 emulator install/launch/screenshot QA also ran after more disk was freed
+- `./gradlew testDebugUnitTest assembleDebug bundleRelease` passed again on 2026-05-02 after adding Room v3 sync metadata migration/relaunch persistence tests, widget projection storage/rendering, Supabase config/session boundary, Health Connect permission UI, BillingClient paywall architecture, richer protocol/log/progress/reminder surfaces, Today site-selection logging, and emulator-found scroll/inset fixes
+- `./gradlew testDebugUnitTest assembleDebug bundleRelease` passed again on 2026-05-02 after the corrective iOS-parity UI pass: Today now uses the iOS-style Kairo momentum card plus compact Next Shot card/support rings, Progress adds range chips and front/side/back capture tiles, Companion adds quests and board-asset collections, Protocols gains compact inventory/calculator top actions, startup auth/session restore moved off the main thread, and the first app-owned launch frame renders before heavier app wiring
+
+Will deliver:
+- an Android-native clone of Kairo's core app and launch feature set
+- five-tab Android shell matching the Kairo product model: Today, Log, Protocols, Progress, Companion
+- local-first Android persistence with deterministic protocol, shot log, inventory, progress, and companion behavior
+- limited preview gating and Pro upgrade prompts equivalent to iOS
+- Google Play Billing products matching Kairo's subscription strategy
+- Supabase-backed account/auth/sync/live review where appropriate
+- Health Connect integration for explicit opt-in health data
+- Android widgets and notification/reminder behavior that matches Kairo's privacy posture
+- Google Play internal/closed testing readiness, store metadata, health declaration, data safety, privacy links, and production release checklist
+
+Constraints:
+- do not rewrite or downgrade the iOS SwiftUI app
+- do not resurrect React Native as the primary app path
+- do not add dosing advice, medical recommendations, sourcing, vendor comparison, marketplace, social, or chatbot behavior
+- do not require cloud sign-in for core local tracking
+- do not secretly map the $39.99 last-chance annual offer to the normal $59.99 annual product
+- preserve current legal links:
+  - Privacy Policy: `https://chloeverse.io/kairo/privacy`
+  - Terms/EULA: `https://www.apple.com/legal/internet-services/itunes/dev/stdeula/` until Android-specific terms are approved
+
+Execution order:
+- create `kairo-android/` native Android scaffold
+- port domain contract and persistence schema before broad UI polish
+- implement the Kairo five-tab shell and limited preview route guard
+- ship a vertical slice: onboarding, Today, Log Shot, Protocols, local SQLite/Room, and upgrade prompt
+- add Google Play Billing and subscription entitlement state
+- add Supabase account/auth/sync/live review
+- add Progress, Companion, widgets, reminders, Health Connect, review/export, and settings
+- run Play internal testing, then closed testing, then production readiness
+
+Verification goals:
+- Gradle clean build for debug and release app bundle
+- unit tests for protocol scheduling, shot logging, inventory runway, limited preview gating, billing entitlement mapping, and export/import contracts
+- Android emulator QA on phone and large-screen/tablet classes
+- real-device QA for notifications, Health Connect, Google sign-in, billing sandbox, widgets, camera/photos, biometric/privacy gates, and file sharing
+- Play Console checklist complete for app content, health declaration, data safety, subscriptions, privacy policy, support URL, signing, and testing tracks
+
+Latest Android checkpoint:
+- `kairo-android/` contains a Kotlin + Compose Android app using application ID `com.dkang2000.kairo`, compile/target SDK 35, Room, DataStore, Google Play Billing, Health Connect, Glance/AppWidget dependency, WorkManager, Android Keystore secure session storage, and Supabase client dependencies
+- implemented local vertical slice: weekly GLP protocol creation, next-due projections separate from immutable timeline events, shot logging, vial decrement/runway labels, companion XP progression, entitlement state, and limited-preview upgrade gating
+- implemented first-run onboarding entry, functional legal links in the upgrade prompt, notification-channel creation, and Android Photo Picker progress-evidence persistence
+- implemented immutable skip/reschedule timeline actions for generated occurrences and fixed emulator-found status-bar/tab-label layout issues
+- implemented Room v2 `integration_state` migration, repository relaunch persistence test coverage, and safe integration-state recording for billing/Health Connect
+- implemented widget projection storage and AppWidget rendering backed by real local next-due/vial/companion state
+- implemented Supabase build config and Android Keystore encrypted session boundary; Android now reads the existing iOS `Info.plist` Supabase URL/anon key by default with Gradle env/property overrides available
+- implemented Supabase email/password sign-in, guest-to-account upgrade, sign-out, and bounded REST snapshot sync/restore messaging
+- replaced the visible paywall debug path with BillingClient product loading/purchase/restore architecture; debug unlock remains debug-build-only
+- added Health Connect availability and permission request UI in Companion settings
+- added reminder alarm scheduling from occurrence projections with notification action receivers for taken/skipped responses
+- added create/edit protocol forms for GLP, peptide, and custom protocols instead of only a starter action
+- added compact and wide local projection widgets, plus Play internal release notes and store listing drafts
+- added Data Safety draft, Health apps declaration notes, QA checklist, screenshot inventory, capture script, and draft Supabase Android snapshot SQL/RLS
+- expanded protocol forms/actions with route, supply type, cadence weekday, pause/resume, and archive
+- added Today site-selection logging, Log filtering/detail, reminder settings, progress evidence privacy/delete controls, and sync metadata failure tracking
+- fixed emulator-found double top-inset and non-scrollable Companion settings regressions
+- implemented five Android tabs matching the current Kairo launch shell: Today, Log, Protocols, Progress, Companion
+- added Android product IDs `kairo.pro.monthly`, `kairo.pro.annual`, and separate `kairo.pro.annual.lastchance`; monthly/annual require a 7-day trial while last-chance does not
+- added Android README with build/test commands, current official Play policy assumptions, legal links, and manual Play Console gates
+- corrective UI parity pass on 2026-05-02 moved Android closer to `atlas-ios/Packages/AtlasFeatures/Sources/AtlasFeatures/KairoMockupProtocolScreens.swift` instead of the earlier generic five-tab look: Today/Kairo now separates companion momentum from next-shot actions, Progress uses iOS board pose tiles, Companion exposes quests/badges/collectibles above account settings, and Protocols has compact iOS-like top tool chips
+- latest emulator attempt on 2026-05-02 failed before ADB registration: `KairoPixel35` starts, then exits without appearing in `adb devices`; no fresh visual QA should be claimed for the latest corrective UI pass until an emulator or physical device is available
+- visual parity workflow added on 2026-05-04: Android now has a debug Compose board for Today, Log Shot, Protocols, Progress, Companion, Upgrade, Protocol Form, Site Selection, and Account surfaces; named launch extras and `kairo-android/scripts/capture-visual-parity-board.sh` capture stable screenshots under `output/android-visual-parity/`, and `docs/android-visual-parity-workflow-2026-05-04.md` documents the iOS-reference comparison loop
+- emergency Android UI correction on 2026-05-04: broad "visual parity" is no longer an acceptable standard. `docs/android-exact-ios-clone-directive.md` is now the controlling directive for Android UI work. Android must be an exact visual and interaction clone of the native iOS Kairo app unless the user explicitly approves a specific exception, and work must proceed one screen at a time with side-by-side iOS-vs-Android screenshot proof.
 
 ## Current direction
-- Atlas React Native remains the product oracle, Android path, and migration source.
-- Native iOS under `atlas-ios/` is the shipped primary iPhone product path.
+- Native iOS under `atlas-ios/` is the shipped primary iPhone product path and the source of truth for Android Kairo behavior/visual parity.
+- Android work belongs in `kairo-android/` as native Kotlin + Jetpack Compose.
+- Older React Native references below are historical and should not be treated as the current Android implementation path.
 - React Native is in feature freeze except for isolated export-contract improvements or critical fixes.
 - Native parity, second-order features, and release-hardening work are now complete in code.
 - Repo documentation truth-map cleanup completed on 2026-03-15; use `docs/repo-truth-map.md` to distinguish current native docs from historical migration/spec docs.
@@ -128,6 +258,72 @@ Next queued milestone:
 - Final Native Hardening + QA + Release Readiness
 
 ## Current implementation focus
+### Production sync + visual site map + broader passive signals
+Depends on:
+- existing account/auth/cloud scaffolding, Trust Vault boundaries, and local-first SQLite foundations already present in native Atlas
+- current inventory/site tracking, metrics overlays, and HealthKit integration paths remaining deterministic and privacy-bounded
+- native Today, Insights, Settings, import/export, and review surfaces staying additive to guest-first use instead of becoming cloud-required
+
+Status:
+- started on 2026-04-13
+
+Will deliver:
+- production-ready account sync flows on top of the current Supabase-backed session and export-bundle scaffolding, including clearer status, upload/download paths, and safer guest-upgrade handling
+- a first-class visual body-map site picker layered onto the existing site tracking model so injection-site rotation is faster and more legible
+- broader passive HealthKit ingestion for approved recovery/cardio/body-composition surfaces including steps, sleep, resting heart rate, HRV, blood pressure, and body-fat context where the platform exposes it
+- native Insights and Settings surfaces that clearly distinguish passive health imports from manual/custom metrics
+
+Constraints:
+- preserve local-first and guest-first behavior even when cloud sync is enabled
+- keep cloud scope bounded and additive; Atlas must remain usable without an account
+- no medical advice, dosing recommendations, or causal health claims
+- keep imported passive signals source-attributed and privacy-aware
+- do not weaken Trust Vault, alias/discreet rendering, or review/export safety
+
+Verification goals:
+- `swift build` in `atlas-ios/Packages/AtlasPersistence`
+- `swift build` in `atlas-ios/Packages/AtlasFeatures`
+- `xcodebuild test CODE_SIGNING_ALLOWED=NO -parallel-testing-enabled NO -maximum-parallel-testing-workers 1 -project atlas-ios/Atlas.xcodeproj -scheme Atlas -destination 'platform=iOS Simulator,name=iPhone 17' -derivedDataPath atlas-ios/.derived-data-release`
+- targeted simulator QA for account sync, visual site-map entry, Health connect/disconnect, passive-signal import, and insights/settings rendering
+
+### Capture speed + ambient utility + visual progress polish
+Depends on:
+- native Today, Insights, widgets/intents, and Progress Evidence foundations already complete in code
+- local-first privacy rendering, Trust Vault behavior, and bounded export rules remaining intact
+- existing direct logging and extension projection infrastructure staying deterministic and explicit
+
+Status:
+- started on 2026-04-13
+- completed in code on 2026-04-13
+- polish follow-up reopened on 2026-04-13 for microcopy, motion, screenshot QA, and more opinionated Today guidance
+
+Will deliver:
+- a faster consumer-simple capture surface for shot, weight, symptom, context, and progress-photo actions
+- stronger home-screen and lock-screen Atlas utility through clearer quick-capture widget and shortcut paths
+- guided progress-photo recapture with angle-aware visual reference from the last matching check-in
+- richer before/after compare and milestone timeline views inside Progress Evidence
+- a more premium private progress summary artifact that combines photos, measurements, weight trend, and mascot/rewards context without turning Atlas into a social feed
+
+Constraints:
+- preserve local-first behavior and private on-device photo storage
+- keep visual progress descriptive only; no image interpretation, diagnosis, or medical claims
+- keep widgets/intents narrow, privacy-aware, and grounded in local projection freshness
+- avoid duplicating the full Insights shell inside quick-capture surfaces
+
+Verification goals:
+- `swift build` in `atlas-ios/Packages/AtlasPersistence`
+- `swift build` in `atlas-ios/Packages/AtlasFeatures`
+- `xcodebuild test CODE_SIGNING_ALLOWED=NO -parallel-testing-enabled NO -maximum-parallel-testing-workers 1 -project atlas-ios/Atlas.xcodeproj -scheme Atlas -destination 'platform=iOS Simulator,name=iPhone 17' -derivedDataPath atlas-ios/.derived-data-release`
+
+Verification notes:
+- `swift build --package-path atlas-ios/Packages/AtlasPersistence` passes in this workspace
+- package-only `swift build --package-path atlas-ios/Packages/AtlasFeatures` still hits the pre-existing `UIKit` import mismatch when compiled outside the iOS app target on macOS
+- `xcodebuild -project atlas-ios/Atlas.xcodeproj -scheme Atlas -destination 'generic/platform=iOS Simulator' -derivedDataPath atlas-ios/.derived-data-atlas build` passes
+- simulator QA confirmed deep-link entry into `atlas://quick-capture?kind=weight` and `atlas://progress-evidence`, with clean app logs during launch
+- follow-up polish build passes via `xcodebuild -project atlas-ios/Atlas.xcodeproj -scheme Atlas -destination 'generic/platform=iOS Simulator' -derivedDataPath atlas-ios/.derived-data-atlas-polish build`
+- targeted route regression passes for `testHandleIncomingQuickCaptureURLOpensTodayQuickCaptureLane` and `testHandleIncomingProgressEvidenceURLOpensInsightsProgressEvidence`
+- screenshot QA reviewed Today, Quick Capture, and Progress Evidence after the microcopy + opinionated-surface pass
+
 ### Calm retention layer
 Depends on:
 - native Today, Insights, Review Mode, inventory, and privacy foundations already complete

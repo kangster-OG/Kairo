@@ -12,6 +12,9 @@ private let atlasInsightsExplainabilityMetricWindowHours = 24.0
 private let atlasInsightsExplainabilityMinimumMatches = 2
 private let atlasInsightsExplainabilityMinimumCoverage = 0.5
 private let atlasInsightsExplainabilityMaxCards = 4
+private let atlasWeeklyReviewWindowDays = 7
+private let atlasWeeklyReviewArchiveWeeks = 8
+private let atlasWeeklyReviewProtocolFollowUpDays = 14
 
 enum AtlasMetricsRepositoryError: LocalizedError {
     case invalidContextEntry
@@ -114,6 +117,160 @@ public struct GRDBMetricsRepository: MetricsRepository, Sendable {
         }
     }
 
+    public func saveWorkoutEntry(_ draft: AtlasWorkoutEntryDraft, now: Date) async throws -> AtlasWorkoutLogRecord {
+        try await stack.canonical.write { db in
+            let timestamp = atlasTimestamp(from: now)
+            let startedAt = draft.startedAt
+            let endedAt = startedAt.addingTimeInterval(max(draft.durationMinutes, 1) * 60)
+            let record = AtlasWorkoutLogRecord.make(
+                id: draft.id ?? "workout_\(UUID().uuidString.lowercased())",
+                activityKind: draft.activityKind,
+                startedAt: atlasTimestamp(from: startedAt),
+                endedAt: atlasTimestamp(from: endedAt),
+                durationMinutes: max(draft.durationMinutes, 1),
+                energyBurnedKilocalories: draft.energyBurnedKilocalories,
+                distanceMeters: draft.distanceMeters,
+                source: .manual,
+                externalSourceId: nil,
+                createdAt: timestamp,
+                updatedAt: timestamp
+            )
+            try AtlasWorkoutLogDBRecord(record: record).save(db)
+            return record
+        }
+    }
+
+    public func importWeightSamples(_ samples: [AtlasHealthWeightSample], now: Date) async throws -> Int {
+        try await stack.canonical.write { db in
+            let timestamp = atlasTimestamp(from: now)
+            var importedCount = 0
+
+            for sample in samples {
+                guard sample.value > 0 else {
+                    continue
+                }
+
+                let existing = try AtlasWeightLogDBRecord.fetchOne(db, key: sample.id)?.domain
+                let record = AtlasWeightLogRecord.make(
+                    id: existing?.id ?? sample.id,
+                    loggedAt: atlasTimestamp(from: sample.recordedAt),
+                    value: sample.value,
+                    unit: sample.unit,
+                    source: .health,
+                    notes: existing?.notes,
+                    createdAt: existing?.createdAt ?? timestamp,
+                    updatedAt: timestamp
+                )
+                try AtlasWeightLogDBRecord(record: record).save(db)
+                if existing == nil {
+                    importedCount += 1
+                }
+            }
+
+            return importedCount
+        }
+    }
+
+    public func importNutritionSamples(_ samples: [AtlasHealthNutritionSample], now: Date) async throws -> Int {
+        try await stack.canonical.write { db in
+            let timestamp = atlasTimestamp(from: now)
+            var metricIDsByKind: [AtlasHealthNutritionMetricKind: String] = [:]
+            var importedCount = 0
+
+            for sample in samples where sample.value > 0 {
+                let metricID: String
+                if let existingID = metricIDsByKind[sample.kind] {
+                    metricID = existingID
+                } else {
+                    let record = try ensureHealthNutritionMetric(kind: sample.kind, db: db, timestamp: timestamp)
+                    metricIDsByKind[sample.kind] = record.id
+                    metricID = record.id
+                }
+
+                let existing = try AtlasMetricValueLogDBRecord.fetchOne(db, key: "health_metric_\(sample.id.lowercased())")?.domain
+                let record = AtlasMetricValueLogRecord.make(
+                    id: existing?.id ?? "health_metric_\(sample.id.lowercased())",
+                    metricId: metricID,
+                    protocolId: nil,
+                    loggedAt: atlasTimestamp(from: sample.recordedAt),
+                    numberValue: sample.value,
+                    textValue: nil,
+                    booleanValue: nil,
+                    source: .health,
+                    createdAt: existing?.createdAt ?? timestamp,
+                    updatedAt: timestamp
+                )
+                try AtlasMetricValueLogDBRecord(record: record).save(db)
+                if existing == nil {
+                    importedCount += 1
+                }
+            }
+
+            return importedCount
+        }
+    }
+
+    public func importHealthMetricSamples(_ samples: [AtlasHealthMetricSample], now: Date) async throws -> Int {
+        try await stack.canonical.write { db in
+            let timestamp = atlasTimestamp(from: now)
+            var metricIDsByKind: [AtlasHealthMetricKind: String] = [:]
+            var importedCount = 0
+
+            for sample in samples where sample.value > 0 {
+                if sample.kind == .bodyFatPercentage {
+                    let existing = try AtlasProgressMeasurementDBRecord
+                        .fetchOne(db, key: "health_progress_\(sample.id.lowercased())")?
+                        .domain
+                    let record = AtlasProgressMeasurementRecord(
+                        id: existing?.id ?? "health_progress_\(sample.id.lowercased())",
+                        protocolID: nil,
+                        kind: .bodyFat,
+                        value: sample.value,
+                        unit: sample.kind.unit,
+                        note: nil,
+                        loggedAt: atlasTimestamp(from: sample.recordedAt),
+                        createdAt: existing?.createdAt ?? timestamp,
+                        updatedAt: timestamp
+                    )
+                    try AtlasProgressMeasurementDBRecord(record: record).save(db)
+                    if existing == nil {
+                        importedCount += 1
+                    }
+                    continue
+                }
+
+                let metricID: String
+                if let existingID = metricIDsByKind[sample.kind] {
+                    metricID = existingID
+                } else {
+                    let record = try ensureHealthMetric(kind: sample.kind, db: db, timestamp: timestamp)
+                    metricIDsByKind[sample.kind] = record.id
+                    metricID = record.id
+                }
+
+                let existing = try AtlasMetricValueLogDBRecord.fetchOne(db, key: "health_metric_\(sample.id.lowercased())")?.domain
+                let record = AtlasMetricValueLogRecord.make(
+                    id: existing?.id ?? "health_metric_\(sample.id.lowercased())",
+                    metricId: metricID,
+                    protocolId: nil,
+                    loggedAt: atlasTimestamp(from: sample.recordedAt),
+                    numberValue: sample.value,
+                    textValue: nil,
+                    booleanValue: nil,
+                    source: .health,
+                    createdAt: existing?.createdAt ?? timestamp,
+                    updatedAt: timestamp
+                )
+                try AtlasMetricValueLogDBRecord(record: record).save(db)
+                if existing == nil {
+                    importedCount += 1
+                }
+            }
+
+            return importedCount
+        }
+    }
+
     public func saveContextEntry(_ draft: AtlasContextEntryDraft, now: Date) async throws -> AtlasContextLogRecord {
         try await stack.canonical.write { db in
             let normalized = try normalize(contextDraft: draft)
@@ -191,6 +348,12 @@ public struct GRDBMetricsRepository: MetricsRepository, Sendable {
         }
     }
 
+    public func deleteContextEntry(id: String) async throws {
+        try await stack.canonical.write { db in
+            _ = try AtlasContextLogDBRecord.deleteOne(db, key: id)
+        }
+    }
+
     public func saveWeightEntry(_ draft: AtlasWeightEntryDraft, now: Date) async throws -> AtlasWeightLogRecord {
         try await stack.canonical.write { db in
             let normalized = try normalize(weightDraft: draft)
@@ -211,6 +374,12 @@ public struct GRDBMetricsRepository: MetricsRepository, Sendable {
         }
     }
 
+    public func deleteWeightEntry(id: String) async throws {
+        try await stack.canonical.write { db in
+            _ = try AtlasWeightLogDBRecord.deleteOne(db, key: id)
+        }
+    }
+
     public func saveSymptomEntry(_ draft: AtlasSymptomEntryDraft, now: Date) async throws -> AtlasSymptomLogRecord {
         try await stack.canonical.write { db in
             let normalized = try normalize(symptomDraft: draft)
@@ -227,6 +396,53 @@ public struct GRDBMetricsRepository: MetricsRepository, Sendable {
                 updatedAt: timestamp
             )
             try AtlasSymptomLogDBRecord(record: record).save(db)
+            return record
+        }
+    }
+
+    public func deleteSymptomEntry(id: String) async throws {
+        try await stack.canonical.write { db in
+            _ = try AtlasSymptomLogDBRecord.deleteOne(db, key: id)
+        }
+    }
+
+    public func saveProgressMeasurement(_ draft: AtlasProgressMeasurementDraft, now: Date) async throws -> AtlasProgressMeasurementRecord {
+        try await stack.canonical.write { db in
+            let timestamp = atlasTimestamp(from: now)
+            let existing = draft.id.flatMap { try? AtlasProgressMeasurementDBRecord.fetchOne(db, key: $0)?.domain }
+            let record = AtlasProgressMeasurementRecord(
+                id: existing?.id ?? draft.id ?? "progress_measurement_\(UUID().uuidString.lowercased())",
+                protocolID: draft.protocolID,
+                kind: draft.kind,
+                value: draft.value,
+                unit: draft.unit,
+                note: draft.note.flatMap(stringNilIfEmpty),
+                loggedAt: atlasTimestamp(from: draft.loggedAt),
+                createdAt: existing?.createdAt ?? timestamp,
+                updatedAt: timestamp
+            )
+            try AtlasProgressMeasurementDBRecord(record: record).save(db)
+            return record
+        }
+    }
+
+    public func saveProgressPhoto(_ draft: AtlasProgressPhotoDraft, now: Date) async throws -> AtlasProgressPhotoRecord {
+        try await stack.canonical.write { db in
+            let timestamp = atlasTimestamp(from: now)
+            let recordID = draft.id ?? "progress_photo_\(UUID().uuidString.lowercased())"
+            let relativePath = try atlasWriteProgressPhoto(data: draft.jpegData, id: recordID)
+            let existing = draft.id.flatMap { try? AtlasProgressPhotoDBRecord.fetchOne(db, key: $0)?.domain }
+            let record = AtlasProgressPhotoRecord(
+                id: existing?.id ?? recordID,
+                protocolID: draft.protocolID,
+                angle: draft.angle,
+                note: draft.note.flatMap(stringNilIfEmpty),
+                relativeAssetPath: relativePath,
+                loggedAt: atlasTimestamp(from: draft.loggedAt),
+                createdAt: existing?.createdAt ?? timestamp,
+                updatedAt: timestamp
+            )
+            try AtlasProgressPhotoDBRecord(record: record).save(db)
             return record
         }
     }
@@ -309,6 +525,70 @@ public struct GRDBMetricsRepository: MetricsRepository, Sendable {
             return record
         }
     }
+
+    public func deleteMetricValueEntry(id: String) async throws {
+        try await stack.canonical.write { db in
+            _ = try AtlasMetricValueLogDBRecord.deleteOne(db, key: id)
+        }
+    }
+}
+
+private func ensureHealthNutritionMetric(
+    kind: AtlasHealthNutritionMetricKind,
+    db: Database,
+    timestamp: String
+) throws -> AtlasCustomMetricRecord {
+    if let existing = try AtlasCustomMetricDBRecord
+        .filter(Column("metric_key") == kind.metricKey)
+        .fetchOne(db)?
+        .domain {
+        return existing
+    }
+
+    let record = AtlasCustomMetricRecord.make(
+        id: "metric_\(kind.metricKey)",
+        protocolId: nil,
+        metricKey: kind.metricKey,
+        label: kind.label,
+        valueType: .number,
+        unit: kind.unit,
+        scaleMin: nil,
+        scaleMax: nil,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        archivedAt: nil
+    )
+    try AtlasCustomMetricDBRecord(record: record).insert(db)
+    return record
+}
+
+private func ensureHealthMetric(
+    kind: AtlasHealthMetricKind,
+    db: Database,
+    timestamp: String
+) throws -> AtlasCustomMetricRecord {
+    if let existing = try AtlasCustomMetricDBRecord
+        .filter(Column("metric_key") == kind.metricKey)
+        .fetchOne(db)?
+        .domain {
+        return existing
+    }
+
+    let record = AtlasCustomMetricRecord.make(
+        id: "metric_\(kind.metricKey)",
+        protocolId: nil,
+        metricKey: kind.metricKey,
+        label: kind.label,
+        valueType: .number,
+        unit: kind.unit,
+        scaleMin: nil,
+        scaleMax: nil,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        archivedAt: nil
+    )
+    try AtlasCustomMetricDBRecord(record: record).insert(db)
+    return record
 }
 
 private func normalize(contextDraft: AtlasContextEntryDraft) throws -> AtlasContextEntryDraft {
@@ -326,16 +606,19 @@ private func normalize(contextDraft: AtlasContextEntryDraft) throws -> AtlasCont
         giTags.removeAll { $0 == .calm }
     }
 
-    let hasMeaningfulContent =
+    let hasMealContext =
         contextDraft.mealTiming != nil
         || contextDraft.mealSize != nil
         || contextDraft.mealComposition != nil
         || contextDraft.fedState != nil
-        || contextDraft.appetite != nil
+    let hasBodyContext =
+        contextDraft.appetite != nil
         || contextDraft.hydration != nil
         || giTags.isEmpty == false
-        || (note?.isEmpty == false)
+    let hasTextContext =
+        note?.isEmpty == false
         || tags.isEmpty == false
+    let hasMeaningfulContent = hasMealContext || hasBodyContext || hasTextContext
 
     guard hasMeaningfulContent else {
         throw AtlasMetricsRepositoryError.invalidContextEntry
@@ -365,14 +648,16 @@ private func normalize(contextPresetDraft: AtlasContextPresetDraft) throws -> At
         giTags.removeAll { $0 == .calm }
     }
 
-    let hasMeaningfulContent =
+    let hasMealContext =
         contextPresetDraft.mealTiming != nil
         || contextPresetDraft.mealSize != nil
         || contextPresetDraft.mealComposition != nil
         || contextPresetDraft.fedState != nil
-        || contextPresetDraft.appetite != nil
+    let hasBodyContext =
+        contextPresetDraft.appetite != nil
         || contextPresetDraft.hydration != nil
         || giTags.isEmpty == false
+    let hasMeaningfulContent = hasMealContext || hasBodyContext
 
     guard title.isEmpty == false, hasMeaningfulContent else {
         throw AtlasMetricsRepositoryError.invalidContextPreset
@@ -516,6 +801,7 @@ func buildInsightsSnapshot(
     featureFlags: AtlasFeatureFlagState = .init(),
     privacyFormatter: AtlasPrivacyFormatter = .init()
 ) throws -> AtlasInsightsSnapshot {
+    let onboardingDraft = try atlasReadNutritionOnboardingDraft(db: db)
     let customMetrics = try AtlasCustomMetricDBRecord.fetchAll(db).map(\.domain)
     let contextPresets = try AtlasContextPresetDBRecord
         .order(sql: "COALESCE(last_used_at, updated_at) DESC, title ASC")
@@ -541,6 +827,18 @@ func buildInsightsSnapshot(
         .order(Column("started_at").desc)
         .fetchAll(db)
         .map(\.domain)
+    let progressMeasurements = try AtlasProgressMeasurementDBRecord
+        .order(Column("logged_at").desc)
+        .fetchAll(db)
+        .map(\.domain)
+    let progressPhotos = try AtlasProgressPhotoDBRecord
+        .order(Column("logged_at").desc)
+        .fetchAll(db)
+        .map(\.domain)
+    let protocolChangeAudits = try AtlasProtocolChangeAuditDBRecord
+        .order(Column("created_at").desc)
+        .fetchAll(db)
+        .map(\.domain)
     let reminders = try AtlasReminderDBRecord
         .order(Column("scheduled_for").desc)
         .fetchAll(db)
@@ -557,6 +855,7 @@ func buildInsightsSnapshot(
         for: try AtlasPrivacyProfileDBRecord.fetchOne(db)?.domain ?? .default()
     )
     let summarySettings = try readSummarySettings(db: db, featureFlags: featureFlags)
+    let surfacePreferences = try readSurfacePreferences(db: db)
     let summaryService = AtlasSummaryService(
         featureFlags: featureFlags,
         settings: summarySettings
@@ -687,12 +986,84 @@ func buildInsightsSnapshot(
         workoutLogs: workoutLogs,
         now: referenceDate
     )
+    let weightTrend = buildWeightTrend(weightLogs: weightLogs)
+    let symptomTrend = buildSymptomTrend(symptomLogs: symptomLogs, now: referenceDate)
+    let contextTrend = buildContextTrend(contextLogs: contextLogs, now: referenceDate)
+    let stackDashboard = surfacePreferences.stackDashboardEnabled
+        ? buildStackDashboardSnapshot(
+            context: context,
+            logEvents: logEvents,
+            inventory: inventory,
+            referenceDate: referenceDate,
+            renderMode: renderMode,
+            privacyFormatter: privacyFormatter
+        )
+        : nil
+    let nutritionSnapshot = buildNutritionSnapshot(
+        contextLogs: contextLogs,
+        contextPresets: contextPresets,
+        workoutLogs: workoutLogs,
+        weightLogs: weightLogs,
+        onboardingDraft: onboardingDraft,
+        now: referenceDate
+    )
+    let biometricsOverlay = surfacePreferences.biometricsOverlayEnabled
+        ? buildBiometricsOverlaySnapshot(
+            customMetrics: customMetrics,
+            metricLogs: metricLogs,
+            weightLogs: weightLogs,
+            protocolChangeAudits: protocolChangeAudits,
+            referenceDate: referenceDate,
+            includeProtocolChanges: surfacePreferences.biometricsOverlayShowsProtocolChanges
+        )
+        : nil
+    let progressEvidence = buildProgressEvidenceSnapshot(
+        measurements: progressMeasurements,
+        photos: progressPhotos
+    )
+    let adherenceTrend = buildAdherenceTrend(context: context, logEvents: logEvents, now: referenceDate)
+    let weeklyReviewSeed = buildWeeklyReviewSeed(
+        context: context,
+        logEvents: logEvents,
+        contextLogs: contextLogs,
+        symptomLogs: symptomLogs,
+        weightLogs: weightLogs,
+        workoutLogs: workoutLogs,
+        protocolChangeAudits: protocolChangeAudits,
+        referenceDate: referenceDate,
+        renderMode: renderMode,
+        privacyFormatter: privacyFormatter,
+        summarySettings: summarySettings,
+        surfacePreferences: surfacePreferences,
+        inventorySnapshot: inventory,
+        plainLanguageSummary: weeklyRecapSummary,
+        periodTitle: atlasWeeklyReviewPeriodTitle(for: referenceDate),
+        includeCurrentStateFacts: true
+    )
+    let weeklyReviewHistory = atlasHistoricalWeeklyReviewSeeds(
+        context: context,
+        logEvents: logEvents,
+        contextLogs: contextLogs,
+        symptomLogs: symptomLogs,
+        weightLogs: weightLogs,
+        workoutLogs: workoutLogs,
+        protocolChangeAudits: protocolChangeAudits,
+        referenceDate: referenceDate,
+        renderMode: renderMode,
+        privacyFormatter: privacyFormatter,
+        summarySettings: summarySettings,
+        surfacePreferences: surfacePreferences,
+        inventorySnapshot: inventory
+    )
 
     return AtlasInsightsSnapshot(
-        weightTrend: buildWeightTrend(weightLogs: weightLogs),
-        symptomTrend: buildSymptomTrend(symptomLogs: symptomLogs, now: referenceDate),
-        contextTrend: buildContextTrend(contextLogs: contextLogs, now: referenceDate),
+        weightTrend: weightTrend,
+        symptomTrend: symptomTrend,
+        contextTrend: contextTrend,
+        nutritionSnapshot: nutritionSnapshot,
         deterministicExplanations: deterministicExplanations,
+        stackDashboard: stackDashboard,
+        biometricsOverlay: biometricsOverlay,
         savedContextPresets: savedContextPresets,
         inventoryBurnDown: inventory.vials.map {
             AtlasInventoryBurnDownInsight(
@@ -711,7 +1082,7 @@ func buildInsightsSnapshot(
                 isLowStock: $0.isLowStock
             )
         },
-        adherenceTrend: buildAdherenceTrend(context: context, logEvents: logEvents, now: referenceDate),
+        adherenceTrend: adherenceTrend,
         amountInSystem: buildAmountEstimateItems(context: context, logEvents: logEvents, now: referenceDate),
         episodeIntelligence: episodeIntelligence,
         customMetricDefinitions: definitions,
@@ -722,14 +1093,794 @@ func buildInsightsSnapshot(
         recentMetricEntries: recentMetricEntries,
         weeklyRecapSummary: weeklyRecapSummary,
         episodeRecapSummary: episodeRecapSummary,
+        weeklyReviewSeed: weeklyReviewSeed,
+        weeklyReviewHistory: weeklyReviewHistory,
+        progressEvidence: progressEvidence,
         hasAnyInsightData: contextLogs.isEmpty == false
             || weightLogs.isEmpty == false
             || workoutLogs.isEmpty == false
             || symptomLogs.isEmpty == false
             || metricLogs.isEmpty == false
+            || progressMeasurements.isEmpty == false
+            || progressPhotos.isEmpty == false
             || episodeIntelligence.hasAnyEpisodeData
             || context.pendingOccurrences.isEmpty == false
     )
+}
+
+private func buildStackDashboardSnapshot(
+    context: AtlasCoreLoopContext,
+    logEvents: [AtlasLogEventRecord],
+    inventory: AtlasInventorySnapshot,
+    referenceDate: Date,
+    renderMode: AtlasPrivacyRenderMode,
+    privacyFormatter: AtlasPrivacyFormatter
+) -> AtlasStackDashboardSnapshot? {
+    let activeProtocols = context.protocols.values
+        .filter { $0.status == .active }
+        .sorted { $0.createdAt > $1.createdAt }
+
+    guard activeProtocols.count > 1 else {
+        return nil
+    }
+
+    let weeklyFloor = Calendar.current.date(byAdding: .day, value: -6, to: Calendar.current.startOfDay(for: referenceDate))
+        ?? referenceDate
+    let recentLogs = logEvents.filter {
+        let loggedAt = atlasDate(from: $0.loggedAt)
+        return loggedAt >= weeklyFloor && loggedAt <= referenceDate
+    }
+    let completedCount = recentLogs.filter { $0.eventType == .completed }.count
+    let rescheduledCount = recentLogs.filter { $0.eventType == .rescheduled }.count
+    let pending = context.pendingOccurrences.values.flatMap { $0 }
+        .map { buildScheduledOccurrence(occurrence: $0, context: context, now: referenceDate) }
+    let actionableTodayCount = pending.filter {
+        Calendar.current.isDate($0.scheduledAt, inSameDayAs: referenceDate)
+            && ($0.state == .due || $0.state == .overdue || $0.state == .upcoming)
+    }.count
+
+    let activeProtocolItems = activeProtocols.map { protocolRecord in
+        let summary = buildProtocolSummary(
+            protocolRecord: protocolRecord,
+            alias: context.aliases[protocolRecord.id],
+            protocolRules: context.protocolRules[protocolRecord.id] ?? [],
+            revisionSlices: context.revisionSlices[protocolRecord.id] ?? [],
+            pendingOccurrences: context.pendingOccurrences[protocolRecord.id] ?? [],
+            now: referenceDate
+        )
+        let lowStockLabel = inventory.vials.first(where: { $0.linkedProtocolID == protocolRecord.id && $0.isLowStock })?.quantityLabel
+        return AtlasStackDashboardProtocolItem(
+            id: protocolRecord.id,
+            title: privacyFormatter.title(
+                canonical: summary.canonicalTitle,
+                alias: summary.aliasTitle,
+                mode: renderMode
+            ),
+            kindLabel: summary.kindLabel,
+            cadenceLabel: summary.cadenceLabel,
+            doseLabel: summary.doseLabel,
+            nextDueLabel: summary.nextDueLabel,
+            lowStockLabel: lowStockLabel
+        )
+    }
+
+    let scheduleLoads = atlasStackDashboardTimeLoads(occurrences: pending, referenceDate: referenceDate)
+    let lowStockCount = inventory.lowStockCount
+    let burdenFacts = [
+        AtlasExplainerFact(label: "Active protocols", value: String(activeProtocols.count)),
+        AtlasExplainerFact(label: "Taken this week", value: String(completedCount)),
+        AtlasExplainerFact(label: "Moved this week", value: String(rescheduledCount)),
+        AtlasExplainerFact(label: "Inventory risk", value: String(lowStockCount)),
+        AtlasExplainerFact(label: "Scheduled today", value: String(actionableTodayCount))
+    ]
+
+    return AtlasStackDashboardSnapshot(
+        activeProtocolCount: activeProtocols.count,
+        summary: "\(countPhrase(activeProtocols.count, singular: "active protocol")) and \(countPhrase(actionableTodayCount, singular: "scheduled anchor")) are visible today. \(lowStockCount == 0 ? "Inventory is clear." : "\(countPhrase(lowStockCount, singular: "inventory item")) needs attention.")",
+        burdenFacts: burdenFacts,
+        activeProtocols: activeProtocolItems,
+        scheduleLoads: scheduleLoads
+    )
+}
+
+private func atlasStackDashboardTimeLoads(
+    occurrences: [AtlasScheduledOccurrence],
+    referenceDate: Date
+) -> [AtlasStackDashboardTimeLoad] {
+    let todayOccurrences = occurrences.filter { Calendar.current.isDate($0.scheduledAt, inSameDayAs: referenceDate) }
+    let buckets: [(String, String, Range<Int>)] = [
+        ("morning", "Morning", 5..<11),
+        ("midday", "Midday", 11..<15),
+        ("evening", "Evening", 15..<20),
+        ("late", "Late", 20..<24)
+    ]
+
+    return buckets.map { id, title, hours in
+        let matches = todayOccurrences.filter { hours.contains(Calendar.current.component(.hour, from: $0.scheduledAt)) }
+        return AtlasStackDashboardTimeLoad(
+            id: id,
+            title: title,
+            scheduledCount: matches.count,
+            detail: matches.isEmpty ? "No scheduled items." : "\(countPhrase(matches.count, singular: "item")) staged."
+        )
+    }
+}
+
+private struct AtlasBiometricsOverlayDescriptor {
+    let id: String
+    let title: String
+    let subtitle: String
+    let referenceRangeLabel: String?
+}
+
+private func buildBiometricsOverlaySnapshot(
+    customMetrics: [AtlasCustomMetricRecord],
+    metricLogs: [AtlasMetricValueLogRecord],
+    weightLogs: [AtlasWeightLogRecord],
+    protocolChangeAudits: [AtlasProtocolChangeAuditRecord],
+    referenceDate: Date,
+    includeProtocolChanges: Bool
+) -> AtlasBiometricsOverlaySnapshot? {
+    let calendar = Calendar.current
+    let floor = calendar.date(byAdding: .day, value: -89, to: calendar.startOfDay(for: referenceDate)) ?? referenceDate
+    let metricsByID = Dictionary(uniqueKeysWithValues: customMetrics.map { ($0.id, $0) })
+    let recentProtocolChanges = includeProtocolChanges
+        ? protocolChangeAudits.filter {
+            let changedAt = atlasDate(from: $0.createdAt)
+            return changedAt >= floor && changedAt <= referenceDate
+        }
+        : []
+
+    var groups: [String: AtlasBiometricOverlayGroup] = [:]
+
+    let recentWeights = weightLogs
+        .filter { atlasDate(from: $0.loggedAt) >= floor }
+        .prefix(8)
+        .reversed()
+    if recentWeights.isEmpty == false {
+        let points = recentWeights.map {
+            AtlasBiometricOverlayPoint(
+                id: $0.id,
+                label: formatWeightValue($0),
+                loggedAt: atlasDate(from: $0.loggedAt),
+                value: $0.value
+            )
+        }
+        let latest = recentWeights.last ?? recentWeights.first!
+        let oldest = recentWeights.first!
+        let delta = latest.value - oldest.value
+        let series = AtlasBiometricOverlaySeries(
+            id: "weight",
+            title: "Weight",
+            subtitle: "Body composition anchor",
+            latestValueLabel: formatWeightValue(latest),
+            trendLabel: points.count > 1 ? atlasBiometricsDeltaLabel(delta: delta, unit: latest.unit.rawValue) : nil,
+            points: Array(points),
+            protocolChangeMarkers: atlasProtocolChangeMarkers(recentProtocolChanges)
+        )
+        groups["metabolic"] = AtlasBiometricOverlayGroup(
+            id: "metabolic",
+            title: "Metabolic & body composition",
+            subtitle: "Keep weight and metabolic markers close to protocol shifts.",
+            series: [series]
+        )
+    }
+
+    let numericMetricLogs = metricLogs.filter { $0.numberValue != nil && atlasDate(from: $0.loggedAt) >= floor }
+    let groupedLogs = Dictionary(grouping: numericMetricLogs, by: \.metricId)
+
+    for metric in customMetrics {
+        guard let descriptor = atlasBiometricsDescriptor(for: metric),
+              let logs = groupedLogs[metric.id],
+              logs.isEmpty == false else {
+            continue
+        }
+
+        let orderedLogs = logs.sorted { atlasDate(from: $0.loggedAt) < atlasDate(from: $1.loggedAt) }
+        let points = orderedLogs.compactMap { log in
+            log.numberValue.map {
+                AtlasBiometricOverlayPoint(
+                    id: log.id,
+                    label: formatMetricValue(log: log, metric: metric),
+                    loggedAt: atlasDate(from: log.loggedAt),
+                    value: $0
+                )
+            }
+        }
+        guard let latestLog = orderedLogs.last else {
+            continue
+        }
+        let firstValue = orderedLogs.first?.numberValue ?? latestLog.numberValue ?? 0
+        let latestValue = latestLog.numberValue ?? firstValue
+        let trendLabel = orderedLogs.count > 1 ? atlasBiometricsDeltaLabel(delta: latestValue - firstValue, unit: metric.unit) : nil
+        let series = AtlasBiometricOverlaySeries(
+            id: metric.id,
+            title: metric.label,
+            subtitle: metric.unit,
+            latestValueLabel: formatMetricValue(log: latestLog, metric: metric),
+            trendLabel: trendLabel,
+            referenceRangeLabel: descriptor.referenceRangeLabel,
+            points: points,
+            protocolChangeMarkers: atlasProtocolChangeMarkers(recentProtocolChanges)
+        )
+
+        if var existing = groups[descriptor.id] {
+            existing.series.append(series)
+            existing.series.sort { $0.title < $1.title }
+            groups[descriptor.id] = existing
+        } else {
+            groups[descriptor.id] = AtlasBiometricOverlayGroup(
+                id: descriptor.id,
+                title: descriptor.title,
+                subtitle: descriptor.subtitle,
+                series: [series]
+            )
+        }
+    }
+
+    let orderedGroups = ["metabolic", "recovery", "cardio", "hormones", "lipids", "liver"]
+        .compactMap { groups[$0] }
+        .filter { $0.series.isEmpty == false }
+
+    guard orderedGroups.isEmpty == false else {
+        return nil
+    }
+
+    return AtlasBiometricsOverlaySnapshot(
+        summary: includeProtocolChanges
+            ? "Biometrics are shown alongside recent protocol changes."
+            : "Numeric biometrics and labs are grouped into reusable trend panels.",
+        groups: orderedGroups
+    )
+}
+
+private func atlasBiometricsDescriptor(for metric: AtlasCustomMetricRecord) -> AtlasBiometricsOverlayDescriptor? {
+    let key = metric.metricKey.lowercased()
+    let label = metric.label.lowercased()
+
+    switch true {
+    case key.contains("glucose") || label.contains("glucose") || key.contains("a1c") || label.contains("a1c") || label.contains("insulin"):
+        return .init(id: "metabolic", title: "Metabolic & body composition", subtitle: "Glucose tolerance, insulin response, and body trend anchors.", referenceRangeLabel: atlasLabReferenceRangeLabel(for: metric.label))
+    case label.contains("sleep") || label.contains("readiness") || label.contains("recovery") || label.contains("soreness"):
+        return .init(id: "recovery", title: "Recovery", subtitle: "Recovery metrics sit best next to schedule intensity and protocol changes.", referenceRangeLabel: nil)
+    case label.contains("blood pressure") || label.contains("resting heart rate") || label == "hrv" || label.contains("heart rate") || label.contains("waist"):
+        return .init(id: "cardio", title: "Cardio & recovery load", subtitle: "Cardiovascular and body measurements that often move with stack stress.", referenceRangeLabel: nil)
+    case label.contains("testosterone") || label.contains("estradiol") || label.contains("shbg"):
+        return .init(id: "hormones", title: "Hormones", subtitle: "Optional hormone tracking for advanced users who want longer-cycle overlays.", referenceRangeLabel: atlasLabReferenceRangeLabel(for: metric.label))
+    case label.contains("ldl") || label.contains("hdl") || label.contains("triglyceride"):
+        return .init(id: "lipids", title: "Lipids", subtitle: "Longer-horizon markers that make sense in stack and refill reviews.", referenceRangeLabel: atlasLabReferenceRangeLabel(for: metric.label))
+    case label == "ast" || label == "alt" || label.contains("liver"):
+        return .init(id: "liver", title: "Liver", subtitle: "Helpful when appetite, recovery, or adjunct load changes around a protocol.", referenceRangeLabel: atlasLabReferenceRangeLabel(for: metric.label))
+    default:
+        return nil
+    }
+}
+
+private func atlasProtocolChangeMarkers(
+    _ audits: [AtlasProtocolChangeAuditRecord]
+) -> [AtlasProtocolChangeOverlayMarker] {
+    Array(audits.prefix(4)).map {
+        AtlasProtocolChangeOverlayMarker(
+            id: $0.id,
+            title: $0.summary ?? "Protocol change",
+            date: atlasDate(from: $0.createdAt),
+            detail: $0.summary
+        )
+    }
+}
+
+private func atlasLabReferenceRangeLabel(for label: String) -> String? {
+    switch label.lowercased() {
+    case "fasting glucose":
+        return "70-99 mg/dL"
+    case "hba1c":
+        return "4.0-5.6%"
+    case "fasting insulin":
+        return "2-25 uIU/mL"
+    case "ldl-c":
+        return "<100 mg/dL"
+    case "hdl-c":
+        return "40+ mg/dL"
+    case "triglycerides":
+        return "<150 mg/dL"
+    case "ast":
+        return "10-40 U/L"
+    case "alt":
+        return "7-56 U/L"
+    case "total testosterone":
+        return "300-1000 ng/dL"
+    case "free testosterone":
+        return "35-155 pg/mL"
+    default:
+        return nil
+    }
+}
+
+private func atlasBiometricsDeltaLabel(delta: Double, unit: String?) -> String {
+    let direction: String
+    switch delta {
+    case let value where value > 0.001:
+        direction = "Up"
+    case let value where value < -0.001:
+        direction = "Down"
+    default:
+        direction = "Stable"
+    }
+
+    guard direction != "Stable" else {
+        return "Stable across this window"
+    }
+
+    let unitSuffix = unit.map { " \($0)" } ?? ""
+    let magnitude = abs(delta).formatted(.number.precision(.fractionLength(0...2)))
+    return "\(direction) \(magnitude)\(unitSuffix) across this window"
+}
+
+private func buildWeeklyReviewSeed(
+    context: AtlasCoreLoopContext,
+    logEvents: [AtlasLogEventRecord],
+    contextLogs: [AtlasContextLogRecord],
+    symptomLogs: [AtlasSymptomLogRecord],
+    weightLogs: [AtlasWeightLogRecord],
+    workoutLogs: [AtlasWorkoutLogRecord],
+    protocolChangeAudits: [AtlasProtocolChangeAuditRecord],
+    referenceDate: Date,
+    renderMode: AtlasPrivacyRenderMode,
+    privacyFormatter: AtlasPrivacyFormatter,
+    summarySettings: AtlasSummarySettingsSnapshot,
+    surfacePreferences: AtlasSurfacePreferences,
+    inventorySnapshot: AtlasInventorySnapshot,
+    plainLanguageSummary: AtlasGeneratedSummary?,
+    periodTitle: String,
+    includeCurrentStateFacts: Bool
+) -> AtlasWeeklyReviewSeed? {
+    let calendar = Calendar.current
+    let startOfToday = calendar.startOfDay(for: referenceDate)
+    let windowStart = calendar.date(byAdding: .day, value: -(atlasWeeklyReviewWindowDays - 1), to: startOfToday) ?? startOfToday
+
+    let weeklyLogs = logEvents.filter {
+        let loggedAt = atlasDate(from: $0.loggedAt)
+        return loggedAt >= windowStart && loggedAt <= referenceDate
+    }
+    let weeklyContext = contextLogs.filter {
+        let loggedAt = atlasDate(from: $0.loggedAt)
+        return loggedAt >= windowStart && loggedAt <= referenceDate
+    }
+    let weeklySymptoms = symptomLogs.filter {
+        let loggedAt = atlasDate(from: $0.loggedAt)
+        return loggedAt >= windowStart && loggedAt <= referenceDate
+    }
+    let weeklyWeights = weightLogs.filter {
+        let loggedAt = atlasDate(from: $0.loggedAt)
+        return loggedAt >= windowStart && loggedAt <= referenceDate
+    }
+    let weeklyWorkouts = workoutLogs.filter {
+        let startedAt = atlasDate(from: $0.startedAt)
+        return startedAt >= windowStart && startedAt <= referenceDate
+    }
+    let weeklyProtocolChanges = protocolChangeAudits.filter {
+        let createdAt = atlasDate(from: $0.createdAt)
+        return createdAt >= windowStart && createdAt <= referenceDate
+    }
+
+    let pendingOccurrences = context.pendingOccurrences.values
+        .flatMap { $0 }
+        .map { occurrence in
+            buildScheduledOccurrence(
+                occurrence: occurrence,
+                context: context,
+                now: referenceDate
+            )
+        }
+        .sorted { $0.scheduledAt < $1.scheduledAt }
+    let nextDue = pendingOccurrences.first(where: { $0.state == .due || $0.state == .upcoming })
+    let overdueCount = pendingOccurrences.filter { $0.state == .due || $0.state == .overdue }.count
+
+    let completedCount = weeklyLogs.filter { $0.eventType == .completed }.count
+    let skippedCount = weeklyLogs.filter { $0.eventType == .skipped }.count
+    let rescheduledCount = weeklyLogs.filter { $0.eventType == .rescheduled }.count
+    let activeProtocolCount = context.protocols.values.filter { $0.status == .active }.count
+    let latestWeight = weeklyWeights.first ?? weightLogs.first
+    let latestProtocolChange = weeklyProtocolChanges.first
+    let stackSummary = buildWeeklyReviewStackSummary(
+        context: context,
+        weeklyLogs: weeklyLogs,
+        weeklyProtocolChanges: weeklyProtocolChanges,
+        inventorySnapshot: inventorySnapshot,
+        enabled: surfacePreferences.stackDashboardEnabled,
+        referenceDate: referenceDate
+    )
+    let protocolChangeSummary = latestProtocolChange.map { audit in
+        let title = context.protocols[audit.protocolId].map {
+            privacyFormatter.title(
+                canonical: $0.name,
+                alias: context.aliases[audit.protocolId]?.aliasLabel,
+                mode: renderMode
+            )
+        }
+        return AtlasWeeklyReviewProtocolChangeSummary(
+            changeCount: weeklyProtocolChanges.count,
+            latestProtocolID: audit.protocolId,
+            latestTitle: title,
+            latestSummary: audit.summary,
+            latestChangedAt: atlasDate(from: audit.createdAt),
+            supportingLogCount: weeklyLogs.filter { $0.protocolId == audit.protocolId }.count,
+            supportingContextCount: weeklyContext.filter { $0.protocolId == audit.protocolId }.count
+        )
+    } ?? (weeklyProtocolChanges.isEmpty ? nil : AtlasWeeklyReviewProtocolChangeSummary(changeCount: weeklyProtocolChanges.count))
+    let protocolFollowUpSummary = buildWeeklyReviewProtocolFollowUpSummary(
+        protocolChangeAudits: protocolChangeAudits,
+        logEvents: logEvents,
+        contextLogs: contextLogs,
+        context: context,
+        referenceDate: referenceDate,
+        renderMode: renderMode,
+        privacyFormatter: privacyFormatter
+    )
+
+    guard completedCount + skippedCount + rescheduledCount + overdueCount + weeklyContext.count + weeklySymptoms.count + weeklyWeights.count + weeklyWorkouts.count + weeklyProtocolChanges.count + activeProtocolCount > 0 else {
+        return nil
+    }
+
+    let nextDueLabel = nextDue.map {
+        privacyFormatter.title(canonical: $0.canonicalTitle, alias: $0.aliasTitle, mode: renderMode)
+    }
+    var sourceSections = [
+        atlasSummarySection(
+            "weekly_activity",
+            "Protocol activity",
+            [
+                atlasSummaryFact("completed_logs", "Completed logs", String(completedCount)),
+                atlasSummaryFact("skipped_logs", "Skipped logs", String(skippedCount)),
+                atlasSummaryFact("rescheduled_logs", "Rescheduled logs", String(rescheduledCount)),
+                atlasSummaryFact("open_due_items", "Open due items", String(overdueCount))
+            ]
+        ),
+        atlasSummarySection(
+            "weekly_supporting_records",
+            "Supporting records",
+            [
+                atlasSummaryFact("context_entries", "Context entries", String(weeklyContext.count)),
+                atlasSummaryFact("symptom_entries", "Symptom entries", String(weeklySymptoms.count)),
+                atlasSummaryFact("weight_entries", "Weight entries", String(weeklyWeights.count)),
+                atlasSummaryFact("workout_entries", "Workout entries", String(weeklyWorkouts.count))
+            ]
+        ),
+    ]
+    if let protocolChangeSummary {
+        sourceSections.append(
+            atlasSummarySection(
+                "weekly_protocol_changes",
+                "Protocol changes",
+                [
+                    atlasSummaryFact("protocol_change_count", "Changes this week", String(protocolChangeSummary.changeCount))
+                ] + (protocolChangeSummary.latestTitle.map {
+                    [atlasSummaryFact("protocol_change_latest_title", "Latest protocol", $0)]
+                } ?? []) + (protocolChangeSummary.latestChangedAt.map {
+                    [atlasSummaryFact(
+                        "protocol_change_latest_date",
+                        "Latest change",
+                        $0.formatted(date: .abbreviated, time: .omitted)
+                    )]
+                } ?? []) + (protocolChangeSummary.latestSummary.map {
+                    [atlasSummaryFact("protocol_change_latest_summary", "Latest summary", $0)]
+                } ?? [])
+            )
+        )
+    }
+    if includeCurrentStateFacts {
+        sourceSections.append(
+            atlasSummarySection(
+                "weekly_state",
+                "Current state",
+                [
+                    atlasSummaryFact("active_protocols", "Active protocols", String(activeProtocolCount))
+                ] + (latestWeight.map {
+                    [atlasSummaryFact(
+                        "latest_weight",
+                        "Latest weight",
+                        "\(atlasWeeklyReviewWeightLabel($0)) on \(atlasWeeklyReviewSummaryDateLabel($0.loggedAt))"
+                    )]
+                } ?? []) + (nextDue.map {
+                    [atlasSummaryFact(
+                        "next_due",
+                        "Next due",
+                        "\(privacyFormatter.title(canonical: $0.canonicalTitle, alias: $0.aliasTitle, mode: renderMode)) due \(relativeDueLabel(for: $0.scheduledAt))"
+                    )]
+                } ?? [])
+            )
+        )
+    }
+    if let protocolFollowUpSummary {
+        sourceSections.append(
+            atlasSummarySection(
+                "weekly_protocol_follow_up",
+                "Protocol follow-up",
+                [
+                    atlasSummaryFact("follow_up_protocol", "Latest changed protocol", protocolFollowUpSummary.title ?? "Atlas protocol"),
+                    atlasSummaryFact("follow_up_change_type", "Change type", protocolFollowUpSummary.changeTypeTitle),
+                    atlasSummaryFact("follow_up_window", "Follow-up window", "\(protocolFollowUpSummary.windowDays) day(s)"),
+                    atlasSummaryFact("follow_up_completed", "Completed logs after change", String(protocolFollowUpSummary.completedCount)),
+                    atlasSummaryFact("follow_up_context", "Context entries after change", String(protocolFollowUpSummary.contextEntryCount))
+                ]
+            )
+        )
+    }
+    if let stackSummary {
+        sourceSections.append(
+            atlasSummarySection(
+                "weekly_stack_view",
+                "Stack view",
+                [
+                    atlasSummaryFact("stack_active_protocols", "Active stack items", String(stackSummary.activeProtocolCount)),
+                    atlasSummaryFact("stack_protocol_changes", "Protocols changed", String(stackSummary.protocolsWithChanges)),
+                    atlasSummaryFact("stack_completed", "Completed logs", String(stackSummary.weeklyCompletedCount)),
+                    atlasSummaryFact("stack_rescheduled", "Moved logs", String(stackSummary.weeklyRescheduledCount)),
+                    atlasSummaryFact("stack_inventory_risk", "Inventory risk", String(stackSummary.lowStockRiskCount))
+                ]
+            )
+        )
+    }
+
+    return AtlasWeeklyReviewSeed(
+        periodTitle: periodTitle,
+        generatedAt: referenceDate,
+        windowStart: windowStart,
+        windowEnd: referenceDate,
+        summarySettingEnabled: summarySettings.onDeviceEnabled,
+        plainLanguageSummary: plainLanguageSummary,
+        fallbackSummary: buildWeeklyReviewFallbackSummary(
+            completedCount: completedCount,
+            skippedCount: skippedCount,
+            rescheduledCount: rescheduledCount,
+            overdueCount: overdueCount,
+            activeProtocolCount: activeProtocolCount,
+            contextEntryCount: weeklyContext.count,
+            symptomEntryCount: weeklySymptoms.count,
+            workoutEntryCount: weeklyWorkouts.count,
+            latestWeightLabel: latestWeight.map {
+                "\(atlasWeeklyReviewWeightLabel($0)) on \(atlasWeeklyReviewSummaryDateLabel($0.loggedAt))"
+            },
+            nextDueTitle: nextDueLabel,
+            protocolChangeSummary: protocolChangeSummary
+        ),
+        sourceSections: sourceSections,
+        completedCount: completedCount,
+        skippedCount: skippedCount,
+        rescheduledCount: rescheduledCount,
+        overdueCount: overdueCount,
+        activeProtocolCount: activeProtocolCount,
+        contextEntryCount: weeklyContext.count,
+        symptomEntryCount: weeklySymptoms.count,
+        weightEntryCount: weeklyWeights.count,
+        workoutEntryCount: weeklyWorkouts.count,
+        nextDueProtocolID: nextDue?.protocolID,
+        nextDueTitle: nextDueLabel,
+        stackSummary: stackSummary,
+        protocolChangeSummary: protocolChangeSummary,
+        protocolFollowUpSummary: protocolFollowUpSummary
+    )
+}
+
+private func buildWeeklyReviewFallbackSummary(
+    completedCount: Int,
+    skippedCount: Int,
+    rescheduledCount: Int,
+    overdueCount: Int,
+    activeProtocolCount: Int,
+    contextEntryCount: Int,
+    symptomEntryCount: Int,
+    workoutEntryCount: Int,
+    latestWeightLabel: String?,
+    nextDueTitle: String?,
+    protocolChangeSummary: AtlasWeeklyReviewProtocolChangeSummary?
+) -> String {
+    var parts = [
+        "Last 7 days: \(countPhrase(completedCount, singular: "completed log")) across \(countPhrase(activeProtocolCount, singular: "active protocol"))."
+    ]
+
+    let schedulePhrases = [
+        skippedCount > 0 ? countPhrase(skippedCount, singular: "skipped log") : nil,
+        rescheduledCount > 0 ? countPhrase(rescheduledCount, singular: "rescheduled item") : nil,
+        overdueCount > 0 ? countPhrase(overdueCount, singular: "open due item") : nil
+    ].compactMap { $0 }
+    if schedulePhrases.isEmpty == false {
+        parts.append("Schedule movement also included \(naturalList(schedulePhrases)).")
+    }
+
+    let supportingPhrases = [
+        contextEntryCount > 0 ? countPhrase(contextEntryCount, singular: "context entry", plural: "context entries") : nil,
+        symptomEntryCount > 0 ? countPhrase(symptomEntryCount, singular: "symptom entry", plural: "symptom entries") : nil,
+        workoutEntryCount > 0 ? countPhrase(workoutEntryCount, singular: "workout log") : nil
+    ].compactMap { $0 }
+    if supportingPhrases.isEmpty {
+        parts.append("Supporting context was light this week.")
+    } else {
+        parts.append("Supporting records: \(naturalList(supportingPhrases)).")
+    }
+
+    if let latestWeightLabel {
+        parts.append("Latest weight: \(latestWeightLabel).")
+    }
+    if let nextDueTitle {
+        parts.append("Next due: \(nextDueTitle).")
+    }
+    if let protocolChangeSummary {
+        var protocolChangeLine = "\(countPhrase(protocolChangeSummary.changeCount, singular: "protocol update")) landed during the review window."
+        if let latestTitle = protocolChangeSummary.latestTitle {
+            protocolChangeLine += " The latest was on \(latestTitle)"
+            if let latestChangedAt = protocolChangeSummary.latestChangedAt {
+                protocolChangeLine += " on \(latestChangedAt.formatted(date: .abbreviated, time: .omitted))"
+            }
+            protocolChangeLine += "."
+        }
+        parts.append(protocolChangeLine)
+    }
+
+    return parts.joined(separator: " ")
+}
+
+private func atlasHistoricalWeeklyReviewSeeds(
+    context: AtlasCoreLoopContext,
+    logEvents: [AtlasLogEventRecord],
+    contextLogs: [AtlasContextLogRecord],
+    symptomLogs: [AtlasSymptomLogRecord],
+    weightLogs: [AtlasWeightLogRecord],
+    workoutLogs: [AtlasWorkoutLogRecord],
+    protocolChangeAudits: [AtlasProtocolChangeAuditRecord],
+    referenceDate: Date,
+    renderMode: AtlasPrivacyRenderMode,
+    privacyFormatter: AtlasPrivacyFormatter,
+    summarySettings: AtlasSummarySettingsSnapshot,
+    surfacePreferences: AtlasSurfacePreferences,
+    inventorySnapshot: AtlasInventorySnapshot
+) -> [AtlasWeeklyReviewSeed] {
+    let calendar = Calendar.current
+
+    return (1...atlasWeeklyReviewArchiveWeeks).compactMap { offset in
+        guard let historicalDate = calendar.date(byAdding: .day, value: -(offset * atlasWeeklyReviewWindowDays), to: referenceDate) else {
+            return nil
+        }
+
+        return buildWeeklyReviewSeed(
+            context: context,
+            logEvents: logEvents,
+            contextLogs: contextLogs,
+            symptomLogs: symptomLogs,
+            weightLogs: weightLogs,
+            workoutLogs: workoutLogs,
+            protocolChangeAudits: protocolChangeAudits,
+            referenceDate: historicalDate,
+            renderMode: renderMode,
+            privacyFormatter: privacyFormatter,
+            summarySettings: summarySettings,
+            surfacePreferences: surfacePreferences,
+            inventorySnapshot: inventorySnapshot,
+            plainLanguageSummary: nil,
+            periodTitle: atlasWeeklyReviewPeriodTitle(for: historicalDate),
+            includeCurrentStateFacts: false
+        )
+    }
+}
+
+private func buildWeeklyReviewStackSummary(
+    context: AtlasCoreLoopContext,
+    weeklyLogs: [AtlasLogEventRecord],
+    weeklyProtocolChanges: [AtlasProtocolChangeAuditRecord],
+    inventorySnapshot: AtlasInventorySnapshot,
+    enabled: Bool,
+    referenceDate: Date
+) -> AtlasWeeklyReviewStackSummary? {
+    guard enabled else {
+        return nil
+    }
+
+    let activeProtocolCount = context.protocols.values.filter { $0.status == .active }.count
+    guard activeProtocolCount > 1 else {
+        return nil
+    }
+
+    let changedProtocolCount = Set(weeklyProtocolChanges.map(\.protocolId)).count
+    let completedCount = weeklyLogs.filter { $0.eventType == .completed }.count
+    let rescheduledCount = weeklyLogs.filter { $0.eventType == .rescheduled }.count
+    let lowStockCount = inventorySnapshot.lowStockCount
+    let scheduleCount = context.pendingOccurrences.values
+        .flatMap { $0 }
+        .filter { Calendar.current.isDate(atlasDate(from: $0.scheduledAt), inSameDayAs: referenceDate) }
+        .count
+
+    return AtlasWeeklyReviewStackSummary(
+        activeProtocolCount: activeProtocolCount,
+        protocolsWithChanges: changedProtocolCount,
+        weeklyCompletedCount: completedCount,
+        weeklyRescheduledCount: rescheduledCount,
+        lowStockRiskCount: lowStockCount,
+        burdenSummary: "The current stack carried \(countPhrase(activeProtocolCount, singular: "active protocol")) with \(countPhrase(scheduleCount, singular: "visible schedule anchor")) on the current day and \(countPhrase(lowStockCount, singular: "inventory risk")) across the same window."
+    )
+}
+
+private func buildWeeklyReviewProtocolFollowUpSummary(
+    protocolChangeAudits: [AtlasProtocolChangeAuditRecord],
+    logEvents: [AtlasLogEventRecord],
+    contextLogs: [AtlasContextLogRecord],
+    context: AtlasCoreLoopContext,
+    referenceDate: Date,
+    renderMode: AtlasPrivacyRenderMode,
+    privacyFormatter: AtlasPrivacyFormatter
+) -> AtlasWeeklyReviewProtocolFollowUpSummary? {
+    let calendar = Calendar.current
+    let followUpFloor = calendar.date(byAdding: .day, value: -(atlasWeeklyReviewProtocolFollowUpDays - 1), to: calendar.startOfDay(for: referenceDate))
+        ?? referenceDate
+    guard let latestAudit = protocolChangeAudits.first(where: {
+        let changedAt = atlasDate(from: $0.createdAt)
+        return changedAt >= followUpFloor && changedAt <= referenceDate
+    }) else {
+        return nil
+    }
+
+    let changedAt = atlasDate(from: latestAudit.createdAt)
+    let protocolID = latestAudit.protocolId
+    let logsSinceChange = logEvents.filter {
+        $0.protocolId == protocolID && atlasDate(from: $0.loggedAt) >= changedAt && atlasDate(from: $0.loggedAt) <= referenceDate
+    }
+    let contextSinceChange = contextLogs.filter {
+        $0.protocolId == protocolID && atlasDate(from: $0.loggedAt) >= changedAt && atlasDate(from: $0.loggedAt) <= referenceDate
+    }
+    let windowDays = max(1, calendar.dateComponents([.day], from: calendar.startOfDay(for: changedAt), to: calendar.startOfDay(for: referenceDate)).day.map { $0 + 1 } ?? 1)
+    let title = context.protocols[protocolID].map {
+        privacyFormatter.title(
+            canonical: $0.name,
+            alias: context.aliases[protocolID]?.aliasLabel,
+            mode: renderMode
+        )
+    }
+
+    return AtlasWeeklyReviewProtocolFollowUpSummary(
+        protocolID: protocolID,
+        title: title,
+        changeTypeTitle: latestAudit.changeType.explanationTitle,
+        summary: latestAudit.summary,
+        changedAt: changedAt,
+        windowDays: min(windowDays, atlasWeeklyReviewProtocolFollowUpDays),
+        completedCount: logsSinceChange.filter { $0.eventType == .completed }.count,
+        skippedCount: logsSinceChange.filter { $0.eventType == .skipped }.count,
+        rescheduledCount: logsSinceChange.filter { $0.eventType == .rescheduled }.count,
+        contextEntryCount: contextSinceChange.count
+    )
+}
+
+private func atlasWeeklyReviewPeriodTitle(for referenceDate: Date) -> String {
+    let calendar = Calendar.current
+    let windowStart = calendar.date(byAdding: .day, value: -(atlasWeeklyReviewWindowDays - 1), to: calendar.startOfDay(for: referenceDate))
+        ?? referenceDate
+    return "\(windowStart.formatted(date: .abbreviated, time: .omitted)) - \(referenceDate.formatted(date: .abbreviated, time: .omitted))"
+}
+
+private func atlasWeeklyReviewWeightLabel(_ record: AtlasWeightLogRecord) -> String {
+    let value = String(format: record.value.rounded() == record.value ? "%.0f" : "%.1f", record.value)
+    return "\(value) \(record.unit.rawValue)"
+}
+
+private func atlasWeeklyReviewSummaryDateLabel(_ timestamp: String) -> String {
+    atlasDate(from: timestamp).formatted(date: .abbreviated, time: .omitted)
+}
+
+private func countPhrase(_ count: Int, singular: String, plural: String? = nil) -> String {
+    let pluralValue = plural ?? singular + "s"
+    return "\(count) \(count == 1 ? singular : pluralValue)"
+}
+
+private func naturalList(_ items: [String]) -> String {
+    switch items.count {
+    case 0:
+        return ""
+    case 1:
+        return items[0]
+    case 2:
+        return "\(items[0]) and \(items[1])"
+    default:
+        return items.dropLast().joined(separator: ", ") + ", and " + (items.last ?? "")
+    }
 }
 
 private struct AtlasDeterministicExplanationCandidate {
@@ -886,7 +2037,7 @@ private func buildContextExplanationCandidates(
         }
 
         let descriptorTitle = accumulator.title.lowercased()
-        let summary = "Atlas noticed recent \(symptomDisplay.lowercased()) entries showing up near \(descriptorTitle) context."
+        let summary = "Recent \(symptomDisplay.lowercased()) entries showed up near \(descriptorTitle) context."
         let facts = [
             AtlasExplainerFact(
                 label: "Observed",
@@ -957,7 +2108,7 @@ private func buildWeightExplanationCandidates(
         return []
     }
 
-    let summary = "Atlas noticed recent \(symptomDisplay.lowercased()) entries showing up within 24 hours of weight check-ins."
+    let summary = "Recent \(symptomDisplay.lowercased()) entries showed up within 24 hours of weight check-ins."
     let facts = [
         AtlasExplainerFact(
             label: "Observed",
@@ -1042,7 +2193,7 @@ private func buildMetricExplanationCandidates(
         }
 
         let metricTitle = accumulator.title.lowercased()
-        let summary = "Atlas noticed recent \(symptomDisplay.lowercased()) entries showing up within 24 hours of \(metricTitle) check-ins."
+        let summary = "Recent \(symptomDisplay.lowercased()) entries showed up within 24 hours of \(metricTitle) check-ins."
         let facts = [
             AtlasExplainerFact(
                 label: "Observed",
@@ -1117,7 +2268,7 @@ private func buildWorkoutExplanationCandidates(
         }
 
         let activityTitle = accumulator.title.lowercased()
-        let summary = "Atlas noticed recent \(symptomDisplay.lowercased()) entries showing up within 24 hours after \(activityTitle) workouts."
+        let summary = "Recent \(symptomDisplay.lowercased()) entries showed up within 24 hours after \(activityTitle) workouts."
         let facts = [
             AtlasExplainerFact(
                 label: "Observed",
@@ -1312,12 +2463,375 @@ private func buildContextTrend(
     )
 }
 
+private let atlasNutritionProteinMealTarget = 2
+private let atlasNutritionFiberMealTarget = 1
+private let atlasNutritionHydrationTarget = 2
+private let atlasNutritionRecentMealsWindowDays = 7
+private let atlasNutritionWeeklyWindowDays = 7
+private let atlasNutritionWorkoutWindowDays = 14
+private let atlasNutritionWorkoutMealWindowHours = 6
+
+private func buildNutritionSnapshot(
+    contextLogs: [AtlasContextLogRecord],
+    contextPresets: [AtlasContextPresetRecord],
+    workoutLogs: [AtlasWorkoutLogRecord],
+    weightLogs: [AtlasWeightLogRecord],
+    onboardingDraft: AtlasOnboardingDraft?,
+    now: Date
+) -> AtlasNutritionSnapshot {
+    let calendar = Calendar.current
+    let startOfDay = calendar.startOfDay(for: now)
+    let nextDay = calendar.date(byAdding: .day, value: 1, to: startOfDay) ?? now
+    let recentWindowStart = calendar.date(byAdding: .day, value: -atlasNutritionRecentMealsWindowDays, to: now) ?? now
+    let weeklyWindowStart = calendar.date(byAdding: .day, value: -(atlasNutritionWeeklyWindowDays - 1), to: startOfDay) ?? startOfDay
+    let workoutWindowStart = calendar.date(byAdding: .day, value: -atlasNutritionWorkoutWindowDays, to: now) ?? now
+
+    let todayEntries = contextLogs.filter {
+        let loggedAt = atlasDate(from: $0.loggedAt)
+        return loggedAt >= startOfDay && loggedAt < nextDay
+    }
+    let recentMeals = contextLogs.filter {
+        atlasDate(from: $0.loggedAt) >= recentWindowStart && atlasNutritionHasMealSignal(record: $0)
+    }
+    let latestMeal = contextLogs.first(where: atlasNutritionHasMealSignal(record:))
+    let favoriteMealCount = contextPresets.filter(atlasNutritionHasMealSignal(record:)).count
+    let weeklyEntries = contextLogs.filter {
+        let loggedAt = atlasDate(from: $0.loggedAt)
+        return loggedAt >= weeklyWindowStart && loggedAt < nextDay
+    }
+    let weeklyDayBuckets = Dictionary(grouping: weeklyEntries) {
+        calendar.startOfDay(for: atlasDate(from: $0.loggedAt))
+    }
+    let weeklyProteinDays = weeklyDayBuckets.values.filter {
+        $0.filter { $0.mealComposition == .proteinHeavy }.count >= atlasNutritionProteinMealTarget
+    }.count
+    let weeklyFiberDays = weeklyDayBuckets.values.filter {
+        $0.contains { $0.mealComposition == .fiberForward }
+    }.count
+    let weeklyHydrationDays = weeklyDayBuckets.values.filter {
+        $0.filter { $0.hydration == .high }.count >= atlasNutritionHydrationTarget
+    }.count
+    let recentWorkouts = workoutLogs.filter { atlasDate(from: $0.startedAt) >= workoutWindowStart }
+    let fueledWorkoutCount = recentWorkouts.filter { workout in
+        atlasNutritionHasMealNearWorkout(
+            workout: workout,
+            contextLogs: contextLogs,
+            withinHours: atlasNutritionWorkoutMealWindowHours
+        )
+    }.count
+
+    let proteinCount = todayEntries.filter { $0.mealComposition == .proteinHeavy }.count
+    let fiberCount = todayEntries.filter { $0.mealComposition == .fiberForward }.count
+    let hydrationCount = todayEntries.filter { $0.hydration == .high }.count
+
+    let targets = [
+        atlasNutritionTarget(
+            kind: .proteinMeals,
+            title: "Protein meals",
+            symbolName: "fork.knife.circle.fill",
+            currentValue: proteinCount,
+            targetValue: atlasNutritionProteinMealTarget,
+            helperText: proteinCount >= atlasNutritionProteinMealTarget
+                ? "Today's protein-forward meal target is met."
+                : "Meals marked protein-heavy count here."
+        ),
+        atlasNutritionTarget(
+            kind: .fiberMeals,
+            title: "Fiber-forward meal",
+            symbolName: "leaf.fill",
+            currentValue: fiberCount,
+            targetValue: atlasNutritionFiberMealTarget,
+            helperText: fiberCount >= atlasNutritionFiberMealTarget
+                ? "Today's fiber-forward meal target is met."
+                : "Use the Fiber meal preset or mark a meal as fiber-forward."
+        ),
+        atlasNutritionTarget(
+            kind: .hydrationCheckins,
+            title: "Hydration check-ins",
+            symbolName: "drop.fill",
+            currentValue: hydrationCount,
+            targetValue: atlasNutritionHydrationTarget,
+            helperText: hydrationCount >= atlasNutritionHydrationTarget
+                ? "Today's hydration target is met."
+                : "Hydrated check-ins count here."
+        )
+    ]
+    let weeklySignals: [AtlasNutritionWeeklySignalSnapshot] = [
+        AtlasNutritionWeeklySignalSnapshot(
+            kind: .proteinDays,
+            title: "Protein days",
+            valueLabel: "\(weeklyProteinDays) of \(atlasNutritionWeeklyWindowDays) days",
+            helperText: "A protein day counts when two protein-heavy meals are logged.",
+            symbolName: "fork.knife.circle.fill",
+            isOnTrack: weeklyProteinDays >= 4
+        ),
+        AtlasNutritionWeeklySignalSnapshot(
+            kind: .fiberDays,
+            title: "Fiber days",
+            valueLabel: "\(weeklyFiberDays) of \(atlasNutritionWeeklyWindowDays) days",
+            helperText: "One fiber-forward meal is enough to count a day here.",
+            symbolName: "leaf.fill",
+            isOnTrack: weeklyFiberDays >= 4
+        ),
+        AtlasNutritionWeeklySignalSnapshot(
+            kind: .hydrationDays,
+            title: "Hydration days",
+            valueLabel: "\(weeklyHydrationDays) of \(atlasNutritionWeeklyWindowDays) days",
+            helperText: "Hydration days need two hydrated check-ins to count.",
+            symbolName: "drop.fill",
+            isOnTrack: weeklyHydrationDays >= 4
+        )
+    ] + (recentWorkouts.isEmpty ? [] : [
+        AtlasNutritionWeeklySignalSnapshot(
+            kind: .workoutFueling,
+            title: "Workout fueling",
+            valueLabel: "\(fueledWorkoutCount) of \(recentWorkouts.count) workouts",
+            helperText: "A workout counts when meal context is logged within six hours of the session.",
+            symbolName: "figure.run.circle.fill",
+            isOnTrack: recentWorkouts.isEmpty ? false : fueledWorkoutCount * 2 >= recentWorkouts.count
+        )
+    ])
+    let coachingCards = buildNutritionCoachingCards(
+        weeklyProteinDays: weeklyProteinDays,
+        weeklyFiberDays: weeklyFiberDays,
+        weeklyHydrationDays: weeklyHydrationDays,
+        fueledWorkoutCount: fueledWorkoutCount,
+        recentWorkoutCount: recentWorkouts.count,
+        weightLogs: weightLogs,
+        onboardingDraft: onboardingDraft
+    )
+
+    return AtlasNutritionSnapshot(
+        dailyTargets: targets,
+        favoriteMealCount: favoriteMealCount,
+        recentMealCount: recentMeals.count,
+        latestMealLabel: latestMeal.map(atlasNutritionLatestMealLabel(record:)),
+        weeklySignals: weeklySignals,
+        coachingCards: coachingCards,
+        note: "Quick meals, repeated favorites, local food lookup, and simple coaching."
+    )
+}
+
+private func atlasNutritionTarget(
+    kind: AtlasNutritionTargetKind,
+    title: String,
+    symbolName: String,
+    currentValue: Int,
+    targetValue: Int,
+    helperText: String
+) -> AtlasNutritionTargetSnapshot {
+    let boundedCurrent = min(currentValue, targetValue)
+    return AtlasNutritionTargetSnapshot(
+        kind: kind,
+        title: title,
+        progressLabel: "\(currentValue) of \(targetValue) today",
+        helperText: helperText,
+        symbolName: symbolName,
+        currentValue: currentValue,
+        targetValue: targetValue,
+        progress: min(Double(boundedCurrent) / Double(targetValue), 1),
+        isMet: currentValue >= targetValue
+    )
+}
+
+private func atlasNutritionHasMealSignal(record: AtlasContextLogRecord) -> Bool {
+    record.mealTiming != nil
+        || record.mealSize != nil
+        || record.mealComposition != nil
+        || record.fedState != nil
+}
+
+private func atlasNutritionHasMealSignal(record: AtlasContextPresetRecord) -> Bool {
+    record.mealTiming != nil
+        || record.mealSize != nil
+        || record.mealComposition != nil
+        || record.fedState != nil
+}
+
+private func atlasNutritionHasMealNearWorkout(
+    workout: AtlasWorkoutLogRecord,
+    contextLogs: [AtlasContextLogRecord],
+    withinHours: Int
+) -> Bool {
+    let workoutDate = atlasDate(from: workout.startedAt)
+    let lowerBound = workoutDate.addingTimeInterval(TimeInterval(-withinHours * 60 * 60))
+    let upperBound = workoutDate.addingTimeInterval(TimeInterval(withinHours * 60 * 60))
+    return contextLogs.contains { log in
+        guard atlasNutritionHasMealSignal(record: log) else {
+            return false
+        }
+        let loggedAt = atlasDate(from: log.loggedAt)
+        return loggedAt >= lowerBound && loggedAt <= upperBound
+    }
+}
+
+private func atlasNutritionLatestMealLabel(record: AtlasContextLogRecord) -> String {
+    var parts: [String] = []
+    if let mealTiming = record.mealTiming {
+        parts.append(mealTiming.title)
+    }
+    if let mealComposition = record.mealComposition {
+        parts.append(mealComposition.title)
+    }
+    if let hydration = record.hydration {
+        parts.append(hydration.title)
+    }
+
+    let descriptor = parts.isEmpty ? "Quick meal" : Array(parts.prefix(3)).joined(separator: " • ")
+    return "Latest \(formatDateLabel(record.loggedAt)) • \(descriptor)"
+}
+
+private func buildNutritionCoachingCards(
+    weeklyProteinDays: Int,
+    weeklyFiberDays: Int,
+    weeklyHydrationDays: Int,
+    fueledWorkoutCount: Int,
+    recentWorkoutCount: Int,
+    weightLogs: [AtlasWeightLogRecord],
+    onboardingDraft: AtlasOnboardingDraft?
+) -> [AtlasNutritionCoachingCard] {
+    var cards: [AtlasNutritionCoachingCard] = []
+
+    if recentWorkoutCount > 0 && fueledWorkoutCount < recentWorkoutCount {
+        cards.append(
+            AtlasNutritionCoachingCard(
+                id: "nutrition-workout-fueling",
+                kind: .workoutFueling,
+                title: "Fuel workouts more consistently",
+                summary: "\(fueledWorkoutCount) of \(recentWorkoutCount) recent workouts had nearby meal logs.",
+                helperText: "Log a meal or shake before or after training to keep the session paired with nutrition context.",
+                symbolName: "figure.run.circle.fill"
+            )
+        )
+    }
+
+    if let weightCard = atlasNutritionWeightCoachingCard(weightLogs: weightLogs, onboardingDraft: onboardingDraft) {
+        cards.append(weightCard)
+    }
+
+    if weeklyFiberDays < 4 {
+        cards.append(
+            AtlasNutritionCoachingCard(
+                id: "nutrition-fiber-consistency",
+                kind: .consistency,
+                title: "Fiber is the easiest weekly win",
+                summary: "Fiber-forward meals landed on \(weeklyFiberDays) of the last \(atlasNutritionWeeklyWindowDays) days.",
+                helperText: "One fiber-forward meal per day is enough to move this signal. The built-in Fiber meal preset is the fastest way to log it.",
+                symbolName: "leaf.fill"
+            )
+        )
+    }
+
+    if weeklyHydrationDays < 4 {
+        cards.append(
+            AtlasNutritionCoachingCard(
+                id: "nutrition-hydration-rhythm",
+                kind: .hydration,
+                title: "Hydration rhythm can still tighten up",
+                summary: "Hydration targets cleared on \(weeklyHydrationDays) of the last \(atlasNutritionWeeklyWindowDays) days.",
+                helperText: "Two hydrated check-ins in the same day count as a hydrated day.",
+                symbolName: "drop.fill"
+            )
+        )
+    }
+
+    if cards.isEmpty {
+        cards.append(
+            AtlasNutritionCoachingCard(
+                id: "nutrition-steady-rhythm",
+                kind: .consistency,
+                title: "Nutrition rhythm looks steady",
+                summary: "Protein, fiber, hydration, and workout fueling are all showing usable coverage.",
+                helperText: "Keep using fast capture to preserve this signal without heavier logging.",
+                symbolName: "checkmark.circle.fill"
+            )
+        )
+    } else if weeklyProteinDays < 4 && cards.contains(where: { $0.kind == .consistency }) == false {
+        cards.insert(
+            AtlasNutritionCoachingCard(
+                id: "nutrition-protein-consistency",
+                kind: .consistency,
+                title: "Protein consistency still has room",
+                summary: "Protein targets cleared on \(weeklyProteinDays) of the last \(atlasNutritionWeeklyWindowDays) days.",
+                helperText: "A protein day needs two protein-heavy meals, so repeated breakfasts and shakes move this quickly.",
+                symbolName: "fork.knife.circle.fill"
+            ),
+            at: 0
+        )
+    }
+
+    return Array(cards.prefix(4))
+}
+
+private func atlasNutritionWeightCoachingCard(
+    weightLogs: [AtlasWeightLogRecord],
+    onboardingDraft: AtlasOnboardingDraft?
+) -> AtlasNutritionCoachingCard? {
+    guard let profile = onboardingDraft?.profile,
+          let goalWeight = profile.goalWeight,
+          let unit = profile.weightUnit else {
+        return nil
+    }
+
+    let matchingLogs = weightLogs
+        .filter { $0.unit == unit }
+        .sorted { $0.loggedAt < $1.loggedAt }
+    let baselineWeight = matchingLogs.first?.value ?? profile.weight
+    let latestWeight = matchingLogs.last?.value ?? profile.weight
+    guard let baselineWeight, let latestWeight else {
+        return nil
+    }
+
+    let baselineDistance = abs(baselineWeight - goalWeight)
+    let latestDistance = abs(latestWeight - goalWeight)
+    let improvement = baselineDistance - latestDistance
+
+    if latestDistance <= 0.5 {
+        return AtlasNutritionCoachingCard(
+            id: "nutrition-weight-aligned",
+            kind: .weight,
+            title: "Weight trend is sitting inside your goal range",
+            summary: "Latest logged weight is within about half a \(unit.rawValue) of your stored goal.",
+            helperText: "This is a pattern check, not a judgment on every fluctuation.",
+            symbolName: "target"
+        )
+    }
+
+    guard improvement > 0 else {
+        return nil
+    }
+
+    let improvementLabel = improvement.rounded() == improvement
+        ? String(Int(improvement))
+        : String(format: "%.1f", improvement)
+
+    return AtlasNutritionCoachingCard(
+        id: "nutrition-weight-progress",
+        kind: .weight,
+        title: "Recent nutrition rhythm is lining up with weight progress",
+        summary: "You are \(improvementLabel) \(unit.rawValue) closer to your stored goal than where this run of logs started.",
+        helperText: "This does not prove causality, but it is a useful checkpoint when meal and workout signals are also staying consistent.",
+        symbolName: "chart.line.uptrend.xyaxis"
+    )
+}
+
+private func atlasReadNutritionOnboardingDraft(db: Database) throws -> AtlasOnboardingDraft? {
+    guard let json = try String.fetchOne(
+        db,
+        sql: "SELECT value FROM atlas_app_settings WHERE key = 'onboarding_draft_json'"
+    ) else {
+        return nil
+    }
+    return try? JSONDecoder().decode(AtlasOnboardingDraft.self, from: Data(json.utf8))
+}
+
 private func buildAdherenceTrend(
     context: AtlasCoreLoopContext,
     logEvents: [AtlasLogEventRecord],
     now: Date
 ) -> AtlasAdherenceTrendSummary {
-    let windowStart = Calendar.current.date(byAdding: .day, value: -atlasInsightsTrendWindowDays, to: now) ?? now
+    let calendar = Calendar.current
+    let windowStart = calendar.date(byAdding: .day, value: -atlasInsightsTrendWindowDays, to: now) ?? now
     let outstandingItems = context.pendingOccurrences.values
         .flatMap { $0 }
         .filter {
@@ -1335,13 +2849,81 @@ private func buildAdherenceTrend(
     let rescheduledCount = recentLogEvents.filter { $0.eventType == .rescheduled }.count
     let overdueCount = outstandingItems.filter { $0.state == .missed || $0.state == .due }.count
     let counted = completedCount + skippedCount + overdueCount
+    let startOfToday = calendar.startOfDay(for: now)
+    let stripStart = calendar.date(byAdding: .day, value: -(atlasInsightsTrendWindowDays - 1), to: startOfToday) ?? startOfToday
+    var dayBuckets: [Date: AtlasAdherenceTrendSummary.DaySummary] = [:]
+
+    for dayOffset in 0..<atlasInsightsTrendWindowDays {
+        guard let day = calendar.date(byAdding: .day, value: dayOffset, to: stripStart) else {
+            continue
+        }
+        let dateKey = ISO8601DateFormatter.atlas.string(from: day)
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEE"
+        dayBuckets[day] = AtlasAdherenceTrendSummary.DaySummary(
+            dateKey: dateKey,
+            title: formatDateLabel(dateKey),
+            shortTitle: String(formatter.string(from: day).prefix(1)),
+            scheduledCount: 0,
+            dominantStatus: .quiet
+        )
+    }
+
+    for event in recentLogEvents {
+        let day = calendar.startOfDay(for: atlasDate(from: event.loggedAt))
+        guard var bucket = dayBuckets[day] else {
+            continue
+        }
+        switch event.eventType {
+        case .completed:
+            bucket.completedCount += 1
+        case .skipped:
+            bucket.skippedCount += 1
+        case .rescheduled:
+            bucket.rescheduledCount += 1
+        case .manualLog, .inventoryAdjustment:
+            break
+        }
+        bucket.scheduledCount += 1
+        dayBuckets[day] = bucket
+    }
+
+    for item in outstandingItems where item.state == .missed || item.state == .due {
+        let day = calendar.startOfDay(for: atlasDate(from: item.scheduledAt))
+        guard var bucket = dayBuckets[day] else {
+            continue
+        }
+        bucket.overdueCount += 1
+        bucket.scheduledCount += 1
+        dayBuckets[day] = bucket
+    }
+
+    let dailySummaries = dayBuckets.keys.sorted().compactMap { day -> AtlasAdherenceTrendSummary.DaySummary? in
+        guard var bucket = dayBuckets[day] else {
+            return nil
+        }
+
+        if bucket.completedCount > 0 {
+            bucket.dominantStatus = .completed
+        } else if bucket.overdueCount > 0 {
+            bucket.dominantStatus = .overdue
+        } else if bucket.skippedCount > 0 {
+            bucket.dominantStatus = .skipped
+        } else if bucket.rescheduledCount > 0 {
+            bucket.dominantStatus = .rescheduled
+        } else {
+            bucket.dominantStatus = .quiet
+        }
+        return bucket
+    }
 
     return AtlasAdherenceTrendSummary(
         completionRateLabel: counted > 0 ? "\(Int(round((Double(completedCount) / Double(counted)) * 100)))% logged on time" : nil,
         completedCount: completedCount,
         overdueCount: overdueCount,
         rescheduledCount: rescheduledCount,
-        skippedCount: skippedCount
+        skippedCount: skippedCount,
+        dailySummaries: dailySummaries
     )
 }
 
@@ -1353,36 +2935,92 @@ private func buildAmountEstimateItems(
     return context.protocols.values
         .filter { $0.status == .active }
         .compactMap { protocolRecord in
-            let protocolLogs = logEvents.filter { $0.protocolId == protocolRecord.id }
-            let slice = effectiveRevisionSlice(context.revisionSlices[protocolRecord.id] ?? [], at: now)
-            let rule = slice.flatMap { activeRuleForDate(slice: $0, at: now) }
-            let intervalHours = ruleIntervalHours(rule)
-            let completedLogs = protocolLogs.filter {
-                $0.eventType == .completed && $0.quantity != nil && $0.quantityUnit != nil && intervalHours != nil
-            }
-
-            let estimate = completedLogs.reduce(0.0) { partialResult, event in
-                let elapsedHours = now.timeIntervalSince(atlasDate(from: event.effectiveAt)) / 3600
-                let remainingFraction = max(0, 1 - (elapsedHours / (intervalHours ?? 1)))
-                return partialResult + (event.quantity ?? 0) * remainingFraction
-            }
-
-            let doseUnit = rule?.doseUnitOverride ?? slice?.revision.doseUnit ?? protocolRecord.doseUnit
-            let alias = context.aliases[protocolRecord.id]?.aliasLabel
-
-            return AtlasAmountEstimateItem(
-                protocolID: protocolRecord.id,
-                canonicalProtocolTitle: protocolRecord.name,
-                aliasProtocolTitle: alias,
-                cadenceLabel: rule.map(describeRule) ?? "No cadence saved yet",
-                estimateLabel: estimate > 0 && doseUnit != nil
-                    ? "\(formatNumber(estimate)) \(doseUnit ?? "") in the current schedule window"
-                    : "No recent logged quantity to estimate from",
-                notesLabel: estimate > 0
-                    ? "Built from completed logs over the current \(Int(intervalHours ?? 0))-hour interval window."
-                    : "Atlas needs completed logs with saved quantities before it can show this estimate."
+            buildMedicationLevelEstimateItem(
+                protocolRecord: protocolRecord,
+                aliasTitle: context.aliases[protocolRecord.id]?.aliasLabel,
+                revisionSlices: context.revisionSlices[protocolRecord.id] ?? [],
+                logEvents: logEvents,
+                now: now
             )
         }
+}
+
+private func buildProgressEvidenceSnapshot(
+    measurements: [AtlasProgressMeasurementRecord],
+    photos: [AtlasProgressPhotoRecord]
+) -> AtlasProgressEvidenceSnapshot {
+    let measurementTrends = AtlasProgressMeasurementKind.allCases.compactMap { kind -> AtlasProgressMeasurementTrend? in
+        let items = measurements
+            .filter { $0.kind == kind }
+            .sorted { $0.loggedAt < $1.loggedAt }
+        guard items.isEmpty == false else {
+            return nil
+        }
+
+        let unit = items.last?.unit ?? kind.defaultUnit
+        let latest = items.last
+        let previous = items.dropLast().last
+        let latestLabel = latest.map { "\(formatNumber($0.value)) \(unit) logged \(formatDateLabel($0.loggedAt))" }
+        let changeLabel = previous.map {
+            let delta = (latest?.value ?? 0) - $0.value
+            let prefix = delta > 0 ? "+" : ""
+            return "\(prefix)\(formatNumber(delta)) \(unit) vs prior check-in"
+        }
+
+        return AtlasProgressMeasurementTrend(
+            kind: kind,
+            unit: unit,
+            latestLabel: latestLabel,
+            changeLabel: changeLabel,
+            points: items.map {
+                AtlasProgressMeasurementTrendPoint(
+                    timestamp: $0.loggedAt,
+                    loggedAt: atlasDate(from: $0.loggedAt),
+                    value: $0.value
+                )
+            }
+        )
+    }
+
+    let recentPhotos = photos.prefix(8).compactMap { record -> AtlasProgressPhotoEntrySummary? in
+        guard let fileURL = try? atlasProgressPhotoFileURL(relativePath: record.relativeAssetPath) else {
+            return nil
+        }
+        return AtlasProgressPhotoEntrySummary(
+            id: record.id,
+            angle: record.angle,
+            note: record.note,
+            loggedAt: atlasDate(from: record.loggedAt),
+            absolutePath: fileURL.path
+        )
+    }
+
+    let comparisonNote: String?
+    if let latestPhoto = recentPhotos.first,
+       let previousPhoto = recentPhotos.dropFirst().first {
+        comparisonNote = "Compare \(latestPhoto.angle.title.lowercased()) check-ins from \(latestPhoto.loggedAt.formatted(date: .abbreviated, time: .omitted)) and \(previousPhoto.loggedAt.formatted(date: .abbreviated, time: .omitted))."
+    } else if let trend = measurementTrends.first(where: { $0.points.count >= 2 }) {
+        comparisonNote = trend.changeLabel
+    } else {
+        comparisonNote = nil
+    }
+
+    let summaryTitle = "Progress evidence"
+    let summaryText: String
+    if measurements.isEmpty && recentPhotos.isEmpty {
+        summaryText = "Add measurements and private photo check-ins to keep a calmer record of visible change over time."
+    } else {
+        summaryText = "\(measurements.count) measurement check-in(s) and \(recentPhotos.count) private photo check-in(s) are saved locally."
+    }
+
+    return AtlasProgressEvidenceSnapshot(
+        summaryTitle: summaryTitle,
+        summaryText: summaryText,
+        measurementTrends: measurementTrends,
+        recentMeasurements: Array(measurements.prefix(12)),
+        recentPhotos: recentPhotos,
+        comparisonNote: comparisonNote
+    )
 }
 
 private func buildMetricDefinitionSummaries(

@@ -1,6 +1,6 @@
 # Codex Launch Handoff
 
-Last updated: 2026-04-10 (post-local-path recovery)
+Last updated: 2026-04-16 (UX + security + onboarding/paywall + ambient mascot handoff)
 
 ## Current status
 
@@ -14,6 +14,40 @@ Last updated: 2026-04-10 (post-local-path recovery)
 - Live review edge function and launch schema are deployed.
 - `master` has been pushed with the current Atlas iOS launch tree.
 
+## Current Codex context
+
+Fresh Codex threads should treat the following repo files as the current high-value handoff set:
+
+- `AGENTS.md`
+- `README.md`
+- `atlas-ios/README.md`
+- `docs/backlog-execution-handoff.md`
+- `docs/ios-premium-ui-rubric.md`
+- `docs/ios-ui-audit-2026-04-10.md`
+- `docs/ios-ui-skill-stack.md`
+- `docs/ios-ux-execution-playbook-2026-04-15.md`
+- `docs/ios-redesign-context-2026-04-14.md`
+- `docs/ios-ui-polish-thread-handoff-2026-04-16.md` for the April 16 practical cleanup rules around copy density, stat tiles, keyboard exits, quick actions, Account & Sync, recap clutter, and mascot restraint
+- `docs/ios-ui-mascot-rewards-changelog-2026-04-14.md`
+- `docs/ios-ambient-mascot-system-handoff-2026-04-16.md` for ambient mascot placement, motion policy, suppression, and QA rules
+- current native mascot assets plus active Kairo companion/widget code for mascot/rewards/media/widget work; do not use archived mascot concept docs
+- `docs/ios-onboarding-paywall-handoff-2026-04-16.md` for the proof-led onboarding, free-trial paywall, and premium conversion strategy
+- `docs/fresh-codex-thread-prompt.md` for a copy/paste fresh-thread starter prompt
+
+## 2026-04-16 onboarding + paywall context
+
+The current native onboarding flow is intentionally long and proof-led.
+
+Preserve these decisions unless the user explicitly changes product strategy:
+
+- show enough premium differentiation before the paywall to make the trial feel earned
+- keep the free-trial paywall before full protocol creation
+- use the flow to prove Today command, Trust Vault, system surfaces, companion continuity, protocol change history, review output, and messy-start migration
+- keep monthly/yearly auto-renewing subscription options behind a clear free-trial timeline
+- avoid peptide marketplace, sourcing, medical advice, generic AI coach, or noisy gamification framing
+
+Use `docs/ios-onboarding-paywall-handoff-2026-04-16.md` before editing onboarding or the paywall.
+
 ## Live backend
 
 - Supabase project ref: `nppqywaxawvvdhiedpxc`
@@ -26,6 +60,8 @@ Last updated: 2026-04-10 (post-local-path recovery)
 - Remote migration history now includes both:
   - `20260410023520_Atlas public launch infra.sql`
   - local idempotent launch migration `20260409_public_launch_infra.sql`
+- local cloud hardening follow-up now also exists:
+  - `20260415_live_review_session_hardening.sql`
 
 ## Code already landed
 
@@ -41,6 +77,51 @@ Last updated: 2026-04-10 (post-local-path recovery)
   - launch auth/sync/live-review tables and RLS
 - `backend/supabase/functions/live-review-session/index.ts`
   - live review create/get/revoke
+- `backend/supabase/migrations/20260415_live_review_session_hardening.sql`
+  - `purge_after` retention support for live review sessions
+  - index for retention cleanup
+
+## 2026-04-15 UX context
+
+The large UX / interaction pass in the current working tree established a few standing rules that future threads should preserve:
+
+- root tabs should feel finite and decisive, not like endless same-weight card stacks
+- `Today`, `Insights`, and `Settings` are the first places to check when the app starts feeling long or messy
+- progressive disclosure is preferred over exposing every subsystem at the root
+- do not add fake-sounding `Atlas ...` helper narration or other LLM-ish filler copy
+- title-first, literal, sparse copy is preferred on action surfaces
+- the current docked bottom tab shelf remains the baseline shell treatment
+- transparent / see-through bottom-tab experiments were tried and rejected because they made the shell feel unresolved
+
+Use:
+
+- `docs/ios-ui-skill-stack.md` for the standing UI skill stack
+- `docs/ios-ux-execution-playbook-2026-04-15.md` for the combined navigation / scroll / interaction / accessibility lens
+- `docs/ios-ui-polish-thread-handoff-2026-04-16.md` before broad UI cleanup, form-entry, copy pruning, quick-action, or mascot/rewards polish work
+
+## 2026-04-16 ambient mascot context
+
+The ambient mascot system is now a production-oriented companion layer, not a prototype pet or free-roaming character.
+
+Preserve these rules:
+
+- the mascot is anchored to calm surfaces and the tab shelf, not every screen
+- Subtle is the default production presence; Off and More alive remain user controls
+- serious-mode suppression hides/quiets the mascot during sheets, exports, dense entry, and trust-sensitive flows
+- future expansion should prefer event-based reactions over new permanent perches
+- Aetherion and Aurielle should keep behavior parity unless there is an explicit product reason to diverge
+
+Use `docs/ios-ambient-mascot-system-handoff-2026-04-16.md` before touching mascot placement, animation, suppression, rewards continuity, or mascot QA.
+
+## 2026-04-15 security context
+
+The current working tree also includes cloud-layer hardening that future threads should preserve:
+
+- Atlas Cloud session credentials moved away from legacy `UserDefaults` persistence into a Keychain-backed store
+- live review links no longer depend on server-visible query-string bearer tokens by default; the token now rides in the URL fragment and is handed to the fetch path via header
+- live review rows now support retention cleanup through `purge_after`
+
+This work is code-complete locally, but the Supabase migration and edge function still need the normal deploy/apply flow before the hosted backend is updated.
 
 ## Validation completed
 
@@ -75,6 +156,11 @@ Last updated: 2026-04-10 (post-local-path recovery)
 
 ## Remaining launch work
 
+- App Store Connect StoreKit setup for Kairo Pro:
+  - create/configure `com.dkang2000.Atlas.kairo.pro.annual`
+  - create/configure `com.dkang2000.Atlas.kairo.pro.monthly`
+  - both products must have a 7-day introductory free trial configured before App Store submission/TestFlight paywall validation
+  - the native paywall code now expects those exact product IDs and fails safely if the products or 7-day intro offers are missing
 - Real in-app Google sign-in validation on simulator/device
 - Real in-app Apple sign-in validation on device
 - Sign-out and session restore validation after provider sign-in

@@ -488,6 +488,556 @@ public struct AtlasContextTrendSummary: Equatable, Sendable {
     }
 }
 
+public enum AtlasNutritionTargetKind: String, CaseIterable, Sendable, Identifiable {
+    case proteinMeals = "protein_meals"
+    case fiberMeals = "fiber_meals"
+    case hydrationCheckins = "hydration_checkins"
+
+    public var id: String { rawValue }
+}
+
+public struct AtlasNutritionTargetSnapshot: Equatable, Sendable, Identifiable {
+    public var id: AtlasNutritionTargetKind { kind }
+    public var kind: AtlasNutritionTargetKind
+    public var title: String
+    public var progressLabel: String
+    public var helperText: String
+    public var symbolName: String
+    public var currentValue: Int
+    public var targetValue: Int
+    public var progress: Double
+    public var isMet: Bool
+
+    public init(
+        kind: AtlasNutritionTargetKind,
+        title: String,
+        progressLabel: String,
+        helperText: String,
+        symbolName: String,
+        currentValue: Int,
+        targetValue: Int,
+        progress: Double,
+        isMet: Bool
+    ) {
+        self.kind = kind
+        self.title = title
+        self.progressLabel = progressLabel
+        self.helperText = helperText
+        self.symbolName = symbolName
+        self.currentValue = currentValue
+        self.targetValue = targetValue
+        self.progress = progress
+        self.isMet = isMet
+    }
+}
+
+public enum AtlasNutritionCaptureSource: String, Sendable, Equatable, CaseIterable, Identifiable {
+    case lookup
+    case packageCode = "package_code"
+    case freeform
+
+    public var id: String { rawValue }
+}
+
+public struct AtlasNutritionFoodLookupItem: Sendable, Equatable, Identifiable {
+    public var id: String
+    public var title: String
+    public var subtitle: String
+    public var symbolName: String
+    public var packageCodes: [String]
+    public var keywords: [String]
+    public var mealTiming: AtlasContextMealTiming?
+    public var mealSize: AtlasContextMealSize?
+    public var mealComposition: AtlasContextMealComposition?
+    public var fedState: AtlasContextFedState?
+    public var appetite: AtlasContextAppetiteState?
+    public var hydration: AtlasContextHydrationState?
+    public var giTags: [AtlasContextGITag]
+    public var note: String?
+    public var tags: [String]
+
+    public init(
+        id: String,
+        title: String,
+        subtitle: String,
+        symbolName: String,
+        packageCodes: [String] = [],
+        keywords: [String] = [],
+        mealTiming: AtlasContextMealTiming? = nil,
+        mealSize: AtlasContextMealSize? = nil,
+        mealComposition: AtlasContextMealComposition? = nil,
+        fedState: AtlasContextFedState? = nil,
+        appetite: AtlasContextAppetiteState? = nil,
+        hydration: AtlasContextHydrationState? = nil,
+        giTags: [AtlasContextGITag] = [],
+        note: String? = nil,
+        tags: [String] = []
+    ) {
+        self.id = id
+        self.title = title
+        self.subtitle = subtitle
+        self.symbolName = symbolName
+        self.packageCodes = packageCodes
+        self.keywords = keywords
+        self.mealTiming = mealTiming
+        self.mealSize = mealSize
+        self.mealComposition = mealComposition
+        self.fedState = fedState
+        self.appetite = appetite
+        self.hydration = hydration
+        self.giTags = giTags
+        self.note = note
+        self.tags = tags
+    }
+
+    public func makeDraft(loggedAt: Date, note overrideNote: String? = nil) -> AtlasContextEntryDraft {
+        AtlasContextEntryDraft(
+            loggedAt: loggedAt,
+            mealTiming: mealTiming,
+            mealSize: mealSize,
+            mealComposition: mealComposition,
+            fedState: fedState,
+            appetite: appetite,
+            hydration: hydration,
+            giTags: giTags,
+            note: overrideNote ?? note,
+            tags: tags
+        )
+    }
+
+    public func makeSuggestion(
+        loggedAt: Date,
+        source: AtlasNutritionCaptureSource,
+        helperText: String
+    ) -> AtlasNutritionQuickCaptureSuggestion {
+        AtlasNutritionQuickCaptureSuggestion(
+            id: "\(source.rawValue)-\(id)",
+            title: title,
+            subtitle: subtitle,
+            helperText: helperText,
+            symbolName: symbolName,
+            source: source,
+            draft: makeDraft(loggedAt: loggedAt)
+        )
+    }
+}
+
+public struct AtlasNutritionQuickCaptureSuggestion: Sendable, Equatable, Identifiable {
+    public var id: String
+    public var title: String
+    public var subtitle: String
+    public var helperText: String
+    public var symbolName: String
+    public var source: AtlasNutritionCaptureSource
+    public var draft: AtlasContextEntryDraft
+
+    public init(
+        id: String,
+        title: String,
+        subtitle: String,
+        helperText: String,
+        symbolName: String,
+        source: AtlasNutritionCaptureSource,
+        draft: AtlasContextEntryDraft
+    ) {
+        self.id = id
+        self.title = title
+        self.subtitle = subtitle
+        self.helperText = helperText
+        self.symbolName = symbolName
+        self.source = source
+        self.draft = draft
+    }
+}
+
+public func atlasDefaultNutritionFoodCatalog() -> [AtlasNutritionFoodLookupItem] {
+    [
+        AtlasNutritionFoodLookupItem(
+            id: "greek-yogurt-berries",
+            title: "Greek yogurt + berries",
+            subtitle: "Protein-forward breakfast or snack",
+            symbolName: "sun.max.fill",
+            packageCodes: ["GYB-01", "860009001001"],
+            keywords: ["greek", "yogurt", "berries", "breakfast", "snack", "protein"],
+            mealTiming: .breakfast,
+            mealSize: .light,
+            mealComposition: .proteinHeavy,
+            fedState: .fed,
+            tags: ["greek-yogurt", "berries"]
+        ),
+        AtlasNutritionFoodLookupItem(
+            id: "overnight-oats",
+            title: "Overnight oats",
+            subtitle: "Fiber-forward breakfast",
+            symbolName: "sunrise.fill",
+            packageCodes: ["OATS-01", "860009001002"],
+            keywords: ["oats", "oatmeal", "overnight", "breakfast", "fiber"],
+            mealTiming: .breakfast,
+            mealSize: .standard,
+            mealComposition: .fiberForward,
+            fedState: .fed,
+            tags: ["oats", "breakfast"]
+        ),
+        AtlasNutritionFoodLookupItem(
+            id: "protein-shake",
+            title: "Protein shake",
+            subtitle: "Fast post-workout recovery option",
+            symbolName: "figure.strengthtraining.traditional",
+            packageCodes: ["SHAKE-01", "860009001003"],
+            keywords: ["protein", "shake", "smoothie", "recovery", "post", "workout"],
+            mealTiming: .snack,
+            mealSize: .light,
+            mealComposition: .proteinHeavy,
+            fedState: .fed,
+            note: "Logged from the quick protein shake matcher.",
+            tags: ["protein-shake", "recovery"]
+        ),
+        AtlasNutritionFoodLookupItem(
+            id: "chicken-rice-bowl",
+            title: "Chicken rice bowl",
+            subtitle: "Balanced lunch or dinner",
+            symbolName: "fork.knife.circle.fill",
+            packageCodes: ["BOWL-01", "860009001004"],
+            keywords: ["chicken", "rice", "bowl", "lunch", "dinner", "meal"],
+            mealTiming: .lunch,
+            mealSize: .standard,
+            mealComposition: .mixed,
+            fedState: .fed,
+            tags: ["chicken", "rice"]
+        ),
+        AtlasNutritionFoodLookupItem(
+            id: "salmon-potatoes",
+            title: "Salmon + potatoes",
+            subtitle: "Steady dinner with recovery overlap",
+            symbolName: "moon.stars.fill",
+            packageCodes: ["SALMON-01", "860009001005"],
+            keywords: ["salmon", "potatoes", "dinner", "recovery", "protein"],
+            mealTiming: .dinner,
+            mealSize: .standard,
+            mealComposition: .proteinHeavy,
+            fedState: .fed,
+            tags: ["salmon", "potatoes"]
+        ),
+        AtlasNutritionFoodLookupItem(
+            id: "beans-rice",
+            title: "Beans + rice",
+            subtitle: "Fiber-forward staple meal",
+            symbolName: "leaf.circle.fill",
+            packageCodes: ["BEANS-01", "860009001006"],
+            keywords: ["beans", "rice", "fiber", "lunch", "dinner", "bowl"],
+            mealTiming: .dinner,
+            mealSize: .standard,
+            mealComposition: .fiberForward,
+            fedState: .fed,
+            tags: ["beans", "rice", "fiber"]
+        ),
+        AtlasNutritionFoodLookupItem(
+            id: "big-salad-bowl",
+            title: "Big salad bowl",
+            subtitle: "Fiber-forward meal with lighter size",
+            symbolName: "leaf.fill",
+            packageCodes: ["SALAD-01", "860009001007"],
+            keywords: ["salad", "greens", "veggies", "fiber", "lunch", "dinner"],
+            mealTiming: .lunch,
+            mealSize: .light,
+            mealComposition: .fiberForward,
+            fedState: .fed,
+            tags: ["salad", "greens", "fiber"]
+        ),
+        AtlasNutritionFoodLookupItem(
+            id: "electrolyte-water",
+            title: "Electrolyte water",
+            subtitle: "Hydration check-in",
+            symbolName: "drop.circle.fill",
+            packageCodes: ["HYDRATE-01", "860009001008"],
+            keywords: ["water", "electrolyte", "hydration", "drink"],
+            hydration: .high,
+            giTags: [.calm],
+            note: "Logged from hydration quick capture.",
+            tags: ["hydration", "electrolytes"]
+        )
+    ]
+}
+
+public func atlasNutritionLookupItems(
+    matching query: String,
+    limit: Int = 6
+) -> [AtlasNutritionFoodLookupItem] {
+    let normalizedQuery = atlasNormalizeNutritionSearchText(query)
+    let catalog = atlasDefaultNutritionFoodCatalog()
+    guard normalizedQuery.isEmpty == false else {
+        return Array(catalog.prefix(limit))
+    }
+
+    let tokens = Set(normalizedQuery.split(separator: " ").map(String.init))
+    var matches: [(AtlasNutritionFoodLookupItem, Int)] = []
+
+    for item in catalog {
+        let searchableValues = [item.title, item.subtitle] + item.keywords + item.packageCodes
+        var haystack: Set<String> = []
+        for value in searchableValues {
+            let normalizedValue = atlasNormalizeNutritionSearchText(value)
+            let pieces = normalizedValue.split(separator: " ").map(String.init)
+            haystack.formUnion(pieces)
+        }
+
+        let score = tokens.intersection(haystack).count
+        if score > 0 {
+            matches.append((item, score))
+        }
+    }
+
+    return matches
+        .sorted {
+            if $0.1 == $1.1 {
+                return $0.0.title.localizedCaseInsensitiveCompare($1.0.title) == .orderedAscending
+            }
+            return $0.1 > $1.1
+        }
+        .prefix(limit)
+        .map(\.0)
+}
+
+public func atlasNutritionPackageCodeSuggestion(
+    for rawCode: String,
+    loggedAt: Date
+) -> AtlasNutritionQuickCaptureSuggestion? {
+    let normalizedCode = atlasNormalizeNutritionSearchText(rawCode).replacingOccurrences(of: " ", with: "")
+    guard normalizedCode.isEmpty == false else {
+        return nil
+    }
+
+    guard let match = atlasDefaultNutritionFoodCatalog().first(where: { item in
+        item.packageCodes.contains(where: {
+            atlasNormalizeNutritionSearchText($0).replacingOccurrences(of: " ", with: "") == normalizedCode
+        })
+    }) else {
+        return nil
+    }
+
+    return match.makeSuggestion(
+        loggedAt: loggedAt,
+        source: .packageCode,
+        helperText: "Matched this package code to a common food profile."
+    )
+}
+
+public func atlasNutritionQuickCaptureSuggestion(
+    for text: String,
+    loggedAt: Date
+) -> AtlasNutritionQuickCaptureSuggestion? {
+    let normalizedText = atlasNormalizeNutritionSearchText(text)
+    guard normalizedText.isEmpty == false else {
+        return nil
+    }
+
+    let lookupMatches = atlasNutritionLookupItems(matching: normalizedText, limit: 1)
+    if let bestMatch = lookupMatches.first {
+        return AtlasNutritionQuickCaptureSuggestion(
+            id: "freeform-\(bestMatch.id)",
+            title: bestMatch.title,
+            subtitle: bestMatch.subtitle,
+            helperText: "Matched this typed or dictated meal to a local food profile.",
+            symbolName: bestMatch.symbolName,
+            source: .freeform,
+            draft: bestMatch.makeDraft(
+                loggedAt: loggedAt,
+                note: text.trimmingCharacters(in: .whitespacesAndNewlines)
+            )
+        )
+    }
+
+    let tokens = Set(normalizedText.split(separator: " ").map(String.init))
+    let containsAny: (Set<String>) -> Bool = { candidates in
+        tokens.isDisjoint(with: candidates) == false
+    }
+
+    let mealTiming: AtlasContextMealTiming? = {
+        if containsAny(["breakfast", "am"]) { return .breakfast }
+        if containsAny(["lunch", "midday"]) { return .lunch }
+        if containsAny(["dinner", "evening"]) { return .dinner }
+        if containsAny(["snack"]) { return .snack }
+        if containsAny(["late", "night"]) { return .lateNight }
+        return nil
+    }()
+
+    let mealComposition: AtlasContextMealComposition? = {
+        if containsAny(["protein", "chicken", "steak", "turkey", "eggs", "yogurt", "shake"]) {
+            return .proteinHeavy
+        }
+        if containsAny(["fiber", "beans", "lentils", "oats", "salad", "greens", "berries"]) {
+            return .fiberForward
+        }
+        if containsAny(["pasta", "rice", "bread", "bagel"]) {
+            return .carbHeavy
+        }
+        if containsAny(["fried", "pizza", "burger", "fatty"]) {
+            return .fatHeavy
+        }
+        return nil
+    }()
+
+    let hydration: AtlasContextHydrationState? = containsAny(["water", "electrolyte", "hydration", "hydrated", "drink"]) ? .high : nil
+    let mealSize: AtlasContextMealSize? = {
+        if containsAny(["light", "small"]) { return .light }
+        if containsAny(["heavy", "large", "big"]) { return .heavy }
+        if mealTiming != nil || mealComposition != nil { return .standard }
+        return nil
+    }()
+    let fedState: AtlasContextFedState? = (mealTiming != nil || mealComposition != nil) ? .fed : nil
+
+    let tags = Array(
+        Set(
+            tokens.compactMap { token -> String? in
+                switch token {
+                case "post", "workout", "recovery": return "recovery"
+                case "protein": return "protein"
+                case "fiber": return "fiber"
+                case "water", "electrolyte", "hydration": return "hydration"
+                default: return nil
+                }
+            }
+        )
+    ).sorted()
+
+    guard mealTiming != nil
+        || mealComposition != nil
+        || hydration != nil
+        || tags.isEmpty == false else {
+        return nil
+    }
+
+    let summaryParts = [
+        mealTiming?.title,
+        mealComposition?.title,
+        hydration?.title
+    ].compactMap { $0 }
+
+    return AtlasNutritionQuickCaptureSuggestion(
+        id: "freeform-\(normalizedText)",
+        title: summaryParts.isEmpty ? "Quick meal capture" : summaryParts.joined(separator: " • "),
+        subtitle: "Parsed from typed or dictated text.",
+        helperText: "Review the prefilled meal context before saving if you want to refine the details.",
+        symbolName: hydration == .high ? "drop.fill" : "text.badge.checkmark",
+        source: .freeform,
+        draft: AtlasContextEntryDraft(
+            loggedAt: loggedAt,
+            mealTiming: mealTiming,
+            mealSize: mealSize,
+            mealComposition: mealComposition,
+            fedState: fedState,
+            hydration: hydration,
+            note: text.trimmingCharacters(in: .whitespacesAndNewlines),
+            tags: tags
+        )
+    )
+}
+
+private func atlasNormalizeNutritionSearchText(_ value: String) -> String {
+    value
+        .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+        .replacingOccurrences(of: "[^a-zA-Z0-9]+", with: " ", options: .regularExpression)
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .lowercased()
+}
+
+public enum AtlasNutritionWeeklySignalKind: String, CaseIterable, Sendable, Identifiable {
+    case proteinDays = "protein_days"
+    case fiberDays = "fiber_days"
+    case hydrationDays = "hydration_days"
+    case workoutFueling = "workout_fueling"
+
+    public var id: String { rawValue }
+}
+
+public struct AtlasNutritionWeeklySignalSnapshot: Equatable, Sendable, Identifiable {
+    public var id: AtlasNutritionWeeklySignalKind { kind }
+    public var kind: AtlasNutritionWeeklySignalKind
+    public var title: String
+    public var valueLabel: String
+    public var helperText: String
+    public var symbolName: String
+    public var isOnTrack: Bool
+
+    public init(
+        kind: AtlasNutritionWeeklySignalKind,
+        title: String,
+        valueLabel: String,
+        helperText: String,
+        symbolName: String,
+        isOnTrack: Bool
+    ) {
+        self.kind = kind
+        self.title = title
+        self.valueLabel = valueLabel
+        self.helperText = helperText
+        self.symbolName = symbolName
+        self.isOnTrack = isOnTrack
+    }
+}
+
+public enum AtlasNutritionCoachingCardKind: String, CaseIterable, Sendable, Identifiable {
+    case consistency
+    case workoutFueling = "workout_fueling"
+    case hydration
+    case weight
+
+    public var id: String { rawValue }
+}
+
+public struct AtlasNutritionCoachingCard: Equatable, Sendable, Identifiable {
+    public var id: String
+    public var kind: AtlasNutritionCoachingCardKind
+    public var title: String
+    public var summary: String
+    public var helperText: String
+    public var symbolName: String
+
+    public init(
+        id: String,
+        kind: AtlasNutritionCoachingCardKind,
+        title: String,
+        summary: String,
+        helperText: String,
+        symbolName: String
+    ) {
+        self.id = id
+        self.kind = kind
+        self.title = title
+        self.summary = summary
+        self.helperText = helperText
+        self.symbolName = symbolName
+    }
+}
+
+public struct AtlasNutritionSnapshot: Equatable, Sendable {
+    public var dailyTargets: [AtlasNutritionTargetSnapshot]
+    public var favoriteMealCount: Int
+    public var recentMealCount: Int
+    public var latestMealLabel: String?
+    public var weeklySignals: [AtlasNutritionWeeklySignalSnapshot]
+    public var coachingCards: [AtlasNutritionCoachingCard]
+    public var note: String
+
+    public init(
+        dailyTargets: [AtlasNutritionTargetSnapshot] = [],
+        favoriteMealCount: Int = 0,
+        recentMealCount: Int = 0,
+        latestMealLabel: String? = nil,
+        weeklySignals: [AtlasNutritionWeeklySignalSnapshot] = [],
+        coachingCards: [AtlasNutritionCoachingCard] = [],
+        note: String = "Quick meals, repeated favorites, and simple daily targets."
+    ) {
+        self.dailyTargets = dailyTargets
+        self.favoriteMealCount = favoriteMealCount
+        self.recentMealCount = recentMealCount
+        self.latestMealLabel = latestMealLabel
+        self.weeklySignals = weeklySignals
+        self.coachingCards = coachingCards
+        self.note = note
+    }
+}
+
 public struct AtlasInventoryBurnDownInsight: Identifiable, Equatable, Sendable {
     public var id: String
     public var label: String
@@ -511,24 +1061,70 @@ public struct AtlasInventoryBurnDownInsight: Identifiable, Equatable, Sendable {
 }
 
 public struct AtlasAdherenceTrendSummary: Equatable, Sendable {
+    public struct DaySummary: Identifiable, Equatable, Sendable {
+        public enum Status: String, Codable, Equatable, Sendable {
+            case completed
+            case skipped
+            case overdue
+            case rescheduled
+            case quiet
+        }
+
+        public var id: String { dateKey }
+        public var dateKey: String
+        public var title: String
+        public var shortTitle: String
+        public var completedCount: Int
+        public var skippedCount: Int
+        public var overdueCount: Int
+        public var rescheduledCount: Int
+        public var scheduledCount: Int
+        public var dominantStatus: Status
+
+        public init(
+            dateKey: String,
+            title: String,
+            shortTitle: String,
+            completedCount: Int = 0,
+            skippedCount: Int = 0,
+            overdueCount: Int = 0,
+            rescheduledCount: Int = 0,
+            scheduledCount: Int = 0,
+            dominantStatus: Status = .quiet
+        ) {
+            self.dateKey = dateKey
+            self.title = title
+            self.shortTitle = shortTitle
+            self.completedCount = completedCount
+            self.skippedCount = skippedCount
+            self.overdueCount = overdueCount
+            self.rescheduledCount = rescheduledCount
+            self.scheduledCount = scheduledCount
+            self.dominantStatus = dominantStatus
+        }
+    }
+
     public var completionRateLabel: String?
     public var completedCount: Int
     public var overdueCount: Int
     public var rescheduledCount: Int
     public var skippedCount: Int
+    public var dailySummaries: [DaySummary]
 
     public init(
         completionRateLabel: String? = nil,
         completedCount: Int = 0,
         overdueCount: Int = 0,
         rescheduledCount: Int = 0,
-        skippedCount: Int = 0
+        skippedCount: Int = 0,
+        dailySummaries: [DaySummary] = []
     ) {
         self.completionRateLabel = completionRateLabel
         self.completedCount = completedCount
         self.overdueCount = overdueCount
         self.rescheduledCount = rescheduledCount
         self.skippedCount = skippedCount
+        self.dailySummaries = dailySummaries
     }
 }
 
@@ -540,6 +1136,16 @@ public struct AtlasAmountEstimateItem: Identifiable, Equatable, Sendable {
     public var cadenceLabel: String
     public var estimateLabel: String
     public var notesLabel: String
+    public var modelKind: AtlasMedicationLevelModelKind
+    public var modelLabel: String
+    public var halfLifeLabel: String?
+    public var compareLabel: String?
+    public var peakWindowLabel: String?
+    public var currentEstimateValue: Double?
+    public var estimateUnit: String?
+    public var points: [AtlasMedicationLevelPoint]
+    public var doseEvents: [AtlasMedicationLevelDoseEvent]
+    public var sourceFacts: [AtlasExplainerFact]
 
     public init(
         protocolID: String,
@@ -547,7 +1153,17 @@ public struct AtlasAmountEstimateItem: Identifiable, Equatable, Sendable {
         aliasProtocolTitle: String?,
         cadenceLabel: String,
         estimateLabel: String,
-        notesLabel: String
+        notesLabel: String,
+        modelKind: AtlasMedicationLevelModelKind = .scheduleWindowEstimate,
+        modelLabel: String = "Schedule window model",
+        halfLifeLabel: String? = nil,
+        compareLabel: String? = nil,
+        peakWindowLabel: String? = nil,
+        currentEstimateValue: Double? = nil,
+        estimateUnit: String? = nil,
+        points: [AtlasMedicationLevelPoint] = [],
+        doseEvents: [AtlasMedicationLevelDoseEvent] = [],
+        sourceFacts: [AtlasExplainerFact] = []
     ) {
         self.protocolID = protocolID
         self.canonicalProtocolTitle = canonicalProtocolTitle
@@ -555,6 +1171,16 @@ public struct AtlasAmountEstimateItem: Identifiable, Equatable, Sendable {
         self.cadenceLabel = cadenceLabel
         self.estimateLabel = estimateLabel
         self.notesLabel = notesLabel
+        self.modelKind = modelKind
+        self.modelLabel = modelLabel
+        self.halfLifeLabel = halfLifeLabel
+        self.compareLabel = compareLabel
+        self.peakWindowLabel = peakWindowLabel
+        self.currentEstimateValue = currentEstimateValue
+        self.estimateUnit = estimateUnit
+        self.points = points
+        self.doseEvents = doseEvents
+        self.sourceFacts = sourceFacts
     }
 }
 
@@ -587,11 +1213,161 @@ public struct AtlasDeterministicInsightCard: Identifiable, Equatable, Sendable {
     }
 }
 
+public struct AtlasStackDashboardProtocolItem: Identifiable, Equatable, Sendable {
+    public var id: String
+    public var title: String
+    public var kindLabel: String
+    public var cadenceLabel: String
+    public var doseLabel: String?
+    public var nextDueLabel: String?
+    public var lowStockLabel: String?
+
+    public init(
+        id: String,
+        title: String,
+        kindLabel: String,
+        cadenceLabel: String,
+        doseLabel: String? = nil,
+        nextDueLabel: String? = nil,
+        lowStockLabel: String? = nil
+    ) {
+        self.id = id
+        self.title = title
+        self.kindLabel = kindLabel
+        self.cadenceLabel = cadenceLabel
+        self.doseLabel = doseLabel
+        self.nextDueLabel = nextDueLabel
+        self.lowStockLabel = lowStockLabel
+    }
+}
+
+public struct AtlasStackDashboardTimeLoad: Identifiable, Equatable, Sendable {
+    public var id: String
+    public var title: String
+    public var scheduledCount: Int
+    public var detail: String
+
+    public init(id: String, title: String, scheduledCount: Int, detail: String) {
+        self.id = id
+        self.title = title
+        self.scheduledCount = scheduledCount
+        self.detail = detail
+    }
+}
+
+public struct AtlasStackDashboardSnapshot: Equatable, Sendable {
+    public var activeProtocolCount: Int
+    public var summary: String
+    public var burdenFacts: [AtlasExplainerFact]
+    public var activeProtocols: [AtlasStackDashboardProtocolItem]
+    public var scheduleLoads: [AtlasStackDashboardTimeLoad]
+
+    public init(
+        activeProtocolCount: Int = 0,
+        summary: String = "",
+        burdenFacts: [AtlasExplainerFact] = [],
+        activeProtocols: [AtlasStackDashboardProtocolItem] = [],
+        scheduleLoads: [AtlasStackDashboardTimeLoad] = []
+    ) {
+        self.activeProtocolCount = activeProtocolCount
+        self.summary = summary
+        self.burdenFacts = burdenFacts
+        self.activeProtocols = activeProtocols
+        self.scheduleLoads = scheduleLoads
+    }
+}
+
+public struct AtlasProtocolChangeOverlayMarker: Identifiable, Equatable, Sendable {
+    public var id: String
+    public var title: String
+    public var date: Date
+    public var detail: String?
+
+    public init(id: String, title: String, date: Date, detail: String? = nil) {
+        self.id = id
+        self.title = title
+        self.date = date
+        self.detail = detail
+    }
+}
+
+public struct AtlasBiometricOverlayPoint: Identifiable, Equatable, Sendable {
+    public var id: String
+    public var label: String
+    public var loggedAt: Date
+    public var value: Double
+
+    public init(id: String, label: String, loggedAt: Date, value: Double) {
+        self.id = id
+        self.label = label
+        self.loggedAt = loggedAt
+        self.value = value
+    }
+}
+
+public struct AtlasBiometricOverlaySeries: Identifiable, Equatable, Sendable {
+    public var id: String
+    public var title: String
+    public var subtitle: String?
+    public var latestValueLabel: String
+    public var trendLabel: String?
+    public var referenceRangeLabel: String?
+    public var points: [AtlasBiometricOverlayPoint]
+    public var protocolChangeMarkers: [AtlasProtocolChangeOverlayMarker]
+
+    public init(
+        id: String,
+        title: String,
+        subtitle: String? = nil,
+        latestValueLabel: String,
+        trendLabel: String? = nil,
+        referenceRangeLabel: String? = nil,
+        points: [AtlasBiometricOverlayPoint] = [],
+        protocolChangeMarkers: [AtlasProtocolChangeOverlayMarker] = []
+    ) {
+        self.id = id
+        self.title = title
+        self.subtitle = subtitle
+        self.latestValueLabel = latestValueLabel
+        self.trendLabel = trendLabel
+        self.referenceRangeLabel = referenceRangeLabel
+        self.points = points
+        self.protocolChangeMarkers = protocolChangeMarkers
+    }
+}
+
+public struct AtlasBiometricOverlayGroup: Identifiable, Equatable, Sendable {
+    public var id: String
+    public var title: String
+    public var subtitle: String
+    public var series: [AtlasBiometricOverlaySeries]
+
+    public init(id: String, title: String, subtitle: String, series: [AtlasBiometricOverlaySeries]) {
+        self.id = id
+        self.title = title
+        self.subtitle = subtitle
+        self.series = series
+    }
+}
+
+public struct AtlasBiometricsOverlaySnapshot: Equatable, Sendable {
+    public var summary: String
+    public var groups: [AtlasBiometricOverlayGroup]
+
+    public init(summary: String = "", groups: [AtlasBiometricOverlayGroup] = []) {
+        self.summary = summary
+        self.groups = groups
+    }
+}
+
 public struct AtlasInsightsSnapshot: Equatable, Sendable {
     public var weightTrend: AtlasWeightTrendSummary
     public var symptomTrend: [AtlasSymptomTrendItem]
     public var contextTrend: AtlasContextTrendSummary
+    public var nutritionSnapshot: AtlasNutritionSnapshot
     public var deterministicExplanations: [AtlasDeterministicInsightCard]
+    public var stackDashboard: AtlasStackDashboardSnapshot?
+    public var biometricsOverlay: AtlasBiometricsOverlaySnapshot?
     public var savedContextPresets: [AtlasContextPresetSummary]
     public var inventoryBurnDown: [AtlasInventoryBurnDownInsight]
     public var adherenceTrend: AtlasAdherenceTrendSummary
@@ -606,17 +1382,23 @@ public struct AtlasInsightsSnapshot: Equatable, Sendable {
     public var recentMetricEntries: [AtlasMetricValueEntrySummary]
     public var weeklyRecapSummary: AtlasGeneratedSummary?
     public var episodeRecapSummary: AtlasGeneratedSummary?
+    public var weeklyReviewSeed: AtlasWeeklyReviewSeed?
+    public var weeklyReviewHistory: [AtlasWeeklyReviewSeed]
+    public var progressEvidence: AtlasProgressEvidenceSnapshot
     public var hasAnyInsightData: Bool
 
     public init(
         weightTrend: AtlasWeightTrendSummary = .init(),
         symptomTrend: [AtlasSymptomTrendItem] = [],
         contextTrend: AtlasContextTrendSummary = .init(),
+        nutritionSnapshot: AtlasNutritionSnapshot = .init(),
         deterministicExplanations: [AtlasDeterministicInsightCard] = [],
+        stackDashboard: AtlasStackDashboardSnapshot? = nil,
+        biometricsOverlay: AtlasBiometricsOverlaySnapshot? = nil,
         savedContextPresets: [AtlasContextPresetSummary] = [],
         inventoryBurnDown: [AtlasInventoryBurnDownInsight] = [],
         adherenceTrend: AtlasAdherenceTrendSummary = .init(),
-        amountInSystemDisclaimer: String = "Estimate only. Atlas spreads logged quantities across each protocol interval as a scheduling model, not a medical or pharmacokinetic calculation.",
+        amountInSystemDisclaimer: String = "Estimate only. Logged quantities use known half-life profiles when available and otherwise fall back to the saved schedule window. These are planning estimates, not serum measurements.",
         amountInSystem: [AtlasAmountEstimateItem] = [],
         episodeIntelligence: AtlasEpisodeInsightsSnapshot = .init(),
         customMetricDefinitions: [AtlasMetricDefinitionSummary] = [],
@@ -627,12 +1409,18 @@ public struct AtlasInsightsSnapshot: Equatable, Sendable {
         recentMetricEntries: [AtlasMetricValueEntrySummary] = [],
         weeklyRecapSummary: AtlasGeneratedSummary? = nil,
         episodeRecapSummary: AtlasGeneratedSummary? = nil,
+        weeklyReviewSeed: AtlasWeeklyReviewSeed? = nil,
+        weeklyReviewHistory: [AtlasWeeklyReviewSeed] = [],
+        progressEvidence: AtlasProgressEvidenceSnapshot = .init(),
         hasAnyInsightData: Bool = false
     ) {
         self.weightTrend = weightTrend
         self.symptomTrend = symptomTrend
         self.contextTrend = contextTrend
+        self.nutritionSnapshot = nutritionSnapshot
         self.deterministicExplanations = deterministicExplanations
+        self.stackDashboard = stackDashboard
+        self.biometricsOverlay = biometricsOverlay
         self.savedContextPresets = savedContextPresets
         self.inventoryBurnDown = inventoryBurnDown
         self.adherenceTrend = adherenceTrend
@@ -647,6 +1435,9 @@ public struct AtlasInsightsSnapshot: Equatable, Sendable {
         self.recentMetricEntries = recentMetricEntries
         self.weeklyRecapSummary = weeklyRecapSummary
         self.episodeRecapSummary = episodeRecapSummary
+        self.weeklyReviewSeed = weeklyReviewSeed
+        self.weeklyReviewHistory = weeklyReviewHistory
+        self.progressEvidence = progressEvidence
         self.hasAnyInsightData = hasAnyInsightData
     }
 }

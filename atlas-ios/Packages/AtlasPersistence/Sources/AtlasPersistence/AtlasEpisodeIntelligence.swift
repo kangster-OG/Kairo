@@ -302,7 +302,7 @@ private func detectEpisodePatterns(
                 windowKind: key.window,
                 confidence: uniqueEpisodeIDs.count >= 4 ? .high : .medium,
                 title: "\(key.symptomKey.capitalized) tended to cluster in \(key.window.title.lowercased())",
-                detail: "This symptom appeared in \(uniqueEpisodeIDs.count) recent dose-centered episode(s). Atlas is describing timing only, not cause.",
+                detail: "This symptom appeared in \(uniqueEpisodeIDs.count) recent dose-centered episode(s). Timing only, not cause.",
                 supportingEpisodeCount: uniqueEpisodeIDs.count
             )
         )
@@ -409,7 +409,7 @@ private func detectContextPatterns(
             windowKind: key.window,
             confidence: uniqueEpisodeIDs.count >= 4 ? .high : .medium,
             title: "\(key.descriptor) often appeared in \(key.window.title.lowercased())",
-            detail: "\(key.descriptor) was logged in \(uniqueEpisodeIDs.count) recent dose-centered episode(s). Atlas is describing timing only, not cause.",
+            detail: "\(key.descriptor) was logged in \(uniqueEpisodeIDs.count) recent dose-centered episode(s). Timing only, not cause.",
             supportingEpisodeCount: uniqueEpisodeIDs.count
         )
     }
@@ -470,7 +470,7 @@ private func detectWeightShiftPatterns(
             windowKind: dominantWindow,
             confidence: dominant.count >= 4 ? .high : .medium,
             title: "Weight entries tended to drift \(direction) around the same dose window",
-            detail: "Across \(dominant.count) recent episode(s), weight changed about \(formatEpisodeNumber(abs(averageDelta))) \(unit) in \(dominantWindow?.title.lowercased() ?? "a repeated window"). Atlas is only describing logged timing.",
+            detail: "Across \(dominant.count) recent episode(s), weight changed about \(formatEpisodeNumber(abs(averageDelta))) \(unit) in \(dominantWindow?.title.lowercased() ?? "a repeated window"). Logged timing only.",
             supportingEpisodeCount: dominant.count
         )
     }

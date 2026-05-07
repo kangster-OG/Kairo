@@ -47,6 +47,7 @@ public struct AtlasCompoundKnowledge: Identifiable, Equatable, Hashable, Sendabl
     public var typicalCadenceLabel: String
     public var availabilityLabel: String
     public var commonDoseUnits: [String]
+    public var kineticsProfile: AtlasCompoundKineticsProfile?
     public var operationalTags: [AtlasCompoundOperationalTag]
     public var protocolSummary: String
     public var compareCandidateSlugs: [String]
@@ -63,6 +64,7 @@ public struct AtlasCompoundKnowledge: Identifiable, Equatable, Hashable, Sendabl
         typicalCadenceLabel: String,
         availabilityLabel: String,
         commonDoseUnits: [String],
+        kineticsProfile: AtlasCompoundKineticsProfile? = nil,
         operationalTags: [AtlasCompoundOperationalTag],
         protocolSummary: String,
         compareCandidateSlugs: [String] = [],
@@ -78,6 +80,7 @@ public struct AtlasCompoundKnowledge: Identifiable, Equatable, Hashable, Sendabl
         self.typicalCadenceLabel = typicalCadenceLabel
         self.availabilityLabel = availabilityLabel
         self.commonDoseUnits = commonDoseUnits
+        self.kineticsProfile = kineticsProfile
         self.operationalTags = operationalTags
         self.protocolSummary = protocolSummary
         self.compareCandidateSlugs = compareCandidateSlugs
@@ -98,6 +101,11 @@ public enum AtlasCompoundKnowledgeCatalog {
             typicalCadenceLabel: "Usually weekly",
             availabilityLabel: "Prescription or managed compounding depending on source",
             commonDoseUnits: ["mg"],
+            kineticsProfile: .init(
+                halfLifeHours: 168,
+                sourceLabel: "Catalog half-life profile",
+                notes: "Uses a semaglutide half-life profile to estimate relative levels from logged doses."
+            ),
             operationalTags: [.appetiteControl, .giLoad, .bloodSugarShift, .weeklyCadence],
             protocolSummary: "Weekly GLP-1 option often used when appetite control and steady weekly adherence matter most.",
             compareCandidateSlugs: ["tirzepatide", "retatrutide", "liraglutide"],
@@ -117,6 +125,11 @@ public enum AtlasCompoundKnowledgeCatalog {
             typicalCadenceLabel: "Usually weekly",
             availabilityLabel: "Prescription or managed compounding depending on source",
             commonDoseUnits: ["mg"],
+            kineticsProfile: .init(
+                halfLifeHours: 120,
+                sourceLabel: "Catalog half-life profile",
+                notes: "Uses a tirzepatide half-life profile to estimate relative levels from logged doses."
+            ),
             operationalTags: [.appetiteControl, .giLoad, .bloodSugarShift, .weeklyCadence],
             protocolSummary: "Weekly dual-pathway option commonly treated as a stronger step up when appetite control and scale response both matter.",
             compareCandidateSlugs: ["semaglutide", "retatrutide", "liraglutide"],
@@ -139,7 +152,7 @@ public enum AtlasCompoundKnowledgeCatalog {
             operationalTags: [.appetiteControl, .giLoad, .bloodSugarShift, .weeklyCadence],
             protocolSummary: "Triple-pathway GLP candidate usually treated as a higher-uncertainty protocol with tighter monitoring needs.",
             compareCandidateSlugs: ["tirzepatide", "semaglutide"],
-            swapGuidance: "Atlas should treat this as a more experimental swap, with extra caution around tolerance and source quality.",
+            swapGuidance: "Treat this as a more experimental swap, with extra caution around tolerance and source quality.",
             operationalCautions: [
                 "Availability and sourcing are less stable than the established GLP options.",
                 "Operationally this usually deserves tighter check-ins than a routine weekly maintenance protocol."
@@ -155,12 +168,184 @@ public enum AtlasCompoundKnowledgeCatalog {
             typicalCadenceLabel: "Usually daily",
             availabilityLabel: "Prescription managed",
             commonDoseUnits: ["mg"],
+            kineticsProfile: .init(
+                halfLifeHours: 13,
+                sourceLabel: "Catalog half-life profile",
+                notes: "Uses a liraglutide half-life profile to estimate relative levels from logged doses."
+            ),
             operationalTags: [.appetiteControl, .giLoad, .bloodSugarShift, .dailyCadence],
             protocolSummary: "Daily GLP plan that trades a lighter single-dose load for a much higher reminder and adherence burden.",
             compareCandidateSlugs: ["semaglutide", "tirzepatide"],
             swapGuidance: "Moving between daily and weekly GLPs changes the whole reminder shape, not just the compound.",
             operationalCautions: [
                 "A daily protocol changes travel, reminder, and missed-dose behavior more than the name alone suggests."
+            ]
+        ),
+        AtlasCompoundKnowledge(
+            slug: "dulaglutide",
+            displayName: "Dulaglutide",
+            aliases: ["trulicity"],
+            kind: .glp,
+            categoryLabel: "GLP-1 agonist",
+            routeLabel: "Subcutaneous injection",
+            typicalCadenceLabel: "Usually weekly",
+            availabilityLabel: "Prescription managed",
+            commonDoseUnits: ["mg"],
+            kineticsProfile: .init(
+                halfLifeHours: 120,
+                sourceLabel: "Catalog half-life profile",
+                notes: "Uses a dulaglutide half-life profile to estimate relative levels from logged doses."
+            ),
+            operationalTags: [.appetiteControl, .giLoad, .bloodSugarShift, .weeklyCadence],
+            protocolSummary: "Weekly GLP-1 option where inventory continuity and missed-dose handling stay relatively simple.",
+            compareCandidateSlugs: ["semaglutide", "tirzepatide", "liraglutide"],
+            swapGuidance: "Treat swaps as weekly GLP transitions and preserve the user's existing reminder anchor where possible.",
+            operationalCautions: [
+                "Weekly GLP labels can look interchangeable, but tolerance and transition timing still need explicit tracking."
+            ]
+        ),
+        AtlasCompoundKnowledge(
+            slug: "exenatide",
+            displayName: "Exenatide",
+            aliases: ["byetta", "bydureon"],
+            kind: .glp,
+            categoryLabel: "GLP-1 agonist",
+            routeLabel: "Subcutaneous injection",
+            typicalCadenceLabel: "Daily or weekly formulation dependent",
+            availabilityLabel: "Prescription managed",
+            commonDoseUnits: ["mcg", "mg"],
+            operationalTags: [.appetiteControl, .giLoad, .bloodSugarShift, .dailyCadence, .weeklyCadence],
+            protocolSummary: "GLP-1 option where the formulation changes the whole reminder rhythm, so the saved cadence matters.",
+            compareCandidateSlugs: ["liraglutide", "semaglutide", "dulaglutide"],
+            swapGuidance: "Confirm whether the user is tracking a daily or weekly formulation before carrying schedule assumptions forward.",
+            operationalCautions: [
+                "Formulation naming matters operationally because daily and weekly schedules are both possible."
+            ]
+        ),
+        AtlasCompoundKnowledge(
+            slug: "lixisenatide",
+            displayName: "Lixisenatide",
+            aliases: ["adlyxin"],
+            kind: .glp,
+            categoryLabel: "GLP-1 agonist",
+            routeLabel: "Subcutaneous injection",
+            typicalCadenceLabel: "Usually daily",
+            availabilityLabel: "Prescription managed",
+            commonDoseUnits: ["mcg"],
+            operationalTags: [.appetiteControl, .giLoad, .bloodSugarShift, .dailyCadence],
+            protocolSummary: "Daily GLP-1 plan that behaves more like a daily habit than a weekly protocol anchor.",
+            compareCandidateSlugs: ["liraglutide", "exenatide", "semaglutide"],
+            swapGuidance: "Daily-to-weekly swaps should update reminders and missed-dose expectations, not just the compound label.",
+            operationalCautions: [
+                "Daily GLP protocols create more adherence surface area than weekly plans."
+            ]
+        ),
+        AtlasCompoundKnowledge(
+            slug: "pramlintide",
+            displayName: "Pramlintide",
+            aliases: ["symlin"],
+            kind: .peptide,
+            categoryLabel: "Amylin analog",
+            routeLabel: "Subcutaneous injection",
+            typicalCadenceLabel: "Meal-timed",
+            availabilityLabel: "Prescription managed",
+            commonDoseUnits: ["mcg"],
+            operationalTags: [.appetiteControl, .bloodSugarShift, .dailyCadence],
+            protocolSummary: "Meal-timed amylin analog where event timing matters more than a simple daily or weekly repeat.",
+            compareCandidateSlugs: ["cagrilintide", "semaglutide"],
+            swapGuidance: "Keep meal timing explicit instead of flattening this into a generic injection cadence.",
+            operationalCautions: [
+                "Meal-timed protocols need different reminders than maintenance injections."
+            ]
+        ),
+        AtlasCompoundKnowledge(
+            slug: "cagrilintide",
+            displayName: "Cagrilintide",
+            aliases: ["am833"],
+            kind: .glp,
+            categoryLabel: "Amylin analog",
+            routeLabel: "Subcutaneous injection",
+            typicalCadenceLabel: "Usually weekly in trials",
+            availabilityLabel: "Research / investigational",
+            commonDoseUnits: ["mg"],
+            operationalTags: [.appetiteControl, .giLoad, .weeklyCadence],
+            protocolSummary: "Investigational amylin-pathway option often discussed beside GLP protocols and combination metabolic plans.",
+            compareCandidateSlugs: ["semaglutide", "tirzepatide", "pramlintide"],
+            swapGuidance: "Treat this as research-heavy and keep the protocol notes clear about why it is being tracked.",
+            operationalCautions: [
+                "Investigational options deserve clear source and intent notes without implying dosing guidance."
+            ]
+        ),
+        AtlasCompoundKnowledge(
+            slug: "survodutide",
+            displayName: "Survodutide",
+            aliases: ["bi 456906"],
+            kind: .glp,
+            categoryLabel: "GLP-1 / glucagon agonist",
+            routeLabel: "Subcutaneous injection",
+            typicalCadenceLabel: "Usually weekly in trials",
+            availabilityLabel: "Research / investigational",
+            commonDoseUnits: ["mg"],
+            operationalTags: [.appetiteControl, .giLoad, .bloodSugarShift, .weeklyCadence],
+            protocolSummary: "Investigational dual-pathway metabolic peptide where appetite, GI, and weekly cadence tracking are the key app surfaces.",
+            compareCandidateSlugs: ["pemvidutide", "mazdutide", "retatrutide"],
+            swapGuidance: "Keep this in the higher-uncertainty research lane and avoid treating it like an established GLP swap.",
+            operationalCautions: [
+                "Research compounds should remain clearly labeled as investigational in user-facing context."
+            ]
+        ),
+        AtlasCompoundKnowledge(
+            slug: "pemvidutide",
+            displayName: "Pemvidutide",
+            aliases: ["alt-801"],
+            kind: .glp,
+            categoryLabel: "GLP-1 / glucagon agonist",
+            routeLabel: "Subcutaneous injection",
+            typicalCadenceLabel: "Usually weekly in trials",
+            availabilityLabel: "Research / investigational",
+            commonDoseUnits: ["mg"],
+            operationalTags: [.appetiteControl, .giLoad, .bloodSugarShift, .weeklyCadence],
+            protocolSummary: "Investigational metabolic peptide usually tracked as a weekly research-style protocol rather than routine care.",
+            compareCandidateSlugs: ["survodutide", "mazdutide", "retatrutide"],
+            swapGuidance: "Preserve explicit notes about trial/research context and avoid implying equivalence to approved therapies.",
+            operationalCautions: [
+                "Higher-uncertainty compounds need clear protocol labels and conservative copy."
+            ]
+        ),
+        AtlasCompoundKnowledge(
+            slug: "mazdutide",
+            displayName: "Mazdutide",
+            aliases: ["ibI362", "ly3305677"],
+            kind: .glp,
+            categoryLabel: "GLP-1 / glucagon agonist",
+            routeLabel: "Subcutaneous injection",
+            typicalCadenceLabel: "Usually weekly in trials",
+            availabilityLabel: "Research / investigational",
+            commonDoseUnits: ["mg"],
+            operationalTags: [.appetiteControl, .giLoad, .bloodSugarShift, .weeklyCadence],
+            protocolSummary: "Investigational dual agonist that belongs in the metabolic peptide catalog for tracking and comparison context.",
+            compareCandidateSlugs: ["survodutide", "pemvidutide", "retatrutide"],
+            swapGuidance: "Treat as investigational and keep transitions separate from established weekly GLP protocols.",
+            operationalCautions: [
+                "Avoid presenting investigational entries as recommendations or approved options."
+            ]
+        ),
+        AtlasCompoundKnowledge(
+            slug: "efinopegdutide",
+            displayName: "Efinopegdutide",
+            aliases: ["hm12525a", "mk-6024"],
+            kind: .glp,
+            categoryLabel: "GLP-1 / glucagon agonist",
+            routeLabel: "Subcutaneous injection",
+            typicalCadenceLabel: "Trial dependent",
+            availabilityLabel: "Research / investigational",
+            commonDoseUnits: ["mg"],
+            operationalTags: [.appetiteControl, .giLoad, .bloodSugarShift],
+            protocolSummary: "Investigational metabolic peptide where trial context and cadence notes matter more than default assumptions.",
+            compareCandidateSlugs: ["survodutide", "pemvidutide", "mazdutide"],
+            swapGuidance: "Keep cadence and availability explicit because this is not a standard care protocol.",
+            operationalCautions: [
+                "Trial-dependent compounds should not inherit default weekly assumptions unless the user sets them."
             ]
         ),
         AtlasCompoundKnowledge(
@@ -178,7 +363,7 @@ public enum AtlasCompoundKnowledgeCatalog {
             compareCandidateSlugs: ["tb-500", "ghk-cu", "mots-c"],
             swapGuidance: "Swaps are usually about recovery focus and injection burden, not about replacing a metabolic weekly anchor.",
             operationalCautions: [
-                "If the protocol is site-targeted, Atlas should preserve site context instead of treating this like a generic daily injection."
+                "If the protocol is site-targeted, preserve site context instead of treating this like a generic daily injection."
             ]
         ),
         AtlasCompoundKnowledge(
@@ -232,7 +417,7 @@ public enum AtlasCompoundKnowledgeCatalog {
             compareCandidateSlugs: ["ipamorelin", "tesamorelin", "sermorelin"],
             swapGuidance: "The real swap question is usually schedule burden and whether the user is intentionally stacking GH-axis signals.",
             operationalCautions: [
-                "Atlas should assume GH-axis compounds need extra clarity when they are stacked, even if each dose looks routine."
+                "GH-axis stacks need extra clarity even if each dose looks routine."
             ]
         ),
         AtlasCompoundKnowledge(
@@ -250,7 +435,7 @@ public enum AtlasCompoundKnowledgeCatalog {
             compareCandidateSlugs: ["sermorelin", "ipamorelin", "cjc-1295"],
             swapGuidance: "Compared with looser peptide stacks, this usually benefits from clearer sourcing, schedule discipline, and provider continuity.",
             operationalCautions: [
-                "Daily GH-axis protocols can quietly become adherence problems if Atlas only treats them as simple recurring injections."
+                "Daily GH-axis protocols can become adherence problems if treated as simple recurring injections."
             ]
         ),
         AtlasCompoundKnowledge(
@@ -268,7 +453,7 @@ public enum AtlasCompoundKnowledgeCatalog {
             compareCandidateSlugs: ["tesamorelin", "ipamorelin", "cjc-1295"],
             swapGuidance: "Swap guidance should focus on daily adherence and whether the user is narrowing or broadening GH-axis exposure.",
             operationalCautions: [
-                "When multiple GH-axis compounds are present, Atlas should assume the user needs stronger transition guidance."
+                "Multiple GH-axis compounds usually need stronger transition guidance."
             ]
         ),
         AtlasCompoundKnowledge(
@@ -320,7 +505,7 @@ public enum AtlasCompoundKnowledgeCatalog {
             operationalTags: [.recoverySupport, .skinHair, .siteSensitive, .dailyCadence],
             protocolSummary: "Support peptide often used when skin, tissue, or cosmetic intent matters alongside recovery tracking.",
             compareCandidateSlugs: ["bpc-157", "tb-500"],
-            swapGuidance: "Atlas should treat this as a support protocol with real site and adherence implications, not just a cosmetic add-on.",
+            swapGuidance: "Treat this as a support protocol with real site and adherence implications, not just a cosmetic add-on.",
             operationalCautions: [
                 "Skin and cosmetic goals still create meaningful protocol load when paired with repair stacks."
             ]
@@ -338,9 +523,243 @@ public enum AtlasCompoundKnowledgeCatalog {
             operationalTags: [.sexualFunction],
             protocolSummary: "Situational peptide that benefits from better event-based planning than a rigid recurring schedule.",
             compareCandidateSlugs: ["ghk-cu"],
-            swapGuidance: "Atlas should support event-oriented guidance here instead of forcing it into a weekly maintenance mental model.",
+            swapGuidance: "Support event-oriented guidance here instead of forcing it into a weekly maintenance model.",
             operationalCautions: [
                 "Situational protocols need different reminder logic than maintenance compounds."
+            ]
+        ),
+        AtlasCompoundKnowledge(
+            slug: "thymosin-alpha-1",
+            displayName: "Thymosin Alpha-1",
+            aliases: ["ta-1", "talpha1", "zadaxin"],
+            kind: .peptide,
+            categoryLabel: "Immune peptide",
+            routeLabel: "Usually subcutaneous injection",
+            typicalCadenceLabel: "Often a few times weekly",
+            availabilityLabel: "Managed prescription or research-adjacent depending on region",
+            commonDoseUnits: ["mg", "mcg"],
+            operationalTags: [.dailyCadence],
+            protocolSummary: "Immune-support peptide where cadence and cycle boundaries need clear tracking.",
+            compareCandidateSlugs: ["ll-37", "bpc-157"],
+            swapGuidance: "Compare on protocol burden and cycle intent rather than treating it like a metabolic peptide.",
+            operationalCautions: [
+                "Cycle-based immune protocols should keep start and stop dates explicit."
+            ]
+        ),
+        AtlasCompoundKnowledge(
+            slug: "ll-37",
+            displayName: "LL-37",
+            aliases: ["ll37"],
+            kind: .peptide,
+            categoryLabel: "Antimicrobial peptide",
+            routeLabel: "Usually subcutaneous injection",
+            typicalCadenceLabel: "Often cyclical",
+            availabilityLabel: "Research-heavy / limited managed availability",
+            commonDoseUnits: ["mcg", "mg"],
+            operationalTags: [.recoverySupport, .siteSensitive],
+            protocolSummary: "Research-heavy antimicrobial peptide where cycle notes and site context matter.",
+            compareCandidateSlugs: ["thymosin-alpha-1", "bpc-157"],
+            swapGuidance: "Keep this in a research-support lane with explicit notes rather than routine protocol assumptions.",
+            operationalCautions: [
+                "Research-heavy antimicrobial peptides should remain clearly labeled and not presented as treatment guidance."
+            ]
+        ),
+        AtlasCompoundKnowledge(
+            slug: "kisspeptin-10",
+            displayName: "Kisspeptin-10",
+            aliases: ["kisspeptin", "kp-10"],
+            kind: .peptide,
+            categoryLabel: "Hormone signaling peptide",
+            routeLabel: "Usually subcutaneous injection",
+            typicalCadenceLabel: "Variable / protocol dependent",
+            availabilityLabel: "Research-heavy / limited managed availability",
+            commonDoseUnits: ["mcg", "mg"],
+            operationalTags: [.sexualFunction],
+            protocolSummary: "Hormone-signaling peptide where context and timing notes matter more than a universal cadence.",
+            compareCandidateSlugs: ["pt-141", "hcg"],
+            swapGuidance: "Do not force this into a daily or weekly default; preserve the user's selected cadence.",
+            operationalCautions: [
+                "Hormone-axis peptides need conservative copy and clear protocol intent."
+            ]
+        ),
+        AtlasCompoundKnowledge(
+            slug: "hexarelin",
+            displayName: "Hexarelin",
+            aliases: [],
+            kind: .peptide,
+            categoryLabel: "GH secretagogue",
+            routeLabel: "Usually subcutaneous injection",
+            typicalCadenceLabel: "Often daily or cyclical",
+            availabilityLabel: "Research-heavy / limited managed availability",
+            commonDoseUnits: ["mcg"],
+            operationalTags: [.ghAxis, .sleepSensitive, .dailyCadence],
+            protocolSummary: "GH-axis secretagogue where cycle handling and timing consistency are the main app concerns.",
+            compareCandidateSlugs: ["ipamorelin", "cjc-1295", "sermorelin"],
+            swapGuidance: "Compare against other GH-axis entries by schedule burden and stacking intent.",
+            operationalCautions: [
+                "GH-axis stacks can become ambiguous without explicit timing and transition notes."
+            ]
+        ),
+        AtlasCompoundKnowledge(
+            slug: "ghrp-2",
+            displayName: "GHRP-2",
+            aliases: ["growth hormone releasing peptide 2"],
+            kind: .peptide,
+            categoryLabel: "GH secretagogue",
+            routeLabel: "Usually subcutaneous injection",
+            typicalCadenceLabel: "Often daily",
+            availabilityLabel: "Research-heavy / limited managed availability",
+            commonDoseUnits: ["mcg"],
+            operationalTags: [.ghAxis, .sleepSensitive, .dailyCadence],
+            protocolSummary: "GH-axis peptide where daily adherence, timing, and stack clarity drive the protocol experience.",
+            compareCandidateSlugs: ["ghrp-6", "ipamorelin", "cjc-1295"],
+            swapGuidance: "Keep GH-axis substitutions explicit so the user can distinguish timing changes from compound changes.",
+            operationalCautions: [
+                "Daily GH-axis reminders can become noisy if stacked without clear intent."
+            ]
+        ),
+        AtlasCompoundKnowledge(
+            slug: "ghrp-6",
+            displayName: "GHRP-6",
+            aliases: ["growth hormone releasing peptide 6"],
+            kind: .peptide,
+            categoryLabel: "GH secretagogue",
+            routeLabel: "Usually subcutaneous injection",
+            typicalCadenceLabel: "Often daily",
+            availabilityLabel: "Research-heavy / limited managed availability",
+            commonDoseUnits: ["mcg"],
+            operationalTags: [.ghAxis, .sleepSensitive, .dailyCadence],
+            protocolSummary: "GH-axis peptide that should be tracked with timing and appetite-context notes when relevant.",
+            compareCandidateSlugs: ["ghrp-2", "ipamorelin", "cjc-1295"],
+            swapGuidance: "Compare by GH-axis schedule burden and whether appetite context needs to be tracked.",
+            operationalCautions: [
+                "GH-axis peptides should not be collapsed into generic peptide reminders."
+            ]
+        ),
+        AtlasCompoundKnowledge(
+            slug: "igf-1-lr3",
+            displayName: "IGF-1 LR3",
+            aliases: ["igf lr3", "insulin-like growth factor 1 lr3"],
+            kind: .peptide,
+            categoryLabel: "Growth factor peptide",
+            routeLabel: "Usually subcutaneous or intramuscular injection",
+            typicalCadenceLabel: "Often cyclical",
+            availabilityLabel: "Research-heavy / limited managed availability",
+            commonDoseUnits: ["mcg"],
+            operationalTags: [.bloodSugarShift, .recoverySupport, .siteSensitive],
+            protocolSummary: "Growth-factor peptide where cycle boundaries, site notes, and glucose-context tracking matter.",
+            compareCandidateSlugs: ["mots-c", "cjc-1295"],
+            swapGuidance: "Keep this separate from routine support peptides because the monitoring context is different.",
+            operationalCautions: [
+                "Growth-factor protocols should remain clearly labeled and conservative in-app."
+            ]
+        ),
+        AtlasCompoundKnowledge(
+            slug: "selank",
+            displayName: "Selank",
+            aliases: [],
+            kind: .peptide,
+            categoryLabel: "Neuropeptide",
+            routeLabel: "Usually intranasal or subcutaneous",
+            typicalCadenceLabel: "Often daily or cyclical",
+            availabilityLabel: "Research-heavy / regional availability",
+            commonDoseUnits: ["mcg", "mg"],
+            operationalTags: [.sleepSensitive, .dailyCadence],
+            protocolSummary: "Neuropeptide where route, timing, and cycle notes should stay visible.",
+            compareCandidateSlugs: ["semax", "dsip"],
+            swapGuidance: "Compare by route and cycle burden rather than metabolic protocol assumptions.",
+            operationalCautions: [
+                "Intranasal and injectable routes should not share one hidden default."
+            ]
+        ),
+        AtlasCompoundKnowledge(
+            slug: "semax",
+            displayName: "Semax",
+            aliases: [],
+            kind: .peptide,
+            categoryLabel: "Neuropeptide",
+            routeLabel: "Usually intranasal or subcutaneous",
+            typicalCadenceLabel: "Often daily or cyclical",
+            availabilityLabel: "Research-heavy / regional availability",
+            commonDoseUnits: ["mcg", "mg"],
+            operationalTags: [.sleepSensitive, .dailyCadence],
+            protocolSummary: "Neuropeptide protocol where route and timing are the key operational fields.",
+            compareCandidateSlugs: ["selank", "dsip"],
+            swapGuidance: "Preserve route notes when comparing with other neuropeptides.",
+            operationalCautions: [
+                "Route-specific protocols need clear labels to avoid logging ambiguity."
+            ]
+        ),
+        AtlasCompoundKnowledge(
+            slug: "dsip",
+            displayName: "DSIP",
+            aliases: ["delta sleep-inducing peptide"],
+            kind: .peptide,
+            categoryLabel: "Sleep peptide",
+            routeLabel: "Usually subcutaneous or intranasal",
+            typicalCadenceLabel: "Often bedtime anchored or cyclical",
+            availabilityLabel: "Research-heavy / limited managed availability",
+            commonDoseUnits: ["mcg", "mg"],
+            operationalTags: [.sleepSensitive, .dailyCadence],
+            protocolSummary: "Sleep-oriented peptide where bedtime timing and cycle intent are the main tracking concerns.",
+            compareCandidateSlugs: ["selank", "semax", "ipamorelin"],
+            swapGuidance: "Keep bedtime timing explicit when moving between sleep-sensitive protocols.",
+            operationalCautions: [
+                "Sleep-sensitive protocols should avoid noisy reminders that undermine the routine."
+            ]
+        ),
+        AtlasCompoundKnowledge(
+            slug: "epitalon",
+            displayName: "Epitalon",
+            aliases: ["epithalon"],
+            kind: .peptide,
+            categoryLabel: "Pineal peptide",
+            routeLabel: "Usually subcutaneous injection",
+            typicalCadenceLabel: "Often cyclical",
+            availabilityLabel: "Research-heavy / limited managed availability",
+            commonDoseUnits: ["mg", "mcg"],
+            operationalTags: [.sleepSensitive],
+            protocolSummary: "Cyclical peptide where start/stop tracking is more important than a permanent recurring reminder.",
+            compareCandidateSlugs: ["dsip", "mots-c"],
+            swapGuidance: "Preserve cycle boundaries and avoid treating this like a continuous maintenance plan.",
+            operationalCautions: [
+                "Cycle-based protocols need explicit end dates or review prompts."
+            ]
+        ),
+        AtlasCompoundKnowledge(
+            slug: "oxytocin",
+            displayName: "Oxytocin",
+            aliases: [],
+            kind: .peptide,
+            categoryLabel: "Hormone peptide",
+            routeLabel: "Intranasal or injection depending on formulation",
+            typicalCadenceLabel: "Variable / protocol dependent",
+            availabilityLabel: "Prescription or compounding depending on context",
+            commonDoseUnits: ["IU", "mcg"],
+            operationalTags: [.sexualFunction],
+            protocolSummary: "Hormone peptide where route and situational timing need to be explicit.",
+            compareCandidateSlugs: ["pt-141", "kisspeptin-10"],
+            swapGuidance: "Treat this as route- and context-dependent rather than a fixed peptide schedule.",
+            operationalCautions: [
+                "Route and formulation ambiguity should be resolved in the saved protocol notes."
+            ]
+        ),
+        AtlasCompoundKnowledge(
+            slug: "melanotan-ii",
+            displayName: "Melanotan II",
+            aliases: ["mt-2", "mt2"],
+            kind: .peptide,
+            categoryLabel: "Melanocortin peptide",
+            routeLabel: "Usually subcutaneous injection",
+            typicalCadenceLabel: "Often cyclical",
+            availabilityLabel: "Research-heavy / non-standard availability",
+            commonDoseUnits: ["mcg", "mg"],
+            operationalTags: [.skinHair, .sexualFunction, .siteSensitive],
+            protocolSummary: "Melanocortin peptide where cycle, skin-context, and side-effect notes should stay visible.",
+            compareCandidateSlugs: ["pt-141", "ghk-cu"],
+            swapGuidance: "Keep this separate from PT-141 because protocol intent and cycle behavior can differ.",
+            operationalCautions: [
+                "Non-standard peptide entries should be treated as tracking labels, not recommendations."
             ]
         ),
         AtlasCompoundKnowledge(
@@ -353,6 +772,11 @@ public enum AtlasCompoundKnowledgeCatalog {
             typicalCadenceLabel: "Usually weekly or split weekly",
             availabilityLabel: "Prescription managed",
             commonDoseUnits: ["mg", "mL"],
+            kineticsProfile: .init(
+                halfLifeHours: 192,
+                sourceLabel: "Catalog half-life profile",
+                notes: "Uses a testosterone cypionate half-life profile to estimate relative levels from logged doses."
+            ),
             operationalTags: [.androgenicLoad, .waterRetention, .estrogenicSpillover, .weeklyCadence],
             protocolSummary: "Core TRT-style protocol where cadence consistency, labs, and inventory continuity tend to matter more than novelty.",
             compareCandidateSlugs: ["testosterone-enanthate", "nandrolone-decanoate", "hcg"],
@@ -371,6 +795,11 @@ public enum AtlasCompoundKnowledgeCatalog {
             typicalCadenceLabel: "Usually weekly or split weekly",
             availabilityLabel: "Prescription or managed compounding depending on source",
             commonDoseUnits: ["mg", "mL"],
+            kineticsProfile: .init(
+                halfLifeHours: 108,
+                sourceLabel: "Catalog half-life profile",
+                notes: "Uses a testosterone enanthate half-life profile to estimate relative levels from logged doses."
+            ),
             operationalTags: [.androgenicLoad, .waterRetention, .estrogenicSpillover, .weeklyCadence],
             protocolSummary: "Very similar operationally to testosterone cypionate, with most differences showing up in schedule preference and sourcing.",
             compareCandidateSlugs: ["testosterone-cypionate", "nandrolone-decanoate", "hcg"],
@@ -390,11 +819,11 @@ public enum AtlasCompoundKnowledgeCatalog {
             availabilityLabel: "Prescription or underground / non-standard sourcing depending on context",
             commonDoseUnits: ["mg", "mL"],
             operationalTags: [.androgenicLoad, .waterRetention, .weeklyCadence],
-            protocolSummary: "Secondary anabolic layer where Atlas should assume the protocol load is meaningfully higher than simple TRT maintenance.",
+            protocolSummary: "Secondary anabolic layer where protocol load is meaningfully higher than simple TRT maintenance.",
             compareCandidateSlugs: ["testosterone-cypionate", "testosterone-enanthate"],
             swapGuidance: "This is less of a one-for-one swap and more of a stack decision that changes monitoring burden.",
             operationalCautions: [
-                "Atlas should treat companion androgen use as a real interaction burden, not as a neutral adjacent protocol."
+                "Treat companion androgen use as a real interaction burden, not as a neutral adjacent protocol."
             ]
         ),
         AtlasCompoundKnowledge(
@@ -410,9 +839,9 @@ public enum AtlasCompoundKnowledgeCatalog {
             operationalTags: [.estrogenicSpillover],
             protocolSummary: "Support protocol usually used alongside TRT-style plans, where unit clarity and inventory tracking matter a lot.",
             compareCandidateSlugs: ["testosterone-cypionate", "testosterone-enanthate"],
-            swapGuidance: "This is usually a companion decision rather than a direct replacement, so Atlas should frame it around stack burden.",
+            swapGuidance: "This is usually a companion decision rather than a direct replacement, so frame it around stack burden.",
             operationalCautions: [
-                "Unit ambiguity is common here, so Atlas should be extra careful when saved units do not match the usual protocol."
+                "Unit ambiguity is common here, so be extra careful when saved units do not match the usual protocol."
             ]
         )
     ]
@@ -448,6 +877,17 @@ public enum AtlasCompoundKnowledgeCatalog {
         })
     }
 
+    public static func knowledge(slug: String) -> AtlasCompoundKnowledge? {
+        let normalizedSlug = atlasCompoundNormalizedKey(slug)
+        guard normalizedSlug.isEmpty == false else {
+            return nil
+        }
+
+        return all.first(where: { candidate in
+            atlasCompoundNormalizedKey(candidate.slug) == normalizedSlug
+        })
+    }
+
     public static func compareCandidates(
         for knowledge: AtlasCompoundKnowledge?,
         kind: AtlasProtocolKind? = nil
@@ -479,7 +919,7 @@ public enum AtlasCompoundKnowledgeCatalog {
         }
 
         if Set(current.commonDoseUnits) != Set(next.commonDoseUnits) {
-            notes.append("Dose conventions change here, so Atlas should make the unit transition explicit before the protocol is edited.")
+            notes.append("Dose conventions change here, so make the unit transition explicit before editing the protocol.")
         }
 
         let sharedTags = Set(current.operationalTags).intersection(next.operationalTags)

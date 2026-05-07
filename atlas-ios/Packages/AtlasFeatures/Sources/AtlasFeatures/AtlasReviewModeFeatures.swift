@@ -16,16 +16,16 @@ public extension AtlasAppModel {
     func createReview(_ request: AtlasReviewRequest) async -> AtlasReviewCreationResult? {
         if request.deliveryKind == .liveSession {
             guard dependencies.cloudSync.isConfigured() else {
-                setLoadErrorMessage("Live review sessions need cloud configuration in this build.")
+                setLoadErrorMessage("Live summary links need cloud configuration in this build.")
                 return nil
             }
             guard cloudSession != nil else {
-                setLoadErrorMessage("Sign in to Atlas cloud sync before creating a live review session.")
+                setLoadErrorMessage("Sign in to Kairo cloud sync before creating a live summary link.")
                 return nil
             }
         }
 
-        let reason = request.deliveryKind == .liveSession ? "Create a live review session" : "Create a review pack"
+        let reason = request.deliveryKind == .liveSession ? "Create a live summary link" : "Create a share summary"
         guard await unlockTrustVaultIfNeeded(reason: reason) else {
             return nil
         }
@@ -213,11 +213,6 @@ public struct AtlasReviewModeHomeScreen: View {
 
     public var body: some View {
         AtlasScreen {
-            reviewHeader(
-                "Review Mode",
-                subtitle: "Create a bounded read-only snapshot for review without opening a social or messaging surface."
-            )
-
             if let error = model.loadErrorMessage {
                 AtlasSectionCard {
                     Text(error)
@@ -225,197 +220,157 @@ public struct AtlasReviewModeHomeScreen: View {
                 }
             }
 
-            AtlasSectionCard(style: .elevated, title: "Create review") {
-                HStack(spacing: AtlasSpacing.small) {
-                    AtlasStatusBadge(selectedPreset.title)
-                    AtlasStatusBadge(deliveryKind == .liveSession ? "Live session" : "Static pack", tint: AtlasPalette.secondaryText)
-                }
-                Picker("Preset", selection: $selectedPreset) {
-                    ForEach(AtlasReviewPreset.allCases) { preset in
-                        Text(preset.title).tag(preset)
+            AtlasShareSummaryPrimaryCard(
+                model: model,
+                preset: selectedPreset,
+                scopeKind: scopeKind,
+                deliveryKind: deliveryKind
+            ) {
+                Task {
+                    latestResult = await model.createReview(reviewRequest)
+                    if let packURL = latestResult?.packURL {
+                        reviewPackPath = packURL.isFileURL ? packURL.path : packURL.absoluteString
                     }
                 }
+            }
+
+            AtlasSectionCard(style: .elevated, title: "Summary options") {
+                AtlasReviewChipGroup(
+                    title: "Purpose",
+                    selection: $selectedPreset,
+                    options: AtlasReviewPreset.allCases.map { ($0.reviewChipTitle, $0) }
+                )
 
                 Text(selectedPreset.subtitle)
-                    .font(.caption)
+                    .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
 
-                HStack(spacing: AtlasSpacing.small) {
-                    Button("Apply preset") {
-                        applyPreset(selectedPreset)
-                    }
-                    .buttonStyle(AtlasTertiaryButtonStyle())
-
-                    if deliveryKind == .liveSession {
-                        AtlasStatusBadge(
-                            model.canCreateLiveReviewSession ? "Cloud ready" : "Sign-in required",
-                            tint: model.canCreateLiveReviewSession ? AtlasPalette.success : AtlasPalette.warning
-                        )
-                    }
-                }
-
-                Picker("Scope", selection: $scopeKind) {
-                    Text("Current protocol").tag(AtlasReviewScopeKind.currentProtocol)
-                    Text("Selected protocols").tag(AtlasReviewScopeKind.selectedProtocols)
-                    Text("Last 30 days").tag(AtlasReviewScopeKind.last30Days)
-                    Text("Symptoms only").tag(AtlasReviewScopeKind.symptomsOnly)
-                    Text("Inventory only").tag(AtlasReviewScopeKind.inventoryOnly)
-                    Text("Summary only").tag(AtlasReviewScopeKind.summaryOnly)
-                    Text("Custom date range").tag(AtlasReviewScopeKind.customDateRange)
-                }
+                AtlasReviewChipGroup(
+                    title: "Scope",
+                    selection: $scopeKind,
+                    options: AtlasReviewScopeKind.allCases.map { ($0.reviewChipTitle, $0) }
+                )
 
                 if needsSingleProtocolSelection {
-                    Picker("Protocol", selection: $selectedProtocolID) {
-                        Text("Select a protocol").tag(String?.none)
-                        ForEach(model.libraryProtocols) { summary in
-                            Text(model.renderedTitle(canonical: summary.canonicalTitle, alias: summary.aliasTitle))
-                                .tag(String?.some(summary.id))
-                        }
-                    }
+                    AtlasReviewChipGroup(
+                        title: "Protocol",
+                        selection: $selectedProtocolID,
+                        options: protocolOptions
+                    )
                 }
 
                 if needsMultipleProtocolSelection {
                     VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
                         Text("Protocols")
-                            .font(.caption.weight(.semibold))
+                            .atlasTextRole(.deckEyebrow)
                             .foregroundStyle(AtlasPalette.primary)
 
                         ForEach(model.libraryProtocols) { summary in
-                            Toggle(
-                                model.renderedTitle(canonical: summary.canonicalTitle, alias: summary.aliasTitle),
-                                isOn: selectionBinding(for: summary.id)
-                            )
+                            AtlasReviewSelectionRow(
+                                title: model.renderedTitle(canonical: summary.canonicalTitle, alias: summary.aliasTitle),
+                                isSelected: selectedProtocolIDs.contains(summary.id)
+                            ) {
+                                selectedProtocolIDs.formSymmetricDifference([summary.id])
+                            }
                         }
                     }
                 }
 
-                Toggle("Alias mode", isOn: $aliasModeEnabled)
-                Toggle("Add expiration", isOn: $includeExpiration)
+                AtlasReviewActionRow(
+                    title: "Apply selected preset",
+                    detail: "Use the selected purpose to set scope and labels.",
+                    systemImage: "slider.horizontal.3"
+                ) {
+                    applyPreset(selectedPreset)
+                }
+
+                if deliveryKind == .liveSession {
+                    AtlasReviewStatusRow(
+                        title: model.canCreateLiveReviewSession ? "Cloud ready" : "Sign-in required",
+                        detail: model.canCreateLiveReviewSession
+                            ? "Live links can be revoked after sharing."
+                            : "Sign in before creating a live summary link.",
+                        systemImage: model.canCreateLiveReviewSession ? "checkmark.icloud.fill" : "exclamationmark.icloud.fill",
+                        tint: model.canCreateLiveReviewSession ? AtlasPalette.success : AtlasPalette.warning
+                    )
+                }
+
+                AtlasReviewBooleanRow(title: "Simple labels", detail: "Use simplified names.", isOn: $aliasModeEnabled)
+                AtlasReviewBooleanRow(title: "Expiration", detail: "Add an end date for live links.", isOn: $includeExpiration)
 
                 if includeExpiration {
-                    DatePicker("Expires", selection: $expiresAt, displayedComponents: [.date, .hourAndMinute])
+                    AtlasReviewDateAdjusterRow(
+                        title: "Expires",
+                        detail: "Live links stop after this date.",
+                        date: $expiresAt,
+                        includesTime: true
+                    )
                 }
 
-                Picker("Delivery", selection: $deliveryKind) {
-                    Text("Static review pack").tag(AtlasReviewDeliveryKind.staticPack)
-                    Text("Live review session").tag(AtlasReviewDeliveryKind.liveSession)
-                }
-                if deliveryKind == .liveSession {
-                    Text(model.canCreateLiveReviewSession
-                        ? "Live sessions stay read-only for reviewers, are backed by Atlas cloud, and can be revoked later from Atlas."
-                        : "Sign in to Atlas cloud sync before creating a live review session.")
-                        .font(.caption)
-                        .foregroundStyle(AtlasPalette.textSecondary)
-                }
-
+                AtlasReviewChipGroup(
+                    title: "Delivery",
+                    selection: $deliveryKind,
+                    options: AtlasReviewDeliveryKind.allCases.map { ($0.reviewChipTitle, $0) }
+                )
                 if scopeKind == .customDateRange {
-                    DatePicker("Start", selection: $customRangeStart, displayedComponents: .date)
-                    DatePicker("End", selection: $customRangeEnd, displayedComponents: .date)
+                    AtlasReviewDateAdjusterRow(
+                        title: "Start",
+                        detail: "First day included in the summary.",
+                        date: $customRangeStart,
+                        includesTime: false
+                    )
+                    AtlasReviewDateAdjusterRow(
+                        title: "End",
+                        detail: "Last day included in the summary.",
+                        date: $customRangeEnd,
+                        includesTime: false
+                    )
                 }
-
-                Button("Create read-only review") {
-                    Task {
-                        latestResult = await model.createReview(reviewRequest)
-                        if let packURL = latestResult?.packURL {
-                            reviewPackPath = packURL.isFileURL ? packURL.path : packURL.absoluteString
-                        }
-                    }
-                }
-                .buttonStyle(AtlasPrimaryButtonStyle())
-                .disabled(deliveryKind == .liveSession && model.canCreateLiveReviewSession == false)
-
-                Text("Preset templates stay bounded and static. Static snapshots are labeled read-only and non-revocable after delivery.")
-                    .font(.caption)
-                    .foregroundStyle(AtlasPalette.textSecondary)
             }
 
             if let latestResult {
-                AtlasSectionCard(title: "Latest review pack") {
-                    Text(latestResult.workspace.summary)
-                        .foregroundStyle(AtlasPalette.textSecondary)
+                AtlasSectionCard(title: "Latest Summary") {
+                    AtlasShareSummaryResultRow(
+                        title: latestResult.session.deliveryKind == .liveSession ? "Summary link ready" : "Summary file ready",
+                        detail: latestResult.workspace.summary,
+                        value: latestResult.session.deliveryKind == .liveSession ? "Live" : "File",
+                        tint: AtlasPalette.primary
+                    )
                     if latestResult.session.deliveryKind == .liveSession {
-                        Text("Session link ready")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(AtlasPalette.primary)
                         Text(latestResult.packURL.absoluteString)
-                            .font(.caption)
+                            .atlasTextRole(.supporting)
                             .foregroundStyle(AtlasPalette.textSecondary)
+                            .lineLimit(2)
                             .textSelection(.enabled)
                     } else {
-                        Text("Pack: \(latestResult.packURL.lastPathComponent)")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(AtlasPalette.primary)
+                        Text("File: \(latestResult.packURL.lastPathComponent)")
+                            .atlasTextRole(.supporting)
+                            .foregroundStyle(AtlasPalette.textSecondary)
                     }
-                    Text("Summary: \(latestResult.summaryURL.lastPathComponent)")
-                        .font(.caption)
-                        .foregroundStyle(AtlasPalette.textSecondary)
                 }
             }
 
-            AtlasSectionCard(style: .utility, title: "Owner review management") {
+            AtlasSectionCard(style: .utility, title: "Shared Summaries") {
                 if model.reviewOwnerSnapshot.sessions.isEmpty {
-                    Text("No review packs created yet.")
+                    Text("No summaries created yet.")
                         .foregroundStyle(AtlasPalette.textSecondary)
                 } else {
                     ForEach(model.reviewOwnerSnapshot.sessions) { session in
-                        VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
-                            HStack {
-                                Text(session.title)
-                                    .font(.body.weight(.semibold))
-                                    .foregroundStyle(AtlasPalette.textPrimary)
-                                Spacer()
-                                Text(session.status.rawValue.capitalized)
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(session.status == .active ? AtlasPalette.primary : .orange)
-                            }
-                            Text(session.summary)
-                                .foregroundStyle(AtlasPalette.textSecondary)
-                            Text("Created \(session.createdAt.formatted(date: .abbreviated, time: .shortened))")
-                                .font(.caption)
-                                .foregroundStyle(AtlasPalette.textSecondary)
-                            if let expiresAt = session.expiresAt {
-                                Text("Expires \(expiresAt.formatted(date: .abbreviated, time: .shortened))")
-                                    .font(.caption)
-                                    .foregroundStyle(AtlasPalette.textSecondary)
-                            }
-                            if let packURL = session.packURL {
-                                Text(
-                                    session.deliveryKind == .liveSession
-                                        ? "Session link ready"
-                                        : "Pack: \(packURL.lastPathComponent)"
-                                )
-                                .font(.caption)
-                                .foregroundStyle(AtlasPalette.textSecondary)
-                            }
-                            if session.canRevoke {
-                                if session.status == .active {
-                                    Button("Revoke session") {
-                                        Task {
-                                            await model.revokeReviewSession(id: session.id)
-                                        }
-                                    }
-                                    .buttonStyle(AtlasTertiaryButtonStyle())
-                                } else {
-                                    Text("This live session has been revoked or expired.")
-                                        .font(.caption)
-                                        .foregroundStyle(AtlasPalette.textSecondary)
+                        AtlasShareSummarySessionRow(session: session)
+                        if session.canRevoke, session.status == .active {
+                            Button("Revoke live link") {
+                                Task {
+                                    await model.revokeReviewSession(id: session.id)
                                 }
-                            } else {
-                                Text("Static review packs cannot be revoked after delivery.")
-                                    .font(.caption)
-                                    .foregroundStyle(AtlasPalette.textSecondary)
                             }
+                            .buttonStyle(AtlasTertiaryButtonStyle())
                         }
                     }
                 }
             }
 
-            AtlasSectionCard(style: .utility, title: "Open review pack") {
-                TextField("Absolute path to atlas-review-pack.json", text: $reviewPackPath)
-                    .autocorrectionDisabled()
-                    .atlasStandaloneInputSurface()
-
-                Button("Open read-only workspace") {
+            AtlasSectionCard(style: .utility, title: "Open Summary File") {
+                AtlasReviewPathInputRow(path: $reviewPackPath) {
                     Task {
                         guard reviewPackPath.isEmpty == false else {
                             return
@@ -423,42 +378,42 @@ public struct AtlasReviewModeHomeScreen: View {
                         _ = await model.loadReviewWorkspace(from: URL(fileURLWithPath: reviewPackPath))
                     }
                 }
-                .buttonStyle(AtlasPrimaryButtonStyle())
 
-                Text("Review workspaces are read-only. There is no owner-data mutation path here.")
-                    .font(.caption)
+                Text("Summary files are read-only.")
+                    .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
             }
 
             if let workspace = model.reviewWorkspace {
-                AtlasSectionCard(title: "Reviewer workspace") {
+                AtlasSectionCard(title: "Summary File") {
                     Text(workspace.summary)
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
+                        .lineLimit(3)
 
-                    HStack {
-                        Text(workspace.readOnly ? "Read-only" : "Editable")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(workspace.readOnly ? AtlasPalette.primary : .orange)
-                        Spacer()
-                        Text(workspace.renderMode.rawValue.capitalized)
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(AtlasPalette.textSecondary)
+                    HStack(spacing: 8) {
+                        AtlasStatusBadge(workspace.readOnly ? "Read-only" : "Editable", tint: workspace.readOnly ? AtlasPalette.primary : .orange)
+                        AtlasStatusBadge(workspace.renderMode.rawValue.capitalized, tint: AtlasPalette.secondaryText)
                     }
 
-                    ForEach(workspace.sections) { section in
-                        VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
+                    ForEach(workspace.sections.prefix(3)) { section in
+                        VStack(alignment: .leading, spacing: 4) {
                             Text(section.title)
-                                .font(.caption.weight(.semibold))
+                                .atlasTextRole(.deckEyebrow)
                                 .foregroundStyle(AtlasPalette.primary)
-                            ForEach(section.lines, id: \.self) { line in
+                            ForEach(section.lines.prefix(2), id: \.self) { line in
                                 Text(line)
+                                    .atlasTextRole(.supporting)
                                     .foregroundStyle(AtlasPalette.textSecondary)
+                                    .lineLimit(1)
                             }
                         }
                     }
                 }
             }
         }
+        .navigationTitle("Share Summary")
+        .tint(AtlasPalette.primary)
         .task {
             await model.refreshReviewMode()
             if selectedProtocolID == nil {
@@ -486,6 +441,12 @@ public struct AtlasReviewModeHomeScreen: View {
             return true
         default:
             return false
+        }
+    }
+
+    private var protocolOptions: [(String, String?)] {
+        [("Select protocol", String?.none)] + model.libraryProtocols.map { summary in
+            (model.renderedTitle(canonical: summary.canonicalTitle, alias: summary.aliasTitle), String?.some(summary.id))
         }
     }
 
@@ -545,16 +506,618 @@ public struct AtlasReviewModeHomeScreen: View {
     }
 }
 
+private struct AtlasShareSummaryPrimaryCard: View {
+    let model: AtlasAppModel
+    let preset: AtlasReviewPreset
+    let scopeKind: AtlasReviewScopeKind
+    let deliveryKind: AtlasReviewDeliveryKind
+    let action: () -> Void
+
+    var body: some View {
+        AtlasSectionCard(style: .task, title: "Share Summary") {
+            HStack(alignment: .center, spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(AtlasPalette.primary.opacity(0.08))
+                    Image(systemName: "doc.text.fill")
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundStyle(AtlasPalette.primary)
+                }
+                .frame(width: 52, height: 52)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Protocol summary")
+                        .atlasTextRole(.cardTitle)
+                        .foregroundStyle(AtlasPalette.textPrimary)
+                    Text("Shots, check-ins, photos, and runway in one clean export.")
+                        .atlasTextRole(.supporting)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+            }
+
+            HStack(spacing: 8) {
+                AtlasShareSummaryMiniMetric(title: "Purpose", value: preset.reviewChipTitle)
+                AtlasShareSummaryMiniMetric(title: "Scope", value: scopeKind.reviewChipTitle)
+                AtlasShareSummaryMiniMetric(title: "Output", value: deliveryKind.reviewChipTitle)
+            }
+
+            Button("Create Share Summary") {
+                action()
+            }
+            .buttonStyle(AtlasPrimaryButtonStyle())
+            .disabled(deliveryKind == .liveSession && model.canCreateLiveReviewSession == false)
+        }
+    }
+}
+
+private struct AtlasShareSummaryMiniMetric: View {
+    let title: String
+    let value: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title)
+                .atlasTextRole(.metricLabel)
+                .foregroundStyle(AtlasPalette.primary)
+                .lineLimit(1)
+            Text(value)
+                .atlasTextRole(.cardBody)
+                .foregroundStyle(AtlasPalette.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+        }
+        .frame(maxWidth: .infinity, minHeight: 54, alignment: .leading)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(AtlasPalette.surfaceSecondary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(AtlasPalette.border.opacity(0.55), lineWidth: 1)
+        )
+    }
+}
+
+private struct AtlasShareSummaryResultRow: View {
+    let title: String
+    let detail: String
+    let value: String
+    let tint: Color
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(tint)
+                .frame(width: 28)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .atlasTextRole(.cardBody)
+                    .foregroundStyle(AtlasPalette.textPrimary)
+                Text(detail)
+                    .atlasTextRole(.supporting)
+                    .foregroundStyle(AtlasPalette.textSecondary)
+                    .lineLimit(2)
+            }
+
+            Spacer(minLength: 8)
+
+            AtlasStatusBadge(value, tint: tint)
+        }
+        .padding(10)
+        .background(AtlasPalette.surfaceSecondary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+}
+
+private struct AtlasShareSummarySessionRow: View {
+    let session: AtlasReviewSessionSummary
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(session.title)
+                    .atlasTextRole(.cardBody)
+                    .foregroundStyle(AtlasPalette.textPrimary)
+                    .lineLimit(1)
+
+                Spacer(minLength: 8)
+
+                Text(session.status.rawValue.capitalized)
+                    .atlasTextRole(.deckEyebrow)
+                    .foregroundStyle(session.status == .active ? AtlasPalette.primary : .orange)
+            }
+
+            Text(session.summary)
+                .atlasTextRole(.supporting)
+                .foregroundStyle(AtlasPalette.textSecondary)
+                .lineLimit(2)
+
+            HStack(spacing: 8) {
+                AtlasStatusBadge(session.deliveryKind == .liveSession ? "Live link" : "File", tint: AtlasPalette.secondaryText)
+                Text(session.createdAt.formatted(date: .abbreviated, time: .shortened))
+                    .atlasTextRole(.supporting)
+                    .foregroundStyle(AtlasPalette.textSecondary)
+                    .lineLimit(1)
+                if let expiresAt = session.expiresAt {
+                    Text("Expires \(expiresAt.formatted(date: .abbreviated, time: .omitted))")
+                        .atlasTextRole(.supporting)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                        .lineLimit(1)
+                }
+            }
+        }
+        .padding(10)
+        .background(AtlasPalette.surfaceSecondary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(AtlasPalette.border.opacity(0.45), lineWidth: 1)
+        )
+    }
+}
+
 @MainActor
 private func reviewHeader(_ title: String, subtitle: String) -> some View {
     VStack(alignment: .leading, spacing: AtlasSpacing.small) {
-        AtlasStatusBadge("Read-only handoffs", tint: AtlasPalette.secondaryText)
+        AtlasStatusBadge("Share summary", tint: AtlasPalette.secondaryText)
         Text(title)
-            .font(.system(size: 34, weight: .bold, design: .rounded))
+            .atlasTextRole(.screenTitle)
             .foregroundStyle(AtlasPalette.textPrimary)
         Text(subtitle)
-            .font(.body)
+            .atlasTextRole(.screenSubtitle)
             .foregroundStyle(AtlasPalette.textSecondary)
             .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+private struct AtlasReviewChipGroup<Value: Equatable>: View {
+    let title: String
+    @Binding var selection: Value
+    let options: [(String, Value)]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text(title)
+                .atlasTextRole(.deckEyebrow)
+                .foregroundStyle(AtlasPalette.primary)
+
+            AtlasReviewChipFlowLayout(spacing: 7) {
+                ForEach(Array(options.enumerated()), id: \.offset) { _, option in
+                    Button {
+                        AtlasFeedback.selection()
+                        selection = option.1
+                    } label: {
+                        Text(option.0)
+                            .atlasTextRole(.metricLabel)
+                            .fontWeight(selection == option.1 ? .semibold : .regular)
+                            .foregroundStyle(selection == option.1 ? .white : AtlasPalette.textPrimary)
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
+                            .padding(.horizontal, 12)
+                            .frame(height: 30)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .fill(selection == option.1 ? AtlasPalette.primary : AtlasPalette.surfaceSecondary)
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .stroke(selection == option.1 ? AtlasPalette.primary.opacity(0.22) : AtlasPalette.border.opacity(0.55), lineWidth: 1)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+}
+
+private struct AtlasReviewChipFlowLayout: Layout {
+    var spacing: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let maxWidth = proposal.width ?? 0
+        guard maxWidth > 0 else {
+            let size = subviews.reduce(CGSize.zero) { partial, subview in
+                let next = subview.sizeThatFits(.unspecified)
+                return CGSize(width: partial.width + next.width + spacing, height: max(partial.height, next.height))
+            }
+            return CGSize(width: max(0, size.width - spacing), height: size.height)
+        }
+
+        var lineWidth: CGFloat = 0
+        var lineHeight: CGFloat = 0
+        var totalHeight: CGFloat = 0
+        var widestLine: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            let proposedWidth = lineWidth == 0 ? size.width : lineWidth + spacing + size.width
+            if proposedWidth > maxWidth, lineWidth > 0 {
+                totalHeight += lineHeight + spacing
+                widestLine = max(widestLine, lineWidth)
+                lineWidth = size.width
+                lineHeight = size.height
+            } else {
+                lineWidth = proposedWidth
+                lineHeight = max(lineHeight, size.height)
+            }
+        }
+
+        totalHeight += lineHeight
+        widestLine = max(widestLine, lineWidth)
+        return CGSize(width: min(maxWidth, widestLine), height: totalHeight)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x = bounds.minX
+        var y = bounds.minY
+        var lineHeight: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x > bounds.minX, x + size.width > bounds.maxX {
+                x = bounds.minX
+                y += lineHeight + spacing
+                lineHeight = 0
+            }
+
+            subview.place(
+                at: CGPoint(x: x, y: y),
+                proposal: ProposedViewSize(width: size.width, height: size.height)
+            )
+            x += size.width + spacing
+            lineHeight = max(lineHeight, size.height)
+        }
+    }
+}
+
+private struct AtlasReviewSelectionRow: View {
+    let title: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(isSelected ? AtlasPalette.primary : AtlasPalette.secondaryText)
+                    .frame(width: 24)
+
+                Text(title)
+                    .atlasTextRole(.supporting)
+                    .foregroundStyle(AtlasPalette.textPrimary)
+                    .lineLimit(1)
+
+                Spacer(minLength: 8)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(isSelected ? AtlasPalette.primary.opacity(0.08) : AtlasPalette.surfaceSecondary)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(isSelected ? AtlasPalette.primary.opacity(0.28) : AtlasPalette.border.opacity(0.55), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct AtlasReviewActionRow: View {
+    let title: String
+    let detail: String
+    let systemImage: String
+    let action: () -> Void
+
+    var body: some View {
+        Button {
+            AtlasFeedback.selection()
+            action()
+        } label: {
+            HStack(spacing: 12) {
+                AtlasReviewControlIcon(systemImage: systemImage, tint: AtlasPalette.primary)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .atlasTextRole(.cardBody)
+                        .foregroundStyle(AtlasPalette.textPrimary)
+                    Text(detail)
+                        .atlasTextRole(.supporting)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                        .lineLimit(2)
+                }
+
+                Spacer(minLength: 10)
+
+                Image(systemName: "arrow.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(AtlasPalette.primary)
+            }
+            .padding(12)
+            .background(AtlasPalette.surfacePrimary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(AtlasPalette.border.opacity(0.55), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct AtlasReviewStatusRow: View {
+    let title: String
+    let detail: String
+    let systemImage: String
+    let tint: Color
+
+    var body: some View {
+        HStack(spacing: 12) {
+            AtlasReviewControlIcon(systemImage: systemImage, tint: tint)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .atlasTextRole(.cardBody)
+                    .foregroundStyle(AtlasPalette.textPrimary)
+                Text(detail)
+                    .atlasTextRole(.supporting)
+                    .foregroundStyle(AtlasPalette.textSecondary)
+                    .lineLimit(2)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .background(tint.opacity(0.07), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(tint.opacity(0.22), lineWidth: 1)
+        )
+    }
+}
+
+private struct AtlasReviewDateAdjusterRow: View {
+    let title: String
+    let detail: String
+    @Binding var date: Date
+    let includesTime: Bool
+
+    var body: some View {
+        HStack(spacing: 12) {
+            AtlasReviewControlIcon(systemImage: "calendar", tint: AtlasPalette.primary)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .atlasTextRole(.cardBody)
+                    .foregroundStyle(AtlasPalette.textPrimary)
+                Text(detail)
+                    .atlasTextRole(.supporting)
+                    .foregroundStyle(AtlasPalette.textSecondary)
+                    .lineLimit(2)
+            }
+
+            Spacer(minLength: 8)
+
+            HStack(spacing: 6) {
+                AtlasReviewStepButton(systemImage: "minus") {
+                    shiftDate(by: -1)
+                }
+
+                VStack(spacing: 1) {
+                    Text(date.formatted(date: .abbreviated, time: .omitted))
+                        .atlasTextRole(.metricLabel)
+                        .foregroundStyle(AtlasPalette.textPrimary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.82)
+                    if includesTime {
+                        Text(date.formatted(date: .omitted, time: .shortened))
+                            .atlasTextRole(.metricLabel)
+                            .foregroundStyle(AtlasPalette.textSecondary)
+                            .lineLimit(1)
+                    }
+                }
+                .frame(width: includesTime ? 82 : 72, height: 34)
+                .background(AtlasPalette.surfaceSecondary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(AtlasPalette.border.opacity(0.55), lineWidth: 1)
+                )
+
+                AtlasReviewStepButton(systemImage: "plus") {
+                    shiftDate(by: 1)
+                }
+            }
+        }
+        .padding(12)
+        .background(AtlasPalette.surfacePrimary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(AtlasPalette.border.opacity(0.55), lineWidth: 1)
+        )
+    }
+
+    private func shiftDate(by days: Int) {
+        AtlasFeedback.selection()
+        date = Calendar.current.date(byAdding: .day, value: days, to: date) ?? date
+    }
+}
+
+private struct AtlasReviewPathInputRow: View {
+    @Binding var path: String
+    let action: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 12) {
+                AtlasReviewControlIcon(systemImage: "doc.text.magnifyingglass", tint: AtlasPalette.primary)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Summary file")
+                        .atlasTextRole(.cardBody)
+                        .foregroundStyle(AtlasPalette.textPrimary)
+                    Text("Open a Kairo summary JSON file.")
+                        .atlasTextRole(.supporting)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                }
+
+                Spacer(minLength: 0)
+            }
+
+            HStack(spacing: 8) {
+                TextField("Paste atlas-summary.json path", text: $path)
+                    .textFieldStyle(.plain)
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.never)
+                    .font(.system(size: 13))
+                    .foregroundStyle(AtlasPalette.textPrimary)
+                    .padding(.horizontal, 10)
+                    .frame(height: 38)
+                    .background(AtlasPalette.surfaceSecondary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(AtlasPalette.border.opacity(0.55), lineWidth: 1)
+                    )
+
+                Button {
+                    AtlasFeedback.selection()
+                    action()
+                } label: {
+                    Text("Open")
+                        .atlasTextRole(.deckEyebrow)
+                        .foregroundStyle(.white)
+                        .frame(width: 64, height: 38)
+                        .background(AtlasPalette.primary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .disabled(path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .opacity(path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.55 : 1)
+            }
+        }
+        .padding(12)
+        .background(AtlasPalette.surfacePrimary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(AtlasPalette.border.opacity(0.55), lineWidth: 1)
+        )
+    }
+}
+
+private struct AtlasReviewControlIcon: View {
+    let systemImage: String
+    let tint: Color
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(tint.opacity(0.09))
+            Image(systemName: systemImage)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(tint)
+        }
+        .frame(width: 34, height: 34)
+    }
+}
+
+private struct AtlasReviewStepButton: View {
+    let systemImage: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(AtlasPalette.primary)
+                .frame(width: 30, height: 34)
+                .background(AtlasPalette.surfaceSecondary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(AtlasPalette.border.opacity(0.55), lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct AtlasReviewBooleanRow: View {
+    let title: String
+    let detail: String
+    @Binding var isOn: Bool
+
+    var body: some View {
+        Button {
+            AtlasFeedback.selection()
+            isOn.toggle()
+        } label: {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .atlasTextRole(.cardBody)
+                        .foregroundStyle(AtlasPalette.textPrimary)
+                    Text(detail)
+                        .atlasTextRole(.supporting)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                        .lineLimit(2)
+                }
+
+                Spacer(minLength: 10)
+
+                Text(isOn ? "On" : "Off")
+                    .atlasTextRole(.deckEyebrow)
+                    .foregroundStyle(isOn ? .white : AtlasPalette.secondaryText)
+                    .frame(width: 54, height: 30)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(isOn ? AtlasPalette.primary : AtlasPalette.surfaceSecondary)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(isOn ? AtlasPalette.primary.opacity(0.24) : AtlasPalette.border.opacity(0.55), lineWidth: 1)
+                    )
+            }
+            .padding(12)
+            .background(AtlasPalette.surfacePrimary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(AtlasPalette.border.opacity(0.55), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private extension AtlasReviewScopeKind {
+    var reviewChipTitle: String {
+        switch self {
+        case .currentProtocol: "Current"
+        case .selectedProtocols: "Selected"
+        case .last30Days: "30 days"
+        case .symptomsOnly: "Check-ins"
+        case .inventoryOnly: "Inventory"
+        case .summaryOnly: "Summary"
+        case .customDateRange: "Custom"
+        }
+    }
+}
+
+private extension AtlasReviewDeliveryKind {
+    var reviewChipTitle: String {
+        switch self {
+        case .staticPack: "File"
+        case .liveSession: "Live link"
+        }
+    }
+}
+
+private extension AtlasReviewPreset {
+    var reviewChipTitle: String {
+        switch self {
+        case .clinicianSummary: "Clinician"
+        case .coachSummary: "Coach"
+        case .partnerReview: "Partner"
+        case .selfArchive: "Archive"
+        }
     }
 }

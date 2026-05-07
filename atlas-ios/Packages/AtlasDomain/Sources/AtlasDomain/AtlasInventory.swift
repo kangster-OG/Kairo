@@ -75,11 +75,14 @@ public struct AtlasVialSummary: Identifiable, Hashable, Sendable {
     public var quantityLabel: String
     public var lowStockLabel: String?
     public var projectedDepletionLabel: String?
+    public var projectedDepletionAt: Date?
     public var autoDecrementLabel: String?
     public var remainingQuantity: Double
     public var startingQuantity: Double
     public var quantityUnit: String
     public var isLowStock: Bool
+    public var referencePhotoPath: String?
+    public var labelScanPreview: String?
     public var archivedAt: Date?
 
     public init(
@@ -93,11 +96,14 @@ public struct AtlasVialSummary: Identifiable, Hashable, Sendable {
         quantityLabel: String,
         lowStockLabel: String?,
         projectedDepletionLabel: String?,
+        projectedDepletionAt: Date? = nil,
         autoDecrementLabel: String?,
         remainingQuantity: Double,
         startingQuantity: Double,
         quantityUnit: String,
         isLowStock: Bool,
+        referencePhotoPath: String?,
+        labelScanPreview: String?,
         archivedAt: Date?
     ) {
         self.id = id
@@ -110,11 +116,14 @@ public struct AtlasVialSummary: Identifiable, Hashable, Sendable {
         self.quantityLabel = quantityLabel
         self.lowStockLabel = lowStockLabel
         self.projectedDepletionLabel = projectedDepletionLabel
+        self.projectedDepletionAt = projectedDepletionAt
         self.autoDecrementLabel = autoDecrementLabel
         self.remainingQuantity = remainingQuantity
         self.startingQuantity = startingQuantity
         self.quantityUnit = quantityUnit
         self.isLowStock = isLowStock
+        self.referencePhotoPath = referencePhotoPath
+        self.labelScanPreview = labelScanPreview
         self.archivedAt = archivedAt
     }
 }
@@ -252,6 +261,8 @@ public struct AtlasVialDraft: Equatable, Sendable {
     public var calculatorProfileID: String?
     public var openedAt: Date?
     public var expiresAt: Date?
+    public var referencePhotoRelativePath: String?
+    public var labelScanText: String?
     public var archivedAt: Date?
 
     public init(
@@ -268,6 +279,8 @@ public struct AtlasVialDraft: Equatable, Sendable {
         calculatorProfileID: String? = nil,
         openedAt: Date? = nil,
         expiresAt: Date? = nil,
+        referencePhotoRelativePath: String? = nil,
+        labelScanText: String? = nil,
         archivedAt: Date? = nil
     ) {
         self.id = id
@@ -283,6 +296,8 @@ public struct AtlasVialDraft: Equatable, Sendable {
         self.calculatorProfileID = calculatorProfileID
         self.openedAt = openedAt
         self.expiresAt = expiresAt
+        self.referencePhotoRelativePath = referencePhotoRelativePath
+        self.labelScanText = labelScanText
         self.archivedAt = archivedAt
     }
 }
@@ -559,10 +574,130 @@ public struct AtlasProtocolInventorySettingsUpdate: Equatable, Sendable {
     }
 }
 
+public enum AtlasBodyMapSurface: String, Codable, CaseIterable, Equatable, Sendable, Identifiable {
+    case front
+    case back
+
+    public var id: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .front: "Front"
+        case .back: "Back"
+        }
+    }
+}
+
+public enum AtlasBodyMapRegionKey: String, Codable, CaseIterable, Equatable, Sendable, Identifiable {
+    case abdomenUpperLeft
+    case abdomenUpperRight
+    case abdomenLowerLeft
+    case abdomenLowerRight
+    case upperArmLeft
+    case upperArmRight
+    case thighLeft
+    case thighRight
+    case gluteLeft
+    case gluteRight
+
+    public var id: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .abdomenUpperLeft: "Upper abdomen left"
+        case .abdomenUpperRight: "Upper abdomen right"
+        case .abdomenLowerLeft: "Lower abdomen left"
+        case .abdomenLowerRight: "Lower abdomen right"
+        case .upperArmLeft: "Upper arm left"
+        case .upperArmRight: "Upper arm right"
+        case .thighLeft: "Thigh left"
+        case .thighRight: "Thigh right"
+        case .gluteLeft: "Glute left"
+        case .gluteRight: "Glute right"
+        }
+    }
+
+    public var bodyArea: String {
+        switch self {
+        case .abdomenUpperLeft, .abdomenUpperRight, .abdomenLowerLeft, .abdomenLowerRight:
+            return "Abdomen"
+        case .upperArmLeft, .upperArmRight:
+            return "Upper arm"
+        case .thighLeft, .thighRight:
+            return "Thigh"
+        case .gluteLeft, .gluteRight:
+            return "Glute"
+        }
+    }
+
+    public var shortLabel: String {
+        switch self {
+        case .abdomenUpperLeft: "ULQ"
+        case .abdomenUpperRight: "URQ"
+        case .abdomenLowerLeft: "LLQ"
+        case .abdomenLowerRight: "LRQ"
+        case .upperArmLeft: "L arm"
+        case .upperArmRight: "R arm"
+        case .thighLeft: "L thigh"
+        case .thighRight: "R thigh"
+        case .gluteLeft: "L glute"
+        case .gluteRight: "R glute"
+        }
+    }
+
+    public var surface: AtlasBodyMapSurface {
+        switch self {
+        case .gluteLeft, .gluteRight:
+            return .back
+        default:
+            return .front
+        }
+    }
+
+    public var normalizedX: Double {
+        switch self {
+        case .abdomenUpperLeft: 0.42
+        case .abdomenUpperRight: 0.58
+        case .abdomenLowerLeft: 0.44
+        case .abdomenLowerRight: 0.56
+        case .upperArmLeft: 0.23
+        case .upperArmRight: 0.77
+        case .thighLeft: 0.42
+        case .thighRight: 0.58
+        case .gluteLeft: 0.42
+        case .gluteRight: 0.58
+        }
+    }
+
+    public var normalizedY: Double {
+        switch self {
+        case .upperArmLeft, .upperArmRight: 0.28
+        case .abdomenUpperLeft, .abdomenUpperRight: 0.39
+        case .abdomenLowerLeft, .abdomenLowerRight: 0.50
+        case .thighLeft, .thighRight: 0.73
+        case .gluteLeft, .gluteRight: 0.56
+        }
+    }
+
+    public var markerDiameter: Double {
+        switch self {
+        case .upperArmLeft, .upperArmRight:
+            return 0.12
+        case .abdomenUpperLeft, .abdomenUpperRight, .abdomenLowerLeft, .abdomenLowerRight:
+            return 0.11
+        case .thighLeft, .thighRight:
+            return 0.12
+        case .gluteLeft, .gluteRight:
+            return 0.14
+        }
+    }
+}
+
 public struct AtlasSiteSummary: Identifiable, Hashable, Sendable {
     public var id: String
     public var name: String
     public var bodyArea: String?
+    public var mapRegionKey: AtlasBodyMapRegionKey?
     public var notes: String?
     public var archivedAt: Date?
 
@@ -570,12 +705,14 @@ public struct AtlasSiteSummary: Identifiable, Hashable, Sendable {
         id: String,
         name: String,
         bodyArea: String?,
+        mapRegionKey: AtlasBodyMapRegionKey?,
         notes: String?,
         archivedAt: Date?
     ) {
         self.id = id
         self.name = name
         self.bodyArea = bodyArea
+        self.mapRegionKey = mapRegionKey
         self.notes = notes
         self.archivedAt = archivedAt
     }
@@ -585,6 +722,7 @@ public struct AtlasSiteDraft: Equatable, Sendable {
     public var id: String?
     public var name: String
     public var bodyArea: String?
+    public var mapRegionKey: AtlasBodyMapRegionKey?
     public var notes: String?
     public var archivedAt: Date?
 
@@ -592,12 +730,14 @@ public struct AtlasSiteDraft: Equatable, Sendable {
         id: String? = nil,
         name: String = "",
         bodyArea: String? = nil,
+        mapRegionKey: AtlasBodyMapRegionKey? = nil,
         notes: String? = nil,
         archivedAt: Date? = nil
     ) {
         self.id = id
         self.name = name
         self.bodyArea = bodyArea
+        self.mapRegionKey = mapRegionKey
         self.notes = notes
         self.archivedAt = archivedAt
     }
@@ -702,7 +842,7 @@ public func atlasCalculateReconstitution(_ draft: AtlasCalculatorProfileDraft) -
         explanation: [
             "1. Divide \(formatAtlasValue(draft.powderAmount)) \(draft.powderUnit) by \(formatAtlasValue(draft.diluentVolume)) \(draft.diluentUnit) to get concentration.",
             "2. Multiply that concentration by \(formatAtlasValue(draft.drawVolume)) \(draft.drawUnit).",
-            "This is a neutral math helper only. Atlas does not recommend what to take."
+            "This is a neutral math helper only. It does not recommend what to take."
         ]
     )
 }

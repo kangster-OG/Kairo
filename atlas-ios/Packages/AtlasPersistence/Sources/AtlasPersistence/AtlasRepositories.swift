@@ -133,6 +133,25 @@ public struct GRDBSettingsRepository: SettingsRepository, Sendable {
         }
     }
 
+    public func updateSurfacePreferences(
+        _ preferences: AtlasSurfacePreferences,
+        now: Date
+    ) async throws -> AtlasSettingsSnapshot {
+        try await stack.canonical.write { db in
+            try writeAppSetting(
+                db: db,
+                key: "surface_preferences_json",
+                value: try atlasEncodeSurfacePreferences(preferences),
+                now: now
+            )
+            return try buildSettingsSnapshot(
+                db: db,
+                healthKit: healthKit,
+                featureFlags: featureFlags
+            )
+        }
+    }
+
     public func updateTrustVaultRenderMode(_ renderMode: AtlasPrivacyRenderMode, now: Date) async throws -> AtlasSettingsSnapshot {
         try await stack.canonical.write { db in
             var profile = try AtlasPrivacyProfileDBRecord.fetchOne(db)?.domain ?? .default()
@@ -158,6 +177,286 @@ public struct GRDBSettingsRepository: SettingsRepository, Sendable {
                     now: now
                 )
             }
+
+            return try buildSettingsSnapshot(
+                db: db,
+                healthKit: healthKit,
+                featureFlags: featureFlags
+            )
+        }
+    }
+
+    public func updateMascotSelection(_ mascotSelection: AtlasMascotSelection, now: Date) async throws -> AtlasSettingsSnapshot {
+        try await stack.canonical.write { db in
+            try writeAppSetting(db: db, key: "mascot_selection", value: mascotSelection.rawValue, now: now)
+            try writeAppSetting(db: db, key: "mascot_selection_confirmed", value: "1", now: now)
+            return try buildSettingsSnapshot(
+                db: db,
+                healthKit: healthKit,
+                featureFlags: featureFlags
+            )
+        }
+    }
+
+    public func updateMascotNickname(_ nickname: String?, now: Date) async throws -> AtlasSettingsSnapshot {
+        try await stack.canonical.write { db in
+            try writeAppSetting(
+                db: db,
+                key: "mascot_nickname",
+                value: atlasMascotSanitizedNickname(nickname),
+                now: now
+            )
+            return try buildSettingsSnapshot(
+                db: db,
+                healthKit: healthKit,
+                featureFlags: featureFlags
+            )
+        }
+    }
+
+    public func updateAmbientMascotPresence(_ presence: AtlasAmbientMascotPresence, now: Date) async throws -> AtlasSettingsSnapshot {
+        try await stack.canonical.write { db in
+            try writeAppSetting(
+                db: db,
+                key: "ambient_mascot_presence",
+                value: presence.rawValue,
+                now: now
+            )
+            return try buildSettingsSnapshot(
+                db: db,
+                healthKit: healthKit,
+                featureFlags: featureFlags
+            )
+        }
+    }
+
+    public func recordMascotEvolution(
+        selection: AtlasMascotSelection,
+        stage: AtlasMascotStage,
+        earnedAt: Date,
+        now: Date
+    ) async throws -> AtlasSettingsSnapshot {
+        try await stack.canonical.write { db in
+            let currentUnlocks = try atlasReadMascotUnlockSnapshots(db: db)
+            let currentStage = currentUnlocks.first(where: { $0.selection == selection })?.highestUnlockedStage ?? .stage1
+
+            guard stage.rank > currentStage.rank else {
+                return try buildSettingsSnapshot(
+                    db: db,
+                    healthKit: healthKit,
+                    featureFlags: featureFlags
+                )
+            }
+
+            try writeAppSetting(
+                db: db,
+                key: atlasMascotUnlockedStageSettingKey(for: selection),
+                value: stage.rawValue,
+                now: now
+            )
+
+            var history = try atlasReadMascotEvolutionHistory(db: db)
+            if history.contains(where: { $0.selection == selection && $0.stage == stage }) == false {
+                history.insert(
+                    AtlasMascotEvolutionRecord(
+                        selection: selection,
+                        stage: stage,
+                        earnedAt: atlasTimestamp(from: earnedAt)
+                    ),
+                    at: 0
+                )
+                try writeAppSetting(
+                    db: db,
+                    key: "mascot_evolution_history_json",
+                    value: try atlasEncodeMascotEvolutionHistory(history),
+                    now: now
+                )
+            }
+
+            return try buildSettingsSnapshot(
+                db: db,
+                healthKit: healthKit,
+                featureFlags: featureFlags
+            )
+        }
+    }
+
+    public func recordMascotMoment(
+        _ moment: AtlasMascotMomentRecord,
+        now: Date
+    ) async throws -> AtlasSettingsSnapshot {
+        try await stack.canonical.write { db in
+            var moments = try atlasReadMascotMoments(db: db)
+            if let eventKey = moment.eventKey,
+               moments.contains(where: { $0.selection == moment.selection && $0.eventKey == eventKey }) {
+                return try buildSettingsSnapshot(
+                    db: db,
+                    healthKit: healthKit,
+                    featureFlags: featureFlags
+                )
+            }
+
+            moments.insert(moment, at: 0)
+            if moments.count > 60 {
+                moments = Array(moments.prefix(60))
+            }
+
+            try writeAppSetting(
+                db: db,
+                key: "mascot_moments_json",
+                value: try atlasEncodeMascotMoments(moments),
+                now: now
+            )
+
+            return try buildSettingsSnapshot(
+                db: db,
+                healthKit: healthKit,
+                featureFlags: featureFlags
+            )
+        }
+    }
+
+    public func recordMascotArchivedRecap(
+        _ recap: AtlasMascotArchivedRecapRecord,
+        now: Date
+    ) async throws -> AtlasSettingsSnapshot {
+        try await stack.canonical.write { db in
+            var recaps = try atlasReadMascotArchivedRecaps(db: db)
+            recaps.removeAll { $0.id == recap.id }
+            recaps.insert(recap, at: 0)
+            if recaps.count > 40 {
+                recaps = Array(recaps.prefix(40))
+            }
+
+            try writeAppSetting(
+                db: db,
+                key: "mascot_archived_recaps_json",
+                value: try atlasEncodeMascotArchivedRecaps(recaps),
+                now: now
+            )
+
+            return try buildSettingsSnapshot(
+                db: db,
+                healthKit: healthKit,
+                featureFlags: featureFlags
+            )
+        }
+    }
+
+    public func updateMascotRecapNotificationSettings(
+        _ settings: AtlasMascotRecapNotificationSettings,
+        now: Date
+    ) async throws -> AtlasSettingsSnapshot {
+        try await stack.canonical.write { db in
+            try writeAppSetting(
+                db: db,
+                key: "mascot_recap_daily_enabled",
+                value: settings.dailyEnabled ? "1" : "0",
+                now: now
+            )
+            try writeAppSetting(
+                db: db,
+                key: "mascot_recap_weekly_enabled",
+                value: settings.weeklyEnabled ? "1" : "0",
+                now: now
+            )
+
+            return try buildSettingsSnapshot(
+                db: db,
+                healthKit: healthKit,
+                featureFlags: featureFlags
+            )
+        }
+    }
+
+    public func updateWeeklyReviewReminderSettings(
+        _ settings: AtlasWeeklyReviewReminderSettings,
+        now: Date
+    ) async throws -> AtlasSettingsSnapshot {
+        try await stack.canonical.write { db in
+            try writeAppSetting(
+                db: db,
+                key: "weekly_review_reminder_enabled",
+                value: settings.enabled ? "1" : "0",
+                now: now
+            )
+
+            return try buildSettingsSnapshot(
+                db: db,
+                healthKit: healthKit,
+                featureFlags: featureFlags
+            )
+        }
+    }
+
+    public func saveWeeklyReviewActionPlan(
+        _ plan: AtlasWeeklyReviewActionPlan,
+        now: Date
+    ) async throws -> AtlasSettingsSnapshot {
+        try await stack.canonical.write { db in
+            var plans = try atlasReadWeeklyReviewActionPlans(db: db)
+            plans.removeAll { $0.id == plan.id }
+            plans.insert(plan, at: 0)
+            if plans.count > 16 {
+                plans = Array(plans.prefix(16))
+            }
+
+            try writeAppSetting(
+                db: db,
+                key: "weekly_review_action_plans_json",
+                value: try atlasEncodeWeeklyReviewActionPlans(plans),
+                now: now
+            )
+
+            return try buildSettingsSnapshot(
+                db: db,
+                healthKit: healthKit,
+                featureFlags: featureFlags
+            )
+        }
+    }
+
+    public func updateWeeklyReviewActionPlan(
+        id: String,
+        isCompleted: Bool?,
+        isPinnedForNextWeek: Bool?,
+        now: Date
+    ) async throws -> AtlasSettingsSnapshot {
+        try await stack.canonical.write { db in
+            var plans = try atlasReadWeeklyReviewActionPlans(db: db)
+            if let index = plans.firstIndex(where: { $0.id == id }) {
+                if let isCompleted {
+                    plans[index].isCompleted = isCompleted
+                }
+                if let isPinnedForNextWeek {
+                    plans[index].isPinnedForNextWeek = isPinnedForNextWeek
+                }
+            }
+
+            try writeAppSetting(
+                db: db,
+                key: "weekly_review_action_plans_json",
+                value: try atlasEncodeWeeklyReviewActionPlans(plans),
+                now: now
+            )
+
+            return try buildSettingsSnapshot(
+                db: db,
+                healthKit: healthKit,
+                featureFlags: featureFlags
+            )
+        }
+    }
+
+    public func removeWeeklyReviewActionPlan(id: String, now: Date) async throws -> AtlasSettingsSnapshot {
+        try await stack.canonical.write { db in
+            let plans = try atlasReadWeeklyReviewActionPlans(db: db).filter { $0.id != id }
+            try writeAppSetting(
+                db: db,
+                key: "weekly_review_action_plans_json",
+                value: try atlasEncodeWeeklyReviewActionPlans(plans),
+                now: now
+            )
 
             return try buildSettingsSnapshot(
                 db: db,
@@ -256,6 +555,56 @@ public struct GRDBSettingsRepository: SettingsRepository, Sendable {
             )
         }
     }
+
+    public func updateRewardsSettings(_ update: AtlasRewardsSettingsUpdate, now: Date) async throws -> AtlasSettingsSnapshot {
+        try await stack.canonical.write { db in
+            let current = try readRewardsSettings(db: db)
+            let nextEnabled = update.enabled ?? current.enabled
+            let nextWorkoutGoal = max(update.weeklyWorkoutGoal ?? current.weeklyWorkoutGoal, 1)
+            let nextSelfGoalTarget = max(update.weeklySelfGoalTarget ?? current.weeklySelfGoalTarget, 1)
+
+            try writeAppSetting(
+                db: db,
+                key: "rewards_enabled",
+                value: nextEnabled ? "1" : "0",
+                now: now
+            )
+            try writeAppSetting(
+                db: db,
+                key: "rewards_weekly_workout_goal",
+                value: String(nextWorkoutGoal),
+                now: now
+            )
+            try writeAppSetting(
+                db: db,
+                key: "rewards_weekly_self_goal_target",
+                value: String(nextSelfGoalTarget),
+                now: now
+            )
+
+            return try buildSettingsSnapshot(
+                db: db,
+                healthKit: healthKit,
+                featureFlags: featureFlags
+            )
+        }
+    }
+
+    public func updateLabsEnabled(_ enabled: Bool, now: Date) async throws -> AtlasSettingsSnapshot {
+        try await stack.canonical.write { db in
+            try writeAppSetting(
+                db: db,
+                key: "labs_enabled",
+                value: enabled ? "1" : "0",
+                now: now
+            )
+            return try buildSettingsSnapshot(
+                db: db,
+                healthKit: healthKit,
+                featureFlags: featureFlags
+            )
+        }
+    }
 }
 
 public actor GRDBSharedProjectionWriter: SharedProjectionWriting {
@@ -297,6 +646,15 @@ public actor GRDBSharedProjectionWriter: SharedProjectionWriting {
                     summary: "No low-stock items in the current projection.",
                     items: [],
                     updatedAt: atlasTimestamp(from: Date())
+                ),
+                support: nil,
+                mascot: nil,
+                watchCompanion: buildWatchCompanionProjectionSnapshot(
+                    referenceDate: Date(),
+                    nextDue: nextDue,
+                    quickActions: quickActions,
+                    overdueCount: nextDue?.overdueCount ?? 0,
+                    upcomingCount: max(quickActions.count - min(nextDue == nil ? 0 : 1, quickActions.count), 0)
                 ),
                 featureFlags: featureFlags
             )
@@ -561,6 +919,28 @@ private func buildProjectionWriteState(
         updatedAt: atlasTimestamp(from: referenceDate)
     )
     let featureFlagProjection = AtlasSharedFeatureFlagProjection(flags: featureFlags)
+    let insightsSnapshot = try buildInsightsSnapshot(db: db, referenceDate: referenceDate, featureFlags: featureFlags, privacyFormatter: privacyFormatter)
+    let supportSnapshot = try buildSupportRingsProjectionSnapshot(insights: insightsSnapshot, referenceDate: referenceDate, db: db)
+    let rewardsSnapshot = try buildRewardsSnapshot(db: db, referenceDate: referenceDate)
+    let mascotSnapshot = try buildMascotProjection(
+        db: db,
+        referenceDate: referenceDate,
+        rewardsSnapshot: rewardsSnapshot
+    )
+    let companionSnapshot = buildCompanionWidgetProjectionSnapshot(
+        mascot: mascotSnapshot,
+        rewardsSnapshot: rewardsSnapshot,
+        nextDue: nextDue,
+        inventorySnapshot: inventorySnapshot,
+        referenceDate: referenceDate
+    )
+    let watchCompanionSnapshot = buildWatchCompanionProjectionSnapshot(
+        referenceDate: referenceDate,
+        nextDue: nextDue,
+        quickActions: quickActions,
+        overdueCount: overdue.count,
+        upcomingCount: dueAndUpcoming.count
+    )
 
     return AtlasProjectionWriteState(
         nextDue: nextDue,
@@ -574,9 +954,297 @@ private func buildProjectionWriteState(
             nextDue: nextDue,
             quickActions: quickActions,
             lowStock: lowStockSnapshot,
+            support: supportSnapshot,
+            mascot: mascotSnapshot,
+            companion: companionSnapshot,
+            watchCompanion: watchCompanionSnapshot,
             featureFlags: featureFlagProjection
         )
     )
+}
+
+private func buildWatchCompanionProjectionSnapshot(
+    referenceDate: Date,
+    nextDue: AtlasSharedNextDueSnapshot?,
+    quickActions: [AtlasSharedQuickAction],
+    overdueCount: Int,
+    upcomingCount: Int
+) -> AtlasSharedWatchCompanionSnapshot {
+    let headline: String
+    let summary: String
+    let recoverySummary: String?
+
+    if overdueCount > 0 {
+        headline = "Recovery comes first on wrist."
+        summary = "The next recovery move stays visible so later plans can wait."
+        recoverySummary = "\(overdueCount) overdue item\(overdueCount == 1 ? "" : "s") still need attention."
+    } else if let nextDue {
+        headline = "One next due action is ready."
+        summary = "\(nextDue.displayTitle) is the current anchor, with later items intentionally pushed into the background."
+        recoverySummary = nil
+    } else {
+        headline = "Nothing is due right now."
+        summary = "There is nothing due at the moment, so the watch companion stays focused on quick context capture and recovery readiness."
+        recoverySummary = nil
+    }
+
+    let nextDueDetail = nextDue.map { "\($0.dueLabel) • \($0.statusSummary)" }
+    let laterCount = max(upcomingCount - (nextDue == nil ? 0 : 1), 0)
+    let adjustedSummary: String
+    if laterCount > 0 {
+        adjustedSummary = summary + " \(laterCount) later item\(laterCount == 1 ? "" : "s") can wait."
+    } else {
+        adjustedSummary = summary
+    }
+
+    return AtlasSharedWatchCompanionSnapshot(
+        generatedAt: atlasTimestamp(from: referenceDate),
+        headline: headline,
+        summary: adjustedSummary,
+        nextDueTitle: nextDue?.displayTitle,
+        nextDueDetail: nextDueDetail,
+        recoverySummary: recoverySummary,
+        quickContextShortcuts: AtlasWatchCompanionContextShortcut.allCases
+    )
+}
+
+private func buildSupportRingsProjectionSnapshot(
+    insights: AtlasInsightsSnapshot,
+    referenceDate: Date,
+    db: Database
+) throws -> AtlasSharedSupportRingsSnapshot {
+    let protein = insights.nutritionSnapshot.dailyTargets.first { $0.kind == .proteinMeals }
+    let hydration = insights.nutritionSnapshot.dailyTargets.first { $0.kind == .hydrationCheckins }
+    let workoutProgress: Double = insights.recentWorkoutEntries.isEmpty ? 0 : 1
+    let proteinProgress = protein?.progress ?? 0
+    let hydrationProgress = hydration?.progress ?? 0
+    let healthSteps = try latestAppleHealthStepCount(db: db)
+    let score = min(
+        100,
+        max(
+            10,
+            Int(proteinProgress * 35)
+                + Int(hydrationProgress * 30)
+                + Int(workoutProgress * 25)
+                + 10
+        )
+    )
+
+    return AtlasSharedSupportRingsSnapshot(
+        score: score,
+        summary: "Protein, hydration, and workouts keep today's support loop visible.",
+        rings: [
+            AtlasSharedSupportRingSnapshot(
+                kind: "protein",
+                title: "Protein",
+                valueLabel: protein?.progressLabel ?? "0 / 1",
+                progress: proteinProgress,
+                symbolName: "bolt.heart.fill"
+            ),
+            AtlasSharedSupportRingSnapshot(
+                kind: "hydration",
+                title: "Hydration",
+                valueLabel: hydration?.progressLabel ?? "0 / 1",
+                progress: hydrationProgress,
+                symbolName: "drop.fill"
+            ),
+            AtlasSharedSupportRingSnapshot(
+                kind: "workout",
+                title: "Workout",
+                valueLabel: insights.recentWorkoutEntries.isEmpty ? "0 recent" : "\(insights.recentWorkoutEntries.count) recent",
+                progress: workoutProgress,
+                symbolName: "dumbbell.fill"
+            )
+        ],
+        showsHealthSteps: healthSteps.isConnected,
+        stepCount: healthSteps.count,
+        stepLabel: healthSteps.count.map(formatStepCount),
+        updatedAt: atlasTimestamp(from: referenceDate)
+    )
+}
+
+private func buildCompanionWidgetProjectionSnapshot(
+    mascot: AtlasSharedMascotSnapshot?,
+    rewardsSnapshot: AtlasRewardsSnapshot,
+    nextDue: AtlasSharedNextDueSnapshot?,
+    inventorySnapshot: AtlasInventorySnapshot,
+    referenceDate: Date
+) -> AtlasSharedCompanionWidgetSnapshot? {
+    guard let mascot else {
+        return nil
+    }
+
+    let nextLevelPoints = max(rewardsSnapshot.nextLevelPoints, rewardsSnapshot.totalPoints)
+    let xpLabel = "\(rewardsSnapshot.totalPoints) / \(nextLevelPoints) XP"
+    let xpProgress = nextLevelPoints > 0
+        ? min(max(Double(rewardsSnapshot.totalPoints) / Double(nextLevelPoints), 0), 1)
+        : 1
+
+    let linkedVial = nextDue.flatMap { due in
+        inventorySnapshot.vials.first { $0.linkedProtocolID == due.protocolID && $0.archivedAt == nil }
+    } ?? inventorySnapshot.vials.first { $0.archivedAt == nil && $0.projectedDepletionAt != nil }
+
+    return AtlasSharedCompanionWidgetSnapshot(
+        levelLabel: "Level \(rewardsSnapshot.level)",
+        xpLabel: xpLabel,
+        xpProgress: xpProgress,
+        nextShotDaysLabel: nextDue
+            .map { daysRemainingLabel(until: atlasDate(from: $0.scheduledAt), referenceDate: referenceDate) }
+            ?? "No shot due",
+        vialReplacementDaysLabel: linkedVial?.projectedDepletionAt
+            .map { daysRemainingLabel(until: $0, referenceDate: referenceDate) }
+            ?? "No vial linked"
+    )
+}
+
+private func daysRemainingLabel(until targetDate: Date, referenceDate: Date) -> String {
+    let calendar = Calendar.current
+    let start = calendar.startOfDay(for: referenceDate)
+    let target = calendar.startOfDay(for: targetDate)
+    let days = max(calendar.dateComponents([.day], from: start, to: target).day ?? 0, 0)
+    if days == 0 {
+        return "Today"
+    }
+    if days == 1 {
+        return "1 day"
+    }
+    return "\(days) days"
+}
+
+private func latestAppleHealthStepCount(db: Database) throws -> (isConnected: Bool, count: Int?) {
+    let isConnected = (try Int.fetchOne(
+        db,
+        sql: "SELECT COUNT(*) FROM health_connections WHERE provider_key = ? AND enabled = 1 AND connected = 1",
+        arguments: [AtlasHealthProviderKey.appleHealth.rawValue]
+    ) ?? 0) > 0
+    guard isConnected else {
+        return (false, nil)
+    }
+
+    let value = try Double.fetchOne(
+        db,
+        sql: """
+        SELECT metric_value_logs.number_value
+        FROM metric_value_logs
+        JOIN custom_metrics ON custom_metrics.id = metric_value_logs.metric_id
+        WHERE metric_value_logs.source = ? AND custom_metrics.metric_key = ?
+        ORDER BY metric_value_logs.logged_at DESC
+        LIMIT 1
+        """,
+        arguments: [AtlasHealthDataSource.health.rawValue, AtlasHealthMetricKind.steps.metricKey]
+    )
+    return (true, value.map { max(Int($0.rounded()), 0) })
+}
+
+private func formatStepCount(_ count: Int) -> String {
+    let formatter = NumberFormatter()
+    formatter.numberStyle = .decimal
+    return formatter.string(from: NSNumber(value: count)) ?? "\(count)"
+}
+
+private func buildMascotProjection(
+    db: Database,
+    referenceDate: Date,
+    rewardsSnapshot: AtlasRewardsSnapshot
+) throws -> AtlasSharedMascotSnapshot? {
+    let onboardingDraft = try readMascotProjectionOnboardingDraft(db: db)
+    let selectionRaw = try String.fetchOne(
+        db,
+        sql: "SELECT value FROM atlas_app_settings WHERE key = 'mascot_selection'"
+    )
+    let nicknameRaw = try String.fetchOne(
+        db,
+        sql: "SELECT value FROM atlas_app_settings WHERE key = 'mascot_nickname'"
+    )
+    let selection = selectionRaw.flatMap(AtlasMascotSelection.init(rawValue:))
+        ?? onboardingDraft?.profile.mascotSelection
+        ?? atlasInferredMascotSelection(from: onboardingDraft?.profile.gender)
+        ?? .aetherion
+
+    let stage = AtlasMascotMilestone.stage(for: rewardsSnapshot.totalPoints)
+    let nextThresholdPoints = AtlasMascotMilestone.nextThreshold(after: stage)
+    let nextFormName = nextThresholdPoints.map { _ in
+        switch stage {
+        case .stage1:
+            return selection.stage2Title
+        case .stage2:
+            return selection.stage3Title
+        case .stage3:
+            return selection.stage3Title
+        }
+    }
+    let currentFormName = selection.title(for: stage)
+    let nickname = atlasMascotSanitizedNickname(nicknameRaw ?? onboardingDraft?.profile.mascotNickname)
+    let displayName = atlasMascotDisplayName(selection: selection, stage: stage, nickname: nickname)
+    let milestoneHeadline: String
+    let progressLabel: String
+    if let nextThresholdPoints, let nextFormName {
+        _ = nextThresholdPoints
+        _ = nextFormName
+        milestoneHeadline = "Next companion milestone."
+        progressLabel = "Next companion milestone."
+    } else {
+        milestoneHeadline = "Final form unlocked."
+        progressLabel = "Final form unlocked."
+    }
+
+    let history = try atlasReadMascotEvolutionHistory(db: db)
+        .filter { $0.selection == selection }
+    let latestMoment = try atlasReadMascotMoments(db: db)
+        .first(where: { $0.selection == selection })
+    let pose = atlasMascotSharedPose(
+        rewardsSnapshot: rewardsSnapshot,
+        latestMoment: latestMoment
+    )
+    let reaction = atlasMascotReactionSummary(
+        selection: selection,
+        nickname: nickname,
+        rewardsSnapshot: rewardsSnapshot,
+        history: history
+    )
+    let statusLine = atlasMascotStatusLine(
+        selection: selection,
+        nickname: nickname,
+        rewardsSnapshot: rewardsSnapshot
+    )
+
+    return AtlasSharedMascotSnapshot(
+        selection: selection,
+        nickname: nickname,
+        displayName: displayName,
+        stage: stage,
+        pose: pose,
+        currentFormName: currentFormName,
+        nextFormName: nextThresholdPoints == nil ? nil : nextFormName,
+        nextThresholdPoints: nextThresholdPoints,
+        totalPoints: rewardsSnapshot.totalPoints,
+        milestoneHeadline: milestoneHeadline,
+        progressLabel: progressLabel,
+        statusLine: statusLine,
+        reactionTitle: reaction?.title,
+        reactionSymbolName: reaction?.symbolName,
+        lastEvolution: history.first,
+        latestMomentTitle: latestMoment?.title,
+        latestMomentDetail: latestMoment?.detail,
+        latestMomentSymbolName: latestMoment?.symbolName,
+        latestMomentRecordedAt: latestMoment?.recordedAt
+    )
+}
+
+private func mascotPointLabel(_ points: Int) -> String {
+    let formatter = NumberFormatter()
+    formatter.numberStyle = .decimal
+    return "\(formatter.string(from: NSNumber(value: points)) ?? "\(points)") points"
+}
+
+private func readMascotProjectionOnboardingDraft(db: Database) throws -> AtlasOnboardingDraft? {
+    guard let json = try String.fetchOne(
+        db,
+        sql: "SELECT value FROM atlas_app_settings WHERE key = 'onboarding_draft_json'"
+    ) else {
+        return nil
+    }
+    return try? JSONDecoder().decode(AtlasOnboardingDraft.self, from: Data(json.utf8))
 }
 
 private func sharedProjectionStatusSummary(
@@ -649,7 +1317,7 @@ private func lowStockSummary(for count: Int) -> String {
 
 private func lowStockDetail(for consumable: AtlasConsumableSummary) -> String {
     if consumable.needsProcurementReview {
-        return consumable.procurementStatusLabel ?? "Procurement review now."
+        return consumable.procurementStatusLabel ?? "Supply review now."
     }
 
     return consumable.procurementStatusLabel

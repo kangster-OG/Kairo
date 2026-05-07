@@ -697,6 +697,7 @@ private extension GRDBImportExportBridge {
                         id: id,
                         name: primary,
                         bodyArea: value.nilIfBlank,
+                        mapRegionKey: nil,
                         notes: notes.nilIfBlank,
                         createdAt: timestamp,
                         updatedAt: timestamp,
@@ -737,7 +738,7 @@ private extension GRDBImportExportBridge {
             conflicts: conflicts,
             unsupportedRows: unsupportedRows,
             privacyNotes: [
-                "Imported privacy preferences will continue to render through Trust Vault policies.",
+                "Imported privacy preferences will continue to render through privacy controls.",
                 "Atlas CSV aliases stay render-only and do not rewrite canonical names."
             ],
             backfillNotes: [
@@ -928,7 +929,7 @@ private extension GRDBImportExportBridge {
             conflicts: conflicts,
             unsupportedRows: unsupportedRows,
             privacyNotes: ["Manual text imports stay local-first and inspectable before commit."],
-            backfillNotes: ["Manual text parsing backfills revision records, reminder preferences, and Trust Vault defaults."]
+            backfillNotes: ["Manual text parsing backfills revision records, reminder preferences, and privacy control defaults."]
         )
     }
 

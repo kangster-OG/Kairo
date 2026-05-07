@@ -17,7 +17,7 @@ public enum AtlasImportError: Error, LocalizedError, Sendable {
     public var errorDescription: String? {
         switch self {
         case .invalidPayload:
-            "Atlas could not validate the export bundle."
+            "Could not validate the export bundle."
         case let .unsupportedFormat(format):
             "Atlas Export format '\(format)' is not supported."
         case let .unsupportedVersion(version):
@@ -438,7 +438,7 @@ public actor GRDBImportExportBridge: ImportExportBridging {
     }
 
     nonisolated public func exportStatusDescription() -> String {
-        "Native Atlas can create deterministic JSON and CSV exports plus encrypted selective-share snapshots."
+        "Creates deterministic JSON and CSV exports plus encrypted selective-share snapshots."
     }
 
     nonisolated public func importStatusDescription() -> String {
@@ -532,7 +532,7 @@ public actor GRDBImportExportBridge: ImportExportBridging {
 
         if validation.missingDatasets.contains(AtlasImportDataset.privacyProfile.rawValue) {
             snapshot.privacyProfile = .default(timestamp: bundle.manifest.generatedAt)
-            backfillNotes.append("Legacy bundle did not include Trust Vault profile rows; native defaults were backfilled.")
+            backfillNotes.append("Legacy bundle did not include privacy control profile rows; native defaults were backfilled.")
         }
 
         if validation.missingDatasets.contains(AtlasImportDataset.reminderPreference.rawValue) {
@@ -598,7 +598,7 @@ public actor GRDBImportExportBridge: ImportExportBridging {
         }
 
         if snapshot.sensitiveActionAudits.isEmpty {
-            backfillNotes.append("Legacy bundle contained no Trust Vault audit rows; native import preserved this as empty history.")
+            backfillNotes.append("Legacy bundle contained no privacy control audit rows; native import preserved this as empty history.")
         }
 
         if bundle.isLegacyEnvelope {
@@ -611,7 +611,7 @@ public actor GRDBImportExportBridge: ImportExportBridging {
 
         privacyNotes.append(
             snapshot.privacyProfile.exportAliasByDefault
-                ? "Export alias-by-default preference will be preserved in native Trust Vault."
+                ? "Export alias-by-default preference will be preserved in privacy controls."
                 : "Canonical export labels remain enabled for broad exports."
         )
         privacyNotes.append(

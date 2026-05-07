@@ -44,7 +44,7 @@ enum AtlasAppBootstrap {
                 notifications: notificationManager
             ) else {
                 return .failed(
-                    "Atlas couldn't open local storage on this device. Try again. If the problem keeps happening, reinstall the beta before importing or creating new data."
+                    "Kairo couldn't open local storage on this device. Try again. If the problem keeps happening, reinstall the beta before importing or creating new data."
                 )
             }
 
@@ -81,6 +81,7 @@ enum AtlasAppBootstrap {
             sharedProjectionWriter: persistenceController.sharedProjectionWriter,
             persistence: persistenceController.container,
             reminders: persistenceController.reminderCoordinator,
+            calendarSync: persistenceController.calendarSyncCoordinator,
             privacyFormatter: privacyFormatter
         )
 
@@ -99,9 +100,37 @@ private extension AtlasAppBootstrap {
         if let rawTab = atlasQALaunchValue(
             environmentKey: "ATLAS_QA_ACTIVE_TAB",
             argumentName: "--atlas-qa-active-tab"
-        ),
-           let tab = AtlasTab(rawValue: rawTab) {
-            model.activeTab = tab
+        ) {
+            switch rawTab {
+            case "mockupToday":
+                model.applyMockupFidelitySeed(referenceDate: Date())
+                model.activeTab = .today
+            case "mockupLog":
+                model.applyMockupFidelitySeed(referenceDate: Date())
+                model.activeTab = .timeline
+            case "mockupCompanion":
+                model.applyMockupFidelitySeed(referenceDate: Date())
+                model.activeTab = .settings
+            case "mockupProtocols":
+                model.applyMockupFidelitySeed(referenceDate: Date())
+                model.activeTab = .library
+            case "mockupProgress":
+                model.applyMockupFidelitySeed(referenceDate: Date())
+                model.activeTab = .insights
+            case "mockupInventory":
+                model.applyMockupFidelitySeed(referenceDate: Date())
+                model.activeTab = .today
+                model.open(.inventory)
+            default:
+                if let tab = AtlasTab(rawValue: rawTab) {
+                    model.activeTab = tab
+                }
+            }
+        } else if atlasQALaunchFlag(
+            environmentKey: "ATLAS_QA_MOCKUP_FIDELITY",
+            argumentName: "--atlas-qa-mockup-fidelity"
+        ) {
+            model.applyMockupFidelitySeed(referenceDate: Date())
         }
 
         guard let rawRoute = atlasQALaunchValue(
@@ -112,18 +141,135 @@ private extension AtlasAppBootstrap {
         }
 
         switch rawRoute {
+        case "protocolDetail":
+            model.applyMockupFidelitySeed(referenceDate: Date())
+            model.open(.protocolDetail("mockup-tirzepatide"))
+        case "protocolCreate":
+            model.applyMockupFidelitySeed(referenceDate: Date())
+            model.open(.protocolCreate)
+        case "protocolEdit":
+            model.applyMockupFidelitySeed(referenceDate: Date())
+            model.open(.protocolEdit("mockup-tirzepatide"))
+        case "protocolChange":
+            model.applyMockupFidelitySeed(referenceDate: Date())
+            model.open(.protocolChange("mockup-tirzepatide"))
+        case "medicationLevels":
+            model.applyMockupFidelitySeed(referenceDate: Date())
+            model.open(.medicationLevels("mockup-tirzepatide"))
         case "inventory":
+            model.applyMockupFidelitySeed(referenceDate: Date())
             model.open(.inventory)
         case "calculator":
+            model.applyMockupFidelitySeed(referenceDate: Date())
             model.open(.calculator)
         case "trustVault":
+            model.applyMockupFidelitySeed(referenceDate: Date())
             model.open(.trustVault)
         case "importFlow":
+            model.applyMockupFidelitySeed(referenceDate: Date())
             model.open(.importFlow)
         case "reviewMode":
+            model.applyMockupFidelitySeed(referenceDate: Date())
             model.open(.reviewMode)
+        case "settingsIntegrations":
+            model.applyMockupFidelitySeed(referenceDate: Date())
+            model.open(.settingsServices)
+        case "settingsPrivacy":
+            model.applyMockupFidelitySeed(referenceDate: Date())
+            model.open(.settingsPrivacy)
+        case "settingsNotifications":
+            model.applyMockupFidelitySeed(referenceDate: Date())
+            model.open(.settingsNotifications)
+        case "settingsPersonalization":
+            model.applyMockupFidelitySeed(referenceDate: Date())
+            model.open(.settingsPersonalization)
+        case "settingsAccount":
+            model.applyMockupFidelitySeed(referenceDate: Date())
+            model.open(.settingsAccount)
+        case "mascot":
+            model.applyMockupFidelitySeed(referenceDate: Date())
+            model.open(.mascot)
+        case "rewards":
+            model.applyMockupFidelitySeed(referenceDate: Date())
+            model.open(.rewards)
+        case "quickCaptureSymptom":
+            model.applyMockupFidelitySeed(referenceDate: Date())
+            model.open(.quickCapture(.symptom))
+        case "quickCaptureShot":
+            model.applyMockupFidelitySeed(referenceDate: Date())
+            model.open(.quickCapture(.shot))
+        case "quickCaptureWeight":
+            model.applyMockupFidelitySeed(referenceDate: Date())
+            model.open(.quickCapture(.weight))
+        case "quickCaptureFood":
+            model.applyMockupFidelitySeed(referenceDate: Date())
+            model.open(.quickCapture(.context))
+        case "quickCaptureHydration":
+            model.applyMockupFidelitySeed(referenceDate: Date())
+            model.open(.quickCapture(.hydration))
+        case "quickCaptureProtein":
+            model.applyMockupFidelitySeed(referenceDate: Date())
+            model.open(.quickCapture(.protein))
+        case "quickCaptureProgressPhoto":
+            model.applyMockupFidelitySeed(referenceDate: Date())
+            model.open(.quickCapture(.progressPhoto))
+        case "insightsLogs":
+            model.applyMockupFidelitySeed(referenceDate: Date())
+            model.open(.insightsLogs)
+        case "insightsAnalysis":
+            model.applyMockupFidelitySeed(referenceDate: Date())
+            model.open(.insightsAnalysis)
+        case "labs":
+            model.applyMockupFidelitySeed(referenceDate: Date())
+            model.open(.labs)
+        case "compoundIntelligence":
+            model.applyMockupFidelitySeed(referenceDate: Date())
+            model.open(.compoundIntelligence("tirzepatide"))
+        case "weeklyReview":
+            model.applyMockupFidelitySeed(referenceDate: Date())
+            Task { @MainActor in
+                await model.loadBootstrapIfNeeded()
+                await model.loadShellDataIfNeeded()
+                guard model.routePath.last != .weeklyReview else {
+                    return
+                }
+                model.open(.weeklyReview)
+            }
+        case "progressEvidence":
+            model.applyMockupFidelitySeed(referenceDate: Date())
+            Task { @MainActor in
+                await model.loadBootstrapIfNeeded()
+                await model.loadShellDataIfNeeded()
+                guard model.routePath.last != .progressEvidence else {
+                    return
+                }
+                model.open(.progressEvidence)
+            }
+        case "watchCompanion":
+            model.applyMockupFidelitySeed(referenceDate: Date())
+            Task { @MainActor in
+                await model.loadBootstrapIfNeeded()
+                await model.loadShellDataIfNeeded()
+                guard model.routePath.last != .watchCompanion else {
+                    return
+                }
+                model.open(.watchCompanion)
+            }
         default:
-            if rawRoute.hasPrefix("protocolDetail:") {
+            if rawRoute.hasPrefix("compoundIntelligence:") {
+                Task { @MainActor in
+                    await model.loadBootstrapIfNeeded()
+                    await model.loadShellDataIfNeeded()
+                    let slug = String(rawRoute.dropFirst("compoundIntelligence:".count))
+                    guard slug.isEmpty == false else {
+                        return
+                    }
+                    guard model.routePath.last != .compoundIntelligence(slug) else {
+                        return
+                    }
+                    model.open(.compoundIntelligence(slug))
+                }
+            } else if rawRoute.hasPrefix("protocolDetail:") {
                 model.open(.protocolDetail(String(rawRoute.dropFirst("protocolDetail:".count))))
             } else if rawRoute.hasPrefix("protocolEdit:") {
                 model.open(.protocolEdit(String(rawRoute.dropFirst("protocolEdit:".count))))
@@ -147,6 +293,15 @@ private extension AtlasAppBootstrap {
 
         let rawValue = arguments[arguments.index(after: index)].trimmingCharacters(in: .whitespacesAndNewlines)
         return rawValue.isEmpty ? nil : rawValue
+    }
+
+    static func atlasQALaunchFlag(environmentKey: String, argumentName: String) -> Bool {
+        if let rawValue = ProcessInfo.processInfo.environment[environmentKey]?.trimmingCharacters(in: .whitespacesAndNewlines),
+           ["1", "true", "yes"].contains(rawValue.lowercased()) {
+            return true
+        }
+
+        return ProcessInfo.processInfo.arguments.contains(argumentName)
     }
 }
 #endif

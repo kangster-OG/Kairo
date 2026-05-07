@@ -2,8 +2,14 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>ATLAS_SUPABASE_ANON_KEY</key>
+	<string>eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5wcHF5d2F4YXd2dmRoaWVkcHhjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3NzcyODAsImV4cCI6MjA5MTM1MzI4MH0.ixg-MlNUNezbNzQKk92_JwabE7efONYUqV065RMlIP4</string>
+	<key>ATLAS_SUPABASE_URL</key>
+	<string>https://nppqywaxawvvdhiedpxc.supabase.co</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleDisplayName</key>
+	<string>Kairo</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -14,6 +20,8 @@
 	<string>$(PRODUCT_NAME)</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -27,30 +35,30 @@
 			</array>
 		</dict>
 	</array>
-	<key>CFBundleShortVersionString</key>
-	<string>1.0</string>
 	<key>CFBundleVersion</key>
-	<string>1</string>
-	<key>LSRequiresIPhoneOS</key>
-	<true/>
+	<string>2026050709</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
-	<key>NSHealthShareUsageDescription</key>
-	<string>Atlas can read your Apple Health weight history so your logs stay consistent across Atlas and Health.</string>
-	<key>NSHealthUpdateUsageDescription</key>
-	<string>Atlas can write weight entries to Apple Health when you choose to keep Atlas and Health in sync.</string>
-	<key>ATLAS_SUPABASE_URL</key>
-	<string>https://nppqywaxawvvdhiedpxc.supabase.co</string>
-	<key>ATLAS_SUPABASE_ANON_KEY</key>
-	<string>eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5wcHF5d2F4YXd2dmRoaWVkcHhjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3NzcyODAsImV4cCI6MjA5MTM1MzI4MH0.ixg-MlNUNezbNzQKk92_JwabE7efONYUqV065RMlIP4</string>
-	<key>UILaunchStoryboardName</key>
-	<string>LaunchScreen</string>
-	<key>UIRequiresFullScreen</key>
+	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Kairo can sync your scheduled protocols to a calendar you choose so upcoming routines stay visible outside the app.</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>Kairo can read selected Apple Health data, including weight, workouts, hydration, nutrition, steps, sleep, heart metrics, blood pressure, and body fat, so your protocol review stays consistent across Kairo and Health.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>Kairo can write weight entries to Apple Health when you choose to keep Kairo and Health in sync.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
 		<false/>
 	</dict>
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>arm64</string>
+	</array>
+	<key>UIRequiresFullScreen</key>
+	<true/>
 </dict>
 </plist>

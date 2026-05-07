@@ -156,7 +156,7 @@ struct AtlasImportCenterScreen: View {
         AtlasScreen {
             importCenterHeader(
                 "Import Center",
-                subtitle: "Atlas JSON remains the canonical migration path. CSV and manual imports stay preview-first, deterministic, and local until you explicitly replace local data."
+                subtitle: "Kairo JSON remains the canonical migration path. CSV and manual imports stay preview-first, deterministic, and local until you explicitly replace local data."
             )
 
             if let error = model.loadErrorMessage {
@@ -178,7 +178,7 @@ struct AtlasImportCenterScreen: View {
                         .foregroundStyle(AtlasPalette.textSecondary)
                     if descriptor.isCanonical {
                         Text("Recommended migration path")
-                            .font(.caption.weight(.semibold))
+                            .atlasTextRole(.deckEyebrow)
                             .foregroundStyle(AtlasPalette.primary)
                     }
                 }
@@ -186,7 +186,7 @@ struct AtlasImportCenterScreen: View {
 
             AtlasSectionCard(style: .elevated, title: "Source input") {
                 if selectedImporter == .atlasJSON {
-                    TextField("Absolute path to Atlas JSON export", text: $filePath)
+                    TextField("Absolute path to Kairo JSON export", text: $filePath)
                         .autocorrectionDisabled()
                         .atlasStandaloneInputSurface()
                 } else {
@@ -239,15 +239,15 @@ struct AtlasImportCenterScreen: View {
                     .buttonStyle(.plain)
                 }
 
-                Text("Replacing local data creates a restore point first when Atlas already has local rows.")
-                    .font(.caption)
+                Text("Replacing local data creates a restore point first when Kairo already has local rows.")
+                    .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
             }
 
             if supportsTemplates {
                 AtlasSectionCard(title: "Saved templates") {
-                    Text("Templates store mapping and import options only. Atlas never saves pasted import content into these presets.")
-                        .font(.caption)
+                    Text("Templates store mapping and import options only. Kairo never saves pasted import content into these presets.")
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
 
                     TextField(templatePlaceholder, text: $templateName)
@@ -277,10 +277,10 @@ struct AtlasImportCenterScreen: View {
                                 HStack {
                                     VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
                                         Text(template.name)
-                                            .font(.body.weight(.semibold))
+                                            .atlasTextRole(.cardBody)
                                             .foregroundStyle(AtlasPalette.textPrimary)
                                         Text(template.updatedAt.formatted(date: .abbreviated, time: .shortened))
-                                            .font(.caption)
+                                            .atlasTextRole(.supporting)
                                             .foregroundStyle(AtlasPalette.textSecondary)
                                     }
                                     Spacer()
@@ -308,9 +308,10 @@ struct AtlasImportCenterScreen: View {
             if let prepared {
                 AtlasSectionCard(title: "Dry-run preview") {
                     Text(prepared.dryRun.sourceSummary)
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
                     Text("Create: \(prepared.dryRun.recordsToCreate) • Update: \(prepared.dryRun.recordsToUpdate)")
-                        .font(.caption.weight(.semibold))
+                        .atlasTextRole(.deckEyebrow)
                         .foregroundStyle(AtlasPalette.primary)
 
                     if let summary = prepared.dryRun.plainLanguageSummary {
@@ -330,12 +331,12 @@ struct AtlasImportCenterScreen: View {
             }
 
             AtlasSectionCard(title: "Restore points") {
-                Text("Restore points preview the saved Atlas JSON snapshot before you commit a restore. Restores replace local data transactionally and append an audit entry.")
-                    .font(.caption)
+                Text("Restore points preview the saved Kairo JSON snapshot before you commit a restore. Restores replace local data transactionally and append an audit entry.")
+                    .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
 
                 if restorePoints.isEmpty {
-                    Text("No restore points available yet. Atlas creates them before destructive replace-import and restore actions.")
+                    Text("No restore points available yet. Kairo creates them before destructive replace-import and restore actions.")
                         .foregroundStyle(AtlasPalette.textSecondary)
                 } else {
                     ForEach(restorePoints) { restorePoint in
@@ -343,13 +344,13 @@ struct AtlasImportCenterScreen: View {
                             HStack(alignment: .top) {
                                 VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
                                     Text(restorePoint.title)
-                                        .font(.body.weight(.semibold))
+                                        .atlasTextRole(.cardBody)
                                         .foregroundStyle(AtlasPalette.textPrimary)
                                     Text("\(restorePointActionLabel(restorePoint.actionKind)) • \(restorePoint.createdAt.formatted(date: .abbreviated, time: .shortened))")
-                                        .font(.caption)
+                                        .atlasTextRole(.supporting)
                                         .foregroundStyle(AtlasPalette.textSecondary)
                                     Text(restorePoint.sourceSummary)
-                                        .font(.caption)
+                                        .atlasTextRole(.supporting)
                                         .foregroundStyle(AtlasPalette.textSecondary)
                                 }
                                 Spacer()
@@ -363,7 +364,7 @@ struct AtlasImportCenterScreen: View {
                             }
 
                             Text("\(restorePoint.rowCount) rows captured")
-                                .font(.caption)
+                                .atlasTextRole(.supporting)
                                 .foregroundStyle(AtlasPalette.textSecondary)
                         }
                     }
@@ -375,7 +376,7 @@ struct AtlasImportCenterScreen: View {
                     Text(restorePreview.restorePoint.title)
                         .foregroundStyle(AtlasPalette.textPrimary)
                     Text("Create: \(restorePreview.recordsToCreate) • Update: \(restorePreview.recordsToUpdate)")
-                        .font(.caption.weight(.semibold))
+                        .atlasTextRole(.deckEyebrow)
                         .foregroundStyle(AtlasPalette.primary)
 
                     AtlasDryRunLineGroup(title: "Datasets", lines: restorePreview.datasetDiffs.map {
@@ -407,12 +408,12 @@ struct AtlasImportCenterScreen: View {
                         .foregroundStyle(AtlasPalette.textSecondary)
                     if let backupURL = lastCommit.backupURL {
                         Text("Restore point created: \(backupURL.lastPathComponent)")
-                            .font(.caption)
+                            .atlasTextRole(.supporting)
                             .foregroundStyle(AtlasPalette.textSecondary)
                     }
                     if let nextDue = lastCommit.nextDue {
                         Text("Next due now surfaces as \(nextDue.displayTitle)")
-                            .font(.caption.weight(.semibold))
+                            .atlasTextRole(.deckEyebrow)
                             .foregroundStyle(AtlasPalette.primary)
                     }
                 }
@@ -426,12 +427,12 @@ struct AtlasImportCenterScreen: View {
                         .foregroundStyle(AtlasPalette.textSecondary)
                     if let backupURL = lastRestore.backupURL {
                         Text("Previous local state backed up as: \(backupURL.lastPathComponent)")
-                            .font(.caption)
+                            .atlasTextRole(.supporting)
                             .foregroundStyle(AtlasPalette.textSecondary)
                     }
                     if let nextDue = lastRestore.nextDue {
                         Text("Next due now surfaces as \(nextDue.displayTitle)")
-                            .font(.caption.weight(.semibold))
+                            .atlasTextRole(.deckEyebrow)
                             .foregroundStyle(AtlasPalette.primary)
                     }
                 }
@@ -578,7 +579,7 @@ struct AtlasProviderHandoffCard: View {
             }
 
             Text(selectedPreset.subtitle)
-                .font(.caption)
+                .atlasTextRole(.supporting)
                 .foregroundStyle(AtlasPalette.textSecondary)
 
             Button("Apply preset") {
@@ -609,7 +610,7 @@ struct AtlasProviderHandoffCard: View {
             if needsMultipleProtocolSelection {
                 VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
                     Text("Protocols")
-                        .font(.caption.weight(.semibold))
+                        .atlasTextRole(.deckEyebrow)
                         .foregroundStyle(AtlasPalette.primary)
 
                     ForEach(model.libraryProtocols) { protocolSummary in
@@ -632,7 +633,7 @@ struct AtlasProviderHandoffCard: View {
             }
 
             Text("Presets remain static and bounded. Preview the pack before you create the handoff bundle.")
-                .font(.caption)
+                .atlasTextRole(.supporting)
                 .foregroundStyle(AtlasPalette.textSecondary)
 
             Button("Preview handoff") {
@@ -664,7 +665,7 @@ struct AtlasProviderHandoffCard: View {
                 Text("Summary ready at \(latestResult.summaryURL.lastPathComponent)")
                     .foregroundStyle(AtlasPalette.textSecondary)
                 Text("Attachment ready at \(latestResult.attachmentURL.lastPathComponent)")
-                    .font(.caption)
+                    .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
             }
         }
@@ -763,15 +764,25 @@ private struct AtlasGenericCsvMappingFields: View {
     var body: some View {
         VStack(alignment: .leading, spacing: AtlasSpacing.small) {
             TextField("Name column", text: $mapping.nameColumn)
+                .atlasStandaloneInputSurface()
             TextField("Cadence column", text: $mapping.cadenceColumn)
+                .atlasStandaloneInputSurface()
             TextField("Kind column", text: binding(\.kindColumn))
+                .atlasStandaloneInputSurface()
             TextField("Weekday column", text: binding(\.weekdayColumn))
+                .atlasStandaloneInputSurface()
             TextField("Every-N-days column", text: binding(\.intervalDaysColumn))
+                .atlasStandaloneInputSurface()
             TextField("Time column", text: binding(\.timeColumn))
+                .atlasStandaloneInputSurface()
             TextField("Dose amount column", text: binding(\.doseAmountColumn))
+                .atlasStandaloneInputSurface()
             TextField("Dose unit column", text: binding(\.doseUnitColumn))
+                .atlasStandaloneInputSurface()
             TextField("Notes column", text: binding(\.notesColumn))
+                .atlasStandaloneInputSurface()
             TextField("Start date column", text: binding(\.startDateColumn))
+                .atlasStandaloneInputSurface()
         }
     }
 
@@ -797,6 +808,7 @@ private struct AtlasManualImportOptionsFields: View {
 
         TextField("Timezone identifier", text: $timezone)
             .autocorrectionDisabled()
+            .atlasStandaloneInputSurface()
 
         DatePicker("Anchor date", selection: $anchorDate, displayedComponents: .date)
     }
@@ -807,9 +819,10 @@ private func importCenterHeader(_ title: String, subtitle: String) -> some View 
     VStack(alignment: .leading, spacing: AtlasSpacing.small) {
         AtlasStatusBadge("Preview-first migration", tint: AtlasPalette.secondaryText)
         Text(title)
-            .font(.largeTitle.weight(.semibold))
+            .atlasTextRole(.screenTitle)
             .foregroundStyle(AtlasPalette.textPrimary)
         Text(subtitle)
+            .atlasTextRole(.screenSubtitle)
             .foregroundStyle(AtlasPalette.textSecondary)
     }
 }
@@ -821,15 +834,16 @@ private struct AtlasImportLintGroup: View {
         if items.isEmpty == false {
             VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
                 Text("Lint findings")
-                    .font(.caption.weight(.semibold))
+                    .atlasTextRole(.deckEyebrow)
                     .foregroundStyle(AtlasPalette.primary)
 
                 ForEach(items) { item in
                     VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
                         Text("\(severityLabel(item.severity)): \(item.summary)")
-                            .font(.body.weight(.semibold))
+                            .atlasTextRole(.cardBody)
                             .foregroundStyle(severityColor(item.severity))
                         Text(item.detail)
+                            .atlasTextRole(.supporting)
                             .foregroundStyle(AtlasPalette.textSecondary)
                     }
                 }
@@ -868,10 +882,11 @@ private struct AtlasDryRunLineGroup: View {
         if lines.isEmpty == false {
             VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
                 Text(title)
-                    .font(.caption.weight(.semibold))
+                    .atlasTextRole(.deckEyebrow)
                     .foregroundStyle(AtlasPalette.primary)
                 ForEach(lines, id: \.self) { line in
                     Text(line)
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
             }

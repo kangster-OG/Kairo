@@ -10,9 +10,9 @@ private enum AtlasReviewModeError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .liveSessionsDisabled:
-            return "Live review sessions are not enabled in this build."
+            return "Live summary links are not enabled in this build."
         case .invalidReviewPack:
-            return "The selected review pack could not be opened."
+            return "The selected summary file could not be opened."
         }
     }
 }
@@ -124,7 +124,7 @@ public struct GRDBReviewModeRepository: ReviewModeRepository, Sendable {
             from: snapshot,
             request: request,
             createdAt: now,
-            sourceDescription: request.deliveryKind == .staticPack ? "Static local review pack" : "Live review session"
+            sourceDescription: request.deliveryKind == .staticPack ? "Static local summary file" : "Live summary link"
         )
         let title = reviewTitle(for: request.scopeKind)
 
@@ -389,7 +389,7 @@ private extension GRDBReviewModeRepository {
             scopeKind: request.scopeKind,
             renderMode: renderMode,
             readOnly: true,
-            summary: "Read-only review pack for \(reviewScopeTitle(request.scopeKind).lowercased()) with \(snapshotRowCount(snapshot)) row(s).",
+            summary: "Read-only summary file for \(reviewScopeTitle(request.scopeKind).lowercased()) with \(snapshotRowCount(snapshot)) row(s).",
             sections: sections,
             datasets: datasets,
             rowCount: snapshotRowCount(snapshot),

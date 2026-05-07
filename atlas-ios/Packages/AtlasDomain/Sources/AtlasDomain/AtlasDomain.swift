@@ -12,20 +12,20 @@ public enum AtlasTab: String, CaseIterable, Hashable, Identifiable, Sendable {
     public var title: String {
         switch self {
         case .today: "Today"
-        case .timeline: "Timeline"
-        case .library: "Library"
-        case .insights: "Insights"
-        case .settings: "Settings"
+        case .timeline: "Log"
+        case .library: "Protocols"
+        case .insights: "Progress"
+        case .settings: "Companion"
         }
     }
 
     public var systemImage: String {
         switch self {
-        case .today: "sparkles"
-        case .timeline: "clock.arrow.trianglehead.counterclockwise.rotate.90"
-        case .library: "books.vertical"
-        case .insights: "chart.line.uptrend.xyaxis"
-        case .settings: "gearshape"
+        case .today: "house.fill"
+        case .timeline: "plus.circle.fill"
+        case .library: "list.clipboard.fill"
+        case .insights: "chart.bar.fill"
+        case .settings: "pawprint.fill"
         }
     }
 }
@@ -35,11 +35,63 @@ public enum AtlasRoute: Hashable, Sendable {
     case protocolCreate
     case protocolEdit(String)
     case protocolChange(String)
+    case medicationLevels(String)
+    case compoundIntelligence(String)
+    case rewards
     case inventory
+    case labs
+    case mascot
     case calculator
     case trustVault
     case importFlow
     case reviewMode
+    case weeklyReview
+    case progressEvidence
+    case quickCapture(AtlasQuickCaptureKind)
+    case watchCompanion
+    case insightsLogs
+    case insightsAnalysis
+    case settingsAccount
+    case settingsPrivacy
+    case settingsNotifications
+    case settingsServices
+    case settingsPersonalization
+}
+
+public enum AtlasQuickCaptureKind: String, Codable, CaseIterable, Hashable, Sendable, Identifiable {
+    case shot
+    case weight
+    case symptom
+    case context
+    case hydration
+    case protein
+    case progressPhoto = "progress_photo"
+
+    public var id: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .shot: "Shot"
+        case .weight: "Weight"
+        case .symptom: "Check-in"
+        case .context: "Food"
+        case .hydration: "Hydration"
+        case .protein: "Protein"
+        case .progressPhoto: "Progress Photo"
+        }
+    }
+
+    public var systemImage: String {
+        switch self {
+        case .shot: "syringe.fill"
+        case .weight: "scalemass.fill"
+        case .symptom: "waveform.path.ecg"
+        case .context: "fork.knife.circle.fill"
+        case .hydration: "drop.fill"
+        case .protein: "bolt.heart.fill"
+        case .progressPhoto: "camera.fill"
+        }
+    }
 }
 
 public enum AtlasAccountMode: String, Codable, Sendable {
@@ -51,6 +103,36 @@ public enum AtlasPrivacyRenderMode: String, Codable, CaseIterable, Sendable {
     case full
     case discreet
     case alias
+}
+
+public enum AtlasAmbientMascotPresence: String, Codable, CaseIterable, Hashable, Sendable, Identifiable {
+    case off
+    case subtle
+    case moreAlive = "more_alive"
+
+    public var id: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .off:
+            return "Off"
+        case .subtle:
+            return "Subtle"
+        case .moreAlive:
+            return "More alive"
+        }
+    }
+
+    public var detail: String {
+        switch self {
+        case .off:
+            return "Hide ambient mascot perches and motion around the app."
+        case .subtle:
+            return "Keep mascot presence calm, sparse, and anchored."
+        case .moreAlive:
+            return "Allow richer mascot reactions and more frequent ambient motion."
+        }
+    }
 }
 
 public enum AtlasFeatureFlag: String, CaseIterable, Sendable {
@@ -124,6 +206,25 @@ public enum AtlasProtocolKind: String, Codable, CaseIterable, Sendable {
     case custom
 }
 
+public enum AtlasProtocolAdministrationRoute: String, Codable, CaseIterable, Sendable {
+    case injection
+    case oral
+    case sublingual
+    case nasal
+    case topical
+    case transdermal
+    case other
+}
+
+public enum AtlasProtocolSupplyType: String, Codable, CaseIterable, Sendable {
+    case vial
+    case pen
+    case bottle
+    case blisterPack = "blister_pack"
+    case syringe
+    case other
+}
+
 public enum AtlasProtocolStatus: String, Codable, CaseIterable, Sendable {
     case draft
     case active
@@ -192,7 +293,7 @@ public enum AtlasReminderChannel: String, Codable, CaseIterable, Sendable {
     case localNotification = "local_notification"
 }
 
-public enum AtlasReminderPrivacyMode: String, Codable, CaseIterable, Sendable {
+public enum AtlasReminderPrivacyMode: String, Codable, CaseIterable, Hashable, Sendable {
     case fullDetail = "full_detail"
     case generic
     case silent
@@ -270,6 +371,7 @@ public enum AtlasContextMealSize: String, Codable, CaseIterable, Sendable {
 
 public enum AtlasContextMealComposition: String, Codable, CaseIterable, Sendable {
     case proteinHeavy = "protein_heavy"
+    case fiberForward = "fiber_forward"
     case carbHeavy = "carb_heavy"
     case fatHeavy = "fat_heavy"
     case mixed
@@ -445,6 +547,8 @@ public extension AtlasContextMealComposition {
         switch self {
         case .proteinHeavy:
             return "Protein-heavy"
+        case .fiberForward:
+            return "Fiber-forward"
         case .carbHeavy:
             return "Carb-heavy"
         case .fatHeavy:
@@ -611,15 +715,321 @@ public struct TrustVaultStatus: Sendable, Equatable {
     }
 }
 
+public enum AtlasMascotSelection: String, Codable, CaseIterable, Sendable {
+    case aetherion
+    case aurielle
+
+    public var title: String {
+        switch self {
+        case .aetherion:
+            return "Aetherion"
+        case .aurielle:
+            return "Aurielle"
+        }
+    }
+
+    public var subtitle: String {
+        switch self {
+        case .aetherion:
+            return "Storm-forged drake guardian"
+        case .aurielle:
+            return "Aurora hare guardian"
+        }
+    }
+
+    public var stage1Title: String {
+        title
+    }
+
+    public var stage2Title: String {
+        title
+    }
+
+    public var stage3Title: String {
+        title
+    }
+
+    public func title(for stage: AtlasMascotStage) -> String {
+        switch stage {
+        case .stage1:
+            return stage1Title
+        case .stage2:
+            return stage2Title
+        case .stage3:
+            return stage3Title
+        }
+    }
+}
+
+public enum AtlasMascotStage: String, Codable, CaseIterable, Sendable {
+    case stage1
+    case stage2
+    case stage3
+
+    public var rank: Int {
+        switch self {
+        case .stage1:
+            return 1
+        case .stage2:
+            return 2
+        case .stage3:
+            return 3
+        }
+    }
+}
+
+public enum AtlasMascotMilestone {
+    public static let stage2Points = 500
+    public static let stage3Points = 1_250
+
+    public static func stage(for totalPoints: Int) -> AtlasMascotStage {
+        switch totalPoints {
+        case stage3Points...:
+            return .stage3
+        case stage2Points...:
+            return .stage2
+        default:
+            return .stage1
+        }
+    }
+
+    public static func nextThreshold(after stage: AtlasMascotStage) -> Int? {
+        switch stage {
+        case .stage1:
+            return stage2Points
+        case .stage2:
+            return stage3Points
+        case .stage3:
+            return nil
+        }
+    }
+}
+
+public struct AtlasMascotUnlockSnapshot: Codable, Equatable, Sendable, Identifiable {
+    public var id: AtlasMascotSelection { selection }
+    public var selection: AtlasMascotSelection
+    public var highestUnlockedStage: AtlasMascotStage
+
+    public init(
+        selection: AtlasMascotSelection,
+        highestUnlockedStage: AtlasMascotStage = .stage1
+    ) {
+        self.selection = selection
+        self.highestUnlockedStage = highestUnlockedStage
+    }
+}
+
+public struct AtlasMascotEvolutionRecord: Codable, Equatable, Sendable, Identifiable {
+    public var selection: AtlasMascotSelection
+    public var stage: AtlasMascotStage
+    public var earnedAt: String
+
+    public var id: String { "\(selection.rawValue)-\(stage.rawValue)-\(earnedAt)" }
+
+    public init(
+        selection: AtlasMascotSelection,
+        stage: AtlasMascotStage,
+        earnedAt: String
+    ) {
+        self.selection = selection
+        self.stage = stage
+        self.earnedAt = earnedAt
+    }
+}
+
+public enum AtlasMascotMomentKind: String, Codable, CaseIterable, Sendable {
+    case interaction
+    case evolution
+    case badge
+    case goal
+    case streak
+    case streakRescue = "streak_rescue"
+    case nearEvolution = "near_evolution"
+    case archiveMilestone = "archive_milestone"
+    case focusCarryForward = "focus_carry_forward"
+    case quietConsistency = "quiet_consistency"
+    case shortcut
+    case levelUp = "level_up"
+    case weeklyCloseout = "weekly_closeout"
+    case recapExport = "recap_export"
+}
+
+public enum AtlasMascotRecapAudience: String, Codable, CaseIterable, Sendable {
+    case personal
+    case coach
+    case share
+
+    public var title: String {
+        switch self {
+        case .personal:
+            return "Personal"
+        case .coach:
+            return "Coach"
+        case .share:
+            return "Share"
+        }
+    }
+}
+
+public enum AtlasMascotRecapPrivacyMode: String, Codable, CaseIterable, Sendable {
+    case fullDetail
+    case privacySafe
+
+    public var title: String {
+        switch self {
+        case .fullDetail:
+            return "Full detail"
+        case .privacySafe:
+            return "Privacy-safe"
+        }
+    }
+}
+
+public struct AtlasMascotRecapNotificationSettings: Codable, Equatable, Sendable {
+    public var dailyEnabled: Bool
+    public var weeklyEnabled: Bool
+
+    public init(
+        dailyEnabled: Bool = false,
+        weeklyEnabled: Bool = false
+    ) {
+        self.dailyEnabled = dailyEnabled
+        self.weeklyEnabled = weeklyEnabled
+    }
+}
+
+public struct AtlasMascotArchivedRecapRecord: Codable, Equatable, Sendable, Identifiable {
+    public var id: String
+    public var selection: AtlasMascotSelection
+    public var stage: AtlasMascotStage
+    public var kind: String
+    public var audience: AtlasMascotRecapAudience
+    public var privacyMode: AtlasMascotRecapPrivacyMode
+    public var displayName: String
+    public var currentFormName: String
+    public var eyebrow: String
+    public var headline: String
+    public var detail: String
+    public var secondaryDetail: String
+    public var footer: String
+    public var symbolName: String
+    public var fileName: String
+    public var createdAt: String
+    public var sourceMomentEventKey: String?
+    public var sourceMomentTitle: String?
+
+    public init(
+        id: String,
+        selection: AtlasMascotSelection,
+        stage: AtlasMascotStage,
+        kind: String,
+        audience: AtlasMascotRecapAudience,
+        privacyMode: AtlasMascotRecapPrivacyMode,
+        displayName: String,
+        currentFormName: String,
+        eyebrow: String,
+        headline: String,
+        detail: String,
+        secondaryDetail: String,
+        footer: String,
+        symbolName: String,
+        fileName: String,
+        createdAt: String,
+        sourceMomentEventKey: String? = nil,
+        sourceMomentTitle: String? = nil
+    ) {
+        self.id = id
+        self.selection = selection
+        self.stage = stage
+        self.kind = kind
+        self.audience = audience
+        self.privacyMode = privacyMode
+        self.displayName = displayName
+        self.currentFormName = currentFormName
+        self.eyebrow = eyebrow
+        self.headline = headline
+        self.detail = detail
+        self.secondaryDetail = secondaryDetail
+        self.footer = footer
+        self.symbolName = symbolName
+        self.fileName = fileName
+        self.createdAt = createdAt
+        self.sourceMomentEventKey = sourceMomentEventKey
+        self.sourceMomentTitle = sourceMomentTitle
+    }
+}
+
+public struct AtlasMascotMomentRecord: Codable, Equatable, Sendable, Identifiable {
+    public var selection: AtlasMascotSelection
+    public var stage: AtlasMascotStage
+    public var kind: AtlasMascotMomentKind
+    public var title: String
+    public var detail: String
+    public var symbolName: String
+    public var recordedAt: String
+    public var eventKey: String?
+    public var relatedRecapID: String?
+    public var relatedRecapKind: String?
+    public var recapHeadline: String?
+
+    public var id: String {
+        if let eventKey, eventKey.isEmpty == false {
+            return "\(selection.rawValue)-\(eventKey)"
+        }
+        return "\(selection.rawValue)-\(kind.rawValue)-\(recordedAt)-\(title)"
+    }
+
+    public init(
+        selection: AtlasMascotSelection,
+        stage: AtlasMascotStage,
+        kind: AtlasMascotMomentKind,
+        title: String,
+        detail: String,
+        symbolName: String,
+        recordedAt: String,
+        eventKey: String? = nil,
+        relatedRecapID: String? = nil,
+        relatedRecapKind: String? = nil,
+        recapHeadline: String? = nil
+    ) {
+        self.selection = selection
+        self.stage = stage
+        self.kind = kind
+        self.title = title
+        self.detail = detail
+        self.symbolName = symbolName
+        self.recordedAt = recordedAt
+        self.eventKey = eventKey
+        self.relatedRecapID = relatedRecapID
+        self.relatedRecapKind = relatedRecapKind
+        self.recapHeadline = recapHeadline
+    }
+}
+
 public struct AtlasSettingsSnapshot: Sendable, Equatable {
     public var accountMode: AtlasAccountMode
     public var accountStartMode: AtlasOnboardingAccountMode?
     public var onboardingCompleted: Bool
     public var syncStatus: AtlasSyncScaffoldStatus
     public var healthScaffold: AtlasHealthScaffoldSnapshot
+    public var externalCalendarSettings: AtlasExternalCalendarSettingsSnapshot
+    public var labsEnabled: Bool
+    public var surfacePreferences: AtlasSurfacePreferences
     public var trustVaultStatus: TrustVaultStatus
+    public var mascotSelection: AtlasMascotSelection
+    public var mascotNickname: String?
+    public var mascotSelectionConfirmed: Bool
+    public var ambientMascotPresence: AtlasAmbientMascotPresence
+    public var mascotUnlocks: [AtlasMascotUnlockSnapshot]
+    public var mascotEvolutionHistory: [AtlasMascotEvolutionRecord]
+    public var mascotMoments: [AtlasMascotMomentRecord]
+    public var mascotArchivedRecaps: [AtlasMascotArchivedRecapRecord]
+    public var mascotRecapNotificationSettings: AtlasMascotRecapNotificationSettings
+    public var weeklyReviewReminderSettings: AtlasWeeklyReviewReminderSettings
+    public var weeklyReviewActionPlans: [AtlasWeeklyReviewActionPlan]
     public var summarySettings: AtlasSummarySettingsSnapshot
     public var retentionSettings: AtlasRetentionSettingsSnapshot
+    public var rewardsSettings: AtlasRewardsSettingsSnapshot
 
     public init(
         accountMode: AtlasAccountMode = .guest,
@@ -627,18 +1037,176 @@ public struct AtlasSettingsSnapshot: Sendable, Equatable {
         onboardingCompleted: Bool = false,
         syncStatus: AtlasSyncScaffoldStatus = .localOnly,
         healthScaffold: AtlasHealthScaffoldSnapshot = .init(),
+        externalCalendarSettings: AtlasExternalCalendarSettingsSnapshot = .init(),
+        labsEnabled: Bool = false,
+        surfacePreferences: AtlasSurfacePreferences = .init(),
         trustVaultStatus: TrustVaultStatus = .init(),
+        mascotSelection: AtlasMascotSelection = .aetherion,
+        mascotNickname: String? = nil,
+        mascotSelectionConfirmed: Bool = false,
+        ambientMascotPresence: AtlasAmbientMascotPresence = .subtle,
+        mascotUnlocks: [AtlasMascotUnlockSnapshot] = AtlasMascotSelection.allCases.map {
+            AtlasMascotUnlockSnapshot(selection: $0, highestUnlockedStage: .stage1)
+        },
+        mascotEvolutionHistory: [AtlasMascotEvolutionRecord] = [],
+        mascotMoments: [AtlasMascotMomentRecord] = [],
+        mascotArchivedRecaps: [AtlasMascotArchivedRecapRecord] = [],
+        mascotRecapNotificationSettings: AtlasMascotRecapNotificationSettings = .init(),
+        weeklyReviewReminderSettings: AtlasWeeklyReviewReminderSettings = .init(),
+        weeklyReviewActionPlans: [AtlasWeeklyReviewActionPlan] = [],
         summarySettings: AtlasSummarySettingsSnapshot = .init(),
-        retentionSettings: AtlasRetentionSettingsSnapshot = .init()
+        retentionSettings: AtlasRetentionSettingsSnapshot = .init(),
+        rewardsSettings: AtlasRewardsSettingsSnapshot = .init()
     ) {
         self.accountMode = accountMode
         self.accountStartMode = accountStartMode
         self.onboardingCompleted = onboardingCompleted
         self.syncStatus = syncStatus
         self.healthScaffold = healthScaffold
+        self.externalCalendarSettings = externalCalendarSettings
+        self.labsEnabled = labsEnabled
+        self.surfacePreferences = surfacePreferences
         self.trustVaultStatus = trustVaultStatus
+        self.mascotSelection = mascotSelection
+        self.mascotNickname = mascotNickname
+        self.mascotSelectionConfirmed = mascotSelectionConfirmed
+        self.ambientMascotPresence = ambientMascotPresence
+        self.mascotUnlocks = mascotUnlocks
+        self.mascotEvolutionHistory = mascotEvolutionHistory
+        self.mascotMoments = mascotMoments
+        self.mascotArchivedRecaps = mascotArchivedRecaps
+        self.mascotRecapNotificationSettings = mascotRecapNotificationSettings
+        self.weeklyReviewReminderSettings = weeklyReviewReminderSettings
+        self.weeklyReviewActionPlans = weeklyReviewActionPlans
         self.summarySettings = summarySettings
         self.retentionSettings = retentionSettings
+        self.rewardsSettings = rewardsSettings
+    }
+
+    public func highestUnlockedStage(for selection: AtlasMascotSelection) -> AtlasMascotStage {
+        mascotUnlocks.first(where: { $0.selection == selection })?.highestUnlockedStage ?? .stage1
+    }
+}
+
+public enum AtlasTodayLandingCard: String, Codable, CaseIterable, Hashable, Sendable, Identifiable {
+    case guidance
+    case recovery
+    case quickCapture = "quick_capture"
+    case quickContext = "quick_context"
+    case weeklyFocus = "weekly_focus"
+    case watchCompanion = "watch_companion"
+    case mascot
+    case rewards
+    case calmContinuity = "calm_continuity"
+
+    public var id: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .guidance: "Today lens"
+        case .recovery: "Recovery"
+        case .quickCapture: "Quick capture"
+        case .quickContext: "Quick context"
+        case .weeklyFocus: "Weekly focus"
+        case .watchCompanion: "Watch companion"
+        case .mascot: "Mascot"
+        case .rewards: "Rewards"
+        case .calmContinuity: "Calm continuity"
+        }
+    }
+}
+
+public enum AtlasInsightsLandingCard: String, Codable, CaseIterable, Hashable, Sendable, Identifiable {
+    case progressEvidence = "progress_evidence"
+    case weeklyReview = "weekly_review"
+    case stackDashboard = "stack_dashboard"
+    case biometricsOverlay = "biometrics_overlay"
+
+    public var id: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .progressEvidence: "Progress evidence"
+        case .weeklyReview: "Weekly review"
+        case .stackDashboard: "Stack dashboard"
+        case .biometricsOverlay: "Biometrics overlays"
+        }
+    }
+}
+
+public struct AtlasSurfacePreferences: Codable, Equatable, Sendable {
+    public var todayCardOrder: [AtlasTodayLandingCard]
+    public var hiddenTodayCards: [AtlasTodayLandingCard]
+    public var insightsCardOrder: [AtlasInsightsLandingCard]
+    public var hiddenInsightsCards: [AtlasInsightsLandingCard]
+    public var stackDashboardEnabled: Bool
+    public var biometricsOverlayEnabled: Bool
+    public var biometricsOverlayShowsProtocolChanges: Bool
+
+    public init(
+        todayCardOrder: [AtlasTodayLandingCard] = [
+            .guidance,
+            .recovery,
+            .quickCapture,
+            .quickContext,
+            .weeklyFocus,
+            .mascot,
+            .rewards,
+            .calmContinuity,
+            .watchCompanion
+        ],
+        hiddenTodayCards: [AtlasTodayLandingCard] = [
+            .watchCompanion,
+            .rewards,
+            .calmContinuity
+        ],
+        insightsCardOrder: [AtlasInsightsLandingCard] = [
+            .weeklyReview,
+            .progressEvidence,
+            .stackDashboard,
+            .biometricsOverlay
+        ],
+        hiddenInsightsCards: [AtlasInsightsLandingCard] = [
+            .stackDashboard,
+            .biometricsOverlay
+        ],
+        stackDashboardEnabled: Bool = false,
+        biometricsOverlayEnabled: Bool = true,
+        biometricsOverlayShowsProtocolChanges: Bool = true
+    ) {
+        self.todayCardOrder = todayCardOrder
+        self.hiddenTodayCards = hiddenTodayCards
+        self.insightsCardOrder = insightsCardOrder
+        self.hiddenInsightsCards = hiddenInsightsCards
+        self.stackDashboardEnabled = stackDashboardEnabled
+        self.biometricsOverlayEnabled = biometricsOverlayEnabled
+        self.biometricsOverlayShowsProtocolChanges = biometricsOverlayShowsProtocolChanges
+    }
+
+    public var visibleTodayCards: [AtlasTodayLandingCard] {
+        AtlasTodayLandingCard.allCases.filter { hiddenTodayCards.contains($0) == false }
+            .sorted { todayCardRank($0) < todayCardRank($1) }
+    }
+
+    public var visibleInsightsCards: [AtlasInsightsLandingCard] {
+        AtlasInsightsLandingCard.allCases.filter { hiddenInsightsCards.contains($0) == false }
+            .sorted { insightsCardRank($0) < insightsCardRank($1) }
+    }
+
+    public func isTodayCardVisible(_ card: AtlasTodayLandingCard) -> Bool {
+        hiddenTodayCards.contains(card) == false
+    }
+
+    public func isInsightsCardVisible(_ card: AtlasInsightsLandingCard) -> Bool {
+        hiddenInsightsCards.contains(card) == false
+    }
+
+    private func todayCardRank(_ card: AtlasTodayLandingCard) -> Int {
+        todayCardOrder.firstIndex(of: card) ?? AtlasTodayLandingCard.allCases.count
+    }
+
+    private func insightsCardRank(_ card: AtlasInsightsLandingCard) -> Int {
+        insightsCardOrder.firstIndex(of: card) ?? AtlasInsightsLandingCard.allCases.count
     }
 }
 
@@ -785,11 +1353,157 @@ public struct AtlasSharedLowStockSnapshot: Codable, Equatable, Sendable {
     }
 }
 
+public struct AtlasSharedSupportRingSnapshot: Codable, Equatable, Sendable, Identifiable {
+    public var id: String { kind }
+    public var kind: String
+    public var title: String
+    public var valueLabel: String
+    public var progress: Double
+    public var symbolName: String
+
+    public init(
+        kind: String,
+        title: String,
+        valueLabel: String,
+        progress: Double,
+        symbolName: String
+    ) {
+        self.kind = kind
+        self.title = title
+        self.valueLabel = valueLabel
+        self.progress = progress
+        self.symbolName = symbolName
+    }
+}
+
+public struct AtlasSharedSupportRingsSnapshot: Codable, Equatable, Sendable {
+    public var score: Int
+    public var summary: String
+    public var rings: [AtlasSharedSupportRingSnapshot]
+    public var showsHealthSteps: Bool
+    public var stepCount: Int?
+    public var stepLabel: String?
+    public var updatedAt: String
+
+    public init(
+        score: Int,
+        summary: String,
+        rings: [AtlasSharedSupportRingSnapshot],
+        showsHealthSteps: Bool = false,
+        stepCount: Int? = nil,
+        stepLabel: String? = nil,
+        updatedAt: String
+    ) {
+        self.score = score
+        self.summary = summary
+        self.rings = rings
+        self.showsHealthSteps = showsHealthSteps
+        self.stepCount = stepCount
+        self.stepLabel = stepLabel
+        self.updatedAt = updatedAt
+    }
+}
+
+public struct AtlasSharedCompanionWidgetSnapshot: Codable, Equatable, Sendable {
+    public var levelLabel: String
+    public var xpLabel: String
+    public var xpProgress: Double
+    public var nextShotDaysLabel: String
+    public var vialReplacementDaysLabel: String
+
+    public init(
+        levelLabel: String,
+        xpLabel: String,
+        xpProgress: Double,
+        nextShotDaysLabel: String,
+        vialReplacementDaysLabel: String
+    ) {
+        self.levelLabel = levelLabel
+        self.xpLabel = xpLabel
+        self.xpProgress = xpProgress
+        self.nextShotDaysLabel = nextShotDaysLabel
+        self.vialReplacementDaysLabel = vialReplacementDaysLabel
+    }
+}
+
 public struct AtlasSharedFeatureFlagProjection: Codable, Equatable, Sendable {
     public var flags: AtlasFeatureFlagState
 
     public init(flags: AtlasFeatureFlagState) {
         self.flags = flags
+    }
+}
+
+public enum AtlasSharedMascotPose: String, Codable, Equatable, Sendable {
+    case idle
+    case happy
+    case recovery
+    case evolutionReady
+    case milestone
+    case rest
+}
+
+public struct AtlasSharedMascotSnapshot: Codable, Equatable, Sendable {
+    public var selection: AtlasMascotSelection
+    public var nickname: String?
+    public var displayName: String
+    public var stage: AtlasMascotStage
+    public var pose: AtlasSharedMascotPose
+    public var currentFormName: String
+    public var nextFormName: String?
+    public var nextThresholdPoints: Int?
+    public var totalPoints: Int
+    public var milestoneHeadline: String
+    public var progressLabel: String
+    public var statusLine: String
+    public var reactionTitle: String?
+    public var reactionSymbolName: String?
+    public var lastEvolution: AtlasMascotEvolutionRecord?
+    public var latestMomentTitle: String?
+    public var latestMomentDetail: String?
+    public var latestMomentSymbolName: String?
+    public var latestMomentRecordedAt: String?
+
+    public init(
+        selection: AtlasMascotSelection,
+        nickname: String? = nil,
+        displayName: String,
+        stage: AtlasMascotStage,
+        pose: AtlasSharedMascotPose,
+        currentFormName: String,
+        nextFormName: String?,
+        nextThresholdPoints: Int?,
+        totalPoints: Int,
+        milestoneHeadline: String,
+        progressLabel: String,
+        statusLine: String,
+        reactionTitle: String? = nil,
+        reactionSymbolName: String? = nil,
+        lastEvolution: AtlasMascotEvolutionRecord? = nil,
+        latestMomentTitle: String? = nil,
+        latestMomentDetail: String? = nil,
+        latestMomentSymbolName: String? = nil,
+        latestMomentRecordedAt: String? = nil
+    ) {
+        self.selection = selection
+        self.nickname = nickname
+        self.displayName = displayName
+        self.stage = stage
+        self.pose = pose
+        self.currentFormName = currentFormName
+        self.nextFormName = nextFormName
+        self.nextThresholdPoints = nextThresholdPoints
+        self.totalPoints = totalPoints
+        self.milestoneHeadline = milestoneHeadline
+        self.progressLabel = progressLabel
+        self.statusLine = statusLine
+        self.reactionTitle = reactionTitle
+        self.reactionSymbolName = reactionSymbolName
+        self.lastEvolution = lastEvolution
+        self.latestMomentTitle = latestMomentTitle
+        self.latestMomentDetail = latestMomentDetail
+        self.latestMomentSymbolName = latestMomentSymbolName
+        self.latestMomentRecordedAt = latestMomentRecordedAt
     }
 }
 
@@ -799,6 +1513,10 @@ public struct AtlasSharedExtensionProjectionSnapshot: Codable, Equatable, Sendab
     public var nextDue: AtlasSharedNextDueSnapshot?
     public var quickActions: [AtlasSharedQuickAction]
     public var lowStock: AtlasSharedLowStockSnapshot
+    public var support: AtlasSharedSupportRingsSnapshot?
+    public var mascot: AtlasSharedMascotSnapshot?
+    public var companion: AtlasSharedCompanionWidgetSnapshot?
+    public var watchCompanion: AtlasSharedWatchCompanionSnapshot?
     public var featureFlags: AtlasSharedFeatureFlagProjection
 
     public init(
@@ -807,6 +1525,10 @@ public struct AtlasSharedExtensionProjectionSnapshot: Codable, Equatable, Sendab
         nextDue: AtlasSharedNextDueSnapshot?,
         quickActions: [AtlasSharedQuickAction],
         lowStock: AtlasSharedLowStockSnapshot,
+        support: AtlasSharedSupportRingsSnapshot? = nil,
+        mascot: AtlasSharedMascotSnapshot? = nil,
+        companion: AtlasSharedCompanionWidgetSnapshot? = nil,
+        watchCompanion: AtlasSharedWatchCompanionSnapshot? = nil,
         featureFlags: AtlasSharedFeatureFlagProjection
     ) {
         self.generatedAt = generatedAt
@@ -814,6 +1536,10 @@ public struct AtlasSharedExtensionProjectionSnapshot: Codable, Equatable, Sendab
         self.nextDue = nextDue
         self.quickActions = quickActions
         self.lowStock = lowStock
+        self.support = support
+        self.mascot = mascot
+        self.companion = companion
+        self.watchCompanion = watchCompanion
         self.featureFlags = featureFlags
     }
 }
@@ -953,6 +1679,31 @@ public struct AtlasWorkoutLogRecord: Codable, Equatable, Sendable, Identifiable 
     public var updatedAt: String
 }
 
+public struct AtlasWorkoutEntryDraft: Equatable, Sendable {
+    public var id: String?
+    public var activityKind: AtlasWorkoutActivityKind
+    public var startedAt: Date
+    public var durationMinutes: Double
+    public var energyBurnedKilocalories: Double?
+    public var distanceMeters: Double?
+
+    public init(
+        id: String? = nil,
+        activityKind: AtlasWorkoutActivityKind = .strength,
+        startedAt: Date = Date(),
+        durationMinutes: Double = 30,
+        energyBurnedKilocalories: Double? = nil,
+        distanceMeters: Double? = nil
+    ) {
+        self.id = id
+        self.activityKind = activityKind
+        self.startedAt = startedAt
+        self.durationMinutes = durationMinutes
+        self.energyBurnedKilocalories = energyBurnedKilocalories
+        self.distanceMeters = distanceMeters
+    }
+}
+
 public struct AtlasPrivacyProfileRecord: Codable, Equatable, Sendable, Identifiable {
     public var id: String
     public var renderMode: AtlasPrivacyRenderMode?
@@ -985,6 +1736,9 @@ public struct AtlasProtocolRecord: Codable, Equatable, Sendable, Identifiable {
     public var linkedVialId: String?
     public var name: String
     public var kind: AtlasProtocolKind
+    public var administrationRoute: AtlasProtocolAdministrationRoute?
+    public var supplyType: AtlasProtocolSupplyType?
+    public var dosesPerSupply: Int?
     public var status: AtlasProtocolStatus
     public var timezone: String
     public var startDate: String
@@ -1031,6 +1785,9 @@ public struct AtlasProtocolRevisionRecord: Codable, Equatable, Sendable, Identif
     public var lifecycleState: AtlasProtocolRevisionLifecycle
     public var timezone: String
     public var timezoneStrategy: AtlasProtocolTimezoneStrategy
+    public var administrationRoute: AtlasProtocolAdministrationRoute?
+    public var supplyType: AtlasProtocolSupplyType?
+    public var dosesPerSupply: Int?
     public var defaultTimeOfDay: String?
     public var doseAmount: Double?
     public var doseUnit: String?
@@ -1050,6 +1807,9 @@ public struct AtlasProtocolRevisionRecord: Codable, Equatable, Sendable, Identif
         lifecycleState: AtlasProtocolRevisionLifecycle,
         timezone: String,
         timezoneStrategy: AtlasProtocolTimezoneStrategy,
+        administrationRoute: AtlasProtocolAdministrationRoute? = nil,
+        supplyType: AtlasProtocolSupplyType? = nil,
+        dosesPerSupply: Int? = nil,
         defaultTimeOfDay: String?,
         doseAmount: Double?,
         doseUnit: String?,
@@ -1068,6 +1828,9 @@ public struct AtlasProtocolRevisionRecord: Codable, Equatable, Sendable, Identif
         self.lifecycleState = lifecycleState
         self.timezone = timezone
         self.timezoneStrategy = timezoneStrategy
+        self.administrationRoute = administrationRoute
+        self.supplyType = supplyType
+        self.dosesPerSupply = dosesPerSupply
         self.defaultTimeOfDay = defaultTimeOfDay
         self.doseAmount = doseAmount
         self.doseUnit = doseUnit
@@ -1197,6 +1960,7 @@ public struct AtlasSiteRecord: Codable, Equatable, Sendable, Identifiable {
     public var id: String
     public var name: String
     public var bodyArea: String?
+    public var mapRegionKey: AtlasBodyMapRegionKey?
     public var notes: String?
     public var createdAt: String
     public var updatedAt: String
@@ -1381,6 +2145,8 @@ public struct AtlasVialRecord: Codable, Equatable, Sendable, Identifiable {
     public var quantityUnit: String
     public var openedAt: String?
     public var expiresAt: String?
+    public var referencePhotoRelativePath: String?
+    public var labelScanText: String?
     public var createdAt: String
     public var updatedAt: String
     public var archivedAt: String?
@@ -1395,6 +2161,25 @@ public struct AtlasWeightLogRecord: Codable, Equatable, Sendable, Identifiable {
     public var notes: String?
     public var createdAt: String
     public var updatedAt: String
+}
+
+public struct AtlasHealthWeightSample: Codable, Equatable, Sendable, Identifiable {
+    public var id: String
+    public var recordedAt: Date
+    public var value: Double
+    public var unit: AtlasWeightUnit
+
+    public init(
+        id: String,
+        recordedAt: Date,
+        value: Double,
+        unit: AtlasWeightUnit
+    ) {
+        self.id = id
+        self.recordedAt = recordedAt
+        self.value = value
+        self.unit = unit
+    }
 }
 
 public struct AtlasHealthWorkoutSample: Codable, Equatable, Sendable, Identifiable {
@@ -1422,6 +2207,134 @@ public struct AtlasHealthWorkoutSample: Codable, Equatable, Sendable, Identifiab
         self.durationMinutes = durationMinutes
         self.energyBurnedKilocalories = energyBurnedKilocalories
         self.distanceMeters = distanceMeters
+    }
+}
+
+public enum AtlasHealthMetricKind: String, Codable, CaseIterable, Equatable, Sendable, Identifiable {
+    case steps
+    case sleepHours
+    case restingHeartRate
+    case heartRateVariability
+    case bloodPressureSystolic
+    case bloodPressureDiastolic
+    case bodyFatPercentage
+
+    public var id: String { rawValue }
+
+    public var metricKey: String {
+        switch self {
+        case .steps: "health_steps"
+        case .sleepHours: "health_sleep"
+        case .restingHeartRate: "health_resting_heart_rate"
+        case .heartRateVariability: "health_hrv"
+        case .bloodPressureSystolic: "health_blood_pressure_systolic"
+        case .bloodPressureDiastolic: "health_blood_pressure_diastolic"
+        case .bodyFatPercentage: "health_body_fat"
+        }
+    }
+
+    public var label: String {
+        switch self {
+        case .steps: "Steps"
+        case .sleepHours: "Sleep"
+        case .restingHeartRate: "Resting heart rate"
+        case .heartRateVariability: "HRV"
+        case .bloodPressureSystolic: "Blood pressure systolic"
+        case .bloodPressureDiastolic: "Blood pressure diastolic"
+        case .bodyFatPercentage: "Body fat"
+        }
+    }
+
+    public var unit: String {
+        switch self {
+        case .steps: "steps"
+        case .sleepHours: "hr"
+        case .restingHeartRate: "bpm"
+        case .heartRateVariability: "ms"
+        case .bloodPressureSystolic, .bloodPressureDiastolic: "mmHg"
+        case .bodyFatPercentage: "%"
+        }
+    }
+
+    public var aggregateSignalKind: AtlasHealthSignalKind {
+        switch self {
+        case .steps: .steps
+        case .sleepHours: .sleep
+        case .restingHeartRate: .restingHeartRate
+        case .heartRateVariability: .heartRateVariability
+        case .bloodPressureSystolic, .bloodPressureDiastolic: .bloodPressure
+        case .bodyFatPercentage: .bodyFat
+        }
+    }
+}
+
+public struct AtlasHealthMetricSample: Codable, Equatable, Sendable, Identifiable {
+    public var id: String
+    public var kind: AtlasHealthMetricKind
+    public var recordedAt: Date
+    public var value: Double
+
+    public init(
+        id: String,
+        kind: AtlasHealthMetricKind,
+        recordedAt: Date,
+        value: Double
+    ) {
+        self.id = id
+        self.kind = kind
+        self.recordedAt = recordedAt
+        self.value = value
+    }
+}
+
+public enum AtlasHealthNutritionMetricKind: String, Codable, CaseIterable, Equatable, Sendable, Identifiable {
+    case water
+    case calories
+    case protein
+
+    public var id: String { rawValue }
+
+    public var metricKey: String {
+        switch self {
+        case .water: "health_dietary_water"
+        case .calories: "health_dietary_energy"
+        case .protein: "health_dietary_protein"
+        }
+    }
+
+    public var label: String {
+        switch self {
+        case .water: "Water"
+        case .calories: "Calories"
+        case .protein: "Protein"
+        }
+    }
+
+    public var unit: String {
+        switch self {
+        case .water: "fl oz"
+        case .calories: "kcal"
+        case .protein: "g"
+        }
+    }
+}
+
+public struct AtlasHealthNutritionSample: Codable, Equatable, Sendable, Identifiable {
+    public var id: String
+    public var kind: AtlasHealthNutritionMetricKind
+    public var recordedAt: Date
+    public var value: Double
+
+    public init(
+        id: String,
+        kind: AtlasHealthNutritionMetricKind,
+        recordedAt: Date,
+        value: Double
+    ) {
+        self.id = id
+        self.kind = kind
+        self.recordedAt = recordedAt
+        self.value = value
     }
 }
 
@@ -1532,8 +2445,8 @@ public extension AtlasPrivacyProfileRecord {
 }
 
 public extension AtlasProtocolRecord {
-    static func make(id: String, compoundId: String?, linkedVialId: String?, name: String, kind: AtlasProtocolKind, status: AtlasProtocolStatus, timezone: String, startDate: String, defaultTimeOfDay: String?, doseAmount: Double?, doseUnit: String?, siteTrackingEnabled: Bool, siteRotationEnabled: Bool, notes: String?, createdAt: String, updatedAt: String) -> Self {
-        .init(id: id, compoundId: compoundId, linkedVialId: linkedVialId, name: name, kind: kind, status: status, timezone: timezone, startDate: startDate, defaultTimeOfDay: defaultTimeOfDay, doseAmount: doseAmount, doseUnit: doseUnit, siteTrackingEnabled: siteTrackingEnabled, siteRotationEnabled: siteRotationEnabled, notes: notes, createdAt: createdAt, updatedAt: updatedAt)
+    static func make(id: String, compoundId: String?, linkedVialId: String?, name: String, kind: AtlasProtocolKind, administrationRoute: AtlasProtocolAdministrationRoute? = nil, supplyType: AtlasProtocolSupplyType? = nil, dosesPerSupply: Int? = nil, status: AtlasProtocolStatus, timezone: String, startDate: String, defaultTimeOfDay: String?, doseAmount: Double?, doseUnit: String?, siteTrackingEnabled: Bool, siteRotationEnabled: Bool, notes: String?, createdAt: String, updatedAt: String) -> Self {
+        .init(id: id, compoundId: compoundId, linkedVialId: linkedVialId, name: name, kind: kind, administrationRoute: administrationRoute, supplyType: supplyType, dosesPerSupply: dosesPerSupply, status: status, timezone: timezone, startDate: startDate, defaultTimeOfDay: defaultTimeOfDay, doseAmount: doseAmount, doseUnit: doseUnit, siteTrackingEnabled: siteTrackingEnabled, siteRotationEnabled: siteRotationEnabled, notes: notes, createdAt: createdAt, updatedAt: updatedAt)
     }
 }
 
@@ -1574,8 +2487,26 @@ public extension AtlasSensitiveActionAuditRecord {
 }
 
 public extension AtlasSiteRecord {
-    static func make(id: String, name: String, bodyArea: String?, notes: String?, createdAt: String, updatedAt: String, archivedAt: String?) -> Self {
-        .init(id: id, name: name, bodyArea: bodyArea, notes: notes, createdAt: createdAt, updatedAt: updatedAt, archivedAt: archivedAt)
+    static func make(
+        id: String,
+        name: String,
+        bodyArea: String?,
+        mapRegionKey: AtlasBodyMapRegionKey? = nil,
+        notes: String?,
+        createdAt: String,
+        updatedAt: String,
+        archivedAt: String?
+    ) -> Self {
+        .init(
+            id: id,
+            name: name,
+            bodyArea: bodyArea,
+            mapRegionKey: mapRegionKey,
+            notes: notes,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            archivedAt: archivedAt
+        )
     }
 }
 
@@ -1734,8 +2665,8 @@ public extension AtlasSymptomLogRecord {
 }
 
 public extension AtlasVialRecord {
-    static func make(id: String, protocolId: String?, compoundId: String?, calculatorProfileId: String? = nil, label: String, startingQuantity: Double, concentrationValue: Double?, concentrationUnit: String?, volumeMl: Double?, remainingQuantity: Double, lowStockThreshold: Double?, quantityUnit: String, openedAt: String?, expiresAt: String?, createdAt: String, updatedAt: String, archivedAt: String? = nil) -> Self {
-        .init(id: id, protocolId: protocolId, compoundId: compoundId, calculatorProfileId: calculatorProfileId, label: label, startingQuantity: startingQuantity, concentrationValue: concentrationValue, concentrationUnit: concentrationUnit, volumeMl: volumeMl, remainingQuantity: remainingQuantity, lowStockThreshold: lowStockThreshold, quantityUnit: quantityUnit, openedAt: openedAt, expiresAt: expiresAt, createdAt: createdAt, updatedAt: updatedAt, archivedAt: archivedAt)
+    static func make(id: String, protocolId: String?, compoundId: String?, calculatorProfileId: String? = nil, label: String, startingQuantity: Double, concentrationValue: Double?, concentrationUnit: String?, volumeMl: Double?, remainingQuantity: Double, lowStockThreshold: Double?, quantityUnit: String, openedAt: String?, expiresAt: String?, referencePhotoRelativePath: String? = nil, labelScanText: String? = nil, createdAt: String, updatedAt: String, archivedAt: String? = nil) -> Self {
+        .init(id: id, protocolId: protocolId, compoundId: compoundId, calculatorProfileId: calculatorProfileId, label: label, startingQuantity: startingQuantity, concentrationValue: concentrationValue, concentrationUnit: concentrationUnit, volumeMl: volumeMl, remainingQuantity: remainingQuantity, lowStockThreshold: lowStockThreshold, quantityUnit: quantityUnit, openedAt: openedAt, expiresAt: expiresAt, referencePhotoRelativePath: referencePhotoRelativePath, labelScanText: labelScanText, createdAt: createdAt, updatedAt: updatedAt, archivedAt: archivedAt)
     }
 }
 

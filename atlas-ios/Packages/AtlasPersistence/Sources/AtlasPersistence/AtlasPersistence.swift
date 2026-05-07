@@ -28,9 +28,48 @@ public protocol CoreLoopRepository: Sendable {
 public protocol SettingsRepository: Sendable {
     func currentSettingsSnapshot() async throws -> AtlasSettingsSnapshot
     func updateAccountMode(_ accountMode: AtlasAccountMode, now: Date) async throws -> AtlasSettingsSnapshot
+    func updateSurfacePreferences(_ preferences: AtlasSurfacePreferences, now: Date) async throws -> AtlasSettingsSnapshot
     func updateTrustVaultRenderMode(_ renderMode: AtlasPrivacyRenderMode, now: Date) async throws -> AtlasSettingsSnapshot
+    func updateMascotSelection(_ mascotSelection: AtlasMascotSelection, now: Date) async throws -> AtlasSettingsSnapshot
+    func updateMascotNickname(_ nickname: String?, now: Date) async throws -> AtlasSettingsSnapshot
+    func updateAmbientMascotPresence(_ presence: AtlasAmbientMascotPresence, now: Date) async throws -> AtlasSettingsSnapshot
+    func recordMascotEvolution(
+        selection: AtlasMascotSelection,
+        stage: AtlasMascotStage,
+        earnedAt: Date,
+        now: Date
+    ) async throws -> AtlasSettingsSnapshot
+    func recordMascotMoment(
+        _ moment: AtlasMascotMomentRecord,
+        now: Date
+    ) async throws -> AtlasSettingsSnapshot
+    func recordMascotArchivedRecap(
+        _ recap: AtlasMascotArchivedRecapRecord,
+        now: Date
+    ) async throws -> AtlasSettingsSnapshot
+    func updateMascotRecapNotificationSettings(
+        _ settings: AtlasMascotRecapNotificationSettings,
+        now: Date
+    ) async throws -> AtlasSettingsSnapshot
+    func updateWeeklyReviewReminderSettings(
+        _ settings: AtlasWeeklyReviewReminderSettings,
+        now: Date
+    ) async throws -> AtlasSettingsSnapshot
+    func saveWeeklyReviewActionPlan(
+        _ plan: AtlasWeeklyReviewActionPlan,
+        now: Date
+    ) async throws -> AtlasSettingsSnapshot
+    func updateWeeklyReviewActionPlan(
+        id: String,
+        isCompleted: Bool?,
+        isPinnedForNextWeek: Bool?,
+        now: Date
+    ) async throws -> AtlasSettingsSnapshot
+    func removeWeeklyReviewActionPlan(id: String, now: Date) async throws -> AtlasSettingsSnapshot
     func updateSummarySettings(_ update: AtlasSummarySettingsUpdate, now: Date) async throws -> AtlasSettingsSnapshot
     func updateRetentionSettings(_ update: AtlasRetentionSettingsUpdate, now: Date) async throws -> AtlasSettingsSnapshot
+    func updateRewardsSettings(_ update: AtlasRewardsSettingsUpdate, now: Date) async throws -> AtlasSettingsSnapshot
+    func updateLabsEnabled(_ enabled: Bool, now: Date) async throws -> AtlasSettingsSnapshot
     func updateHealthConnection(
         provider: AtlasHealthProviderKey,
         enabled: Bool,
@@ -44,6 +83,8 @@ public protocol SettingsRepository: Sendable {
 public protocol OnboardingRepository: Sendable {
     func loadBootstrapSnapshot() async throws -> AtlasBootstrapSnapshot
     func saveDraft(_ draft: AtlasOnboardingDraft, now: Date) async throws -> AtlasBootstrapSnapshot
+    func recordFunnelEvent(_ event: AtlasOnboardingFunnelEvent, now: Date) async throws
+    func fetchFunnelEvents(limit: Int) async throws -> [AtlasOnboardingFunnelEvent]
     func completeOnboarding(_ draft: AtlasOnboardingDraft, now: Date) async throws -> AtlasBootstrapSnapshot
     func resetOnboarding(now: Date) async throws -> AtlasBootstrapSnapshot
 }
@@ -73,6 +114,7 @@ public protocol InventoryRepository: Sendable {
     func saveVial(_ draft: AtlasVialDraft, now: Date) async throws -> AtlasVialDetailSnapshot
     func saveConsumable(_ draft: AtlasConsumableDraft, now: Date) async throws -> AtlasConsumableDetailSnapshot
     func archiveVial(id: String, now: Date) async throws
+    func setVialArchived(id: String, isArchived: Bool, now: Date) async throws
     func setConsumableArchived(id: String, isArchived: Bool, now: Date) async throws
     func updateProtocolInventorySettings(
         _ update: AtlasProtocolInventorySettingsUpdate,
@@ -104,15 +146,25 @@ public protocol CalculatorRepository: Sendable {
 public protocol MetricsRepository: Sendable {
     func fetchInsightsSnapshot(referenceDate: Date) async throws -> AtlasInsightsSnapshot
     func importWorkoutSamples(_ samples: [AtlasHealthWorkoutSample], now: Date) async throws -> Int
+    func saveWorkoutEntry(_ draft: AtlasWorkoutEntryDraft, now: Date) async throws -> AtlasWorkoutLogRecord
+    func importWeightSamples(_ samples: [AtlasHealthWeightSample], now: Date) async throws -> Int
+    func importNutritionSamples(_ samples: [AtlasHealthNutritionSample], now: Date) async throws -> Int
+    func importHealthMetricSamples(_ samples: [AtlasHealthMetricSample], now: Date) async throws -> Int
     func saveContextEntry(_ draft: AtlasContextEntryDraft, now: Date) async throws -> AtlasContextLogRecord
     func saveContextPreset(_ draft: AtlasContextPresetDraft, now: Date) async throws -> AtlasContextPresetRecord
     func deleteContextPreset(id: String) async throws
+    func deleteContextEntry(id: String) async throws
     func saveWeightEntry(_ draft: AtlasWeightEntryDraft, now: Date) async throws -> AtlasWeightLogRecord
+    func deleteWeightEntry(id: String) async throws
     func saveSymptomEntry(_ draft: AtlasSymptomEntryDraft, now: Date) async throws -> AtlasSymptomLogRecord
+    func deleteSymptomEntry(id: String) async throws
+    func saveProgressMeasurement(_ draft: AtlasProgressMeasurementDraft, now: Date) async throws -> AtlasProgressMeasurementRecord
+    func saveProgressPhoto(_ draft: AtlasProgressPhotoDraft, now: Date) async throws -> AtlasProgressPhotoRecord
     func saveMetricDefinition(_ draft: AtlasMetricDefinitionDraft, now: Date) async throws -> AtlasCustomMetricRecord
     func archiveMetricDefinition(id: String, now: Date) async throws
     func deleteMetricDefinition(id: String) async throws
     func saveMetricValueEntry(_ draft: AtlasMetricValueEntryDraft, now: Date) async throws -> AtlasMetricValueLogRecord
+    func deleteMetricValueEntry(id: String) async throws
 }
 
 public protocol ProtocolChangeStudioRepository: Sendable {
@@ -141,6 +193,10 @@ public protocol RetentionRepository: Sendable {
     func markWeeklyReviewComplete(now: Date) async throws -> AtlasRetentionSnapshot
 }
 
+public protocol RewardsRepository: Sendable {
+    func fetchRewardsSnapshot(referenceDate: Date) async throws -> AtlasRewardsSnapshot
+}
+
 public protocol ReminderCoordinating: Sendable {
     func authorizationStatus() async -> AtlasNotificationAuthorizationStatus
     func requestAuthorization() async throws -> AtlasNotificationAuthorizationStatus
@@ -153,6 +209,18 @@ public protocol ReminderCoordinating: Sendable {
         referenceDate: Date
     ) async throws -> AtlasReminderSettingsSnapshot
     func syncReminders(referenceDate: Date) async throws
+}
+
+public protocol CalendarSyncCoordinating: Sendable {
+    func authorizationStatus() async -> AtlasCalendarAuthorizationStatus
+    func requestAuthorization() async throws -> AtlasCalendarAuthorizationStatus
+    func fetchSettings() async throws -> AtlasExternalCalendarSettingsSnapshot
+    func listWritableCalendars() async throws -> [AtlasExternalCalendarDescriptor]
+    func updateSettings(
+        _ update: AtlasExternalCalendarSettingsUpdate,
+        referenceDate: Date
+    ) async throws -> AtlasExternalCalendarSettingsSnapshot
+    func sync(referenceDate: Date) async throws
 }
 
 public struct AtlasPersistenceContainer: Sendable {
@@ -170,6 +238,7 @@ public struct AtlasPersistenceContainer: Sendable {
     public var changeStudio: any ProtocolChangeStudioRepository
     public var reviewMode: any ReviewModeRepository
     public var retention: any RetentionRepository
+    public var rewards: any RewardsRepository
 
     public init(
         onboarding: any OnboardingRepository,
@@ -185,7 +254,8 @@ public struct AtlasPersistenceContainer: Sendable {
         metrics: any MetricsRepository,
         changeStudio: any ProtocolChangeStudioRepository,
         reviewMode: any ReviewModeRepository,
-        retention: any RetentionRepository
+        retention: any RetentionRepository,
+        rewards: any RewardsRepository
     ) {
         self.onboarding = onboarding
         self.protocols = protocols
@@ -201,6 +271,7 @@ public struct AtlasPersistenceContainer: Sendable {
         self.changeStudio = changeStudio
         self.reviewMode = reviewMode
         self.retention = retention
+        self.rewards = rewards
     }
 }
 
@@ -209,6 +280,7 @@ public struct AtlasPersistenceController: Sendable {
     public var importExportBridge: any ImportExportBridging
     public var sharedProjectionWriter: any SharedProjectionWriting
     public var reminderCoordinator: any ReminderCoordinating
+    public var calendarSyncCoordinator: any CalendarSyncCoordinating
     public var locations: AtlasDatabaseLocations?
 
     public init(
@@ -216,12 +288,14 @@ public struct AtlasPersistenceController: Sendable {
         importExportBridge: any ImportExportBridging,
         sharedProjectionWriter: any SharedProjectionWriting,
         reminderCoordinator: any ReminderCoordinating,
+        calendarSyncCoordinator: any CalendarSyncCoordinating,
         locations: AtlasDatabaseLocations?
     ) {
         self.container = container
         self.importExportBridge = importExportBridge
         self.sharedProjectionWriter = sharedProjectionWriter
         self.reminderCoordinator = reminderCoordinator
+        self.calendarSyncCoordinator = calendarSyncCoordinator
         self.locations = locations
     }
 
@@ -229,7 +303,8 @@ public struct AtlasPersistenceController: Sendable {
         appGroupIdentifier: String,
         featureFlags: AtlasFeatureFlagState,
         privacyFormatter: AtlasPrivacyFormatter,
-        notifications: any NotificationManaging = AtlasNotificationManager()
+        notifications: any NotificationManaging = AtlasNotificationManager(),
+        externalCalendars: any ExternalCalendarManaging = AtlasEventKitCalendarManager()
     ) throws -> AtlasPersistenceController {
         let locations = try AtlasDatabaseLocations.live(appGroupIdentifier: appGroupIdentifier)
         let stack = try AtlasDatabaseStack(locations: locations)
@@ -264,6 +339,7 @@ public struct AtlasPersistenceController: Sendable {
             stack: stack,
             featureFlags: featureFlags
         )
+        let rewardsRepository = GRDBRewardsRepository(stack: stack)
         let container = AtlasPersistenceContainer(
             onboarding: GRDBOnboardingRepository(
                 stack: stack,
@@ -285,7 +361,8 @@ public struct AtlasPersistenceController: Sendable {
             metrics: metricsRepository,
             changeStudio: changeStudioRepository,
             reviewMode: reviewModeRepository,
-            retention: retentionRepository
+            retention: retentionRepository,
+            rewards: rewardsRepository
         )
         let bridge = GRDBImportExportBridge(
             stack: stack,
@@ -298,12 +375,18 @@ public struct AtlasPersistenceController: Sendable {
             notifications: notifications,
             privacyFormatter: privacyFormatter
         )
+        let calendarSyncCoordinator = GRDBCalendarSyncCoordinator(
+            stack: stack,
+            externalCalendars: externalCalendars,
+            privacyFormatter: privacyFormatter
+        )
 
         return AtlasPersistenceController(
             container: container,
             importExportBridge: bridge,
             sharedProjectionWriter: writer,
             reminderCoordinator: reminderCoordinator,
+            calendarSyncCoordinator: calendarSyncCoordinator,
             locations: locations
         )
     }
@@ -311,7 +394,8 @@ public struct AtlasPersistenceController: Sendable {
     public static func inMemory(
         featureFlags: AtlasFeatureFlagState,
         privacyFormatter: AtlasPrivacyFormatter,
-        notifications: any NotificationManaging = AtlasNotificationManager()
+        notifications: any NotificationManaging = AtlasNotificationManager(),
+        externalCalendars: any ExternalCalendarManaging = AtlasEventKitCalendarManager()
     ) throws -> AtlasPersistenceController {
         let stack = try AtlasDatabaseStack.inMemory()
         let healthKit = AtlasHealthKitManager()
@@ -345,6 +429,7 @@ public struct AtlasPersistenceController: Sendable {
             stack: stack,
             featureFlags: featureFlags
         )
+        let rewardsRepository = GRDBRewardsRepository(stack: stack)
         let container = AtlasPersistenceContainer(
             onboarding: GRDBOnboardingRepository(
                 stack: stack,
@@ -366,7 +451,8 @@ public struct AtlasPersistenceController: Sendable {
             metrics: metricsRepository,
             changeStudio: changeStudioRepository,
             reviewMode: reviewModeRepository,
-            retention: retentionRepository
+            retention: retentionRepository,
+            rewards: rewardsRepository
         )
         let bridge = GRDBImportExportBridge(
             stack: stack,
@@ -379,12 +465,18 @@ public struct AtlasPersistenceController: Sendable {
             notifications: notifications,
             privacyFormatter: privacyFormatter
         )
+        let calendarSyncCoordinator = GRDBCalendarSyncCoordinator(
+            stack: stack,
+            externalCalendars: externalCalendars,
+            privacyFormatter: privacyFormatter
+        )
 
         return AtlasPersistenceController(
             container: container,
             importExportBridge: bridge,
             sharedProjectionWriter: writer,
             reminderCoordinator: reminderCoordinator,
+            calendarSyncCoordinator: calendarSyncCoordinator,
             locations: nil
         )
     }
@@ -393,7 +485,8 @@ public struct AtlasPersistenceController: Sendable {
         baseURL: URL,
         featureFlags: AtlasFeatureFlagState,
         privacyFormatter: AtlasPrivacyFormatter,
-        notifications: any NotificationManaging = AtlasNotificationManager()
+        notifications: any NotificationManaging = AtlasNotificationManager(),
+        externalCalendars: any ExternalCalendarManaging = AtlasEventKitCalendarManager()
     ) throws -> AtlasPersistenceController {
         let locations = AtlasDatabaseLocations.temporary(baseURL: baseURL)
         try FileManager.default.createDirectory(
@@ -433,6 +526,7 @@ public struct AtlasPersistenceController: Sendable {
             stack: stack,
             featureFlags: featureFlags
         )
+        let rewardsRepository = GRDBRewardsRepository(stack: stack)
         let container = AtlasPersistenceContainer(
             onboarding: GRDBOnboardingRepository(
                 stack: stack,
@@ -454,7 +548,8 @@ public struct AtlasPersistenceController: Sendable {
             metrics: metricsRepository,
             changeStudio: changeStudioRepository,
             reviewMode: reviewModeRepository,
-            retention: retentionRepository
+            retention: retentionRepository,
+            rewards: rewardsRepository
         )
         let bridge = GRDBImportExportBridge(
             stack: stack,
@@ -467,12 +562,18 @@ public struct AtlasPersistenceController: Sendable {
             notifications: notifications,
             privacyFormatter: privacyFormatter
         )
+        let calendarSyncCoordinator = GRDBCalendarSyncCoordinator(
+            stack: stack,
+            externalCalendars: externalCalendars,
+            privacyFormatter: privacyFormatter
+        )
 
         return AtlasPersistenceController(
             container: container,
             importExportBridge: bridge,
             sharedProjectionWriter: writer,
             reminderCoordinator: reminderCoordinator,
+            calendarSyncCoordinator: calendarSyncCoordinator,
             locations: locations
         )
     }

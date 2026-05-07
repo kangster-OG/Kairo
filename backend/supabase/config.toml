@@ -1,1 +1,4 @@
 project_id = "nppqywaxawvvdhiedpxc"
+
+[functions.live-review-session]
+verify_jwt = false

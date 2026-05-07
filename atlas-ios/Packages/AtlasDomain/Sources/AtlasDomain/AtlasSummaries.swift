@@ -159,11 +159,11 @@ public enum AtlasSummaryGenerationError: LocalizedError, Sendable {
     public var errorDescription: String? {
         switch self {
         case .externalProcessingDeferred:
-            return "External provider summaries are deferred in this Atlas build."
+            return "External summaries are deferred in this build."
         case .summariesDisabled:
-            return "Plain-language summaries are turned off."
+            return "Plain-language summaries are off."
         case .unsupportedRequest:
-            return "Atlas could not build a bounded summary from the available local data."
+            return "A summary could not be built from the available local data."
         }
     }
 }

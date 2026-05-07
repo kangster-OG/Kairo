@@ -1,111 +1,245 @@
 import AtlasDesignSystem
 import AtlasDomain
+import AtlasPersistence
 import Foundation
 import SwiftUI
+#if canImport(PhotosUI)
+import PhotosUI
+#endif
+#if canImport(UIKit)
+import UIKit
+#endif
 
 public struct AtlasInventoryScreen: View {
+    @Environment(\.dismiss) private var dismiss
     let model: AtlasAppModel
     @State private var selectedVialID: String?
     @State private var selectedConsumableID: String?
+    @State private var selectedVialIDs: Set<String> = []
+    @State private var selectedConsumableIDs: Set<String> = []
     @State private var editingVialDraft: AtlasVialEditorState?
     @State private var editingConsumableDraft: AtlasConsumableEditorState?
     @State private var editingSiteDraft: AtlasSiteEditorState?
     @State private var editingProtocolSettings: AtlasProtocolInventorySetting?
 
     public var body: some View {
-        List {
-            Section {
-                AtlasSectionCard(title: "Low-stock watch") {
-                    Text("\(model.inventorySnapshot.lowStockCount) inventory item(s) below threshold")
-                        .foregroundStyle(AtlasPalette.textSecondary)
-                    Text(
-                        model.inventorySnapshot.procurementReviewCount == 0
-                            ? "No supply plans need procurement review right now."
-                            : "\(model.inventorySnapshot.procurementReviewCount) supply plan(s) ready for procurement review."
-                    )
-                    .foregroundStyle(AtlasPalette.textSecondary)
-                    Button("Open calculator") {
-                        model.open(.calculator)
-                    }
-                    .buttonStyle(AtlasSecondaryButtonStyle())
-                }
-                .listRowInsets(EdgeInsets())
-                .listRowBackground(Color.clear)
+        AtlasScreen {
+            AtlasInventoryCompactNavHeader {
+                dismiss()
+            } onAdd: {
+                createVial()
             }
+
+            AtlasInventoryRunwayHero(
+                model: model,
+                onLogShot: {
+                    AtlasFeedback.selection()
+                    model.routePath.removeAll()
+                    model.activeTab = .timeline
+                },
+                onAddVial: createVial
+            )
+
+            AtlasInventoryRunwayPanel(
+                model: model,
+                onOpenVial: { selectedVialID = $0 },
+                onCreateVial: createVial
+            )
+
+            AtlasInventorySupportSuppliesPanel(
+                model: model,
+                onOpenSupply: { selectedConsumableID = $0 },
+                onCreateSupply: createConsumable,
+                onOpenCalculator: openCalculator
+            )
+
+            AtlasInventorySiteRotationPanel(
+                model: model,
+                onCreateSite: createSite
+            )
 
             if let error = model.loadErrorMessage {
-                Section {
-                    Text(error)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.red)
+                AtlasForwardCard {
+                    HStack(spacing: 10) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(AtlasPalette.warning)
+                            .frame(width: 34, height: 34)
+                            .background(AtlasPalette.warning.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Sync needs attention")
+                                .atlasTextRole(.cardBody)
+                                .foregroundStyle(AtlasPalette.textPrimary)
+                            Text(error)
+                                .atlasTextRole(.supporting)
+                                .foregroundStyle(AtlasPalette.textSecondary)
+                                .lineLimit(3)
+                        }
+                    }
                 }
             }
 
-            Section("Protocol links") {
+            AtlasInventorySectionGroup(title: "Protocol links") {
                 if model.inventorySnapshot.protocolSettings.isEmpty {
-                    Text("Create or import a protocol first.")
-                        .foregroundStyle(AtlasPalette.textSecondary)
+                    AtlasForwardCard {
+                        AtlasCalloutRow(
+                            systemImage: "square.stack.3d.up.slash",
+                            title: "No active protocol links yet",
+                            detail: "Create or import a protocol first to link depletion, site rotation, and vial assignment.",
+                            tint: AtlasPalette.secondaryText
+                        )
+                    }
                 } else {
                     ForEach(model.inventorySnapshot.protocolSettings) { item in
                         AtlasInventoryProtocolCard(model: model, item: item) {
                             editingProtocolSettings = item
                         }
-                        .listRowInsets(EdgeInsets())
-                        .listRowBackground(Color.clear)
                     }
                 }
             }
 
-            Section("Vials") {
+            if selectedVialIDs.isEmpty == false {
+                AtlasSectionCard(style: .utility, title: "Batch vial actions") {
+                    AtlasMetricStrip(metrics: [
+                        AtlasMetricItem(id: "selected_vials", title: "Selected", value: "\(selectedVialIDs.count)"),
+                        AtlasMetricItem(id: "low_stock_vials", title: "Low stock", value: "\(model.inventorySnapshot.lowStockCount)", tint: AtlasPalette.warning)
+                    ])
+
+                    HStack(spacing: AtlasSpacing.small) {
+                        Button("Archive selected") {
+                            AtlasFeedback.impact(.medium)
+                            Task {
+                                for id in selectedVialIDs {
+                                    await model.archiveVial(id: id)
+                                }
+                                selectedVialIDs.removeAll()
+                            }
+                        }
+                        .buttonStyle(AtlasPrimaryButtonStyle())
+
+                        Button("Clear selection") {
+                            AtlasFeedback.selection()
+                            selectedVialIDs.removeAll()
+                        }
+                        .buttonStyle(AtlasSecondaryButtonStyle())
+                    }
+                }
+            }
+
+            AtlasInventorySectionGroup(title: "Vials") {
                 if model.inventorySnapshot.vials.isEmpty {
-                    Text("No vials saved yet.")
-                        .foregroundStyle(AtlasPalette.textSecondary)
+                    AtlasForwardCard {
+                        AtlasCalloutRow(
+                            systemImage: "testtube.2",
+                            title: "No vials saved yet",
+                            detail: "Add a vial to track quantity, depletion pace, linked protocols, and label context in one place.",
+                            tint: AtlasPalette.primary
+                        )
+                    }
                 } else {
                     ForEach(model.inventorySnapshot.vials) { vial in
-                        AtlasVialSummaryCard(model: model, vial: vial, onOpen: {
-                            selectedVialID = vial.id
-                        }, onEdit: {
-                            Task {
-                                if let detail = await model.vialDetail(id: vial.id) {
-                                    editingVialDraft = AtlasVialEditorState(draft: detail.editableDraft)
+                        AtlasVialSummaryCard(
+                            model: model,
+                            vial: vial,
+                            onOpen: { selectedVialID = vial.id },
+                            onEdit: {
+                                Task {
+                                    if let detail = await model.vialDetail(id: vial.id) {
+                                        editingVialDraft = AtlasVialEditorState(draft: detail.editableDraft)
+                                    }
                                 }
+                            },
+                            onArchive: vial.archivedAt == nil ? {
+                                Task { await model.archiveVial(id: vial.id) }
+                            } : nil,
+                            isSelected: selectedVialIDs.contains(vial.id),
+                            onToggleSelection: {
+                                atlasToggleSelection(id: vial.id, selected: &selectedVialIDs)
                             }
-                        }, onArchive: vial.archivedAt == nil ? {
-                            Task { await model.archiveVial(id: vial.id) }
-                        } : nil)
-                        .listRowInsets(EdgeInsets())
-                        .listRowBackground(Color.clear)
+                        )
                     }
                 }
             }
 
-            Section("Supplies") {
+            if selectedConsumableIDs.isEmpty == false {
+                AtlasSectionCard(style: .utility, title: "Batch supply actions") {
+                    AtlasMetricStrip(metrics: [
+                        AtlasMetricItem(id: "selected_supplies", title: "Selected", value: "\(selectedConsumableIDs.count)"),
+                        AtlasMetricItem(id: "procurement_review", title: "Review", value: "\(model.inventorySnapshot.procurementReviewCount)", tint: AtlasPalette.warning)
+                    ])
+
+                    HStack(spacing: AtlasSpacing.small) {
+                        Button("Archive selected") {
+                            AtlasFeedback.impact(.medium)
+                            Task {
+                                for id in selectedConsumableIDs {
+                                    await model.setConsumableArchived(id: id, isArchived: true)
+                                }
+                                selectedConsumableIDs.removeAll()
+                            }
+                        }
+                        .buttonStyle(AtlasPrimaryButtonStyle())
+
+                        Button("Restore selected") {
+                            AtlasFeedback.selection()
+                            Task {
+                                for id in selectedConsumableIDs {
+                                    await model.setConsumableArchived(id: id, isArchived: false)
+                                }
+                                selectedConsumableIDs.removeAll()
+                            }
+                        }
+                        .buttonStyle(AtlasSecondaryButtonStyle())
+                    }
+                }
+            }
+
+            AtlasInventorySectionGroup(title: "Supplies") {
                 if model.inventorySnapshot.consumables.isEmpty {
-                    Text("No supplies saved yet.")
-                        .foregroundStyle(AtlasPalette.textSecondary)
+                    AtlasForwardCard {
+                        AtlasCalloutRow(
+                            systemImage: "shippingbox",
+                            title: "No supplies saved yet",
+                            detail: "Track syringes, alcohol pads, storage, and protocol-specific consumables before they become the blocker.",
+                            tint: AtlasPalette.secondaryText
+                        )
+                    }
                 } else {
                     ForEach(model.inventorySnapshot.consumables) { consumable in
-                        AtlasConsumableSummaryCard(model: model, consumable: consumable, onOpen: {
-                            selectedConsumableID = consumable.id
-                        }, onEdit: {
-                            Task {
-                                if let detail = await model.consumableDetail(id: consumable.id) {
-                                    editingConsumableDraft = AtlasConsumableEditorState(draft: detail.editableDraft)
+                        AtlasConsumableSummaryCard(
+                            model: model,
+                            consumable: consumable,
+                            onOpen: { selectedConsumableID = consumable.id },
+                            onEdit: {
+                                Task {
+                                    if let detail = await model.consumableDetail(id: consumable.id) {
+                                        editingConsumableDraft = AtlasConsumableEditorState(draft: detail.editableDraft)
+                                    }
                                 }
+                            },
+                            onArchiveToggle: {
+                                Task {
+                                    await model.setConsumableArchived(id: consumable.id, isArchived: consumable.archivedAt == nil)
+                                }
+                            },
+                            isSelected: selectedConsumableIDs.contains(consumable.id),
+                            onToggleSelection: {
+                                atlasToggleSelection(id: consumable.id, selected: &selectedConsumableIDs)
                             }
-                        }, onArchiveToggle: {
-                            Task { await model.setConsumableArchived(id: consumable.id, isArchived: consumable.archivedAt == nil) }
-                        })
-                        .listRowInsets(EdgeInsets())
-                        .listRowBackground(Color.clear)
+                        )
                     }
                 }
             }
 
-            Section("Sites") {
+            AtlasInventorySectionGroup(title: "Sites") {
                 if model.inventorySnapshot.sites.isEmpty {
-                    Text("No injection sites saved yet.")
-                        .foregroundStyle(AtlasPalette.textSecondary)
+                    AtlasForwardCard {
+                        AtlasCalloutRow(
+                            systemImage: "figure.arms.open",
+                            title: "No injection sites saved yet",
+                            detail: "Add sites once for rotation tracking.",
+                            tint: AtlasPalette.primary
+                        )
+                    }
                 } else {
                     ForEach(model.inventorySnapshot.sites) { site in
                         AtlasSiteSummaryCard(site: site) {
@@ -114,43 +248,19 @@ public struct AtlasInventoryScreen: View {
                                     id: site.id,
                                     name: site.name,
                                     bodyArea: site.bodyArea,
+                                    mapRegionKey: site.mapRegionKey,
                                     notes: site.notes,
                                     archivedAt: site.archivedAt
                                 )
                             )
                         }
-                        .listRowInsets(EdgeInsets())
-                        .listRowBackground(Color.clear)
                     }
                 }
             }
         }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
-        .background(AtlasPalette.canvas)
-        .navigationTitle("Inventory")
+        .navigationTitle("Supplies")
         .atlasInlineNavigationTitle()
-        .toolbar {
-            ToolbarItemGroup(placement: .primaryAction) {
-                Button {
-                    editingSiteDraft = AtlasSiteEditorState(draft: AtlasSiteDraft())
-                } label: {
-                    Image(systemName: "mappin.and.ellipse")
-                }
-
-                Button {
-                    editingConsumableDraft = AtlasConsumableEditorState(draft: AtlasConsumableDraft())
-                } label: {
-                    Image(systemName: "shippingbox")
-                }
-
-                Button {
-                    editingVialDraft = AtlasVialEditorState(draft: AtlasVialDraft())
-                } label: {
-                    Image(systemName: "plus")
-                }
-            }
-        }
+        .atlasRootNavigationBarHidden()
         .sheet(item: Binding(
             get: { selectedVialID.map(AtlasIdentifiedString.init) },
             set: { selectedVialID = $0?.value }
@@ -194,6 +304,824 @@ public struct AtlasInventoryScreen: View {
         }
         #endif
     }
+
+    private var inventoryMetrics: [AtlasMetricItem] {
+        [
+            AtlasMetricItem(
+                id: "low_stock",
+                title: "Low stock",
+                value: "\(model.inventorySnapshot.lowStockCount)",
+                tint: model.inventorySnapshot.lowStockCount > 0 ? AtlasPalette.warning : AtlasPalette.primary
+            ),
+            AtlasMetricItem(
+                id: "vials",
+                title: "Vials",
+                value: "\(model.inventorySnapshot.vials.count)"
+            ),
+            AtlasMetricItem(
+                id: "supplies",
+                title: "Supplies",
+                value: "\(model.inventorySnapshot.consumables.count)",
+                tint: model.inventorySnapshot.procurementReviewCount > 0 ? AtlasPalette.warning : AtlasPalette.secondaryText
+            ),
+            AtlasMetricItem(
+                id: "sites",
+                title: "Sites",
+                value: "\(model.inventorySnapshot.sites.count)",
+                tint: AtlasPalette.secondaryText
+            )
+        ]
+    }
+
+    private var inventoryDeckTitle: String {
+        if model.inventorySnapshot.lowStockCount > 0 {
+            return "Supplies need a quick sweep."
+        }
+        if model.inventorySnapshot.vials.isEmpty && model.inventorySnapshot.consumables.isEmpty {
+            return "Build your supply runway once."
+        }
+        return "Keep protocol supplies visible."
+    }
+
+    private var inventoryDeckDetail: String {
+        if model.inventorySnapshot.lowStockCount > 0 {
+            return "\(model.inventorySnapshot.lowStockCount) item(s) are below threshold."
+        }
+        if model.inventorySnapshot.vials.isEmpty && model.inventorySnapshot.consumables.isEmpty {
+            return "Track vials, supplies, and injection sites without turning setup into homework."
+        }
+        return "Track vials, supplies, site rotation, and protocol links here."
+    }
+
+    private var inventoryPrimaryActionTitle: String {
+        if model.inventorySnapshot.lowStockCount > 0 {
+            return "Open calculator"
+        }
+        if model.inventorySnapshot.vials.isEmpty {
+            return "Create first vial"
+        }
+        return "Review protocol links"
+    }
+
+    private func performPrimaryInventoryAction() {
+        AtlasFeedback.selection()
+        if model.inventorySnapshot.lowStockCount > 0 {
+            openCalculator()
+        } else if model.inventorySnapshot.vials.isEmpty {
+            createVial()
+        } else if let first = model.inventorySnapshot.protocolSettings.first {
+            editingProtocolSettings = first
+        } else {
+            createVial()
+        }
+    }
+
+    private func openCalculator() {
+        AtlasFeedback.selection()
+        model.open(.calculator)
+    }
+
+    private func createVial() {
+        AtlasFeedback.selection()
+        editingVialDraft = AtlasVialEditorState(draft: AtlasVialDraft())
+    }
+
+    private func createConsumable() {
+        AtlasFeedback.selection()
+        editingConsumableDraft = AtlasConsumableEditorState(draft: AtlasConsumableDraft())
+    }
+
+    private func createSite() {
+        AtlasFeedback.selection()
+        editingSiteDraft = AtlasSiteEditorState(draft: AtlasSiteDraft())
+    }
+}
+
+private struct AtlasInventoryCompactNavHeader: View {
+    let onBack: () -> Void
+    let onAdd: () -> Void
+
+    var body: some View {
+        ZStack {
+            Text("Supplies")
+                .font(.system(size: 15, weight: .semibold, design: .default))
+                .foregroundStyle(AtlasPalette.textPrimary)
+
+            HStack {
+                Button(action: onBack) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(AtlasPalette.textPrimary)
+                        .frame(width: 34, height: 34)
+                }
+                .buttonStyle(.plain)
+
+                Spacer()
+
+                Button(action: onAdd) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(AtlasPalette.primary)
+                        .frame(width: 34, height: 34)
+                        .background(AtlasPalette.surfaceTop, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .stroke(AtlasPalette.border.opacity(0.44), lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .frame(height: 38)
+        .padding(.top, 4)
+    }
+}
+
+private struct AtlasInventoryRunwayHero: View {
+    let model: AtlasAppModel
+    let onLogShot: () -> Void
+    let onAddVial: () -> Void
+
+    var body: some View {
+        AtlasForwardCard(padding: 10) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .center, spacing: 12) {
+                    mascot
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("Inventory Runway")
+                            .atlasTextRole(.cardTitle)
+                            .foregroundStyle(AtlasPalette.textPrimary)
+                        Text(heroDetail)
+                            .atlasTextRole(.supporting)
+                            .foregroundStyle(AtlasPalette.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        HStack(spacing: 8) {
+                            AtlasStatusBadge(vialHeadline, tint: model.inventorySnapshot.lowStockCount > 0 ? AtlasPalette.warning : AtlasPalette.primary)
+                            Text(vialRunway)
+                                .atlasTextRole(.metricLabel)
+                                .foregroundStyle(AtlasPalette.textSecondary)
+                                .lineLimit(1)
+                        }
+                    }
+                    Spacer(minLength: 0)
+                }
+
+                HStack(spacing: 8) {
+                    AtlasInventorySignalPill(title: "Vials", value: "\(activeVials.count)", tint: model.inventorySnapshot.lowStockCount > 0 ? AtlasPalette.warning : AtlasPalette.primary)
+                    AtlasInventorySignalPill(title: "Supplies", value: "\(activeSupplies.count)", tint: model.inventorySnapshot.procurementReviewCount > 0 ? AtlasPalette.warning : AtlasPalette.success)
+                    AtlasInventorySignalPill(title: "Sites", value: "\(activeSites.count)", tint: AtlasPalette.secondaryText)
+                }
+
+                HStack(spacing: 8) {
+                    Button {
+                        onLogShot()
+                    } label: {
+                        Label("Log Shot", systemImage: "syringe.fill")
+                    }
+                    .buttonStyle(AtlasPrimaryButtonStyle())
+
+                    Button("Add Vial", action: onAddVial)
+                        .buttonStyle(AtlasSecondaryButtonStyle())
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var mascot: some View {
+        let selection: AtlasMascotSelection = atlasForwardMockupFidelityActive ? .aetherion : model.settingsSnapshot.mascotSelection
+        let stage = atlasForwardMockupFidelityActive ? AtlasMascotStage.stage1 : atlasAmbientMascotStage(settingsSnapshot: model.settingsSnapshot, rewardsSnapshot: model.rewardsSnapshot)
+
+        if let stage {
+            AtlasMascotSticker(line: atlasMascotLine(for: selection), stage: stage, size: 110)
+                .frame(width: 104, height: 88)
+                .background(
+                    LinearGradient(
+                        colors: [AtlasPalette.secondaryFill.opacity(0.7), AtlasPalette.surfaceTop.opacity(0.2)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                )
+        } else {
+            Image(systemName: "testtube.2")
+                .font(.system(size: 32, weight: .bold))
+                .foregroundStyle(AtlasPalette.primary)
+                .frame(width: 104, height: 88)
+                .background(AtlasPalette.secondaryFill, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+    }
+
+    private var activeVials: [AtlasVialSummary] {
+        model.inventorySnapshot.vials.filter { $0.archivedAt == nil }
+    }
+
+    private var activeSupplies: [AtlasConsumableSummary] {
+        model.inventorySnapshot.consumables.filter { $0.archivedAt == nil }
+    }
+
+    private var activeSites: [AtlasSiteSummary] {
+        model.inventorySnapshot.sites.filter { $0.archivedAt == nil }
+    }
+
+    private var featuredVial: AtlasVialSummary? {
+        activeVials.first
+    }
+
+    private var heroDetail: String {
+        if atlasForwardMockupFidelityActive {
+            return "Tirzepatide 10 mg stays linked to shots, sites, and support quests."
+        }
+        if let featuredVial {
+            return "\(featuredVial.label) stays linked to shots, sites, and support quests."
+        }
+        return "Add one vial and Kairo will keep depletion, sites, and support logs in view."
+    }
+
+    private var vialHeadline: String {
+        if atlasForwardMockupFidelityActive {
+            return "12 doses"
+        }
+        return featuredVial?.quantityLabel ?? "No vial"
+    }
+
+    private var vialRunway: String {
+        if atlasForwardMockupFidelityActive {
+            return "~28 days left"
+        }
+        return featuredVial?.projectedDepletionLabel ?? featuredVial?.autoDecrementLabel ?? "Runway ready"
+    }
+}
+
+private struct AtlasInventoryRunwayPanel: View {
+    let model: AtlasAppModel
+    let onOpenVial: (String) -> Void
+    let onCreateVial: () -> Void
+
+    var body: some View {
+        AtlasForwardCard {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text("Vial Runway")
+                        .atlasTextRole(.cardBody)
+                        .foregroundStyle(AtlasPalette.textPrimary)
+                    Spacer()
+                    Text(runwayStatus)
+                        .atlasTextRole(.supporting)
+                        .foregroundStyle(model.inventorySnapshot.lowStockCount > 0 ? AtlasPalette.warning : AtlasPalette.textSecondary)
+                }
+
+                if displayedVials.isEmpty {
+                    AtlasInventoryMockRunwayRow(onCreateVial: onCreateVial)
+                } else {
+                    ForEach(displayedVials.prefix(3)) { vial in
+                        Button {
+                            onOpenVial(vial.id)
+                        } label: {
+                            AtlasInventoryRunwayRow(vial: vial)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+
+    private var displayedVials: [AtlasVialSummary] {
+        model.inventorySnapshot.vials.filter { $0.archivedAt == nil }
+    }
+
+    private var runwayStatus: String {
+        if atlasForwardMockupFidelityActive {
+            return "Auto-decrement on"
+        }
+        if model.inventorySnapshot.lowStockCount > 0 {
+            return "\(model.inventorySnapshot.lowStockCount) low"
+        }
+        return "Auto-decrement ready"
+    }
+}
+
+private struct AtlasInventoryRunwayRow: View {
+    let vial: AtlasVialSummary
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: vial.isLowStock ? "exclamationmark.triangle.fill" : "testtube.2")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(vial.isLowStock ? AtlasPalette.warning : AtlasPalette.primary)
+                .frame(width: 36, height: 36)
+                .background((vial.isLowStock ? AtlasPalette.warning : AtlasPalette.primary).opacity(0.1), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 5) {
+                HStack {
+                    Text(vial.label)
+                        .atlasTextRole(.cardBody)
+                        .foregroundStyle(AtlasPalette.textPrimary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                    Spacer(minLength: 8)
+                    Text(vial.quantityLabel)
+                        .atlasTextRole(.deckEyebrow)
+                        .foregroundStyle(vial.isLowStock ? AtlasPalette.warning : AtlasPalette.textPrimary)
+                        .lineLimit(1)
+                }
+
+                AtlasForwardThinProgress(value: progress, tint: vial.isLowStock ? AtlasPalette.warning : AtlasPalette.primary)
+                    .frame(height: 5)
+
+                Text(detail)
+                    .atlasTextRole(.metricLabel)
+                    .foregroundStyle(AtlasPalette.textSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+            }
+
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(AtlasPalette.textTertiary)
+        }
+        .padding(10)
+        .background(AtlasPalette.surfaceSecondary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private var progress: Double {
+        guard vial.startingQuantity > 0 else { return 0 }
+        return min(max(vial.remainingQuantity / vial.startingQuantity, 0), 1)
+    }
+
+    private var detail: String {
+        [
+            vial.linkedProtocolCanonicalTitle,
+            vial.projectedDepletionLabel ?? vial.autoDecrementLabel ?? vial.lowStockLabel
+        ]
+        .compactMap { $0 }
+        .joined(separator: "  •  ")
+    }
+}
+
+private struct AtlasInventoryMockRunwayRow: View {
+    let onCreateVial: () -> Void
+
+    var body: some View {
+        Button(action: onCreateVial) {
+            HStack(spacing: 10) {
+                Image(systemName: "testtube.2")
+                    .foregroundStyle(AtlasPalette.primary)
+                    .frame(width: 36, height: 36)
+                    .background(AtlasPalette.primary.opacity(0.1), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(atlasForwardMockupFidelityActive ? "Tirzepatide 10 mg" : "Create first vial")
+                        .atlasTextRole(.cardBody)
+                        .foregroundStyle(AtlasPalette.textPrimary)
+                    Text(atlasForwardMockupFidelityActive ? "~28 days left  •  Auto-decrement on shot log" : "Runway, low-stock, and shot decrement tracking start here.")
+                        .atlasTextRole(.supporting)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                }
+                Spacer()
+                Text(atlasForwardMockupFidelityActive ? "12 doses" : "Add")
+                    .atlasTextRole(.deckEyebrow)
+                    .foregroundStyle(AtlasPalette.primary)
+            }
+            .padding(10)
+            .background(AtlasPalette.surfaceSecondary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct AtlasInventorySupportSuppliesPanel: View {
+    let model: AtlasAppModel
+    let onOpenSupply: (String) -> Void
+    let onCreateSupply: () -> Void
+    let onOpenCalculator: () -> Void
+
+    var body: some View {
+        AtlasForwardCard {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text("Supplies")
+                        .atlasTextRole(.cardBody)
+                        .foregroundStyle(AtlasPalette.textPrimary)
+                    Spacer()
+                    Text(statusLabel)
+                        .atlasTextRole(.supporting)
+                        .foregroundStyle(model.inventorySnapshot.procurementReviewCount > 0 ? AtlasPalette.warning : AtlasPalette.textSecondary)
+                }
+
+                VStack(spacing: 7) {
+                    if activeSupplies.isEmpty {
+                        AtlasInventorySupplyPlaceholderRow(title: "Syringes", value: "Add stock", systemImage: "syringe.fill", tint: AtlasPalette.primary, action: onCreateSupply)
+                        AtlasInventorySupplyPlaceholderRow(title: "Alcohol pads", value: "Track count", systemImage: "cross.case.fill", tint: AtlasPalette.success, action: onCreateSupply)
+                        AtlasInventorySupplyPlaceholderRow(title: "Storage", value: "Optional", systemImage: "snowflake", tint: Color(red: 0.15, green: 0.58, blue: 0.9), action: onCreateSupply)
+                    } else {
+                        ForEach(activeSupplies.prefix(3)) { supply in
+                            Button {
+                                onOpenSupply(supply.id)
+                            } label: {
+                                AtlasInventorySupplyRow(supply: supply)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+
+                HStack(spacing: 8) {
+                    Button("Add Supply", action: onCreateSupply)
+                        .buttonStyle(AtlasSecondaryButtonStyle())
+                    Button("Calculator", action: onOpenCalculator)
+                        .buttonStyle(AtlasSecondaryButtonStyle())
+                }
+            }
+        }
+    }
+
+    private var activeSupplies: [AtlasConsumableSummary] {
+        model.inventorySnapshot.consumables.filter { $0.archivedAt == nil }
+    }
+
+    private var statusLabel: String {
+        if model.inventorySnapshot.procurementReviewCount > 0 {
+            return "\(model.inventorySnapshot.procurementReviewCount) review"
+        }
+        return "\(activeSupplies.count) tracked"
+    }
+}
+
+private struct AtlasInventorySupplyRow: View {
+    let supply: AtlasConsumableSummary
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: supply.isLowStock ? "exclamationmark.triangle.fill" : "shippingbox.fill")
+                .foregroundStyle(supply.isLowStock ? AtlasPalette.warning : AtlasPalette.success)
+                .frame(width: 34, height: 34)
+                .background((supply.isLowStock ? AtlasPalette.warning : AtlasPalette.success).opacity(0.1), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            VStack(alignment: .leading, spacing: 3) {
+                Text(supply.name)
+                    .atlasTextRole(.cardBody)
+                    .foregroundStyle(AtlasPalette.textPrimary)
+                    .lineLimit(1)
+                Text([supply.category, supply.projectedDepletionLabel ?? supply.usageLabel ?? supply.procurementStatusLabel].compactMap { $0 }.joined(separator: "  •  "))
+                    .atlasTextRole(.supporting)
+                    .foregroundStyle(AtlasPalette.textSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+            }
+            Spacer()
+            Text(supply.quantityLabel)
+                .atlasTextRole(.deckEyebrow)
+                .foregroundStyle(supply.isLowStock ? AtlasPalette.warning : AtlasPalette.textPrimary)
+                .lineLimit(1)
+        }
+        .padding(9)
+        .background(AtlasPalette.surfaceSecondary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+}
+
+private struct AtlasInventorySupplyPlaceholderRow: View {
+    let title: String
+    let value: String
+    let systemImage: String
+    let tint: Color
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Image(systemName: systemImage)
+                    .foregroundStyle(tint)
+                    .frame(width: 34, height: 34)
+                    .background(tint.opacity(0.1), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                Text(title)
+                    .atlasTextRole(.cardBody)
+                    .foregroundStyle(AtlasPalette.textPrimary)
+                Spacer()
+                Text(value)
+                    .atlasTextRole(.supporting)
+                    .foregroundStyle(AtlasPalette.textSecondary)
+            }
+            .padding(9)
+            .background(AtlasPalette.surfaceSecondary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct AtlasInventorySiteRotationPanel: View {
+    let model: AtlasAppModel
+    let onCreateSite: () -> Void
+
+    var body: some View {
+        AtlasForwardCard {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text("Site Rotation")
+                        .atlasTextRole(.cardBody)
+                        .foregroundStyle(AtlasPalette.textPrimary)
+                    Spacer()
+                    AtlasStatusBadge(rotationLabel, tint: rotationTint)
+                }
+
+                HStack(alignment: .center, spacing: 12) {
+                    AtlasInventoryMiniBodyMap(sites: activeSites)
+                        .frame(width: 112, height: 112)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(siteDetail)
+                            .atlasTextRole(.supporting)
+                            .foregroundStyle(AtlasPalette.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 72), spacing: 6)], spacing: 6) {
+                            ForEach(siteNames, id: \.self) { site in
+                                Text(site)
+                                    .atlasTextRole(.metricLabel)
+                                    .foregroundStyle(AtlasPalette.primary)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.7)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 6)
+                                    .background(AtlasPalette.secondaryFill, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            }
+                        }
+                    }
+                }
+
+                Button("Add Site", action: onCreateSite)
+                    .buttonStyle(AtlasSecondaryButtonStyle())
+            }
+        }
+    }
+
+    private var activeSites: [AtlasSiteSummary] {
+        model.inventorySnapshot.sites.filter { $0.archivedAt == nil }
+    }
+
+    private var siteNames: [String] {
+        let names = activeSites.map(\.name)
+        if names.isEmpty {
+            return ["Abdomen", "Right Thigh", "Left Arm"]
+        }
+        return Array(names.prefix(4))
+    }
+
+    private var rotationEnabled: Bool {
+        model.inventorySnapshot.protocolSettings.contains { $0.siteRotationEnabled }
+    }
+
+    private var rotationLabel: String {
+        rotationEnabled ? "Rotation on" : "\(activeSites.count) saved"
+    }
+
+    private var rotationTint: Color {
+        rotationEnabled ? AtlasPalette.primary : AtlasPalette.secondaryText
+    }
+
+    private var siteDetail: String {
+        if rotationEnabled {
+            return "Saved sites are ready for the shot ritual and protocol review."
+        }
+        if activeSites.isEmpty {
+            return "Add reusable sites once; Log Shot will keep the ritual clean."
+        }
+        return "Sites are saved. Turn on rotation from protocol link settings when ready."
+    }
+}
+
+private struct AtlasInventoryMiniBodyMap: View {
+    let sites: [AtlasSiteSummary]
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(AtlasPalette.secondaryFill.opacity(0.66))
+
+            Image(systemName: "figure.arms.open")
+                .font(.system(size: 58, weight: .light))
+                .foregroundStyle(AtlasPalette.textTertiary.opacity(0.58))
+
+            ForEach(zoneOffsets.indices, id: \.self) { index in
+                let offset = zoneOffsets[index]
+                Capsule()
+                    .fill(index < max(sites.count, atlasForwardMockupFidelityActive ? 4 : 0) ? AtlasPalette.primary.opacity(0.64) : AtlasPalette.success.opacity(0.26))
+                    .frame(width: index == 0 ? 30 : 13, height: index == 0 ? 13 : 28)
+                    .offset(offset)
+            }
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(AtlasPalette.border.opacity(0.62), lineWidth: 1)
+        )
+    }
+
+    private var zoneOffsets: [CGSize] {
+        [
+            CGSize(width: 0, height: -1),
+            CGSize(width: -27, height: 10),
+            CGSize(width: 27, height: 10),
+            CGSize(width: -15, height: 40),
+            CGSize(width: 15, height: 40)
+        ]
+    }
+}
+
+private struct AtlasInventorySignalPill: View {
+    let title: String
+    let value: String
+    let tint: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title)
+                .atlasTextRole(.metricLabel)
+                .foregroundStyle(AtlasPalette.textSecondary)
+            Text(value)
+                .atlasTextRole(.cardBody)
+                .foregroundStyle(AtlasPalette.textPrimary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(tint.opacity(0.1), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(tint.opacity(0.14), lineWidth: 1)
+        )
+    }
+}
+
+private struct AtlasInventoryForwardHero: View {
+    let model: AtlasAppModel
+    let title: String
+    let detail: String
+    let metrics: [AtlasMetricItem]
+    let primaryTitle: String
+    let primaryAction: () -> Void
+
+    var body: some View {
+        AtlasSectionCard(style: .hero) {
+            VStack(alignment: .leading, spacing: 18) {
+                HStack(alignment: .center, spacing: 14) {
+                    mascot
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(title)
+                            .font(AtlasTypography.brandFont(size: 22, weight: .bold, relativeTo: .title2))
+                            .foregroundStyle(AtlasPalette.textPrimary)
+                        Text(detail)
+                            .atlasTextRole(.supporting)
+                            .foregroundStyle(AtlasPalette.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 0)
+                }
+
+                AtlasMetricStrip(metrics: metrics)
+
+                Button(primaryTitle, action: primaryAction)
+                    .buttonStyle(AtlasPrimaryButtonStyle())
+
+                AtlasCalloutRow(
+                    systemImage: model.inventorySnapshot.procurementReviewCount > 0 ? "shippingbox.fill" : "function",
+                    title: model.inventorySnapshot.procurementReviewCount > 0 ? "Review supply plans" : "Dose calculator ready",
+                    detail: model.inventorySnapshot.procurementReviewCount > 0
+                        ? "\(model.inventorySnapshot.procurementReviewCount) supply plan(s) are waiting."
+                        : "Use calculator support when protocol math gets fiddly.",
+                    tint: model.inventorySnapshot.procurementReviewCount > 0 ? AtlasPalette.warning : AtlasPalette.primary,
+                    badge: model.inventorySnapshot.procurementReviewCount > 0 ? "Review" : "Tool"
+                )
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var mascot: some View {
+        if let selection = atlasAmbientMascotSelection(settingsSnapshot: model.settingsSnapshot),
+           let stage = atlasAmbientMascotStage(settingsSnapshot: model.settingsSnapshot, rewardsSnapshot: model.rewardsSnapshot) {
+            AtlasMascotSticker(line: atlasMascotLine(for: selection), stage: stage, size: 82)
+        } else {
+            Image(systemName: "shippingbox.fill")
+                .font(.system(size: 32, weight: .bold))
+                .foregroundStyle(AtlasPalette.primary)
+                .frame(width: 82, height: 82)
+                .background(AtlasPalette.secondaryFill, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+    }
+}
+
+private struct AtlasInventoryForwardActionGrid: View {
+    let lowStockCount: Int
+    let procurementReviewCount: Int
+    let onCalculator: () -> Void
+    let onVial: () -> Void
+    let onSupply: () -> Void
+    let onSite: () -> Void
+
+    var body: some View {
+        LazyVGrid(columns: [GridItem(.flexible(), spacing: AtlasSpacing.small), GridItem(.flexible(), spacing: AtlasSpacing.small)], spacing: AtlasSpacing.small) {
+            AtlasInventoryForwardActionTile(title: "Calculator", subtitle: "Dose math", systemImage: "function", tint: AtlasPalette.primary, action: onCalculator)
+            AtlasInventoryForwardActionTile(title: "Vial", subtitle: lowStockCount > 0 ? "Low stock" : "Add stock", systemImage: "drop.fill", tint: lowStockCount > 0 ? AtlasPalette.warning : AtlasPalette.primary, action: onVial)
+            AtlasInventoryForwardActionTile(title: "Supply", subtitle: procurementReviewCount > 0 ? "Review" : "Syringes, pads", systemImage: "shippingbox.fill", tint: procurementReviewCount > 0 ? AtlasPalette.warning : AtlasPalette.success, action: onSupply)
+            AtlasInventoryForwardActionTile(title: "Site", subtitle: "Rotation", systemImage: "figure.arms.open", tint: AtlasPalette.secondaryText, action: onSite)
+        }
+    }
+}
+
+private struct AtlasInventoryForwardActionTile: View {
+    let title: String
+    let subtitle: String
+    let systemImage: String
+    let tint: Color
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(tint)
+                    .frame(width: 38, height: 38)
+                    .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .atlasTextRole(.cardBody)
+                        .foregroundStyle(AtlasPalette.textPrimary)
+                    Text(subtitle)
+                        .atlasTextRole(.deckEyebrow)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, minHeight: 70, alignment: .leading)
+            .background(AtlasPalette.surfaceTop, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(tint.opacity(0.16), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct AtlasInventoryActionTile: View {
+    let title: String
+    let systemImage: String
+    let tint: Color
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .center, spacing: AtlasSpacing.small) {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [AtlasPalette.surfaceTop, tint.opacity(0.14)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 40, height: 40)
+                    .overlay(
+                        Image(systemName: systemImage)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 16, height: 16)
+                            .foregroundStyle(tint)
+                    )
+
+                Text(title)
+                    .font(.system(size: 13, weight: .semibold, design: .default))
+                    .foregroundStyle(AtlasPalette.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.9)
+                    .allowsTightening(true)
+            }
+            .frame(maxWidth: .infinity, minHeight: 112, alignment: .top)
+            .padding(AtlasSpacing.medium)
+        }
+        .buttonStyle(AtlasTactileTileButtonStyle(tint: tint))
+    }
+}
+
+private struct AtlasInventorySectionGroup<Content: View>: View {
+    let title: String
+    private let content: Content
+
+    init(title: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AtlasSpacing.medium) {
+            Text(title)
+                .atlasTextRole(.deckEyebrow)
+                .foregroundStyle(AtlasPalette.primary)
+
+            content
+        }
+    }
 }
 
 private struct AtlasInventoryProtocolCard: View {
@@ -202,21 +1130,24 @@ private struct AtlasInventoryProtocolCard: View {
     let onOpen: () -> Void
 
     var body: some View {
-        AtlasSectionCard {
+        AtlasSectionCard(style: .task) {
             VStack(alignment: .leading, spacing: AtlasSpacing.small) {
                 Text(model.renderedTitle(canonical: item.canonicalTitle, alias: item.aliasTitle))
-                    .font(.body.weight(.semibold))
+                    .atlasTextRole(.cardTitle)
                     .foregroundStyle(AtlasPalette.textPrimary)
                 Text("\(item.kindLabel) • \(item.cadenceLabel)")
-                    .font(.caption)
+                    .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
                 Text(item.linkedVialLabel.map { "Active vial: \($0)" } ?? "No active vial linked")
-                    .font(.caption)
+                    .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
                 Text(item.siteTrackingEnabled ? (item.siteRotationEnabled ? "Site tracking with rotation" : "Site tracking enabled") : "Site tracking off")
-                    .font(.caption)
+                    .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
-                Button("Edit link settings", action: onOpen)
+                Button("Edit link settings") {
+                    AtlasFeedback.selection()
+                    onOpen()
+                }
                     .buttonStyle(AtlasSecondaryButtonStyle())
             }
         }
@@ -229,13 +1160,15 @@ private struct AtlasVialSummaryCard: View {
     let onOpen: () -> Void
     let onEdit: () -> Void
     let onArchive: (() -> Void)?
+    let isSelected: Bool
+    let onToggleSelection: () -> Void
 
     var body: some View {
-        AtlasSectionCard {
+        AtlasSectionCard(style: .task) {
             VStack(alignment: .leading, spacing: AtlasSpacing.small) {
                 HStack {
                     Text(vial.label)
-                        .font(.body.weight(.semibold))
+                        .atlasTextRole(.cardTitle)
                         .foregroundStyle(AtlasPalette.textPrimary)
                     Spacer()
                     if vial.isLowStock {
@@ -245,33 +1178,63 @@ private struct AtlasVialSummaryCard: View {
                     }
                 }
                 Text(vial.quantityLabel)
-                    .font(.caption)
+                    .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
+                if let referencePhotoPath = vial.referencePhotoPath {
+                    AtlasInventoryReferencePhoto(path: referencePhotoPath)
+                        .frame(height: 132)
+                }
                 if let protocolTitle = vial.linkedProtocolCanonicalTitle {
                     Text("Linked to \(model.renderedTitle(canonical: protocolTitle, alias: vial.linkedProtocolAliasTitle))")
-                        .font(.caption)
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
                 if let projectedDepletionLabel = vial.projectedDepletionLabel {
                     Text(projectedDepletionLabel)
-                        .font(.caption)
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
+                }
+                if let lowStockLabel = vial.lowStockLabel {
+                    Text(lowStockLabel)
+                        .atlasTextRole(.supporting)
+                        .foregroundStyle(vial.isLowStock ? .orange : AtlasPalette.textSecondary)
                 }
                 if let autoDecrementLabel = vial.autoDecrementLabel {
                     Text(autoDecrementLabel)
-                        .font(.caption)
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
+                if let labelScanPreview = vial.labelScanPreview {
+                    Text(labelScanPreview)
+                        .atlasTextRole(.supporting)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                        .lineLimit(3)
+                }
                 HStack(spacing: AtlasSpacing.small) {
-                    Button("Open", action: onOpen)
+                    Button("Open") {
+                        AtlasFeedback.selection()
+                        onOpen()
+                    }
                         .buttonStyle(AtlasSecondaryButtonStyle())
-                    Button("Edit", action: onEdit)
+                    Button("Edit") {
+                        AtlasFeedback.selection()
+                        onEdit()
+                    }
                         .buttonStyle(AtlasSecondaryButtonStyle())
                 }
                 if let onArchive {
-                    Button("Archive", action: onArchive)
+                    Button("Archive") {
+                        AtlasFeedback.selection()
+                        onArchive()
+                    }
                         .buttonStyle(AtlasChipButtonStyle(tint: .orange))
                 }
+                Button(isSelected ? "Selected for batch actions" : "Select for batch actions", action: onToggleSelection)
+                    .buttonStyle(
+                        AtlasChipButtonStyle(
+                            tint: isSelected ? AtlasPalette.primary : AtlasPalette.textSecondary
+                        )
+                    )
             }
         }
     }
@@ -283,13 +1246,15 @@ private struct AtlasConsumableSummaryCard: View {
     let onOpen: () -> Void
     let onEdit: () -> Void
     let onArchiveToggle: () -> Void
+    let isSelected: Bool
+    let onToggleSelection: () -> Void
 
     var body: some View {
-        AtlasSectionCard {
+        AtlasSectionCard(style: .utility) {
             VStack(alignment: .leading, spacing: AtlasSpacing.small) {
                 HStack {
                     Text(model.renderedConsumableTitle(canonical: consumable.name, category: consumable.category))
-                        .font(.body.weight(.semibold))
+                        .atlasTextRole(.cardTitle)
                         .foregroundStyle(AtlasPalette.textPrimary)
                     Spacer()
                     if consumable.isLowStock {
@@ -300,57 +1265,81 @@ private struct AtlasConsumableSummaryCard: View {
                 }
                 if let category = consumable.category {
                     Text(category)
-                        .font(.caption)
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
                 Text(consumable.quantityLabel)
-                    .font(.caption)
+                    .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
                 if let protocolTitle = consumable.linkedProtocolCanonicalTitle {
                     Text("Linked to \(model.renderedTitle(canonical: protocolTitle, alias: consumable.linkedProtocolAliasTitle))")
-                        .font(.caption)
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
                 if let usageLabel = consumable.usageLabel {
                     Text(usageLabel)
-                        .font(.caption)
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
                 if let projectedDepletionLabel = consumable.projectedDepletionLabel {
                     Text(projectedDepletionLabel)
-                        .font(.caption)
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
                 if let procurementStatusLabel = consumable.procurementStatusLabel {
                     Text(procurementStatusLabel)
-                        .font(.caption.weight(.semibold))
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(consumable.needsProcurementReview ? .orange : AtlasPalette.textSecondary)
                 }
                 if let lastProcurementLabel = consumable.lastProcurementLabel {
                     Text(lastProcurementLabel)
-                        .font(.caption)
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
                 if model.settingsSnapshot.trustVaultStatus.renderMode == .full,
                    let vendorLabel = consumable.vendorLabel {
-                    Text("Vendor: \(vendorLabel)")
-                        .font(.caption)
+                    Text("Inventory note: \(vendorLabel)")
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
                 HStack(spacing: AtlasSpacing.small) {
-                    Button("Open", action: onOpen)
+                    Button("Open") {
+                        AtlasFeedback.selection()
+                        onOpen()
+                    }
                         .buttonStyle(AtlasSecondaryButtonStyle())
-                    Button("Edit", action: onEdit)
+                    Button("Edit") {
+                        AtlasFeedback.selection()
+                        onEdit()
+                    }
                         .buttonStyle(AtlasSecondaryButtonStyle())
                 }
-                Button(consumable.archivedAt == nil ? "Archive" : "Unarchive", action: onArchiveToggle)
+                Button(consumable.archivedAt == nil ? "Archive" : "Unarchive") {
+                    AtlasFeedback.selection()
+                    onArchiveToggle()
+                }
                     .buttonStyle(
                         AtlasChipButtonStyle(
                             tint: consumable.archivedAt == nil ? .orange : AtlasPalette.success
                         )
                     )
+                Button(isSelected ? "Selected for batch actions" : "Select for batch actions", action: onToggleSelection)
+                    .buttonStyle(
+                        AtlasChipButtonStyle(
+                            tint: isSelected ? AtlasPalette.primary : AtlasPalette.textSecondary
+                        )
+                    )
             }
         }
+    }
+}
+
+private func atlasToggleSelection(id: String, selected: inout Set<String>) {
+    AtlasFeedback.selection()
+    if selected.contains(id) {
+        selected.remove(id)
+    } else {
+        selected.insert(id)
     }
 }
 
@@ -359,18 +1348,180 @@ private struct AtlasSiteSummaryCard: View {
     let onOpen: () -> Void
 
     var body: some View {
-        AtlasSectionCard {
+        AtlasSectionCard(style: .utility) {
             VStack(alignment: .leading, spacing: AtlasSpacing.small) {
                 Text(site.name)
-                    .font(.body.weight(.semibold))
+                    .atlasTextRole(.cardTitle)
                     .foregroundStyle(AtlasPalette.textPrimary)
-                Text([site.bodyArea, site.notes].compactMap { $0 }.joined(separator: " • "))
-                    .font(.caption)
+                Text([
+                    site.mapRegionKey?.title,
+                    site.bodyArea,
+                    site.notes
+                ].compactMap { $0 }.joined(separator: " • "))
+                    .atlasTextRole(.supporting)
                     .foregroundStyle(AtlasPalette.textSecondary)
-                Button("Edit site", action: onOpen)
+                Button("Edit site") {
+                    AtlasFeedback.selection()
+                    onOpen()
+                }
                     .buttonStyle(AtlasSecondaryButtonStyle())
             }
         }
+    }
+}
+
+private struct AtlasBodyMapPicker: View {
+    @Binding var selection: AtlasBodyMapRegionKey?
+    let highlightedRegions: Set<AtlasBodyMapRegionKey>
+    @State private var surface: AtlasBodyMapSurface
+
+    init(
+        selection: Binding<AtlasBodyMapRegionKey?>,
+        highlightedRegions: Set<AtlasBodyMapRegionKey> = []
+    ) {
+        _selection = selection
+        self.highlightedRegions = highlightedRegions
+        _surface = State(initialValue: selection.wrappedValue?.surface ?? .front)
+    }
+
+    private var visibleRegions: [AtlasBodyMapRegionKey] {
+        AtlasBodyMapRegionKey.allCases.filter { $0.surface == surface }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+            Picker("Surface", selection: $surface) {
+                ForEach(AtlasBodyMapSurface.allCases) { item in
+                    Text(item.title).tag(item)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            GeometryReader { proxy in
+                let width = proxy.size.width
+                let height = proxy.size.height
+
+                ZStack {
+                    AtlasBodyMapSilhouette(surface: surface)
+                        .fill(AtlasPalette.surfaceSecondary)
+                        .overlay {
+                            AtlasBodyMapSilhouette(surface: surface)
+                                .stroke(AtlasPalette.border, lineWidth: 1)
+                        }
+
+                    ForEach(visibleRegions) { region in
+                        Button {
+                            AtlasFeedback.selection()
+                            selection = region
+                        } label: {
+                            VStack(spacing: 2) {
+                                Circle()
+                                    .fill(selection == region ? AtlasPalette.primary : (highlightedRegions.contains(region) ? AtlasPalette.success : AtlasPalette.secondaryText))
+                                    .frame(
+                                        width: max(width * region.markerDiameter, 30),
+                                        height: max(width * region.markerDiameter, 30)
+                                    )
+                                    .overlay {
+                                        Circle()
+                                            .stroke(Color.white.opacity(0.8), lineWidth: selection == region ? 2 : 1)
+                                    }
+                                Text(region.shortLabel)
+                                    .atlasTextRole(.metricLabel)
+                                    .foregroundStyle(AtlasPalette.textPrimary)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .position(x: width * region.normalizedX, y: height * region.normalizedY)
+                    }
+                }
+            }
+            .frame(height: 320)
+            .padding(.vertical, AtlasSpacing.xSmall)
+
+            Text("Tap a hotspot to attach this saved site to a reusable body-map location.")
+                .atlasTextRole(.supporting)
+                .foregroundStyle(AtlasPalette.textSecondary)
+        }
+        .onChange(of: selection) { _, newValue in
+            guard let newValue else {
+                return
+            }
+            surface = newValue.surface
+        }
+    }
+}
+
+private struct AtlasBodyMapSilhouette: Shape {
+    let surface: AtlasBodyMapSurface
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+
+        let head = CGRect(
+            x: rect.midX - rect.width * 0.09,
+            y: rect.minY + rect.height * 0.03,
+            width: rect.width * 0.18,
+            height: rect.width * 0.18
+        )
+        path.addEllipse(in: head)
+
+        let torso = CGRect(
+            x: rect.midX - rect.width * 0.16,
+            y: rect.minY + rect.height * 0.21,
+            width: rect.width * 0.32,
+            height: rect.height * 0.34
+        )
+        path.addRoundedRect(in: torso, cornerSize: CGSize(width: rect.width * 0.07, height: rect.width * 0.07))
+
+        let leftArm = CGRect(
+            x: rect.midX - rect.width * 0.33,
+            y: rect.minY + rect.height * 0.23,
+            width: rect.width * 0.12,
+            height: rect.height * 0.30
+        )
+        let rightArm = CGRect(
+            x: rect.midX + rect.width * 0.21,
+            y: rect.minY + rect.height * 0.23,
+            width: rect.width * 0.12,
+            height: rect.height * 0.30
+        )
+        path.addRoundedRect(in: leftArm, cornerSize: CGSize(width: rect.width * 0.06, height: rect.width * 0.06))
+        path.addRoundedRect(in: rightArm, cornerSize: CGSize(width: rect.width * 0.06, height: rect.width * 0.06))
+
+        let hips = CGRect(
+            x: rect.midX - rect.width * 0.18,
+            y: rect.minY + rect.height * 0.50,
+            width: rect.width * 0.36,
+            height: rect.height * 0.11
+        )
+        path.addRoundedRect(in: hips, cornerSize: CGSize(width: rect.width * 0.08, height: rect.width * 0.08))
+
+        let leftLeg = CGRect(
+            x: rect.midX - rect.width * 0.16,
+            y: rect.minY + rect.height * 0.58,
+            width: rect.width * 0.12,
+            height: rect.height * 0.29
+        )
+        let rightLeg = CGRect(
+            x: rect.midX + rect.width * 0.04,
+            y: rect.minY + rect.height * 0.58,
+            width: rect.width * 0.12,
+            height: rect.height * 0.29
+        )
+        path.addRoundedRect(in: leftLeg, cornerSize: CGSize(width: rect.width * 0.06, height: rect.width * 0.06))
+        path.addRoundedRect(in: rightLeg, cornerSize: CGSize(width: rect.width * 0.06, height: rect.width * 0.06))
+
+        if surface == .back {
+            let spine = CGRect(
+                x: rect.midX - rect.width * 0.015,
+                y: rect.minY + rect.height * 0.25,
+                width: rect.width * 0.03,
+                height: rect.height * 0.28
+            )
+            path.addRoundedRect(in: spine, cornerSize: CGSize(width: rect.width * 0.015, height: rect.width * 0.015))
+        }
+
+        return path
     }
 }
 
@@ -398,84 +1549,136 @@ public struct AtlasCalculatorScreen: View {
     @State private var form = AtlasCalculatorFormState()
 
     public var body: some View {
-        List {
-            Section {
-                Text("This is neutral math only. Atlas explains the calculation but never recommends what to take.")
-                    .foregroundStyle(AtlasPalette.textSecondary)
+        let result = atlasCalculateReconstitution(form.domainDraft)
+
+        AtlasScreen {
+            AtlasCommandDeck(
+                eyebrow: "Neutral math",
+                title: "Reconstitution calculator",
+                detail: "Shows concentration and delivered amount, but never recommends what to take.",
+                metrics: [
+                    AtlasMetricItem(id: "profiles", title: "Saved", value: "\(model.calculatorProfiles.count)", tint: AtlasPalette.primary),
+                    AtlasMetricItem(id: "concentration", title: "Concentration", value: result.concentrationLabel, tint: AtlasPalette.secondaryText),
+                    AtlasMetricItem(id: "delivered", title: "Delivered", value: result.deliveredLabel, tint: AtlasPalette.success)
+                ],
+                tint: AtlasPalette.primary,
+                style: .hero
+            ) { } footer: { }
+
+            AtlasSectionCard(style: .utility) {
+                AtlasCalloutRow(
+                    systemImage: "function",
+                    title: "Neutral math only",
+                    detail: "Shows powder, diluent, and draw-volume math. No dosing advice.",
+                    tint: AtlasPalette.secondaryText
+                )
             }
 
-            Section("Calculator") {
+            AtlasSectionCard(title: "Profile") {
                 TextField("Profile label", text: $form.label)
-                TextField("Powder amount", text: $form.powderAmount)
-                    .atlasDecimalKeyboard()
-                TextField("Powder unit", text: $form.powderUnit)
-                TextField("Diluent volume", text: $form.diluentVolume)
-                    .atlasDecimalKeyboard()
-                TextField("Diluent unit", text: $form.diluentUnit)
-                TextField("Draw volume", text: $form.drawVolume)
-                    .atlasDecimalKeyboard()
-                TextField("Draw unit", text: $form.drawUnit)
+                    .atlasStandaloneInputSurface()
+            }
+
+            AtlasSectionCard(title: "Formula") {
+                VStack(spacing: AtlasSpacing.small) {
+                    HStack(spacing: AtlasSpacing.small) {
+                        TextField("Powder amount", text: $form.powderAmount)
+                            .atlasDecimalKeyboard()
+                            .atlasStandaloneInputSurface()
+                        TextField("Powder unit", text: $form.powderUnit)
+                            .atlasStandaloneInputSurface()
+                    }
+
+                    HStack(spacing: AtlasSpacing.small) {
+                        TextField("Diluent volume", text: $form.diluentVolume)
+                            .atlasDecimalKeyboard()
+                            .atlasStandaloneInputSurface()
+                        TextField("Diluent unit", text: $form.diluentUnit)
+                            .atlasStandaloneInputSurface()
+                    }
+
+                    HStack(spacing: AtlasSpacing.small) {
+                        TextField("Draw volume", text: $form.drawVolume)
+                            .atlasDecimalKeyboard()
+                            .atlasStandaloneInputSurface()
+                        TextField("Draw unit", text: $form.drawUnit)
+                            .atlasStandaloneInputSurface()
+                    }
+                }
 
                 Button("Save calculator profile") {
+                    AtlasFeedback.selection()
                     Task { await model.saveCalculatorProfile(form.domainDraft) }
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(AtlasPrimaryButtonStyle())
             }
 
-            Section("Result") {
-                let result = atlasCalculateReconstitution(form.domainDraft)
-                Text(result.concentrationLabel)
-                Text(result.deliveredLabel)
+            AtlasSectionCard(style: .task, title: "Result") {
+                AtlasCalloutRow(
+                    systemImage: "drop.degreesign",
+                    title: result.concentrationLabel,
+                    detail: result.deliveredLabel,
+                    tint: AtlasPalette.primary
+                )
+
                 ForEach(result.explanation, id: \.self) { line in
                     Text(line)
-                        .font(.caption)
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
             }
 
-            Section("Saved profiles") {
+            AtlasSectionCard(title: "Saved profiles") {
                 if model.calculatorProfiles.isEmpty {
-                    Text("No saved profiles yet.")
-                        .foregroundStyle(AtlasPalette.textSecondary)
+                    AtlasCalloutRow(
+                        systemImage: "square.stack.3d.up.slash",
+                        title: "No saved profiles yet",
+                        detail: "Save one trusted baseline so the calculator becomes a fast reference tool instead of repeated manual entry.",
+                        tint: AtlasPalette.secondaryText
+                    )
                 } else {
                     ForEach(model.calculatorProfiles) { profile in
-                        VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
-                            Text(profile.label)
-                                .font(.body.weight(.semibold))
-                            Text(
-                                atlasCalculateReconstitution(
-                                    AtlasCalculatorProfileDraft(
-                                        id: profile.id,
-                                        label: profile.label,
-                                        powderAmount: profile.powderAmount,
-                                        powderUnit: profile.powderUnit,
-                                        diluentVolume: profile.diluentVolume,
-                                        diluentUnit: profile.diluentUnit,
-                                        drawVolume: profile.drawVolume,
-                                        drawUnit: profile.drawUnit
-                                    )
-                                ).deliveredLabel
+                        let deliveredLabel = atlasCalculateReconstitution(
+                            AtlasCalculatorProfileDraft(
+                                id: profile.id,
+                                label: profile.label,
+                                powderAmount: profile.powderAmount,
+                                powderUnit: profile.powderUnit,
+                                diluentVolume: profile.diluentVolume,
+                                diluentUnit: profile.diluentUnit,
+                                drawVolume: profile.drawVolume,
+                                drawUnit: profile.drawUnit
                             )
-                            .font(.caption)
-                            .foregroundStyle(AtlasPalette.textSecondary)
+                        ).deliveredLabel
 
-                            HStack {
-                                Button("Load") {
-                                    form = AtlasCalculatorFormState(profile: profile)
+                        AtlasSectionCard(style: .task) {
+                            VStack(alignment: .leading, spacing: AtlasSpacing.small) {
+                                Text(profile.label)
+                                    .atlasTextRole(.cardBody)
+                                    .foregroundStyle(AtlasPalette.textPrimary)
+                                Text(deliveredLabel)
+                                    .atlasTextRole(.supporting)
+                                    .foregroundStyle(AtlasPalette.textSecondary)
+
+                                HStack(spacing: AtlasSpacing.small) {
+                                    Button("Load") {
+                                        AtlasFeedback.selection()
+                                        form = AtlasCalculatorFormState(profile: profile)
+                                    }
+                                    .buttonStyle(AtlasSecondaryButtonStyle())
+
+                                    Button("Delete") {
+                                        AtlasFeedback.selection()
+                                        Task { await model.deleteCalculatorProfile(id: profile.id) }
+                                    }
+                                    .buttonStyle(AtlasWarningButtonStyle())
                                 }
-                                .buttonStyle(.bordered)
-                                Button("Delete", role: .destructive) {
-                                    Task { await model.deleteCalculatorProfile(id: profile.id) }
-                                }
-                                .buttonStyle(.bordered)
                             }
                         }
                     }
                 }
             }
         }
-        .atlasFormSurface()
-        .listStyle(.plain)
         .navigationTitle("Calculator")
         .atlasInlineNavigationTitle()
     }
@@ -492,30 +1695,93 @@ private struct AtlasVialDetailScreen: View {
 
     var body: some View {
         NavigationStack {
-            List {
+            AtlasScreen {
                 if let loadedDetail = detail {
-                    Section {
-                        VStack(alignment: .leading, spacing: AtlasSpacing.small) {
-                            Text(loadedDetail.summary.label)
-                                .font(.title3.weight(.bold))
-                            Text(loadedDetail.summary.quantityLabel)
-                                .foregroundStyle(AtlasPalette.textSecondary)
-                            if let linkedTitle = loadedDetail.summary.linkedProtocolCanonicalTitle {
-                                Text("Linked to \(model.renderedTitle(canonical: linkedTitle, alias: loadedDetail.summary.linkedProtocolAliasTitle))")
-                                    .foregroundStyle(AtlasPalette.textSecondary)
-                            }
-                            if let projectedDepletionLabel = loadedDetail.summary.projectedDepletionLabel {
-                                Text(projectedDepletionLabel)
-                                    .foregroundStyle(AtlasPalette.textSecondary)
-                            }
+                    AtlasCommandDeck(
+                        eyebrow: "Vial detail",
+                        title: loadedDetail.summary.label,
+                        detail: loadedDetail.summary.quantityLabel,
+                        metrics: [
+                            AtlasMetricItem(id: "remaining", title: "Remaining", value: loadedDetail.summary.remainingQuantity.cleanAtlasNumber, tint: AtlasPalette.primary),
+                            AtlasMetricItem(id: "unit", title: "Unit", value: loadedDetail.summary.quantityUnit, tint: AtlasPalette.secondaryText),
+                            AtlasMetricItem(id: "status", title: "Status", value: loadedDetail.summary.archivedAt == nil ? "Active" : "Archived", tint: loadedDetail.summary.archivedAt == nil ? AtlasPalette.success : AtlasPalette.secondaryText)
+                        ],
+                        tint: AtlasPalette.primary,
+                        style: .hero
+                    ) { } footer: { }
+
+                    if let referencePhotoPath = loadedDetail.summary.referencePhotoPath {
+                        AtlasSectionCard(style: .task, title: "Reference capture") {
+                            AtlasInventoryReferencePhoto(path: referencePhotoPath)
+                                .frame(height: 220)
                         }
                     }
 
-                    Section("Correction") {
+                    AtlasSectionCard(title: "Specs") {
+                        if let concentrationValue = loadedDetail.editableDraft.concentrationValue,
+                           let concentrationUnit = loadedDetail.editableDraft.concentrationUnit {
+                            AtlasCalloutRow(
+                                systemImage: "drop.fill",
+                                title: "Concentration",
+                                detail: "\(concentrationValue.cleanAtlasNumber) \(concentrationUnit)/mL",
+                                tint: AtlasPalette.primary
+                            )
+                        }
+                        if let volumeML = loadedDetail.editableDraft.volumeML {
+                            AtlasCalloutRow(
+                                systemImage: "scalemass.fill",
+                                title: "Diluent volume",
+                                detail: "\(volumeML.cleanAtlasNumber) mL",
+                                tint: AtlasPalette.secondaryText
+                            )
+                        }
+                        if let openedAt = loadedDetail.editableDraft.openedAt {
+                            AtlasCalloutRow(
+                                systemImage: "calendar",
+                                title: "Opened",
+                                detail: openedAt.formatted(date: .abbreviated, time: .shortened),
+                                tint: AtlasPalette.secondaryText
+                            )
+                        }
+                        if let expiresAt = loadedDetail.editableDraft.expiresAt {
+                            AtlasCalloutRow(
+                                systemImage: "hourglass",
+                                title: "Expires",
+                                detail: expiresAt.formatted(date: .abbreviated, time: .shortened),
+                                tint: expiresAt < model.currentDate() ? AtlasPalette.warning : AtlasPalette.secondaryText
+                            )
+                        }
+                        if let linkedTitle = loadedDetail.summary.linkedProtocolCanonicalTitle {
+                            AtlasCalloutRow(
+                                systemImage: "square.stack.3d.up",
+                                title: "Linked protocol",
+                                detail: model.renderedTitle(canonical: linkedTitle, alias: loadedDetail.summary.linkedProtocolAliasTitle),
+                                tint: AtlasPalette.primary
+                            )
+                        }
+                        if let projectedDepletionLabel = loadedDetail.summary.projectedDepletionLabel {
+                            AtlasCalloutRow(
+                                systemImage: "chart.line.downtrend.xyaxis",
+                                title: "Depletion pace",
+                                detail: projectedDepletionLabel,
+                                tint: AtlasPalette.secondaryText
+                            )
+                        }
+                        if let labelScanText = loadedDetail.editableDraft.labelScanText {
+                            Text(labelScanText)
+                                .atlasTextRole(.supporting)
+                                .foregroundStyle(AtlasPalette.textSecondary)
+                        }
+                    }
+
+                    AtlasSectionCard(style: .utility, title: "Correction") {
                         TextField("Next remaining quantity", text: $correctionQuantity)
                             .atlasDecimalKeyboard()
+                            .atlasStandaloneInputSurface()
                         TextField("Correction note", text: $correctionNote)
+                            .atlasStandaloneInputSurface()
                         Button("Apply correction") {
+                            AtlasFeedback.selection()
                             Task {
                                 guard let nextRemainingQuantity = Double(correctionQuantity) else {
                                     return
@@ -530,49 +1796,76 @@ private struct AtlasVialDetailScreen: View {
                                 detail = await model.vialDetail(id: vialID)
                             }
                         }
+                        .buttonStyle(AtlasPrimaryButtonStyle())
                     }
 
-                    Section("Inventory history") {
+                    AtlasSectionCard(title: "Inventory history") {
                         if loadedDetail.movementHistory.isEmpty {
-                            Text("No inventory movement is recorded yet.")
-                                .foregroundStyle(AtlasPalette.textSecondary)
+                            AtlasCalloutRow(
+                                systemImage: "clock.badge.xmark",
+                                title: "No inventory movement yet",
+                                detail: "Once depletion, corrections, or linked usage are recorded, the vial history appears here.",
+                                tint: AtlasPalette.secondaryText
+                            )
                         } else {
                             ForEach(loadedDetail.movementHistory) { item in
-                                VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
-                                    HStack(alignment: .firstTextBaseline) {
-                                        Text(item.title)
-                                            .font(.body.weight(.semibold))
-                                        Spacer()
-                                        if let deltaLabel = item.deltaLabel {
-                                            Text(deltaLabel)
-                                                .font(.caption.weight(.semibold))
-                                                .foregroundStyle(AtlasPalette.primary)
+                                AtlasSectionCard(style: .task) {
+                                    VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
+                                        HStack(alignment: .firstTextBaseline) {
+                                            Text(item.title)
+                                                .atlasTextRole(.cardBody)
+                                                .foregroundStyle(AtlasPalette.textPrimary)
+                                            Spacer()
+                                            if let deltaLabel = item.deltaLabel {
+                                                AtlasStatusBadge(deltaLabel, tint: AtlasPalette.primary)
+                                            }
                                         }
+                                        Text(item.recordedAt.formatted(date: .abbreviated, time: .shortened))
+                                            .atlasTextRole(.supporting)
+                                            .foregroundStyle(AtlasPalette.textSecondary)
+                                        Text(item.detail)
+                                            .atlasTextRole(.supporting)
+                                            .foregroundStyle(AtlasPalette.textSecondary)
                                     }
-                                    Text(item.recordedAt.formatted(date: .abbreviated, time: .shortened))
-                                        .font(.caption)
-                                        .foregroundStyle(AtlasPalette.textSecondary)
-                                    Text(item.detail)
-                                        .font(.caption)
-                                        .foregroundStyle(AtlasPalette.textSecondary)
                                 }
                             }
                         }
                     }
+
+                    AtlasSectionCard(style: .utility, title: "Actions") {
+                        HStack(spacing: AtlasSpacing.small) {
+                            Button("Edit") {
+                                AtlasFeedback.selection()
+                                onEdit(loadedDetail.editableDraft)
+                            }
+                            .buttonStyle(AtlasSecondaryButtonStyle())
+
+                            Button("Done") {
+                                AtlasFeedback.selection()
+                                dismiss()
+                            }
+                            .buttonStyle(AtlasPrimaryButtonStyle())
+                        }
+                    }
                 } else {
-                    ProgressView()
+                    AtlasSectionCard(style: .utility) {
+                        ProgressView()
+                            .frame(maxWidth: .infinity)
+                    }
                 }
             }
-            .atlasFormSurface()
-            .listStyle(.plain)
             .navigationTitle("Vial")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") { dismiss() }
+                    Button("Done") {
+                        AtlasFeedback.selection()
+                        dismiss()
+                    }
                 }
                 ToolbarItem(placement: .primaryAction) {
                     if let loadedDetail = detail {
                         Button("Edit") {
+                            AtlasFeedback.selection()
                             onEdit(loadedDetail.editableDraft)
                         }
                     }
@@ -598,75 +1891,89 @@ private struct AtlasConsumableDetailScreen: View {
 
     var body: some View {
         NavigationStack {
-            List {
+            AtlasScreen {
                 if let loadedDetail = detail {
-                    Section {
-                        VStack(alignment: .leading, spacing: AtlasSpacing.small) {
-                            Text(model.renderedConsumableTitle(canonical: loadedDetail.summary.name, category: loadedDetail.summary.category))
-                                .font(.title3.weight(.bold))
-                            if let category = loadedDetail.summary.category {
-                                Text(category)
-                                    .foregroundStyle(AtlasPalette.textSecondary)
-                            }
-                            Text(loadedDetail.summary.quantityLabel)
-                                .foregroundStyle(AtlasPalette.textSecondary)
-                            if let linkedTitle = loadedDetail.summary.linkedProtocolCanonicalTitle {
-                                Text("Linked to \(model.renderedTitle(canonical: linkedTitle, alias: loadedDetail.summary.linkedProtocolAliasTitle))")
-                                    .foregroundStyle(AtlasPalette.textSecondary)
-                            }
-                            if let lowStockLabel = loadedDetail.summary.lowStockLabel {
-                                Text(lowStockLabel)
-                                    .foregroundStyle(AtlasPalette.textSecondary)
-                            }
-                            if let projectedDepletionLabel = loadedDetail.summary.projectedDepletionLabel {
-                                Text(projectedDepletionLabel)
-                                    .foregroundStyle(AtlasPalette.textSecondary)
-                            }
-                            if let reorderLeadTimeLabel = loadedDetail.summary.reorderLeadTimeLabel {
-                                Text(reorderLeadTimeLabel)
-                                    .foregroundStyle(AtlasPalette.textSecondary)
-                            }
-                            if model.settingsSnapshot.trustVaultStatus.renderMode == .full,
-                               let vendorLabel = loadedDetail.summary.vendorLabel {
-                                Text("Vendor: \(vendorLabel)")
-                                    .foregroundStyle(AtlasPalette.textSecondary)
-                            }
+                    AtlasCommandDeck(
+                        eyebrow: "Supply detail",
+                        title: model.renderedConsumableTitle(canonical: loadedDetail.summary.name, category: loadedDetail.summary.category),
+                        detail: loadedDetail.summary.quantityLabel,
+                        metrics: [
+                            AtlasMetricItem(id: "stock", title: "On hand", value: loadedDetail.summary.quantityOnHand.cleanAtlasNumber, tint: AtlasPalette.primary),
+                            AtlasMetricItem(id: "unit", title: "Unit", value: loadedDetail.summary.quantityUnit, tint: AtlasPalette.secondaryText),
+                            AtlasMetricItem(id: "status", title: "Status", value: loadedDetail.summary.archivedAt == nil ? "Active" : "Archived", tint: loadedDetail.summary.archivedAt == nil ? AtlasPalette.success : AtlasPalette.secondaryText)
+                        ],
+                        tint: AtlasPalette.secondaryText,
+                        style: .hero
+                    ) { } footer: { }
+
+                    AtlasSectionCard(title: "Planning") {
+                        if let category = loadedDetail.summary.category {
+                            AtlasCalloutRow(systemImage: "tag.fill", title: "Category", detail: category, tint: AtlasPalette.secondaryText)
+                        }
+                        if let linkedTitle = loadedDetail.summary.linkedProtocolCanonicalTitle {
+                            AtlasCalloutRow(
+                                systemImage: "square.stack.3d.up",
+                                title: "Linked protocol",
+                                detail: model.renderedTitle(canonical: linkedTitle, alias: loadedDetail.summary.linkedProtocolAliasTitle),
+                                tint: AtlasPalette.primary
+                            )
+                        }
+                        if let lowStockLabel = loadedDetail.summary.lowStockLabel {
+                        AtlasCalloutRow(systemImage: "exclamationmark.triangle.fill", title: "Runway status", detail: lowStockLabel, tint: AtlasPalette.warning)
+                        }
+                        if let projectedDepletionLabel = loadedDetail.summary.projectedDepletionLabel {
+                            AtlasCalloutRow(systemImage: "chart.line.downtrend.xyaxis", title: "Projected depletion", detail: projectedDepletionLabel, tint: AtlasPalette.secondaryText)
+                        }
+                        if let reorderLeadTimeLabel = loadedDetail.summary.reorderLeadTimeLabel {
+                            AtlasCalloutRow(systemImage: "calendar.badge.clock", title: "Lead time", detail: reorderLeadTimeLabel, tint: AtlasPalette.secondaryText)
+                        }
+                        if model.settingsSnapshot.trustVaultStatus.renderMode == .full,
+                           let vendorLabel = loadedDetail.summary.vendorLabel {
+                            AtlasCalloutRow(systemImage: "tag.fill", title: "Inventory note", detail: vendorLabel, tint: AtlasPalette.secondaryText)
                         }
                     }
 
-                    Section("Planning") {
+                    AtlasSectionCard(style: .utility, title: "Runway planning") {
                         if let procurementStatusLabel = loadedDetail.planning.procurementStatusLabel {
                             Text(procurementStatusLabel)
+                                .atlasTextRole(.supporting)
                                 .foregroundStyle(
                                     loadedDetail.planning.needsProcurementReview ? .orange : AtlasPalette.textSecondary
                                 )
                         }
                         if let reorderThresholdLabel = loadedDetail.planning.reorderThresholdLabel {
                             Text(reorderThresholdLabel)
+                                .atlasTextRole(.supporting)
                                 .foregroundStyle(AtlasPalette.textSecondary)
                         }
                         if let projectedDepletionLabel = loadedDetail.planning.projectedDepletionLabel {
                             Text(projectedDepletionLabel)
+                                .atlasTextRole(.supporting)
                                 .foregroundStyle(AtlasPalette.textSecondary)
                         }
                         if let reorderLeadTimeLabel = loadedDetail.planning.reorderLeadTimeLabel {
                             Text(reorderLeadTimeLabel)
+                                .atlasTextRole(.supporting)
                                 .foregroundStyle(AtlasPalette.textSecondary)
                         }
                         if let usageLabel = loadedDetail.planning.usageLabel {
                             Text(usageLabel)
+                                .atlasTextRole(.supporting)
                                 .foregroundStyle(AtlasPalette.textSecondary)
                         }
                         if let lastProcurementLabel = loadedDetail.planning.lastProcurementLabel {
                             Text(lastProcurementLabel)
+                                .atlasTextRole(.supporting)
                                 .foregroundStyle(AtlasPalette.textSecondary)
                         }
-                        if let vendorHistorySummary = loadedDetail.planning.vendorHistorySummary {
-                            Text(vendorHistorySummary)
+                        if loadedDetail.planning.vendorHistorySummary != nil {
+                            Text("Supply history is recorded for this item.")
+                                .atlasTextRole(.supporting)
                                 .foregroundStyle(AtlasPalette.textSecondary)
                         }
                         if loadedDetail.summary.archivedAt == nil {
-                            Button("Record procurement") {
+                            Button("Record supply note") {
+                                AtlasFeedback.selection()
                                 procurementState = AtlasConsumableProcurementState(
                                     consumableID: consumableID,
                                     quantityUnit: loadedDetail.summary.quantityUnit,
@@ -674,14 +1981,18 @@ private struct AtlasConsumableDetailScreen: View {
                                     sourceDetail: nil
                                 )
                             }
+                            .buttonStyle(AtlasPrimaryButtonStyle())
                         }
                     }
 
-                    Section("Adjustment") {
+                    AtlasSectionCard(style: .utility, title: "Adjustment") {
                         TextField("Next quantity on hand", text: $adjustmentQuantity)
                             .atlasDecimalKeyboard()
+                            .atlasStandaloneInputSurface()
                         TextField("Adjustment note", text: $adjustmentNote)
+                            .atlasStandaloneInputSurface()
                         Button("Apply adjustment") {
+                            AtlasFeedback.selection()
                             Task {
                                 guard let nextQuantityOnHand = Double(adjustmentQuantity) else {
                                     return
@@ -696,87 +2007,119 @@ private struct AtlasConsumableDetailScreen: View {
                                 detail = await model.consumableDetail(id: consumableID)
                             }
                         }
+                        .buttonStyle(AtlasPrimaryButtonStyle())
                     }
 
-                    Section("Procurement and source history") {
+                    AtlasSectionCard(title: "Inventory notes") {
                         if loadedDetail.procurementHistory.isEmpty {
-                            Text("No procurement history is recorded yet.")
-                                .foregroundStyle(AtlasPalette.textSecondary)
+                            AtlasCalloutRow(
+                                systemImage: "shippingbox.circle",
+                                title: "No inventory notes yet",
+                                detail: "The first local inventory note appears here after you record one.",
+                                tint: AtlasPalette.secondaryText
+                            )
                         } else {
                             ForEach(loadedDetail.procurementHistory) { item in
-                                VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
+                                AtlasSectionCard(style: .task) {
+                                    VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
                                     HStack(alignment: .firstTextBaseline) {
                                         Text(item.title)
-                                            .font(.body.weight(.semibold))
+                                            .atlasTextRole(.cardBody)
+                                            .foregroundStyle(AtlasPalette.textPrimary)
                                         Spacer()
-                                        Text(item.quantityLabel)
-                                            .font(.caption.weight(.semibold))
-                                            .foregroundStyle(AtlasPalette.primary)
+                                        AtlasStatusBadge(item.quantityLabel, tint: AtlasPalette.primary)
                                     }
                                     Text(item.recordedAt.formatted(date: .abbreviated, time: .shortened))
-                                        .font(.caption)
+                                        .atlasTextRole(.supporting)
                                         .foregroundStyle(AtlasPalette.textSecondary)
                                     if model.settingsSnapshot.trustVaultStatus.renderMode == .full,
                                        let vendorLabel = item.vendorLabel {
-                                        Text("Source: \(vendorLabel)")
-                                            .font(.caption)
+                                        Text("Inventory note: \(vendorLabel)")
+                                            .atlasTextRole(.supporting)
                                             .foregroundStyle(AtlasPalette.textSecondary)
                                     }
                                     if model.settingsSnapshot.trustVaultStatus.renderMode == .full,
                                        let sourceDetail = item.sourceDetail {
-                                        Text(sourceDetail)
-                                            .font(.caption)
+                                        Text("Local note: \(sourceDetail)")
+                                            .atlasTextRole(.supporting)
                                             .foregroundStyle(AtlasPalette.textSecondary)
                                     }
+                                }
                                 }
                             }
                         }
                     }
 
-                    Section("History") {
+                    AtlasSectionCard(title: "History") {
                         if loadedDetail.adjustmentHistory.isEmpty {
-                            Text("No supply movement is recorded yet.")
-                                .foregroundStyle(AtlasPalette.textSecondary)
+                            AtlasCalloutRow(
+                                systemImage: "clock.badge.xmark",
+                                title: "No supply movement yet",
+                                detail: "Adjustments and resulting stock changes appear here after the first update.",
+                                tint: AtlasPalette.secondaryText
+                            )
                         } else {
                             ForEach(loadedDetail.adjustmentHistory) { item in
-                                VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
+                                AtlasSectionCard(style: .task) {
+                                    VStack(alignment: .leading, spacing: AtlasSpacing.xSmall) {
                                     HStack(alignment: .firstTextBaseline) {
                                         Text(item.title)
-                                            .font(.body.weight(.semibold))
+                                            .atlasTextRole(.cardBody)
+                                            .foregroundStyle(AtlasPalette.textPrimary)
                                         Spacer()
                                         if let deltaLabel = item.deltaLabel {
-                                            Text(deltaLabel)
-                                                .font(.caption.weight(.semibold))
-                                                .foregroundStyle(AtlasPalette.primary)
+                                            AtlasStatusBadge(deltaLabel, tint: AtlasPalette.primary)
                                         }
                                     }
                                     Text(item.recordedAt.formatted(date: .abbreviated, time: .shortened))
-                                        .font(.caption)
+                                        .atlasTextRole(.supporting)
                                         .foregroundStyle(AtlasPalette.textSecondary)
                                     Text(item.resultingQuantityLabel)
-                                        .font(.caption)
+                                        .atlasTextRole(.supporting)
                                         .foregroundStyle(AtlasPalette.textSecondary)
                                     Text(item.detail)
-                                        .font(.caption)
+                                        .atlasTextRole(.supporting)
                                         .foregroundStyle(AtlasPalette.textSecondary)
+                                }
                                 }
                             }
                         }
                     }
+
+                    AtlasSectionCard(style: .utility, title: "Actions") {
+                        HStack(spacing: AtlasSpacing.small) {
+                            Button("Edit") {
+                                AtlasFeedback.selection()
+                                onEdit(loadedDetail.editableDraft)
+                            }
+                            .buttonStyle(AtlasSecondaryButtonStyle())
+
+                            Button("Done") {
+                                AtlasFeedback.selection()
+                                dismiss()
+                            }
+                            .buttonStyle(AtlasPrimaryButtonStyle())
+                        }
+                    }
                 } else {
-                    ProgressView()
+                    AtlasSectionCard(style: .utility) {
+                        ProgressView()
+                            .frame(maxWidth: .infinity)
+                    }
                 }
             }
-            .atlasFormSurface()
-            .listStyle(.plain)
             .navigationTitle("Supply")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") { dismiss() }
+                    Button("Done") {
+                        AtlasFeedback.selection()
+                        dismiss()
+                    }
                 }
                 ToolbarItem(placement: .primaryAction) {
                     if let loadedDetail = detail {
                         Button("Edit") {
+                            AtlasFeedback.selection()
                             onEdit(loadedDetail.editableDraft)
                         }
                     }
@@ -802,6 +2145,9 @@ private struct AtlasConsumableDetailScreen: View {
 private struct AtlasVialEditorSheet: View {
     let model: AtlasAppModel
     @State private var draft: AtlasVialDraft
+    @State private var selectedPhoto: PhotosPickerItem?
+    @State private var referencePhotoData = Data()
+    @State private var photoAnalysisState: AtlasImageAnalysisState = .idle
     @Environment(\.dismiss) private var dismiss
 
     init(model: AtlasAppModel, draft: AtlasVialDraft) {
@@ -811,12 +2157,84 @@ private struct AtlasVialEditorSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("Vial") {
+            AtlasScreen {
+                let photoAttached = referencePhotoData.isEmpty == false || draft.referencePhotoRelativePath != nil
+                let stockProgress = draft.startingQuantity > 0 ? min(max(draft.remainingQuantity / draft.startingQuantity, 0), 1) : 0
+
+                AtlasCommandDeck(
+                    eyebrow: draft.id == nil ? "New vial" : "Edit vial",
+                    title: draft.label.isEmpty ? "Build a vial record" : draft.label,
+                    detail: "Track reference photo, concentration, and depletion.",
+                    metrics: [
+                        AtlasMetricItem(id: "linked", title: "Linked", value: draft.protocolID == nil ? "No" : "Yes", tint: draft.protocolID == nil ? AtlasPalette.secondaryText : AtlasPalette.success),
+                        AtlasMetricItem(id: "photo", title: "Photo", value: photoAttached ? "Added" : "None", tint: photoAttached ? AtlasPalette.primary : AtlasPalette.secondaryText)
+                    ],
+                    tint: AtlasPalette.primary,
+                    style: .hero
+                ) {
+                    AtlasCalloutRow(
+                        systemImage: "shippingbox.fill",
+                        title: "Tracking posture",
+                        detail: draft.protocolID == nil ? "Keep this vial standalone until it is linked to a protocol." : "This vial is linked to protocol inventory tracking.",
+                        tint: AtlasPalette.secondaryText
+                    )
+                    AtlasProgressMeter(
+                        title: "Remaining runway",
+                        detail: draft.startingQuantity > 0 ? "\(draft.remainingQuantity.cleanAtlasNumber) of \(draft.startingQuantity.cleanAtlasNumber) \(draft.quantityUnit) remaining." : "Add the starting quantity to show depletion.",
+                        value: stockProgress,
+                        tint: stockProgress <= 0.25 ? AtlasPalette.warning : AtlasPalette.primary
+                    )
+                } footer: { EmptyView() }
+
+                AtlasSectionCard(style: .task, title: "Reference capture") {
+                    Text("Attach a label photo to scan notes and keep a reference image.")
+                        .atlasTextRole(.supporting)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+
+                    PhotosPicker(selection: $selectedPhoto, matching: .images) {
+                        AtlasInventoryPhotoPickerLabel(title: photoAttached ? "Update vial photo" : "Choose vial photo")
+                    }
+                    .buttonStyle(AtlasSecondaryButtonStyle())
+
+                    if referencePhotoData.isEmpty == false {
+                        AtlasInlinePhotoPreview(data: referencePhotoData, height: 220)
+                    } else if let referencePhotoRelativePath = draft.referencePhotoRelativePath,
+                              let fileURL = try? atlasInventoryPhotoFileURL(relativePath: referencePhotoRelativePath) {
+                        AtlasInventoryReferencePhoto(path: fileURL.path)
+                            .frame(height: 220)
+                    }
+
+                    if case .loading = photoAnalysisState {
+                        ProgressView("Scanning label")
+                    } else if case let .ready(message) = photoAnalysisState {
+                        Text(message)
+                            .atlasTextRole(.supporting)
+                            .foregroundStyle(AtlasPalette.textSecondary)
+                    } else if case let .failed(message) = photoAnalysisState {
+                        Text(message)
+                            .atlasTextRole(.supporting)
+                            .foregroundStyle(.orange)
+                    }
+
+                    TextField("Scanned label notes", text: Binding(
+                        get: { draft.labelScanText ?? "" },
+                        set: { draft.labelScanText = $0.isEmpty ? nil : $0 }
+                    ), axis: .vertical)
+                    .atlasStandaloneInputSurface()
+                }
+
+                AtlasSectionCard(style: .task, title: "Vial profile") {
+                    AtlasCalloutRow(
+                        systemImage: "tag.fill",
+                        title: "Inventory identity",
+                        detail: "Name the vial clearly and set the quantity language used across depletion alerts and history.",
+                        tint: AtlasPalette.primary
+                    )
                     TextField("Label", text: Binding(
                         get: { draft.label },
                         set: { draft.label = $0 }
                     ))
+                    .atlasStandaloneInputSurface()
                     Picker("Linked protocol", selection: Binding(
                         get: { draft.protocolID },
                         set: { draft.protocolID = $0 }
@@ -832,23 +2250,74 @@ private struct AtlasVialEditorSheet: View {
                         set: { draft.startingQuantity = Double($0) ?? draft.startingQuantity }
                     ))
                     .atlasDecimalKeyboard()
+                    .atlasStandaloneInputSurface()
                     TextField("Current remaining quantity", text: Binding(
                         get: { String(draft.remainingQuantity.cleanAtlasNumber) },
                         set: { draft.remainingQuantity = Double($0) ?? draft.remainingQuantity }
                     ))
                     .atlasDecimalKeyboard()
+                    .atlasStandaloneInputSurface()
                     TextField("Quantity unit", text: Binding(
                         get: { draft.quantityUnit },
                         set: { draft.quantityUnit = $0 }
                     ))
+                    .atlasStandaloneInputSurface()
                     TextField("Low-stock threshold", text: Binding(
                         get: { draft.lowStockThreshold.map { String($0.cleanAtlasNumber) } ?? "" },
                         set: { draft.lowStockThreshold = Double($0) }
                     ))
                     .atlasDecimalKeyboard()
+                    .atlasStandaloneInputSurface()
                 }
 
-                Section("Reconstitution link") {
+                AtlasSectionCard(style: .utility, title: "Lifecycle") {
+                    AtlasCalloutRow(
+                        systemImage: "calendar.badge.clock",
+                        title: "Shelf-life controls",
+                        detail: "Track opened and expiration dates only when they materially help your protocol planning or safety review.",
+                        tint: AtlasPalette.secondaryText
+                    )
+                    Toggle("Track opened date", isOn: Binding(
+                        get: { draft.openedAt != nil },
+                        set: { enabled in
+                            draft.openedAt = enabled ? (draft.openedAt ?? model.currentDate()) : nil
+                        }
+                    ))
+                    if draft.openedAt != nil {
+                        DatePicker(
+                            "Opened on",
+                            selection: Binding(
+                                get: { draft.openedAt ?? model.currentDate() },
+                                set: { draft.openedAt = $0 }
+                            ),
+                            displayedComponents: [.date, .hourAndMinute]
+                        )
+                    }
+                    Toggle("Track expiration", isOn: Binding(
+                        get: { draft.expiresAt != nil },
+                        set: { enabled in
+                            draft.expiresAt = enabled ? (draft.expiresAt ?? model.currentDate()) : nil
+                        }
+                    ))
+                    if draft.expiresAt != nil {
+                        DatePicker(
+                            "Expires on",
+                            selection: Binding(
+                                get: { draft.expiresAt ?? model.currentDate() },
+                                set: { draft.expiresAt = $0 }
+                            ),
+                            displayedComponents: [.date, .hourAndMinute]
+                        )
+                    }
+                }
+
+                AtlasSectionCard(style: .task, title: "Reconstitution link") {
+                    AtlasCalloutRow(
+                        systemImage: "function",
+                        title: "Calculator connection",
+                        detail: "Pull in a saved calculator profile to prefill concentration and volume.",
+                        tint: AtlasPalette.success
+                    )
                     Picker("Calculator profile", selection: Binding(
                         get: { draft.calculatorProfileID },
                         set: { newValue in
@@ -866,31 +2335,91 @@ private struct AtlasVialEditorSheet: View {
                         set: { draft.concentrationValue = Double($0) }
                     ))
                     .atlasDecimalKeyboard()
+                    .atlasStandaloneInputSurface()
                     TextField("Concentration unit", text: Binding(
                         get: { draft.concentrationUnit ?? "" },
                         set: { draft.concentrationUnit = $0.isEmpty ? nil : $0 }
                     ))
+                    .atlasStandaloneInputSurface()
                     TextField("Volume mL", text: Binding(
                         get: { draft.volumeML.map { String($0.cleanAtlasNumber) } ?? "" },
                         set: { draft.volumeML = Double($0) }
                     ))
                     .atlasDecimalKeyboard()
+                    .atlasStandaloneInputSurface()
                 }
-            }
-            .atlasFormSurface()
-            .navigationTitle(draft.id == nil ? "New Vial" : "Edit Vial")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
+
+                AtlasSectionCard(style: .utility, title: "Commit") {
+                    Text("Save when the photo, concentration, and depletion thresholds look right.")
+                        .atlasTextRole(.supporting)
+                        .foregroundStyle(AtlasPalette.textSecondary)
                     Button("Save") {
+                        AtlasFeedback.selection()
                         Task {
-                            if await model.saveVial(draft) != nil {
+                            var saveDraft = draft
+                            if referencePhotoData.isEmpty == false {
+                                let vialID = saveDraft.id ?? UUID().uuidString
+                                saveDraft.id = vialID
+                                saveDraft.referencePhotoRelativePath = try? atlasWriteInventoryPhoto(data: referencePhotoData, id: vialID)
+                            }
+                            if await model.saveVial(saveDraft) != nil {
                                 dismiss()
                             }
                         }
                     }
+                    .buttonStyle(AtlasPrimaryButtonStyle())
+
+                    Button("Cancel") {
+                        AtlasFeedback.selection()
+                        dismiss()
+                    }
+                    .buttonStyle(AtlasSecondaryButtonStyle())
+                }
+            }
+            .navigationTitle(draft.id == nil ? "New Vial" : "Edit Vial")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        AtlasFeedback.selection()
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        AtlasFeedback.selection()
+                        Task {
+                            var saveDraft = draft
+                            if referencePhotoData.isEmpty == false {
+                                let vialID = saveDraft.id ?? UUID().uuidString
+                                saveDraft.id = vialID
+                                saveDraft.referencePhotoRelativePath = try? atlasWriteInventoryPhoto(data: referencePhotoData, id: vialID)
+                            }
+                            if await model.saveVial(saveDraft) != nil {
+                                dismiss()
+                            }
+                        }
+                    }
+                }
+            }
+            .task(id: selectedPhoto) {
+                guard let selectedPhoto else {
+                    return
+                }
+                photoAnalysisState = .loading
+                guard let data = try? await selectedPhoto.loadTransferable(type: Data.self),
+                      let jpegData = atlasNormalizedJPEGData(from: data) else {
+                    photoAnalysisState = .failed("Couldn't read that vial photo.")
+                    return
+                }
+                referencePhotoData = jpegData
+                if let scanText = await atlasInventoryLabelScanText(from: jpegData) {
+                    draft.labelScanText = scanText
+                    if draft.label.isEmpty {
+                        draft.label = atlasInventorySuggestedLabel(from: scanText)
+                    }
+                    photoAnalysisState = .ready("Scanned the label and prefilled notes for review.")
+                } else {
+                    photoAnalysisState = .failed("Couldn't read a label from that image yet.")
                 }
             }
         }
@@ -925,6 +2454,58 @@ private struct AtlasVialEditorSheet: View {
     }
 }
 
+@MainActor
+private struct AtlasInventoryPhotoPickerLabel: View {
+    let title: String
+
+    var body: some View {
+        HStack(spacing: AtlasSpacing.small) {
+            Image(systemName: "camera")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 16, height: 16)
+            Text(title)
+                .atlasTextRole(.cardBody)
+        }
+    }
+}
+
+private struct AtlasInventoryReferencePhoto: View {
+    let path: String
+
+    var body: some View {
+        Group {
+            #if canImport(UIKit)
+            if let image = UIImage(contentsOfFile: path) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(AtlasPalette.surfaceSecondary)
+            }
+            #else
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(AtlasPalette.surfaceSecondary)
+            #endif
+        }
+        .frame(maxWidth: .infinity)
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(AtlasPalette.border.opacity(0.55), lineWidth: 1)
+        )
+    }
+}
+
+private func atlasInventorySuggestedLabel(from text: String) -> String {
+    text
+        .split(whereSeparator: \.isNewline)
+        .map(String.init)
+        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        .first(where: { $0.isEmpty == false }) ?? "Scanned vial"
+}
+
 private struct AtlasConsumableEditorSheet: View {
     let model: AtlasAppModel
     @State private var draft: AtlasConsumableDraft
@@ -937,16 +2518,52 @@ private struct AtlasConsumableEditorSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("Supply") {
+            AtlasScreen {
+                let archived = draft.archivedAt != nil
+                let lowStock = draft.reorderThreshold.map { draft.quantityOnHand <= $0 } ?? false
+
+                AtlasCommandDeck(
+                    eyebrow: draft.id == nil ? "New supply" : "Edit supply",
+                    title: draft.name.isEmpty ? "Build a supply record" : draft.name,
+                    detail: "Keep units, runway signals, and local supply notes inside one workflow.",
+                    metrics: [
+                        AtlasMetricItem(id: "linked", title: "Linked", value: draft.protocolID == nil ? "No" : "Yes", tint: draft.protocolID == nil ? AtlasPalette.secondaryText : AtlasPalette.success),
+                        AtlasMetricItem(id: "archived", title: "Archived", value: archived ? "Yes" : "No", tint: archived ? AtlasPalette.secondaryText : AtlasPalette.primary)
+                    ],
+                    tint: AtlasPalette.secondaryText,
+                    style: .hero
+                ) {
+                    AtlasCalloutRow(
+                        systemImage: "shippingbox.fill",
+                        title: "Supply posture",
+                        detail: lowStock ? "Current quantity is at or below the runway threshold." : "This supply will surface for review once it crosses the threshold.",
+                        tint: lowStock ? AtlasPalette.warning : AtlasPalette.secondaryText
+                    )
+                    AtlasProgressMeter(
+                        title: "On-hand confidence",
+                        detail: draft.reorderThreshold.map { "\(draft.quantityOnHand.cleanAtlasNumber) \(draft.unit) on hand vs a runway threshold of \($0.cleanAtlasNumber)." } ?? "Add a runway threshold to flag supply risk automatically.",
+                        value: draft.reorderThreshold.map { min(max($0 == 0 ? 1 : draft.quantityOnHand / max($0 * 2, 1), 0), 1) } ?? 0.65,
+                        tint: lowStock ? AtlasPalette.warning : AtlasPalette.primary
+                    )
+                } footer: { EmptyView() }
+
+                AtlasSectionCard(style: .task, title: "Supply identity") {
+                    AtlasCalloutRow(
+                        systemImage: "cube.box.fill",
+                        title: "What this tracks",
+                        detail: "Name the supply, set its unit, and optionally link it to a protocol.",
+                        tint: AtlasPalette.primary
+                    )
                     TextField("Name", text: Binding(
                         get: { draft.name },
                         set: { draft.name = $0 }
                     ))
+                    .atlasStandaloneInputSurface()
                     TextField("Category", text: Binding(
                         get: { draft.category ?? "" },
                         set: { draft.category = $0.isEmpty ? nil : $0 }
                     ))
+                    .atlasStandaloneInputSurface()
                     Picker("Linked protocol", selection: Binding(
                         get: { draft.protocolID },
                         set: { draft.protocolID = $0 }
@@ -962,65 +2579,111 @@ private struct AtlasConsumableEditorSheet: View {
                         set: { draft.quantityOnHand = Double($0) ?? draft.quantityOnHand }
                     ))
                     .atlasDecimalKeyboard()
+                    .atlasStandaloneInputSurface()
                     TextField("Unit", text: Binding(
                         get: { draft.unit },
                         set: { draft.unit = $0 }
                     ))
+                    .atlasStandaloneInputSurface()
                     TextField("Use per taken log", text: Binding(
                         get: { draft.quantityPerUse.map(\.cleanAtlasNumber) ?? "" },
                         set: { draft.quantityPerUse = Double($0) }
                     ))
                     .atlasDecimalKeyboard()
+                    .atlasStandaloneInputSurface()
                 }
 
-                Section("Reorder") {
-                    TextField("Reorder threshold", text: Binding(
+                AtlasSectionCard(style: .utility, title: "Runway planning") {
+                    AtlasCalloutRow(
+                        systemImage: "calendar.badge.clock",
+                        title: "Runway timing",
+                        detail: "Thresholds and lead time control early runway warnings.",
+                        tint: AtlasPalette.warning
+                    )
+                    TextField("Runway threshold", text: Binding(
                         get: { draft.reorderThreshold.map(\.cleanAtlasNumber) ?? "" },
                         set: { draft.reorderThreshold = Double($0) }
                     ))
                     .atlasDecimalKeyboard()
+                    .atlasStandaloneInputSurface()
                     TextField("Lead time (days)", text: Binding(
                         get: { draft.reorderLeadTimeDays.map(String.init) ?? "" },
                         set: { draft.reorderLeadTimeDays = Int($0) }
                     ))
                     .atlasDecimalKeyboard()
+                    .atlasStandaloneInputSurface()
                 }
 
-                Section("Details") {
+                AtlasSectionCard(style: .task, title: "Details") {
+                    AtlasCalloutRow(
+                        systemImage: "doc.text.magnifyingglass",
+                        title: "Operational notes",
+                        detail: "Capture lot details and local notes for future review.",
+                        tint: AtlasPalette.secondaryText
+                    )
                     TextField("Lot", text: Binding(
                         get: { draft.lotNumber ?? "" },
                         set: { draft.lotNumber = $0.isEmpty ? nil : $0 }
                     ))
+                    .atlasStandaloneInputSurface()
                     TextField("Size", text: Binding(
                         get: { draft.sizeDescription ?? "" },
                         set: { draft.sizeDescription = $0.isEmpty ? nil : $0 }
                     ))
-                    TextField("Vendor or store", text: Binding(
+                    .atlasStandaloneInputSurface()
+                    TextField("Inventory note", text: Binding(
                         get: { draft.vendorLabel ?? "" },
                         set: { draft.vendorLabel = $0.isEmpty ? nil : $0 }
                     ))
-                    TextField("Purchase notes", text: Binding(
+                    .atlasStandaloneInputSurface()
+                    TextField("Local notes", text: Binding(
                         get: { draft.purchaseNotes ?? "" },
                         set: { draft.purchaseNotes = $0.isEmpty ? nil : $0 }
                     ), axis: .vertical)
+                    .atlasStandaloneInputSurface()
                     TextField("Notes", text: Binding(
                         get: { draft.notes ?? "" },
                         set: { draft.notes = $0.isEmpty ? nil : $0 }
                     ), axis: .vertical)
+                    .atlasStandaloneInputSurface()
                     Toggle("Archive supply", isOn: Binding(
                         get: { draft.archivedAt != nil },
                         set: { draft.archivedAt = $0 ? model.currentDate() : nil }
                     ))
                 }
+
+                AtlasSectionCard(style: .utility, title: "Commit") {
+                    Text("Save when the quantity language, runway posture, and local notes look right.")
+                        .atlasTextRole(.supporting)
+                        .foregroundStyle(AtlasPalette.textSecondary)
+                    Button("Save") {
+                        AtlasFeedback.selection()
+                        Task {
+                            if await model.saveConsumable(draft) != nil {
+                                dismiss()
+                            }
+                        }
+                    }
+                    .buttonStyle(AtlasPrimaryButtonStyle())
+
+                    Button("Cancel") {
+                        AtlasFeedback.selection()
+                        dismiss()
+                    }
+                    .buttonStyle(AtlasSecondaryButtonStyle())
+                }
             }
-            .atlasFormSurface()
             .navigationTitle(draft.id == nil ? "New Supply" : "Edit Supply")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button("Cancel") {
+                        AtlasFeedback.selection()
+                        dismiss()
+                    }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
+                        AtlasFeedback.selection()
                         Task {
                             if await model.saveConsumable(draft) != nil {
                                 dismiss()
@@ -1051,15 +2714,20 @@ private struct AtlasProtocolInventorySettingsSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
-                    Text(model.renderedTitle(canonical: item.canonicalTitle, alias: item.aliasTitle))
-                        .font(.headline)
-                    Text("\(item.kindLabel) • \(item.cadenceLabel)")
-                        .foregroundStyle(AtlasPalette.textSecondary)
-                }
+            AtlasScreen {
+                AtlasCommandDeck(
+                    eyebrow: "Protocol inventory",
+                    title: model.renderedTitle(canonical: item.canonicalTitle, alias: item.aliasTitle),
+                    detail: "\(item.kindLabel) • \(item.cadenceLabel)",
+                    metrics: [
+                        AtlasMetricItem(id: "tracking", title: "Site tracking", value: siteTrackingEnabled ? "On" : "Off", tint: siteTrackingEnabled ? AtlasPalette.success : AtlasPalette.secondaryText),
+                        AtlasMetricItem(id: "rotation", title: "Rotation", value: siteRotationEnabled ? "On" : "Off", tint: siteRotationEnabled ? AtlasPalette.primary : AtlasPalette.secondaryText)
+                    ],
+                    tint: AtlasPalette.primary,
+                    style: .hero
+                ) { } footer: { }
 
-                Section("Inventory") {
+                AtlasSectionCard(title: "Inventory") {
                     Picker("Active vial", selection: $linkedVialID) {
                         Text("None").tag(Optional<String>.none)
                         ForEach(model.inventorySnapshot.vials.filter { $0.archivedAt == nil }) { vial in
@@ -1068,16 +2736,39 @@ private struct AtlasProtocolInventorySettingsSheet: View {
                     }
                 }
 
-                Section("Site tracking") {
+                AtlasSectionCard(title: "Site tracking") {
                     Toggle("Enable site tracking", isOn: $siteTrackingEnabled)
                     Toggle("Rotate suggested site", isOn: $siteRotationEnabled)
                         .disabled(siteTrackingEnabled == false)
-                    Text("When rotation is enabled, Atlas suggests the next saved site after the last completed log.")
-                        .font(.caption)
+                    Text("When rotation is enabled, the next saved site is suggested after the last completed log.")
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
+
+                AtlasSectionCard(style: .utility, title: "Commit") {
+                    Button("Save") {
+                        AtlasFeedback.selection()
+                        Task {
+                            await model.updateProtocolInventorySettings(
+                                AtlasProtocolInventorySettingsUpdate(
+                                    protocolID: item.id,
+                                    linkedVialID: linkedVialID,
+                                    siteTrackingEnabled: siteTrackingEnabled,
+                                    siteRotationEnabled: siteTrackingEnabled ? siteRotationEnabled : false
+                                )
+                            )
+                            dismiss()
+                        }
+                    }
+                    .buttonStyle(AtlasPrimaryButtonStyle())
+
+                    Button("Cancel") {
+                        AtlasFeedback.selection()
+                        dismiss()
+                    }
+                    .buttonStyle(AtlasSecondaryButtonStyle())
+                }
             }
-            .atlasFormSurface()
             .navigationTitle("Protocol settings")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -1085,6 +2776,7 @@ private struct AtlasProtocolInventorySettingsSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
+                        AtlasFeedback.selection()
                         Task {
                             await model.updateProtocolInventorySettings(
                                 AtlasProtocolInventorySettingsUpdate(
@@ -1129,23 +2821,68 @@ private struct AtlasConsumableProcurementSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("Procurement") {
-                    TextField("Quantity received", text: $quantityReceived)
+            AtlasScreen {
+                AtlasCommandDeck(
+                    eyebrow: "Inventory note",
+                    title: "Capture a local inventory update",
+                    detail: "Capture a local inventory note.",
+                    metrics: [
+                        AtlasMetricItem(id: "unit", title: "Unit", value: state.quantityUnit, tint: AtlasPalette.secondaryText)
+                    ],
+                    tint: AtlasPalette.secondaryText,
+                    style: .hero
+                ) { } footer: { }
+
+                AtlasSectionCard(title: "Supply update") {
+                    TextField("Quantity added", text: $quantityReceived)
                         .atlasDecimalKeyboard()
-                    DatePicker("Received on", selection: $receivedAt, displayedComponents: [.date, .hourAndMinute])
+                        .atlasStandaloneInputSurface()
+                    DatePicker("Logged on", selection: $receivedAt, displayedComponents: [.date, .hourAndMinute])
                 }
 
-                Section("Source details") {
-                    TextField("Vendor or source", text: $vendorLabel)
-                    TextField("Source note", text: $sourceDetail, axis: .vertical)
-                    Text("Atlas records this locally for planning history only. It never turns into a buy-now flow.")
-                        .font(.caption)
+                AtlasSectionCard(title: "Supply details") {
+                    TextField("Inventory note", text: $vendorLabel)
+                        .atlasStandaloneInputSurface()
+                    TextField("Local note", text: $sourceDetail, axis: .vertical)
+                        .atlasStandaloneInputSurface()
+                    Text("This stays local as planning history only.")
+                        .atlasTextRole(.supporting)
                         .foregroundStyle(AtlasPalette.textSecondary)
                 }
+
+                AtlasSectionCard(style: .utility, title: "Commit") {
+                    Button("Save") {
+                        AtlasFeedback.selection()
+                        Task {
+                            guard let quantity = Double(quantityReceived) else {
+                                return
+                            }
+                            let result = await model.recordConsumableProcurement(
+                                AtlasConsumableProcurementDraft(
+                                    consumableID: state.consumableID,
+                                    quantityReceived: quantity,
+                                    vendorLabel: vendorLabel.isEmpty ? nil : vendorLabel,
+                                    sourceDetail: sourceDetail.isEmpty ? nil : sourceDetail,
+                                    receivedAt: receivedAt
+                                )
+                            )
+                            guard result != nil else {
+                                return
+                            }
+                            await onSaved()
+                            dismiss()
+                        }
+                    }
+                    .buttonStyle(AtlasPrimaryButtonStyle())
+
+                    Button("Cancel") {
+                        AtlasFeedback.selection()
+                        dismiss()
+                    }
+                    .buttonStyle(AtlasSecondaryButtonStyle())
+                }
             }
-            .atlasFormSurface()
-            .navigationTitle("Record Procurement")
+            .navigationTitle("Record Supply Note")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
@@ -1190,27 +2927,86 @@ private struct AtlasSiteEditorSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("Site") {
+            AtlasScreen {
+                AtlasCommandDeck(
+                    eyebrow: "Site editor",
+                    title: draft.id == nil ? "Create a site" : "Update a site",
+                    detail: "Saved hotspots support clearer tracking and calmer rotation suggestions.",
+                    metrics: [
+                        AtlasMetricItem(id: "mapped", title: "Mapped", value: draft.mapRegionKey == nil ? "No" : "Yes", tint: draft.mapRegionKey == nil ? AtlasPalette.secondaryText : AtlasPalette.success)
+                    ],
+                    tint: AtlasPalette.primary,
+                    style: .hero
+                ) { } footer: { }
+
+                AtlasSectionCard(title: "Body map") {
+                    AtlasBodyMapPicker(selection: Binding(
+                        get: { draft.mapRegionKey },
+                        set: { region in
+                            draft.mapRegionKey = region
+                            guard let region else {
+                                return
+                            }
+                            if draft.bodyArea?.isEmpty != false {
+                                draft.bodyArea = region.bodyArea
+                            }
+                            if draft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                draft.name = region.title
+                            }
+                        }
+                    ))
+
+                    if let region = draft.mapRegionKey {
+                        Text("Selected hotspot: \(region.title)")
+                            .atlasTextRole(.deckEyebrow)
+                            .foregroundStyle(AtlasPalette.textSecondary)
+                        Button("Clear hotspot") {
+                            AtlasFeedback.selection()
+                            draft.mapRegionKey = nil
+                        }
+                        .buttonStyle(AtlasSecondaryButtonStyle())
+                    }
+                }
+
+                AtlasSectionCard(title: "Site") {
                     TextField("Name", text: Binding(
                         get: { draft.name },
                         set: { draft.name = $0 }
                     ))
+                    .atlasStandaloneInputSurface()
                     TextField("Body area", text: Binding(
                         get: { draft.bodyArea ?? "" },
                         set: { draft.bodyArea = $0.isEmpty ? nil : $0 }
                     ))
+                    .atlasStandaloneInputSurface()
                     TextField("Notes", text: Binding(
                         get: { draft.notes ?? "" },
                         set: { draft.notes = $0.isEmpty ? nil : $0 }
                     ), axis: .vertical)
+                    .atlasStandaloneInputSurface()
                     Toggle("Archive site", isOn: Binding(
                         get: { draft.archivedAt != nil },
                         set: { draft.archivedAt = $0 ? model.currentDate() : nil }
                     ))
                 }
+
+                AtlasSectionCard(style: .utility, title: "Commit") {
+                    Button("Save") {
+                        AtlasFeedback.selection()
+                        Task {
+                            await model.saveSite(draft)
+                            dismiss()
+                        }
+                    }
+                    .buttonStyle(AtlasPrimaryButtonStyle())
+
+                    Button("Cancel") {
+                        AtlasFeedback.selection()
+                        dismiss()
+                    }
+                    .buttonStyle(AtlasSecondaryButtonStyle())
+                }
             }
-            .atlasFormSurface()
             .navigationTitle(draft.id == nil ? "New Site" : "Edit Site")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

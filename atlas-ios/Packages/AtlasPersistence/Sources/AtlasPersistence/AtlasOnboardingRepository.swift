@@ -14,6 +14,9 @@ enum AtlasOnboardingRepositoryError: LocalizedError {
     }
 }
 
+private let atlasOnboardingFunnelEventsKey = "onboarding_funnel_events_json"
+private let atlasOnboardingFunnelEventLimit = 240
+
 public struct GRDBOnboardingRepository: OnboardingRepository, Sendable {
     let stack: AtlasDatabaseStack
     let healthKit: any HealthKitManaging
@@ -40,7 +43,52 @@ public struct GRDBOnboardingRepository: OnboardingRepository, Sendable {
             if let accountMode = draft.accountMode {
                 try writeAppSetting(db: db, key: "account_start_mode", value: accountMode.rawValue, now: now)
             }
+            try writeAppSetting(
+                db: db,
+                key: "mascot_nickname",
+                value: atlasMascotSanitizedNickname(draft.profile.mascotNickname),
+                now: now
+            )
+            if let mascotSelection = draft.profile.mascotSelection ?? atlasInferredMascotSelection(from: draft.profile.gender) {
+                try writeAppSetting(db: db, key: "mascot_selection", value: mascotSelection.rawValue, now: now)
+                try writeAppSetting(
+                    db: db,
+                    key: "mascot_selection_confirmed",
+                    value: draft.profile.mascotSelection == nil ? "0" : "1",
+                    now: now
+                )
+            }
+            try writeAppSetting(
+                db: db,
+                key: "ambient_mascot_presence",
+                value: draft.companionPresence.rawValue,
+                now: now
+            )
             return try buildBootstrapSnapshot(db: db)
+        }
+    }
+
+    public func recordFunnelEvent(_ event: AtlasOnboardingFunnelEvent, now: Date) async throws {
+        try await stack.canonical.write { db in
+            var events = try readFunnelEvents(db: db)
+            events.append(event)
+            if events.count > atlasOnboardingFunnelEventLimit {
+                events = Array(events.suffix(atlasOnboardingFunnelEventLimit))
+            }
+            try writeAppSetting(db: db, key: atlasOnboardingFunnelEventsKey, value: encodeFunnelEvents(events), now: now)
+            try writeAppSetting(db: db, key: "onboarding_funnel_event_count", value: String(events.count), now: now)
+            try writeAppSetting(db: db, key: "onboarding_funnel_last_event", value: event.name.rawValue, now: now)
+            try writeAppSetting(db: db, key: "onboarding_funnel_last_step", value: event.step.rawValue, now: now)
+        }
+    }
+
+    public func fetchFunnelEvents(limit: Int) async throws -> [AtlasOnboardingFunnelEvent] {
+        try await stack.canonical.read { db in
+            let events = try readFunnelEvents(db: db)
+            guard limit > 0, events.count > limit else {
+                return events
+            }
+            return Array(events.suffix(limit))
         }
     }
 
@@ -55,11 +103,58 @@ public struct GRDBOnboardingRepository: OnboardingRepository, Sendable {
             try writeAppSetting(db: db, key: "onboarding_draft_json", value: encodeDraft(draft), now: now)
             try writeAppSetting(db: db, key: "onboarding_completed", value: "1", now: now)
             try writeAppSetting(db: db, key: "onboarding_completed_at", value: atlasTimestamp(from: now), now: now)
-            try writeAppSetting(db: db, key: "account_start_mode", value: draft.accountMode?.rawValue, now: now)
+            let accountMode = draft.accountMode ?? .guest
+            try writeAppSetting(db: db, key: "account_start_mode", value: accountMode.rawValue, now: now)
+            try writeAppSetting(db: db, key: "onboarding_paywall_choice", value: draft.paywallChoice?.rawValue, now: now)
+            try writeAppSetting(
+                db: db,
+                key: "kairo_premium_access",
+                value: draft.paywallChoice == .trialStarted ? "pro_trial" : "limited_preview",
+                now: now
+            )
+            try writeAppSetting(
+                db: db,
+                key: "kairo_limited_preview_started_at",
+                value: draft.paywallChoice == .basic ? atlasTimestamp(from: now) : nil,
+                now: now
+            )
+            try writeAppSetting(db: db, key: "onboarding_premium_plan", value: draft.premiumPlan.rawValue, now: now)
+            try writeAppSetting(db: db, key: "onboarding_primary_focus", value: draft.focus?.rawValue, now: now)
+            try writeAppSetting(db: db, key: "onboarding_journey_status", value: draft.journeyStatus?.rawValue, now: now)
+            try writeAppSetting(
+                db: db,
+                key: "onboarding_health_disclaimer_accepted",
+                value: draft.healthDisclaimerAccepted ? "1" : "0",
+                now: now
+            )
+            if atlasOnboardingShouldEnableRewards(from: draft) {
+                try writeAppSetting(db: db, key: "rewards_enabled", value: "1", now: now)
+                try writeAppSetting(db: db, key: "rewards_weekly_workout_goal", value: "3", now: now)
+                try writeAppSetting(db: db, key: "rewards_weekly_self_goal_target", value: "2", now: now)
+            }
+            try writeAppSetting(
+                db: db,
+                key: "mascot_selection",
+                value: (draft.profile.mascotSelection ?? atlasInferredMascotSelection(from: draft.profile.gender) ?? .aetherion).rawValue,
+                now: now
+            )
+            try writeAppSetting(
+                db: db,
+                key: "mascot_nickname",
+                value: atlasMascotSanitizedNickname(draft.profile.mascotNickname),
+                now: now
+            )
+            try writeAppSetting(db: db, key: "mascot_selection_confirmed", value: "1", now: now)
+            try writeAppSetting(
+                db: db,
+                key: "ambient_mascot_presence",
+                value: draft.companionPresence.rawValue,
+                now: now
+            )
             try writeAppSetting(
                 db: db,
                 key: "account_mode",
-                value: draft.accountMode == .guest ? AtlasAccountMode.guest.rawValue : AtlasAccountMode.account.rawValue,
+                value: accountMode == .guest ? AtlasAccountMode.guest.rawValue : AtlasAccountMode.account.rawValue,
                 now: now
             )
             try writeAppSetting(
@@ -70,34 +165,38 @@ public struct GRDBOnboardingRepository: OnboardingRepository, Sendable {
             )
 
             var profile = try AtlasPrivacyProfileDBRecord.fetchOne(db)?.domain ?? .default()
-            let shouldUseDiscreet = draft.privacy.discreetNotifications || draft.privacy.hideSensitiveLabels
-            profile.renderMode = shouldUseDiscreet ? .discreet : .full
-            profile.aliasModeEnabled = false
+            switch draft.privacyPreset {
+            case .alias:
+                profile.renderMode = .alias
+                profile.aliasModeEnabled = true
+            case .discreet:
+                profile.renderMode = .discreet
+                profile.aliasModeEnabled = false
+            case .standard, .none:
+                let shouldUseDiscreet = draft.privacy.discreetNotifications || draft.privacy.hideSensitiveLabels
+                profile.renderMode = shouldUseDiscreet ? .discreet : .full
+                profile.aliasModeEnabled = false
+            }
             profile.biometricLockEnabled = false
             profile.biometricGateMode = draft.privacy.biometricLater ? .bestEffort : .off
             profile.updatedAt = atlasTimestamp(from: now)
             try AtlasPrivacyProfileDBRecord(record: profile).save(db)
 
-            _ = try AtlasHealthConnectionDBRecord
+            let existingHealthConnection = try AtlasHealthConnectionDBRecord
                 .filter(Column("provider_key") == AtlasHealthProviderKey.appleHealth.rawValue)
-                .fetchOne(db)?.domain ?? AtlasHealthConnectionRecord.make(
-                    providerKey: .appleHealth,
+                .fetchOne(db)?.domain
+            if existingHealthConnection == nil {
+                try writeHealthConnection(
+                    db: db,
+                    provider: .appleHealth,
                     enabled: false,
                     connected: false,
                     lastSyncAt: nil,
                     lastError: nil,
-                    createdAt: atlasTimestamp(from: now),
-                    updatedAt: atlasTimestamp(from: now)
+                    now: now
                 )
-            try writeHealthConnection(
-                db: db,
-                provider: .appleHealth,
-                enabled: false,
-                connected: false,
-                lastSyncAt: nil,
-                lastError: nil,
-                now: now
-            )
+            }
+            try seedOnboardingWeightLogIfNeeded(db: db, draft: draft, now: now)
 
             return try buildBootstrapSnapshot(
                 db: db,
@@ -114,9 +213,29 @@ public struct GRDBOnboardingRepository: OnboardingRepository, Sendable {
             try writeAppSetting(db: db, key: "onboarding_completed", value: "0", now: now)
             try writeAppSetting(db: db, key: "onboarding_completed_at", value: nil, now: now)
             try writeAppSetting(db: db, key: "account_start_mode", value: nil, now: now)
+            try writeAppSetting(db: db, key: "onboarding_paywall_choice", value: nil, now: now)
+            try writeAppSetting(db: db, key: "kairo_premium_access", value: nil, now: now)
+            try writeAppSetting(db: db, key: "kairo_limited_preview_started_at", value: nil, now: now)
+            try writeAppSetting(db: db, key: "onboarding_premium_plan", value: nil, now: now)
+            try writeAppSetting(db: db, key: "onboarding_primary_focus", value: nil, now: now)
+            try writeAppSetting(db: db, key: "onboarding_journey_status", value: nil, now: now)
+            try writeAppSetting(db: db, key: atlasOnboardingFunnelEventsKey, value: nil, now: now)
+            try writeAppSetting(db: db, key: "onboarding_funnel_event_count", value: nil, now: now)
+            try writeAppSetting(db: db, key: "onboarding_funnel_last_event", value: nil, now: now)
+            try writeAppSetting(db: db, key: "onboarding_funnel_last_step", value: nil, now: now)
+            try writeAppSetting(db: db, key: "mascot_selection", value: nil, now: now)
+            try writeAppSetting(db: db, key: "mascot_nickname", value: nil, now: now)
+            try writeAppSetting(db: db, key: "mascot_selection_confirmed", value: nil, now: now)
             return try buildBootstrapSnapshot(db: db)
         }
     }
+}
+
+private func atlasOnboardingShouldEnableRewards(from draft: AtlasOnboardingDraft) -> Bool {
+    draft.focus != nil
+        || draft.profile.goalWeight != nil
+        || draft.profile.goalPacePoundsPerWeek != nil
+        || draft.profile.wantsNutritionTracking
 }
 
 func buildBootstrapSnapshot(
@@ -142,7 +261,12 @@ func buildBootstrapSnapshot(
     } else if isImportedLocalUser {
         reason = .importedLocalUser
         destination = .app
-    } else if draft.accountMode != nil || draft.trackType != nil || draft.healthConnectionPromptSeen {
+    } else if draft.trackType != nil
+        || draft.journeyStatus != nil
+        || draft.focus != nil
+        || draft.privacyPreset != nil
+        || draft.paywallChoice != nil
+        || draft.healthConnectionPromptSeen {
         reason = .resumedOnboarding
         destination = .onboarding
     } else if hasLocalData {
@@ -180,16 +304,73 @@ func buildSettingsSnapshot(
         db,
         sql: "SELECT value FROM atlas_app_settings WHERE key = 'onboarding_completed'"
     )
+    let mascotSelectionRaw = try String.fetchOne(
+        db,
+        sql: "SELECT value FROM atlas_app_settings WHERE key = 'mascot_selection'"
+    )
+    let mascotSelectionConfirmedRaw = try String.fetchOne(
+        db,
+        sql: "SELECT value FROM atlas_app_settings WHERE key = 'mascot_selection_confirmed'"
+    )
+    let ambientMascotPresenceRaw = try String.fetchOne(
+        db,
+        sql: "SELECT value FROM atlas_app_settings WHERE key = 'ambient_mascot_presence'"
+    )
+    let mascotNicknameRaw = try String.fetchOne(
+        db,
+        sql: "SELECT value FROM atlas_app_settings WHERE key = 'mascot_nickname'"
+    )
+    let mascotUnlocks = try atlasReadMascotUnlockSnapshots(db: db)
+    let mascotEvolutionHistory = try atlasReadMascotEvolutionHistory(db: db)
+    let mascotMoments = try atlasReadMascotMoments(db: db)
+    let mascotArchivedRecaps = try atlasReadMascotArchivedRecaps(db: db)
+    let mascotRecapNotificationSettings = try atlasReadMascotRecapNotificationSettings(db: db)
+    let weeklyReviewReminderSettings = try atlasReadWeeklyReviewReminderSettings(db: db)
+    let weeklyReviewActionPlans = try atlasReadWeeklyReviewActionPlans(db: db)
     let accountMode = AtlasAccountMode(rawValue: accountModeRaw ?? AtlasAccountMode.guest.rawValue) ?? .guest
     let accountStartMode = accountStartModeRaw.flatMap(AtlasOnboardingAccountMode.init(rawValue:))
     let onboardingCompleted = onboardingCompletedRaw == "1"
+    let onboardingDraft = try readDraft(db: db)
+    let mascotSelection = mascotSelectionRaw.flatMap(AtlasMascotSelection.init(rawValue:))
+        ?? onboardingDraft?.profile.mascotSelection
+        ?? atlasInferredMascotSelection(from: onboardingDraft?.profile.gender)
+        ?? .aetherion
+    let mascotSelectionConfirmed = mascotSelectionConfirmedRaw == "1"
+    let ambientMascotPresence = ambientMascotPresenceRaw
+        .flatMap(AtlasAmbientMascotPresence.init(rawValue:))
+        ?? .subtle
     let profile = try AtlasPrivacyProfileDBRecord.fetchOne(db)?.domain ?? .default()
     let connections = try AtlasHealthConnectionDBRecord.fetchAll(db).map(\.domain).sorted {
         $0.providerKey.rawValue < $1.providerKey.rawValue
     }
+    let syncedWeightEntryCount = try Int.fetchOne(
+        db,
+        sql: "SELECT COUNT(*) FROM weight_logs WHERE source = ?",
+        arguments: [AtlasHealthDataSource.health.rawValue]
+    ) ?? 0
+    let lastWeightEntryAt = try String.fetchOne(
+        db,
+        sql: "SELECT logged_at FROM weight_logs WHERE source = ? ORDER BY logged_at DESC LIMIT 1",
+        arguments: [AtlasHealthDataSource.health.rawValue]
+    )
+    let syncedWorkoutEntryCount = try Int.fetchOne(
+        db,
+        sql: "SELECT COUNT(*) FROM workout_logs WHERE source = ?",
+        arguments: [AtlasHealthDataSource.health.rawValue]
+    ) ?? 0
+    let lastWorkoutEntryAt = try String.fetchOne(
+        db,
+        sql: "SELECT started_at FROM workout_logs WHERE source = ? ORDER BY started_at DESC LIMIT 1",
+        arguments: [AtlasHealthDataSource.health.rawValue]
+    )
+    let signalSummaries = try buildHealthSignalSummaries(db: db)
     let syncStatus: AtlasSyncScaffoldStatus = accountMode == .guest ? .localOnly : .accountBoundary
     let summarySettings = try readSummarySettings(db: db, featureFlags: featureFlags)
     let retentionSettings = try readRetentionSettings(db: db, featureFlags: featureFlags)
+    let rewardsSettings = try readRewardsSettings(db: db)
+    let labsEnabled = try readLabsEnabled(db: db)
+    let surfacePreferences = try readSurfacePreferences(db: db)
+    let externalCalendarSettings = try readExternalCalendarSettings(db: db)
 
     return AtlasSettingsSnapshot(
         accountMode: accountMode,
@@ -198,14 +379,38 @@ func buildSettingsSnapshot(
         syncStatus: syncStatus,
         healthScaffold: AtlasHealthScaffoldSnapshot(
             isAvailable: healthKit.isAvailable(),
-            connections: connections
+            connections: connections,
+            syncsWeight: true,
+            syncsWorkouts: true,
+            syncsNutrition: true,
+            syncsPassiveSignals: true,
+            syncedWeightEntryCount: syncedWeightEntryCount,
+            lastWeightEntryAt: lastWeightEntryAt,
+            syncedWorkoutEntryCount: syncedWorkoutEntryCount,
+            lastWorkoutEntryAt: lastWorkoutEntryAt,
+            signalSummaries: signalSummaries
         ),
+        externalCalendarSettings: externalCalendarSettings,
+        labsEnabled: labsEnabled,
+        surfacePreferences: surfacePreferences,
         trustVaultStatus: TrustVaultStatus(
             renderMode: profile.renderMode ?? (profile.aliasModeEnabled ? .alias : .full),
             biometricLockEnabled: profile.biometricLockEnabled
         ),
+        mascotSelection: mascotSelection,
+        mascotNickname: atlasMascotSanitizedNickname(mascotNicknameRaw ?? onboardingDraft?.profile.mascotNickname),
+        mascotSelectionConfirmed: mascotSelectionConfirmed,
+        ambientMascotPresence: ambientMascotPresence,
+        mascotUnlocks: mascotUnlocks,
+        mascotEvolutionHistory: mascotEvolutionHistory,
+        mascotMoments: mascotMoments,
+        mascotArchivedRecaps: mascotArchivedRecaps,
+        mascotRecapNotificationSettings: mascotRecapNotificationSettings,
+        weeklyReviewReminderSettings: weeklyReviewReminderSettings,
+        weeklyReviewActionPlans: weeklyReviewActionPlans,
         summarySettings: summarySettings,
-        retentionSettings: retentionSettings
+        retentionSettings: retentionSettings,
+        rewardsSettings: rewardsSettings
     )
 }
 
@@ -260,6 +465,44 @@ func readRetentionSettings(
     )
 }
 
+func readRewardsSettings(db: Database) throws -> AtlasRewardsSettingsSnapshot {
+    let enabledValue = try String.fetchOne(
+        db,
+        sql: "SELECT value FROM atlas_app_settings WHERE key = 'rewards_enabled'"
+    )
+    let workoutGoalValue = try String.fetchOne(
+        db,
+        sql: "SELECT value FROM atlas_app_settings WHERE key = 'rewards_weekly_workout_goal'"
+    )
+    let selfGoalTargetValue = try String.fetchOne(
+        db,
+        sql: "SELECT value FROM atlas_app_settings WHERE key = 'rewards_weekly_self_goal_target'"
+    )
+
+    return AtlasRewardsSettingsSnapshot(
+        enabled: enabledValue == "1",
+        weeklyWorkoutGoal: max(Int(workoutGoalValue ?? "") ?? 3, 1),
+        weeklySelfGoalTarget: max(Int(selfGoalTargetValue ?? "") ?? 2, 1)
+    )
+}
+
+func readLabsEnabled(db: Database) throws -> Bool {
+    try String.fetchOne(
+        db,
+        sql: "SELECT value FROM atlas_app_settings WHERE key = 'labs_enabled'"
+    ) == "1"
+}
+
+func readSurfacePreferences(db: Database) throws -> AtlasSurfacePreferences {
+    guard let json = try String.fetchOne(
+        db,
+        sql: "SELECT value FROM atlas_app_settings WHERE key = 'surface_preferences_json'"
+    ), json.isEmpty == false else {
+        return .init()
+    }
+    return try JSONDecoder().decode(AtlasSurfacePreferences.self, from: Data(json.utf8))
+}
+
 func ensureDefaultHealthConnection(db: Database) throws {
     let count = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM health_connections") ?? 0
     guard count == 0 else {
@@ -276,6 +519,26 @@ func ensureDefaultHealthConnection(db: Database) throws {
         updatedAt: now
     )
     try AtlasHealthConnectionDBRecord(record: record).insert(db)
+}
+
+func seedOnboardingWeightLogIfNeeded(db: Database, draft: AtlasOnboardingDraft, now: Date) throws {
+    guard let weight = draft.profile.weight, weight > 0 else {
+        return
+    }
+    let timestamp = atlasTimestamp(from: now)
+    let id = "onboarding-initial-weight"
+    let existing = try AtlasWeightLogDBRecord.fetchOne(db, key: id)?.domain
+    let record = AtlasWeightLogRecord.make(
+        id: id,
+        loggedAt: timestamp,
+        value: weight,
+        unit: draft.profile.weightUnit ?? .lb,
+        source: .manual,
+        notes: "From onboarding",
+        createdAt: existing?.createdAt ?? timestamp,
+        updatedAt: timestamp
+    )
+    try AtlasWeightLogDBRecord(record: record).save(db)
 }
 
 func writeHealthConnection(
@@ -330,6 +593,296 @@ private func encodeDraft(_ draft: AtlasOnboardingDraft) throws -> String {
     encoder.outputFormatting = [.sortedKeys]
     let data = try encoder.encode(draft)
     return String(decoding: data, as: UTF8.self)
+}
+
+private func readFunnelEvents(db: Database) throws -> [AtlasOnboardingFunnelEvent] {
+    guard let json = try String.fetchOne(
+        db,
+        sql: "SELECT value FROM atlas_app_settings WHERE key = ?",
+        arguments: [atlasOnboardingFunnelEventsKey]
+    ), json.isEmpty == false else {
+        return []
+    }
+    return try JSONDecoder().decode([AtlasOnboardingFunnelEvent].self, from: Data(json.utf8))
+}
+
+private func encodeFunnelEvents(_ events: [AtlasOnboardingFunnelEvent]) throws -> String {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys]
+    let data = try encoder.encode(events)
+    return String(decoding: data, as: UTF8.self)
+}
+
+func atlasMascotUnlockedStageSettingKey(for selection: AtlasMascotSelection) -> String {
+    "mascot_unlocked_stage_\(selection.rawValue)"
+}
+
+func atlasReadMascotUnlockSnapshots(db: Database) throws -> [AtlasMascotUnlockSnapshot] {
+    try AtlasMascotSelection.allCases.map { selection in
+        let stageRaw = try String.fetchOne(
+            db,
+            sql: "SELECT value FROM atlas_app_settings WHERE key = ?",
+            arguments: [atlasMascotUnlockedStageSettingKey(for: selection)]
+        )
+        let stage = stageRaw.flatMap(AtlasMascotStage.init(rawValue:)) ?? .stage1
+        return AtlasMascotUnlockSnapshot(selection: selection, highestUnlockedStage: stage)
+    }
+}
+
+func atlasReadMascotEvolutionHistory(db: Database) throws -> [AtlasMascotEvolutionRecord] {
+    guard let json = try String.fetchOne(
+        db,
+        sql: "SELECT value FROM atlas_app_settings WHERE key = 'mascot_evolution_history_json'"
+    ), json.isEmpty == false else {
+        return []
+    }
+    return try JSONDecoder().decode([AtlasMascotEvolutionRecord].self, from: Data(json.utf8))
+}
+
+func atlasEncodeMascotEvolutionHistory(_ history: [AtlasMascotEvolutionRecord]) throws -> String {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys]
+    let data = try encoder.encode(history)
+    return String(decoding: data, as: UTF8.self)
+}
+
+func atlasReadMascotMoments(db: Database) throws -> [AtlasMascotMomentRecord] {
+    guard let json = try String.fetchOne(
+        db,
+        sql: "SELECT value FROM atlas_app_settings WHERE key = 'mascot_moments_json'"
+    ), json.isEmpty == false else {
+        return []
+    }
+    return try JSONDecoder().decode([AtlasMascotMomentRecord].self, from: Data(json.utf8))
+}
+
+func atlasEncodeMascotMoments(_ moments: [AtlasMascotMomentRecord]) throws -> String {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys]
+    let data = try encoder.encode(moments)
+    return String(decoding: data, as: UTF8.self)
+}
+
+func atlasReadMascotArchivedRecaps(db: Database) throws -> [AtlasMascotArchivedRecapRecord] {
+    guard let json = try String.fetchOne(
+        db,
+        sql: "SELECT value FROM atlas_app_settings WHERE key = 'mascot_archived_recaps_json'"
+    ), json.isEmpty == false else {
+        return []
+    }
+    return try JSONDecoder().decode([AtlasMascotArchivedRecapRecord].self, from: Data(json.utf8))
+}
+
+func atlasEncodeMascotArchivedRecaps(_ recaps: [AtlasMascotArchivedRecapRecord]) throws -> String {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys]
+    let data = try encoder.encode(recaps)
+    return String(decoding: data, as: UTF8.self)
+}
+
+func atlasEncodeSurfacePreferences(_ preferences: AtlasSurfacePreferences) throws -> String {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys]
+    let data = try encoder.encode(preferences)
+    return String(decoding: data, as: UTF8.self)
+}
+
+func atlasReadMascotRecapNotificationSettings(
+    db: Database
+) throws -> AtlasMascotRecapNotificationSettings {
+    let dailyEnabled = try String.fetchOne(
+        db,
+        sql: "SELECT value FROM atlas_app_settings WHERE key = 'mascot_recap_daily_enabled'"
+    ) == "1"
+    let weeklyEnabled = try String.fetchOne(
+        db,
+        sql: "SELECT value FROM atlas_app_settings WHERE key = 'mascot_recap_weekly_enabled'"
+    ) == "1"
+    return AtlasMascotRecapNotificationSettings(
+        dailyEnabled: dailyEnabled,
+        weeklyEnabled: weeklyEnabled
+    )
+}
+
+func atlasReadWeeklyReviewReminderSettings(
+    db: Database
+) throws -> AtlasWeeklyReviewReminderSettings {
+    AtlasWeeklyReviewReminderSettings(
+        enabled: try String.fetchOne(
+            db,
+            sql: "SELECT value FROM atlas_app_settings WHERE key = 'weekly_review_reminder_enabled'"
+        ) == "1"
+    )
+}
+
+func atlasReadWeeklyReviewActionPlans(db: Database) throws -> [AtlasWeeklyReviewActionPlan] {
+    guard let json = try String.fetchOne(
+        db,
+        sql: "SELECT value FROM atlas_app_settings WHERE key = 'weekly_review_action_plans_json'"
+    ), json.isEmpty == false else {
+        return []
+    }
+    return try JSONDecoder().decode([AtlasWeeklyReviewActionPlan].self, from: Data(json.utf8))
+}
+
+func atlasEncodeWeeklyReviewActionPlans(_ plans: [AtlasWeeklyReviewActionPlan]) throws -> String {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys]
+    let data = try encoder.encode(plans)
+    return String(decoding: data, as: UTF8.self)
+}
+
+func atlasInferredMascotSelection(from gender: String?) -> AtlasMascotSelection? {
+    guard let normalized = gender?
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .lowercased(),
+          normalized.isEmpty == false else {
+        return nil
+    }
+
+    let femaleTokens = ["female", "woman", "girl", "f", "she", "her"]
+    if femaleTokens.contains(where: { normalized == $0 || normalized.contains($0) }) {
+        return .aurielle
+    }
+
+    let maleTokens = ["male", "man", "boy", "m", "he", "him"]
+    if maleTokens.contains(where: { normalized == $0 || normalized.contains($0) }) {
+        return .aetherion
+    }
+
+    return nil
+}
+
+private func buildHealthSignalSummaries(db: Database) throws -> [AtlasHealthSignalSummary] {
+    try AtlasHealthSignalKind.allCases.map { kind in
+        AtlasHealthSignalSummary(
+            kind: kind,
+            importedEntryCount: try healthSignalCount(kind: kind, db: db),
+            lastEntryAt: try healthSignalLastEntryAt(kind: kind, db: db)
+        )
+    }
+}
+
+private func healthSignalCount(kind: AtlasHealthSignalKind, db: Database) throws -> Int {
+    switch kind {
+    case .weight:
+        return try Int.fetchOne(
+            db,
+            sql: "SELECT COUNT(*) FROM weight_logs WHERE source = ?",
+            arguments: [AtlasHealthDataSource.health.rawValue]
+        ) ?? 0
+    case .workouts:
+        return try Int.fetchOne(
+            db,
+            sql: "SELECT COUNT(*) FROM workout_logs WHERE source = ?",
+            arguments: [AtlasHealthDataSource.health.rawValue]
+        ) ?? 0
+    case .bodyFat:
+        return try Int.fetchOne(
+            db,
+            sql: "SELECT COUNT(*) FROM progress_measurements WHERE kind = ? AND id LIKE 'health_progress_%'",
+            arguments: [AtlasProgressMeasurementKind.bodyFat.rawValue]
+        ) ?? 0
+    case .bloodPressure:
+        return try Int.fetchOne(
+            db,
+            sql: """
+            SELECT COUNT(*)
+            FROM metric_value_logs
+            JOIN custom_metrics ON custom_metrics.id = metric_value_logs.metric_id
+            WHERE metric_value_logs.source = ? AND custom_metrics.metric_key = ?
+            """,
+            arguments: [AtlasHealthDataSource.health.rawValue, AtlasHealthMetricKind.bloodPressureSystolic.metricKey]
+        ) ?? 0
+    case .water:
+        return try healthMetricValueCount(metricKey: AtlasHealthNutritionMetricKind.water.metricKey, db: db)
+    case .calories:
+        return try healthMetricValueCount(metricKey: AtlasHealthNutritionMetricKind.calories.metricKey, db: db)
+    case .protein:
+        return try healthMetricValueCount(metricKey: AtlasHealthNutritionMetricKind.protein.metricKey, db: db)
+    case .steps:
+        return try healthMetricValueCount(metricKey: AtlasHealthMetricKind.steps.metricKey, db: db)
+    case .sleep:
+        return try healthMetricValueCount(metricKey: AtlasHealthMetricKind.sleepHours.metricKey, db: db)
+    case .restingHeartRate:
+        return try healthMetricValueCount(metricKey: AtlasHealthMetricKind.restingHeartRate.metricKey, db: db)
+    case .heartRateVariability:
+        return try healthMetricValueCount(metricKey: AtlasHealthMetricKind.heartRateVariability.metricKey, db: db)
+    }
+}
+
+private func healthSignalLastEntryAt(kind: AtlasHealthSignalKind, db: Database) throws -> String? {
+    switch kind {
+    case .weight:
+        return try String.fetchOne(
+            db,
+            sql: "SELECT logged_at FROM weight_logs WHERE source = ? ORDER BY logged_at DESC LIMIT 1",
+            arguments: [AtlasHealthDataSource.health.rawValue]
+        )
+    case .workouts:
+        return try String.fetchOne(
+            db,
+            sql: "SELECT started_at FROM workout_logs WHERE source = ? ORDER BY started_at DESC LIMIT 1",
+            arguments: [AtlasHealthDataSource.health.rawValue]
+        )
+    case .bodyFat:
+        return try String.fetchOne(
+            db,
+            sql: "SELECT logged_at FROM progress_measurements WHERE kind = ? AND id LIKE 'health_progress_%' ORDER BY logged_at DESC LIMIT 1",
+            arguments: [AtlasProgressMeasurementKind.bodyFat.rawValue]
+        )
+    case .bloodPressure:
+        return try healthMetricValueLatest(metricKeys: [
+            AtlasHealthMetricKind.bloodPressureSystolic.metricKey,
+            AtlasHealthMetricKind.bloodPressureDiastolic.metricKey
+        ], db: db)
+    case .water:
+        return try healthMetricValueLatest(metricKeys: [AtlasHealthNutritionMetricKind.water.metricKey], db: db)
+    case .calories:
+        return try healthMetricValueLatest(metricKeys: [AtlasHealthNutritionMetricKind.calories.metricKey], db: db)
+    case .protein:
+        return try healthMetricValueLatest(metricKeys: [AtlasHealthNutritionMetricKind.protein.metricKey], db: db)
+    case .steps:
+        return try healthMetricValueLatest(metricKeys: [AtlasHealthMetricKind.steps.metricKey], db: db)
+    case .sleep:
+        return try healthMetricValueLatest(metricKeys: [AtlasHealthMetricKind.sleepHours.metricKey], db: db)
+    case .restingHeartRate:
+        return try healthMetricValueLatest(metricKeys: [AtlasHealthMetricKind.restingHeartRate.metricKey], db: db)
+    case .heartRateVariability:
+        return try healthMetricValueLatest(metricKeys: [AtlasHealthMetricKind.heartRateVariability.metricKey], db: db)
+    }
+}
+
+private func healthMetricValueCount(metricKey: String, db: Database) throws -> Int {
+    try Int.fetchOne(
+        db,
+        sql: """
+        SELECT COUNT(*)
+        FROM metric_value_logs
+        JOIN custom_metrics ON custom_metrics.id = metric_value_logs.metric_id
+        WHERE metric_value_logs.source = ? AND custom_metrics.metric_key = ?
+        """,
+        arguments: [AtlasHealthDataSource.health.rawValue, metricKey]
+    ) ?? 0
+}
+
+private func healthMetricValueLatest(metricKeys: [String], db: Database) throws -> String? {
+    let placeholders = Array(repeating: "?", count: metricKeys.count).joined(separator: ",")
+    let statementArguments = StatementArguments(
+        [AtlasHealthDataSource.health.rawValue] + metricKeys
+    )
+    return try String.fetchOne(
+        db,
+        sql: """
+        SELECT metric_value_logs.logged_at
+        FROM metric_value_logs
+        JOIN custom_metrics ON custom_metrics.id = metric_value_logs.metric_id
+        WHERE metric_value_logs.source = ? AND custom_metrics.metric_key IN (\(placeholders))
+        ORDER BY metric_value_logs.logged_at DESC
+        LIMIT 1
+        """,
+        arguments: statementArguments
+    )
 }
 
 func writeAppSetting(

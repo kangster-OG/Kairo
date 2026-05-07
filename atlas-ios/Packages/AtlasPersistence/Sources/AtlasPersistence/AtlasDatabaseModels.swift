@@ -42,6 +42,52 @@ func kindLabel(_ kind: AtlasProtocolKind) -> String {
     }
 }
 
+func administrationRouteLabel(_ route: AtlasProtocolAdministrationRoute?) -> String? {
+    switch route {
+    case .injection:
+        return "Injection"
+    case .oral:
+        return "Oral"
+    case .sublingual:
+        return "Sublingual"
+    case .nasal:
+        return "Nasal"
+    case .topical:
+        return "Topical"
+    case .transdermal:
+        return "Transdermal"
+    case .other:
+        return "Other route"
+    case nil:
+        return nil
+    }
+}
+
+func supplyTypeLabel(_ supplyType: AtlasProtocolSupplyType?, dosesPerSupply: Int?) -> String? {
+    let base: String?
+    switch supplyType {
+    case .vial:
+        base = "Vial"
+    case .pen:
+        base = "Pen"
+    case .bottle:
+        base = "Bottle"
+    case .blisterPack:
+        base = "Blister pack"
+    case .syringe:
+        base = "Prefilled syringe"
+    case .other:
+        base = "Other supply"
+    case nil:
+        base = nil
+    }
+
+    if let base, let dosesPerSupply, dosesPerSupply > 0 {
+        return "\(base) • \(dosesPerSupply) dose\(dosesPerSupply == 1 ? "" : "s")"
+    }
+    return base
+}
+
 private func cadenceLabel(from rule: AtlasProtocolRuleRecord?) -> String {
     guard let rule else {
         return "Cadence pending"
@@ -268,6 +314,9 @@ struct AtlasProtocolDBRecord: Codable, FetchableRecord, PersistableRecord {
     var linkedVialId: String?
     var name: String
     var kind: AtlasProtocolKind
+    var administrationRoute: AtlasProtocolAdministrationRoute?
+    var supplyType: AtlasProtocolSupplyType?
+    var dosesPerSupply: Int?
     var status: AtlasProtocolStatus
     var timezone: String
     var startDate: String
@@ -286,6 +335,9 @@ struct AtlasProtocolDBRecord: Codable, FetchableRecord, PersistableRecord {
         case linkedVialId = "linked_vial_id"
         case name
         case kind
+        case administrationRoute = "administration_route"
+        case supplyType = "supply_type"
+        case dosesPerSupply = "doses_per_supply"
         case status
         case timezone
         case startDate = "start_date"
@@ -305,6 +357,9 @@ struct AtlasProtocolDBRecord: Codable, FetchableRecord, PersistableRecord {
         linkedVialId = record.linkedVialId
         name = record.name
         kind = record.kind
+        administrationRoute = record.administrationRoute
+        supplyType = record.supplyType
+        dosesPerSupply = record.dosesPerSupply
         status = record.status
         timezone = record.timezone
         startDate = record.startDate
@@ -325,6 +380,9 @@ struct AtlasProtocolDBRecord: Codable, FetchableRecord, PersistableRecord {
             linkedVialId: linkedVialId,
             name: name,
             kind: kind,
+            administrationRoute: administrationRoute,
+            supplyType: supplyType,
+            dosesPerSupply: dosesPerSupply,
             status: status,
             timezone: timezone,
             startDate: startDate,
@@ -406,6 +464,9 @@ struct AtlasProtocolRevisionDBRecord: Codable, FetchableRecord, PersistableRecor
     var lifecycleState: AtlasProtocolRevisionLifecycle
     var timezone: String
     var timezoneStrategy: AtlasProtocolTimezoneStrategy
+    var administrationRoute: AtlasProtocolAdministrationRoute?
+    var supplyType: AtlasProtocolSupplyType?
+    var dosesPerSupply: Int?
     var defaultTimeOfDay: String?
     var doseAmount: Double?
     var doseUnit: String?
@@ -425,6 +486,9 @@ struct AtlasProtocolRevisionDBRecord: Codable, FetchableRecord, PersistableRecor
         case lifecycleState = "lifecycle_state"
         case timezone
         case timezoneStrategy = "timezone_strategy"
+        case administrationRoute = "administration_route"
+        case supplyType = "supply_type"
+        case dosesPerSupply = "doses_per_supply"
         case defaultTimeOfDay = "default_time_of_day"
         case doseAmount = "dose_amount"
         case doseUnit = "dose_unit"
@@ -445,6 +509,9 @@ struct AtlasProtocolRevisionDBRecord: Codable, FetchableRecord, PersistableRecor
         lifecycleState = record.lifecycleState
         timezone = record.timezone
         timezoneStrategy = record.timezoneStrategy
+        administrationRoute = record.administrationRoute
+        supplyType = record.supplyType
+        dosesPerSupply = record.dosesPerSupply
         defaultTimeOfDay = record.defaultTimeOfDay
         doseAmount = record.doseAmount
         doseUnit = record.doseUnit
@@ -466,6 +533,9 @@ struct AtlasProtocolRevisionDBRecord: Codable, FetchableRecord, PersistableRecor
             lifecycleState: lifecycleState,
             timezone: timezone,
             timezoneStrategy: timezoneStrategy,
+            administrationRoute: administrationRoute,
+            supplyType: supplyType,
+            dosesPerSupply: dosesPerSupply,
             defaultTimeOfDay: defaultTimeOfDay,
             doseAmount: doseAmount,
             doseUnit: doseUnit,
@@ -620,6 +690,8 @@ struct AtlasVialDBRecord: Codable, FetchableRecord, PersistableRecord {
     var quantityUnit: String
     var openedAt: String?
     var expiresAt: String?
+    var referencePhotoRelativePath: String?
+    var labelScanText: String?
     var createdAt: String
     var updatedAt: String
     var archivedAt: String?
@@ -639,6 +711,8 @@ struct AtlasVialDBRecord: Codable, FetchableRecord, PersistableRecord {
         case quantityUnit = "quantity_unit"
         case openedAt = "opened_at"
         case expiresAt = "expires_at"
+        case referencePhotoRelativePath = "reference_photo_relative_path"
+        case labelScanText = "label_scan_text"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
         case archivedAt = "archived_at"
@@ -659,6 +733,8 @@ struct AtlasVialDBRecord: Codable, FetchableRecord, PersistableRecord {
         quantityUnit = record.quantityUnit
         openedAt = record.openedAt
         expiresAt = record.expiresAt
+        referencePhotoRelativePath = record.referencePhotoRelativePath
+        labelScanText = record.labelScanText
         createdAt = record.createdAt
         updatedAt = record.updatedAt
         archivedAt = record.archivedAt
@@ -680,6 +756,8 @@ struct AtlasVialDBRecord: Codable, FetchableRecord, PersistableRecord {
             quantityUnit: quantityUnit,
             openedAt: openedAt,
             expiresAt: expiresAt,
+            referencePhotoRelativePath: referencePhotoRelativePath,
+            labelScanText: labelScanText,
             createdAt: createdAt,
             updatedAt: updatedAt,
             archivedAt: archivedAt
@@ -692,6 +770,7 @@ struct AtlasSiteDBRecord: Codable, FetchableRecord, PersistableRecord {
     var id: String
     var name: String
     var bodyArea: String?
+    var mapRegionKey: AtlasBodyMapRegionKey?
     var notes: String?
     var createdAt: String
     var updatedAt: String
@@ -701,16 +780,34 @@ struct AtlasSiteDBRecord: Codable, FetchableRecord, PersistableRecord {
         case id
         case name
         case bodyArea = "body_area"
+        case mapRegionKey = "map_region_key"
         case notes
         case createdAt = "created_at"
         case updatedAt = "updated_at"
         case archivedAt = "archived_at"
     }
 
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        bodyArea = try container.decodeIfPresent(String.self, forKey: .bodyArea)
+        if let rawMapRegionKey = try container.decodeIfPresent(String.self, forKey: .mapRegionKey) {
+            mapRegionKey = AtlasBodyMapRegionKey(rawValue: rawMapRegionKey)
+        } else {
+            mapRegionKey = nil
+        }
+        notes = try container.decodeIfPresent(String.self, forKey: .notes)
+        createdAt = try container.decode(String.self, forKey: .createdAt)
+        updatedAt = try container.decode(String.self, forKey: .updatedAt)
+        archivedAt = try container.decodeIfPresent(String.self, forKey: .archivedAt)
+    }
+
     init(record: AtlasSiteRecord) {
         id = record.id
         name = record.name
         bodyArea = record.bodyArea
+        mapRegionKey = record.mapRegionKey
         notes = record.notes
         createdAt = record.createdAt
         updatedAt = record.updatedAt
@@ -722,6 +819,7 @@ struct AtlasSiteDBRecord: Codable, FetchableRecord, PersistableRecord {
             id: id,
             name: name,
             bodyArea: bodyArea,
+            mapRegionKey: mapRegionKey,
             notes: notes,
             createdAt: createdAt,
             updatedAt: updatedAt,
@@ -1054,6 +1152,36 @@ struct AtlasReminderDBRecord: Codable, FetchableRecord, PersistableRecord {
             createdAt: createdAt,
             updatedAt: updatedAt
         )
+    }
+}
+
+struct AtlasExternalCalendarEventDBRecord: Codable, FetchableRecord, PersistableRecord {
+    static let databaseTableName = "external_calendar_events"
+
+    var id: String
+    var occurrenceId: String
+    var protocolId: String
+    var calendarId: String
+    var eventIdentifier: String
+    var title: String
+    var notes: String
+    var startsAt: String
+    var endsAt: String
+    var createdAt: String
+    var updatedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case occurrenceId = "occurrence_id"
+        case protocolId = "protocol_id"
+        case calendarId = "calendar_id"
+        case eventIdentifier = "event_identifier"
+        case title
+        case notes
+        case startsAt = "starts_at"
+        case endsAt = "ends_at"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
     }
 }
 
@@ -1569,6 +1697,104 @@ struct AtlasWeightLogDBRecord: Codable, FetchableRecord, PersistableRecord {
     }
 }
 
+struct AtlasProgressMeasurementDBRecord: Codable, FetchableRecord, PersistableRecord {
+    static let databaseTableName = "progress_measurements"
+    var id: String
+    var protocolId: String?
+    var kind: AtlasProgressMeasurementKind
+    var value: Double
+    var unit: String
+    var note: String?
+    var loggedAt: String
+    var createdAt: String
+    var updatedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case protocolId = "protocol_id"
+        case kind
+        case value
+        case unit
+        case note
+        case loggedAt = "logged_at"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+
+    init(record: AtlasProgressMeasurementRecord) {
+        id = record.id
+        protocolId = record.protocolID
+        kind = record.kind
+        value = record.value
+        unit = record.unit
+        note = record.note
+        loggedAt = record.loggedAt
+        createdAt = record.createdAt
+        updatedAt = record.updatedAt
+    }
+
+    var domain: AtlasProgressMeasurementRecord {
+        AtlasProgressMeasurementRecord(
+            id: id,
+            protocolID: protocolId,
+            kind: kind,
+            value: value,
+            unit: unit,
+            note: note,
+            loggedAt: loggedAt,
+            createdAt: createdAt,
+            updatedAt: updatedAt
+        )
+    }
+}
+
+struct AtlasProgressPhotoDBRecord: Codable, FetchableRecord, PersistableRecord {
+    static let databaseTableName = "progress_photos"
+    var id: String
+    var protocolId: String?
+    var angle: AtlasProgressPhotoAngle
+    var note: String?
+    var relativeAssetPath: String
+    var loggedAt: String
+    var createdAt: String
+    var updatedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case protocolId = "protocol_id"
+        case angle
+        case note
+        case relativeAssetPath = "relative_asset_path"
+        case loggedAt = "logged_at"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+
+    init(record: AtlasProgressPhotoRecord) {
+        id = record.id
+        protocolId = record.protocolID
+        angle = record.angle
+        note = record.note
+        relativeAssetPath = record.relativeAssetPath
+        loggedAt = record.loggedAt
+        createdAt = record.createdAt
+        updatedAt = record.updatedAt
+    }
+
+    var domain: AtlasProgressPhotoRecord {
+        AtlasProgressPhotoRecord(
+            id: id,
+            protocolID: protocolId,
+            angle: angle,
+            note: note,
+            relativeAssetPath: relativeAssetPath,
+            loggedAt: loggedAt,
+            createdAt: createdAt,
+            updatedAt: updatedAt
+        )
+    }
+}
+
 struct AtlasOccurrenceProjectionDBRecord: Codable, FetchableRecord, PersistableRecord {
     static let databaseTableName = "occurrence_projections"
     var id: String
@@ -1811,6 +2037,8 @@ func clearCanonicalTables(in db: Database) throws {
         "custom_metrics",
         "workout_logs",
         "weight_logs",
+        "progress_measurements",
+        "progress_photos",
         "symptom_logs",
         "review_sessions",
         "health_connections",
@@ -1871,7 +2099,9 @@ func countUserRows(in db: Database) throws -> Int {
     let contextPresetCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM context_presets") ?? 0
     let contextCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM context_logs") ?? 0
     let workoutCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM workout_logs") ?? 0
-    return protocolCount + logCount + vialCount + consumableCount + consumableAdjustmentCount + contextPresetCount + contextCount + workoutCount
+    let progressMeasurementCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM progress_measurements") ?? 0
+    let progressPhotoCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM progress_photos") ?? 0
+    return protocolCount + logCount + vialCount + consumableCount + consumableAdjustmentCount + contextPresetCount + contextCount + workoutCount + progressMeasurementCount + progressPhotoCount
 }
 
 func existingIdentifiers(in db: Database, for dataset: AtlasImportDataset) throws -> Set<String> {

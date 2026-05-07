@@ -58,6 +58,8 @@ public struct GRDBInventoryRepository: InventoryRepository, Sendable {
                 quantityUnit: normalized.quantityUnit,
                 openedAt: normalized.openedAt.map(atlasTimestamp(from:)),
                 expiresAt: normalized.expiresAt.map(atlasTimestamp(from:)),
+                referencePhotoRelativePath: normalized.referencePhotoRelativePath,
+                labelScanText: normalized.labelScanText?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty,
                 createdAt: existing?.createdAt ?? timestamp,
                 updatedAt: timestamp,
                 archivedAt: normalized.archivedAt.map(atlasTimestamp(from:))
@@ -119,7 +121,7 @@ public struct GRDBInventoryRepository: InventoryRepository, Sendable {
                     occurrenceID: nil,
                     kind: .created,
                     deltaQuantity: record.quantityOnHand,
-                    note: "Atlas started tracking this supply locally.",
+                    note: "Supply tracking started locally.",
                     vendorLabel: record.vendorLabel,
                     sourceDetail: record.purchaseNotes,
                     recordedAt: timestamp
@@ -175,6 +177,23 @@ public struct GRDBInventoryRepository: InventoryRepository, Sendable {
                 nextProtocolID: nil,
                 now: now
             )
+        }
+    }
+
+    public func setVialArchived(id: String, isArchived: Bool, now: Date) async throws {
+        if isArchived {
+            try await archiveVial(id: id, now: now)
+            return
+        }
+
+        try await stack.canonical.write { db in
+            guard var vial = try AtlasVialDBRecord.fetchOne(db, key: id)?.domain else {
+                throw AtlasInventoryRepositoryError.vialNotFound
+            }
+
+            vial.archivedAt = nil
+            vial.updatedAt = atlasTimestamp(from: now)
+            try AtlasVialDBRecord(record: vial).update(db)
         }
     }
 
@@ -376,7 +395,7 @@ public struct GRDBInventoryRepository: InventoryRepository, Sendable {
                 occurrenceID: nil,
                 kind: .procurement,
                 deltaQuantity: normalized.quantityReceived,
-                note: "Procurement recorded locally.",
+                note: "Inventory note recorded locally.",
                 vendorLabel: normalized.vendorLabel,
                 sourceDetail: normalized.sourceDetail,
                 recordedAt: receivedAt
@@ -404,6 +423,7 @@ public struct GRDBInventoryRepository: InventoryRepository, Sendable {
                         id: site.id,
                         name: site.name,
                         bodyArea: site.bodyArea,
+                        mapRegionKey: site.mapRegionKey,
                         notes: site.notes,
                         archivedAt: site.archivedAt.map(atlasDate(from:))
                     )
@@ -445,6 +465,7 @@ public struct GRDBInventoryRepository: InventoryRepository, Sendable {
                         id: $0.id,
                         name: $0.name,
                         bodyArea: $0.bodyArea,
+                        mapRegionKey: $0.mapRegionKey,
                         notes: $0.notes,
                         archivedAt: $0.archivedAt.map(atlasDate(from:))
                     )
@@ -473,6 +494,7 @@ public struct GRDBInventoryRepository: InventoryRepository, Sendable {
                 id: existing?.id ?? normalized.id ?? UUID().uuidString,
                 name: normalized.name,
                 bodyArea: normalized.bodyArea,
+                mapRegionKey: normalized.mapRegionKey,
                 notes: normalized.notes,
                 createdAt: existing?.createdAt ?? timestamp,
                 updatedAt: timestamp,
@@ -483,6 +505,7 @@ public struct GRDBInventoryRepository: InventoryRepository, Sendable {
                 id: record.id,
                 name: record.name,
                 bodyArea: record.bodyArea,
+                mapRegionKey: record.mapRegionKey,
                 notes: record.notes,
                 archivedAt: record.archivedAt.map(atlasDate(from:))
             )
@@ -646,6 +669,7 @@ func buildInventorySnapshot(db: Database, referenceDate: Date) throws -> AtlasIn
                 id: $0.id,
                 name: $0.name,
                 bodyArea: $0.bodyArea,
+                mapRegionKey: $0.mapRegionKey,
                 notes: $0.notes,
                 archivedAt: $0.archivedAt.map(atlasDate(from:))
             )
@@ -737,6 +761,8 @@ private func buildVialDetailSnapshot(
             calculatorProfileID: vial.calculatorProfileId,
             openedAt: vial.openedAt.map(atlasDate(from:)),
             expiresAt: vial.expiresAt.map(atlasDate(from:)),
+            referencePhotoRelativePath: vial.referencePhotoRelativePath,
+            labelScanText: vial.labelScanText,
             archivedAt: vial.archivedAt.map(atlasDate(from:))
         ),
         correctionHistory: corrections,
@@ -820,7 +846,7 @@ private func buildInventoryMovementHistory(
             id: "created:\(vial.id)",
             kind: .created,
             title: "Vial saved",
-            detail: "Atlas started tracking this vial locally.",
+            detail: "Vial tracking started locally.",
             recordedAt: atlasDate(from: vial.createdAt)
         )
     ]
@@ -969,8 +995,8 @@ private func buildVialSummary(
             vial: vial
         )
     }
-    let depletionLabel = linkedProtocol.flatMap { protocolRecord in
-        inventoryProjectedDepletionLabel(
+    let depletionDate = linkedProtocol.flatMap { protocolRecord in
+        inventoryProjectedDepletionDate(
             protocolRecord: protocolRecord,
             context: context,
             nextScheduledAt: nextOccurrence.map { atlasDate(from: $0.scheduledAt) },
@@ -979,6 +1005,12 @@ private func buildVialSummary(
     }
     let lowStockLabel = vial.lowStockThreshold.map { "Low stock at \(formatAtlasQuantity($0, unit: vial.quantityUnit))" }
     let isLowStock = vial.lowStockThreshold.map { vial.remainingQuantity <= $0 } ?? false
+    let referencePhotoPath: String?
+    if let relativePath = vial.referencePhotoRelativePath {
+        referencePhotoPath = try atlasInventoryPhotoFileURL(relativePath: relativePath).path
+    } else {
+        referencePhotoPath = nil
+    }
 
     return AtlasVialSummary(
         id: vial.id,
@@ -990,12 +1022,15 @@ private func buildVialSummary(
         calculatorProfileLabel: vial.calculatorProfileId.flatMap { calculatorProfiles[$0]?.label },
         quantityLabel: "\(formatAtlasQuantity(vial.remainingQuantity, unit: vial.quantityUnit)) remaining of \(formatAtlasQuantity(vial.startingQuantity, unit: vial.quantityUnit))",
         lowStockLabel: lowStockLabel,
-        projectedDepletionLabel: depletionLabel,
+        projectedDepletionLabel: depletionDate.map { inventoryProjectedDepletionLabel(for: $0) },
+        projectedDepletionAt: depletionDate,
         autoDecrementLabel: decrement.map { "Auto-decrements \(formatAtlasQuantity($0.amount, unit: $0.unit)) per taken log" },
         remainingQuantity: vial.remainingQuantity,
         startingQuantity: vial.startingQuantity,
         quantityUnit: vial.quantityUnit,
         isLowStock: isLowStock,
+        referencePhotoPath: referencePhotoPath,
+        labelScanPreview: vial.labelScanText.flatMap { String($0.prefix(120)) },
         archivedAt: vial.archivedAt.map(atlasDate(from:))
     )
 }
@@ -1028,7 +1063,7 @@ private func buildConsumableSummary(
         formatter.dateStyle = .medium
         formatter.timeStyle = .none
         if consumable.reorderThreshold != nil {
-            return "Projected reorder point \(formatter.string(from: targetDate))"
+            return "Projected runway threshold \(formatter.string(from: targetDate))"
         }
         return "Projected depletion \(formatter.string(from: targetDate))"
     }
@@ -1036,7 +1071,7 @@ private func buildConsumableSummary(
         leadTime > 0 ? "Lead time \(leadTime) day\(leadTime == 1 ? "" : "s")" : nil
     }
     let lowStockLabel = consumable.reorderThreshold.map {
-        "Reorder at \(formatAtlasQuantity($0, unit: consumable.unit))"
+        "Runway threshold \(formatAtlasQuantity($0, unit: consumable.unit))"
     }
     let isLowStock = consumable.reorderThreshold.map { consumable.quantityOnHand <= $0 } ?? false
     let procurementHistory = buildConsumableProcurementHistory(adjustments: adjustments)
@@ -1250,6 +1285,8 @@ private func normalize(vialDraft: AtlasVialDraft) throws -> AtlasVialDraft {
         calculatorProfileID: vialDraft.calculatorProfileID,
         openedAt: vialDraft.openedAt,
         expiresAt: vialDraft.expiresAt,
+        referencePhotoRelativePath: vialDraft.referencePhotoRelativePath,
+        labelScanText: vialDraft.labelScanText?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty,
         archivedAt: vialDraft.archivedAt
     )
 }
@@ -1303,6 +1340,7 @@ private func normalize(siteDraft: AtlasSiteDraft) throws -> AtlasSiteDraft {
         id: siteDraft.id,
         name: name,
         bodyArea: siteDraft.bodyArea?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty,
+        mapRegionKey: siteDraft.mapRegionKey,
         notes: siteDraft.notes?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty,
         archivedAt: siteDraft.archivedAt
     )
@@ -1395,6 +1433,21 @@ private func inventoryProjectedDepletionLabel(
     nextScheduledAt: Date?,
     vial: AtlasVialRecord
 ) -> String? {
+    inventoryProjectedDepletionDate(
+        protocolRecord: protocolRecord,
+        context: context,
+        nextScheduledAt: nextScheduledAt,
+        vial: vial
+    )
+    .map { inventoryProjectedDepletionLabel(for: $0) }
+}
+
+private func inventoryProjectedDepletionDate(
+    protocolRecord: AtlasProtocolRecord,
+    context: AtlasCoreLoopContext,
+    nextScheduledAt: Date?,
+    vial: AtlasVialRecord
+) -> Date? {
     guard let nextScheduledAt else {
         return nil
     }
@@ -1415,7 +1468,10 @@ private func inventoryProjectedDepletionLabel(
     }
 
     let remainingEvents = Int(ceil(vial.remainingQuantity / decrement.amount))
-    let depletion = nextScheduledAt.addingTimeInterval(TimeInterval(max(remainingEvents - 1, 0) * cadenceDays) * 86_400)
+    return nextScheduledAt.addingTimeInterval(TimeInterval(max(remainingEvents - 1, 0) * cadenceDays) * 86_400)
+}
+
+private func inventoryProjectedDepletionLabel(for depletion: Date) -> String {
     let formatter = DateFormatter()
     formatter.dateStyle = .medium
     formatter.timeStyle = .none
@@ -1454,7 +1510,7 @@ private func consumableAdjustmentTitle(for kind: AtlasConsumableAdjustmentKind) 
     case .manualAdjustment:
         return "Manual adjustment"
     case .procurement:
-        return "Procurement recorded"
+        return "Inventory note recorded"
     case .protocolUse:
         return "Taken-log decrement"
     case .archived:
@@ -1467,11 +1523,11 @@ private func consumableAdjustmentTitle(for kind: AtlasConsumableAdjustmentKind) 
 private func consumableAdjustmentFallbackDetail(for kind: AtlasConsumableAdjustmentKind) -> String {
     switch kind {
     case .created:
-        return "Atlas started tracking this supply locally."
+        return "Supply tracking started locally."
     case .manualAdjustment:
         return "Supply count was corrected manually."
     case .procurement:
-        return "Procurement was recorded for future supply planning."
+        return "Inventory note was recorded for future planning."
     case .protocolUse:
         return "This supply moved after a taken log on the linked protocol."
     case .archived:
@@ -1496,7 +1552,7 @@ private func buildConsumableProcurementHistory(
             AtlasConsumableProcurementEntry(
                 id: adjustment.id,
                 kind: adjustment.kind,
-                title: adjustment.kind == .created ? "Opening stock" : "Procurement recorded",
+                title: adjustment.kind == .created ? "Opening stock" : "Inventory note recorded",
                 quantityLabel: formatInventoryCorrectionDelta(adjustment.deltaQuantity, unit: adjustment.quantityUnit),
                 vendorLabel: adjustment.vendorLabel,
                 sourceDetail: adjustment.sourceDetail,
@@ -1544,13 +1600,13 @@ private func buildConsumablePlanningSnapshot(
     if consumable.archivedAt != nil {
         statusLabel = "Archived for future planning."
     } else if let reorderThresholdDate, reorderThresholdDate <= referenceDate || (consumable.reorderThreshold.map { consumable.quantityOnHand <= $0 } ?? false) {
-        statusLabel = "Procurement review now."
+        statusLabel = "Supply review now."
     } else if let reviewDate {
         statusLabel = reviewDate <= referenceDate
-            ? "Review procurement now."
+            ? "Review supply runway now."
             : "Review by \(inventoryMediumDateLabel(reviewDate))."
     } else if let reorderThresholdDate, consumable.reorderThreshold != nil {
-        statusLabel = "Reorder point around \(inventoryMediumDateLabel(reorderThresholdDate))."
+        statusLabel = "Runway threshold around \(inventoryMediumDateLabel(reorderThresholdDate))."
     } else {
         statusLabel = nil
     }
@@ -1578,7 +1634,7 @@ private func lastConsumableProcurementLabel(
     guard let latest = procurementHistory.first else {
         return nil
     }
-    let prefix = latest.kind == .created ? "Opening stock" : "Last procurement"
+    let prefix = latest.kind == .created ? "Opening stock" : "Last supply note"
     return "\(prefix) \(inventoryMediumDateLabel(latest.recordedAt))"
 }
 
@@ -1597,10 +1653,10 @@ private func procurementVendorHistorySummary(
     )
     if vendors.isEmpty {
         let count = procurementHistory.count
-        return count == 1 ? "1 procurement entry recorded" : "\(count) procurement entries recorded"
+        return count == 1 ? "1 supply note recorded" : "\(count) supply notes recorded"
     }
     let count = vendors.count
-    return count == 1 ? "1 source recorded" : "\(count) sources recorded"
+    return count == 1 ? "1 inventory note recorded" : "\(count) inventory notes recorded"
 }
 
 private func inventoryMediumDateLabel(_ date: Date) -> String {

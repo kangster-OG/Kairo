@@ -76,6 +76,9 @@ extension GRDBProtocolRepository {
                 linkedVialId: nil,
                 name: normalized.name,
                 kind: normalized.kind,
+                administrationRoute: normalized.administrationRoute,
+                supplyType: normalized.supplyType,
+                dosesPerSupply: normalized.dosesPerSupply,
                 status: .active,
                 timezone: TimeZone.current.identifier,
                 startDate: startDate,
@@ -114,6 +117,9 @@ extension GRDBProtocolRepository {
                 lifecycleState: .active,
                 timezone: protocolRecord.timezone,
                 timezoneStrategy: .keepLocalClock,
+                administrationRoute: normalized.administrationRoute,
+                supplyType: normalized.supplyType,
+                dosesPerSupply: normalized.dosesPerSupply,
                 defaultTimeOfDay: normalized.defaultTimeOfDay,
                 doseAmount: normalized.doseAmount,
                 doseUnit: normalized.doseUnit,
@@ -196,6 +202,9 @@ extension GRDBProtocolRepository {
 
             protocolRecord.name = normalized.name
             protocolRecord.kind = normalized.kind
+            protocolRecord.administrationRoute = normalized.administrationRoute
+            protocolRecord.supplyType = normalized.supplyType
+            protocolRecord.dosesPerSupply = normalized.dosesPerSupply
             protocolRecord.defaultTimeOfDay = normalized.defaultTimeOfDay
             protocolRecord.doseAmount = normalized.doseAmount
             protocolRecord.doseUnit = normalized.doseUnit
@@ -220,6 +229,9 @@ extension GRDBProtocolRepository {
                 lifecycleState: .active,
                 timezone: protocolRecord.timezone,
                 timezoneStrategy: .keepLocalClock,
+                administrationRoute: normalized.administrationRoute,
+                supplyType: normalized.supplyType,
+                dosesPerSupply: normalized.dosesPerSupply,
                 defaultTimeOfDay: normalized.defaultTimeOfDay,
                 doseAmount: normalized.doseAmount,
                 doseUnit: normalized.doseUnit,
@@ -549,6 +561,14 @@ extension GRDBTimelineRepository {
                             || entry.type == .customMetricLogged
                     }
                 }
+                .filter { entry in
+                    guard let searchText = query.searchText?
+                        .trimmingCharacters(in: .whitespacesAndNewlines),
+                          searchText.isEmpty == false else {
+                        return true
+                    }
+                    return atlasTimelineEntry(entry, matches: searchText)
+                }
                 .sorted { $0.recordedAt > $1.recordedAt }
                 .prefix(query.limit)
                 .map { $0 }
@@ -767,6 +787,9 @@ private func normalize(draft: AtlasProtocolDraft) throws -> AtlasProtocolDraft {
     return AtlasProtocolDraft(
         name: name,
         kind: draft.kind,
+        administrationRoute: draft.administrationRoute,
+        supplyType: draft.supplyType,
+        dosesPerSupply: draft.dosesPerSupply.flatMap { $0 > 0 ? $0 : nil },
         cadenceType: draft.cadenceType,
         intervalDays: intervalDays,
         weekday: draft.cadenceType == .weekly ? draft.weekday : nil,
@@ -919,10 +942,25 @@ private func buildProtocolDetailSnapshot(
         protocolName: protocolRecord.name,
         kind: protocolRecord.kind
     )
+    let logEvents = try AtlasLogEventDBRecord
+        .filter(Column("protocol_id") == protocolID)
+        .order(Column("effective_at").asc)
+        .fetchAll(db)
+        .map(\.domain)
+    let medicationLevel = buildMedicationLevelEstimateItem(
+        protocolRecord: protocolRecord,
+        aliasTitle: context.aliases[protocolID]?.aliasLabel,
+        revisionSlices: revisionSlices,
+        logEvents: logEvents,
+        now: now
+    )
 
     let draft = AtlasProtocolDraft(
         name: protocolRecord.name,
         kind: protocolRecord.kind,
+        administrationRoute: activeSlice?.revision.administrationRoute ?? protocolRecord.administrationRoute ?? .injection,
+        supplyType: activeSlice?.revision.supplyType ?? protocolRecord.supplyType,
+        dosesPerSupply: activeSlice?.revision.dosesPerSupply ?? protocolRecord.dosesPerSupply,
         cadenceType: activeRule?.ruleType ?? baseRule?.ruleType ?? .weekly,
         intervalDays: activeRule?.intervalCount ?? baseRule?.intervalCount ?? 1,
         weekday: activeRule?.weekday ?? baseRule?.weekday,
@@ -939,10 +977,16 @@ private func buildProtocolDetailSnapshot(
         status: protocolRecord.status,
         protocolKind: protocolRecord.kind,
         kindLabel: kindLabel(protocolRecord.kind),
+        administrationLabel: administrationRouteLabel(activeSlice?.revision.administrationRoute ?? protocolRecord.administrationRoute),
+        supplyLabel: supplyTypeLabel(
+            activeSlice?.revision.supplyType ?? protocolRecord.supplyType,
+            dosesPerSupply: activeSlice?.revision.dosesPerSupply ?? protocolRecord.dosesPerSupply
+        ),
         cadenceLabel: cadence,
         doseLabel: doseAmount.flatMap { amount in doseUnit.map { "\(amount.cleanAtlasNumber) \($0)" } },
         notes: activeSlice?.revision.notes ?? protocolRecord.notes,
         compoundKnowledge: compoundKnowledge,
+        medicationLevel: medicationLevel,
         editableDraft: draft,
         nextOccurrence: nextOccurrence,
         recentChanges: try AtlasProtocolChangeAuditDBRecord
@@ -1537,6 +1581,38 @@ private func displayState(for occurrence: AtlasOccurrenceProjectionRecord, now: 
             return .due
         }
         return .upcoming
+    }
+}
+
+private func atlasTimelineEntry(
+    _ entry: AtlasTimelineEntry,
+    matches rawSearchText: String
+) -> Bool {
+    let foldingOptions: String.CompareOptions = [.caseInsensitive, .diacriticInsensitive]
+    let locale = Locale.current
+    let searchText = rawSearchText.folding(options: foldingOptions, locale: locale)
+
+    var haystacks = [
+        entry.canonicalTitle,
+        entry.summary,
+        entry.type.rawValue
+    ]
+    if let aliasTitle = entry.aliasTitle {
+        haystacks.append(aliasTitle)
+    }
+    if let occurrenceExplanation = entry.occurrenceExplanation {
+        haystacks.append(occurrenceExplanation.summary)
+        haystacks.append(contentsOf: occurrenceExplanation.facts.flatMap { [$0.label, $0.value] })
+        haystacks.append(contentsOf: occurrenceExplanation.notes)
+    }
+    if let changeExplanation = entry.changeExplanation {
+        haystacks.append(changeExplanation.summary)
+        haystacks.append(contentsOf: changeExplanation.facts.flatMap { [$0.label, $0.value] })
+        haystacks.append(contentsOf: changeExplanation.notes)
+    }
+
+    return haystacks.contains { haystack in
+        haystack.folding(options: foldingOptions, locale: locale).contains(searchText)
     }
 }
 
