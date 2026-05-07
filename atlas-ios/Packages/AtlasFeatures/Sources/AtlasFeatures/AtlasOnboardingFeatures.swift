@@ -1,5 +1,6 @@
 import AtlasDesignSystem
 import AtlasDomain
+import StoreKit
 import SwiftUI
 
 public let atlasDreamOnboardingSceneCountForTesting = AtlasOnboardingDraft.empty().sequence().count
@@ -2108,6 +2109,9 @@ private struct KairoConnectAppsScreen: View {
 }
 
 private struct KairoRatingPrimerScreen: View {
+    @Environment(\.requestReview) private var requestReview
+    @State private var didRequestReview = false
+
     var body: some View {
         KairoQuestionScaffold(title: "Give us a rating", subtitle: "") {
             VStack(spacing: 14) {
@@ -2121,13 +2125,15 @@ private struct KairoRatingPrimerScreen: View {
                             .foregroundStyle(AtlasPalette.reward)
                     }
                 }
-                Text("We will ask at the right moment after you have used Kairo.")
-                    .font(.system(size: 14, weight: .semibold))
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(AtlasPalette.textPrimary)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 28)
+        }
+        .task {
+            guard didRequestReview == false else { return }
+            didRequestReview = true
+            try? await Task.sleep(for: .milliseconds(450))
+            requestReview()
         }
     }
 }
