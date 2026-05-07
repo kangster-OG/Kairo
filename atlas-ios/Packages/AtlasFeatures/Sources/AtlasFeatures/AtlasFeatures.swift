@@ -1438,10 +1438,32 @@ public final class AtlasAppModel {
         }
     }
 
+    public func restoreKairoPro() async -> AtlasOnboardingPremiumPlan? {
+        guard isPurchasingPremium == false else { return nil }
+        isPurchasingPremium = true
+        defer { isPurchasingPremium = false }
+
+        do {
+            return try await KairoPremiumStore.restorePurchasedPlan()
+        } catch {
+            setLoadErrorMessage(error.localizedDescription)
+            return nil
+        }
+    }
+
     public func purchaseKairoProFromLimitedPreview(plan: AtlasOnboardingPremiumPlan) async {
         let purchased = await purchaseKairoPro(plan: plan)
         guard purchased else { return }
 
+        await completeLimitedPreviewUpgrade(plan: plan)
+    }
+
+    public func restoreKairoProFromLimitedPreview() async {
+        guard let plan = await restoreKairoPro() else { return }
+        await completeLimitedPreviewUpgrade(plan: plan)
+    }
+
+    private func completeLimitedPreviewUpgrade(plan: AtlasOnboardingPremiumPlan) async {
         let completed = onboardingCompletionDraft(
             from: bootstrapSnapshot.onboardingDraft,
             accountMode: bootstrapSnapshot.onboardingDraft.accountMode ?? settingsSnapshot.accountStartMode ?? .guest,
@@ -3323,27 +3345,41 @@ private struct AtlasShellView: View {
                 ),
                 titleVisibility: .visible
             ) {
-                Button("Start 7-day free trial") {
+                Button("Annual: 7 days free, then $59.99/year") {
                     Task {
                         await model.purchaseKairoProFromLimitedPreview(
-                            plan: model.bootstrapSnapshot.onboardingDraft.premiumPlan
+                            plan: .annual
                         )
                     }
                 }
-                Button("Monthly - $9.99/month") {
+                Button("Monthly: 7 days free, then $9.99/month") {
                     Task { await model.purchaseKairoProFromLimitedPreview(plan: .monthly) }
                 }
-                Button("Annual - $59.99/year") {
-                    Task { await model.purchaseKairoProFromLimitedPreview(plan: .annual) }
-                }
-                Button("Last chance discount - $39.99/year") {
-                    Task { await model.purchaseKairoProFromLimitedPreview(plan: .annualLastChance) }
+                Button("Restore Purchases") {
+                    Task { await model.restoreKairoProFromLimitedPreview() }
                 }
                 Button("Not now", role: .cancel) {
                     model.dismissLimitedPreviewUpgradePrompt()
                 }
             } message: {
-                Text("Limited preview lets you browse Kairo's tabs. Start Kairo Pro to use logging, protocols, progress, companion features, and sync.")
+                Text("Annual and monthly include a 7-day free trial, then automatically renew at the listed price until canceled in App Store subscription settings. Limited preview lets you browse Kairo's tabs without starting Pro.")
+            }
+            .alert(
+                "Purchase unavailable",
+                isPresented: Binding(
+                    get: { model.loadErrorMessage != nil },
+                    set: { isPresented in
+                        if isPresented == false {
+                            model.setLoadErrorMessage(nil)
+                        }
+                    }
+                )
+            ) {
+                Button("OK") {
+                    model.setLoadErrorMessage(nil)
+                }
+            } message: {
+                Text(model.loadErrorMessage ?? "The App Store purchase could not be started. Please try again.")
             }
             .safeAreaInset(edge: .top, spacing: 0) {
                 if let banner = model.undoBanner {
@@ -8849,47 +8885,11 @@ private struct AtlasSettingsAccountScreen: View {
                         .buttonStyle(AtlasTertiaryButtonStyle())
                         .disabled(model.isPerformingCloudAction)
                     }
-                } else if model.dependencies.cloudSync.isConfigured() {
-                    TextField("Email", text: $email)
-                        .autocorrectionDisabled()
-                        .atlasStandaloneInputSurface()
-                    SecureField("Password", text: $password)
-                        .atlasStandaloneInputSurface()
-
-                    Button("Sign in") {
-                        AtlasFeedback.navigation()
-                        Task { await model.signInToCloud(email: email.trimmingCharacters(in: .whitespacesAndNewlines), password: password) }
-                    }
-                    .buttonStyle(AtlasPrimaryButtonStyle())
-                    .disabled(model.isPerformingCloudAction || email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || password.isEmpty)
-
-                    HStack(spacing: AtlasSpacing.small) {
-                        Button("Continue with Google") {
-                            AtlasFeedback.navigation()
-                            Task { await model.signInToCloud(with: .google) }
-                        }
-                        .buttonStyle(AtlasSecondaryButtonStyle())
-                        .disabled(model.isPerformingCloudAction)
-
-                        Button("Continue with Apple") {
-                            AtlasFeedback.navigation()
-                            Task { await model.signInToCloud(with: .apple) }
-                        }
-                        .buttonStyle(AtlasSecondaryButtonStyle())
-                        .disabled(model.isPerformingCloudAction)
-                    }
-
-                    Button("Create Kairo account") {
-                        AtlasFeedback.navigation()
-                        Task { await model.signUpToCloud(email: email.trimmingCharacters(in: .whitespacesAndNewlines), password: password) }
-                    }
-                    .buttonStyle(AtlasTertiaryButtonStyle())
-                    .disabled(model.isPerformingCloudAction || email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || password.isEmpty)
                 } else {
                     AtlasCalloutRow(
                         systemImage: "internaldrive",
-                        title: "Kairo Cloud is not active on this build",
-                        detail: "This device stays local-first until recovery sync is configured again.",
+                        title: "Local-first account mode",
+                        detail: "This release keeps Kairo data on this device. Cloud recovery sign-in is not offered in this build.",
                         tint: AtlasPalette.secondaryText
                     )
                 }
@@ -8955,6 +8955,8 @@ private struct AtlasSettingsPrivacyScreen: View {
                     ("Import Data", .importFlow),
                     ("Share Summary", .reviewMode)
                 ], model: model)
+
+                AtlasLegalLinksRow()
             }
         }
         .navigationTitle("Privacy & Trust")
@@ -9395,11 +9397,27 @@ private struct AtlasSettingsServicesScreen: View {
                     ) {
                         model.open(.settingsPrivacy)
                     }
+                    AtlasLegalLinksRow()
                 }
             }
         }
         .navigationTitle("Settings")
         .atlasInlineNavigationTitle()
+    }
+}
+
+private struct AtlasLegalLinksRow: View {
+    var body: some View {
+        HStack(spacing: 10) {
+            Link("Privacy Policy", destination: URL(string: "https://chloeverse.io/kairo/privacy")!)
+            Text("and")
+                .foregroundStyle(AtlasPalette.secondaryText)
+            Link("Terms of Use", destination: URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!)
+        }
+        .font(.system(size: 12, weight: .bold))
+        .foregroundStyle(AtlasPalette.primary)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
     }
 }
 

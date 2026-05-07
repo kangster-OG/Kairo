@@ -606,16 +606,19 @@ private func normalize(contextDraft: AtlasContextEntryDraft) throws -> AtlasCont
         giTags.removeAll { $0 == .calm }
     }
 
-    let hasMeaningfulContent =
+    let hasMealContext =
         contextDraft.mealTiming != nil
         || contextDraft.mealSize != nil
         || contextDraft.mealComposition != nil
         || contextDraft.fedState != nil
-        || contextDraft.appetite != nil
+    let hasBodyContext =
+        contextDraft.appetite != nil
         || contextDraft.hydration != nil
         || giTags.isEmpty == false
-        || (note?.isEmpty == false)
+    let hasTextContext =
+        note?.isEmpty == false
         || tags.isEmpty == false
+    let hasMeaningfulContent = hasMealContext || hasBodyContext || hasTextContext
 
     guard hasMeaningfulContent else {
         throw AtlasMetricsRepositoryError.invalidContextEntry
@@ -645,14 +648,16 @@ private func normalize(contextPresetDraft: AtlasContextPresetDraft) throws -> At
         giTags.removeAll { $0 == .calm }
     }
 
-    let hasMeaningfulContent =
+    let hasMealContext =
         contextPresetDraft.mealTiming != nil
         || contextPresetDraft.mealSize != nil
         || contextPresetDraft.mealComposition != nil
         || contextPresetDraft.fedState != nil
-        || contextPresetDraft.appetite != nil
+    let hasBodyContext =
+        contextPresetDraft.appetite != nil
         || contextPresetDraft.hydration != nil
         || giTags.isEmpty == false
+    let hasMeaningfulContent = hasMealContext || hasBodyContext
 
     guard title.isEmpty == false, hasMeaningfulContent else {
         throw AtlasMetricsRepositoryError.invalidContextPreset

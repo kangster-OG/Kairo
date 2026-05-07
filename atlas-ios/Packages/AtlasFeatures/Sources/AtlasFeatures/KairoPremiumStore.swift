@@ -41,6 +41,35 @@ enum KairoPremiumStore {
         }
     }
 
+    static func restorePurchasedPlan() async throws -> AtlasOnboardingPremiumPlan {
+        try await AppStore.sync()
+
+        for await result in Transaction.currentEntitlements {
+            let transaction = try checkVerified(result)
+            guard transaction.revocationDate == nil,
+                  let plan = plan(for: transaction.productID)
+            else {
+                continue
+            }
+            return plan
+        }
+
+        throw KairoPremiumStoreError.noActiveSubscription
+    }
+
+    private static func plan(for productID: String) -> AtlasOnboardingPremiumPlan? {
+        switch productID {
+        case annualProductID:
+            return .annual
+        case monthlyProductID:
+            return .monthly
+        case annualLastChanceProductID:
+            return .annualLastChance
+        default:
+            return nil
+        }
+    }
+
     private static func validateSevenDayTrial(_ product: Product) throws {
         guard let offer = product.subscription?.introductoryOffer else {
             throw KairoPremiumStoreError.missingSevenDayTrial(product.id)
@@ -77,6 +106,7 @@ enum KairoPremiumStoreError: LocalizedError {
     case productNotFound(String)
     case missingSevenDayTrial(String)
     case unverifiedTransaction
+    case noActiveSubscription
 
     var errorDescription: String? {
         switch self {
@@ -86,6 +116,8 @@ enum KairoPremiumStoreError: LocalizedError {
             return "Kairo Pro product '\(productID)' does not expose a 7-day introductory trial. Configure the 7-day free trial in App Store Connect before launch."
         case .unverifiedTransaction:
             return "The App Store transaction could not be verified."
+        case .noActiveSubscription:
+            return "No active Kairo Pro subscription was found for this Apple ID."
         }
     }
 }

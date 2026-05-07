@@ -23,6 +23,8 @@ public struct AtlasOnboardingFlowScreen: View {
     @Environment(\.requestReview) private var requestReview
     @State private var draft: AtlasOnboardingDraft
     @State private var companionName: String
+    @State private var showsLastChanceOffer = false
+    @State private var didRequestRatingPrimerReview = false
 
     public init(model: AtlasAppModel) {
         self.model = model
@@ -84,6 +86,44 @@ public struct AtlasOnboardingFlowScreen: View {
         }
         .onChange(of: draft.trackType) { _, _ in
             repairActiveStepIfNeeded()
+        }
+        .task(id: step) {
+            await requestReviewWhenRatingPrimerIsVisible()
+        }
+        .alert(
+            "Purchase unavailable",
+            isPresented: Binding(
+                get: { model.loadErrorMessage != nil },
+                set: { isPresented in
+                    if isPresented == false {
+                        model.setLoadErrorMessage(nil)
+                    }
+                }
+            )
+        ) {
+            Button("OK") {
+                model.setLoadErrorMessage(nil)
+            }
+        } message: {
+            Text(model.loadErrorMessage ?? "The App Store purchase could not be started. Please try again.")
+        }
+        .confirmationDialog(
+            "Before you continue without Pro",
+            isPresented: $showsLastChanceOffer,
+            titleVisibility: .visible
+        ) {
+            Button("Claim $39.99/year offer billed now") {
+                Task { await purchaseLastChanceDiscountAndAdvance() }
+            }
+            Button("Restore Purchases") {
+                Task { await restorePurchaseAndAdvance() }
+            }
+            Button("No thanks, continue with limited preview") {
+                Task { await continueWithLimitedPreviewAfterOffer() }
+            }
+            Button("Stay on trial options", role: .cancel) {}
+        } message: {
+            Text("This annual offer is billed now and renews yearly until canceled. Annual and monthly trials remain available above if you prefer 7 days free before payment.")
         }
         .animation(AtlasMotion.screenEntry(reduceMotion: reduceMotion), value: step)
         .animation(.spring(response: 0.28, dampingFraction: 0.86), value: draft)
@@ -283,10 +323,13 @@ public struct AtlasOnboardingFlowScreen: View {
         case .trialReminder:
             KairoTrialReminderScreen()
         case .trialPaywall:
-            KairoTrialPaywallScreen(plan: draft.premiumPlan) { plan in
+            KairoTrialPaywallScreen(plan: visibleTrialPlan) { plan in
                 updateDraft { $0.premiumPlan = plan }
-            } onLastChanceDiscount: {
-                Task { await purchaseLastChanceDiscountAndAdvance() }
+            } onPurchasePlan: { plan in
+                updateDraft { $0.premiumPlan = plan }
+                Task { await purchaseTrialAndAdvance(plan: plan) }
+            } onRestore: {
+                Task { await restorePurchaseAndAdvance() }
             }
         case .purchaseSuccess:
             KairoPurchaseSuccessScreen(
@@ -348,7 +391,15 @@ public struct AtlasOnboardingFlowScreen: View {
         case .intro: "Get started"
         case .planReady: "Let's get started"
         case .homeEndpoint: "Enter Kairo"
-        case .trialPaywall: "Start 7-day free trial"
+        case .trialPaywall:
+            switch visibleTrialPlan {
+            case .annual:
+                "7 days free, then $59.99/year"
+            case .monthly:
+                "7 days free, then $9.99/month"
+            case .annualLastChance:
+                "7 days free, then $59.99/year"
+            }
         case .purchaseSuccess: "Enter Kairo"
         default: "Next"
         }
@@ -356,12 +407,15 @@ public struct AtlasOnboardingFlowScreen: View {
 
     private var secondaryTitle: String? {
         switch step {
-        case .intro: "Already have an account? Sign in"
         case .connectApps: "Not now"
         case .trialPaywall: "Continue with limited preview"
         case .signInModal: "Continue as guest"
         default: nil
         }
+    }
+
+    private var visibleTrialPlan: AtlasOnboardingPremiumPlan {
+        draft.premiumPlan == .annualLastChance ? .annual : draft.premiumPlan
     }
 
     private var glpMedicationOptions: [String] {
@@ -418,8 +472,6 @@ public struct AtlasOnboardingFlowScreen: View {
         case .connectApps:
             Task { await connectHealthAndAdvance() }
             return
-        case .ratingPrimer:
-            requestReview()
         case .trialReminder:
             Task { await enableRemindersAndAdvance() }
             return
@@ -453,6 +505,20 @@ public struct AtlasOnboardingFlowScreen: View {
         }
     }
 
+    private func requestReviewWhenRatingPrimerIsVisible() async {
+        guard step == .ratingPrimer, didRequestRatingPrimerReview == false else {
+            return
+        }
+        didRequestRatingPrimerReview = true
+
+        try? await Task.sleep(for: .milliseconds(450))
+        guard Task.isCancelled == false, model.activeOnboardingStep == .ratingPrimer else {
+            return
+        }
+
+        requestReview()
+    }
+
     private func secondaryAction() {
         model.recordOnboardingFunnelEvent(.secondaryTapped, step: step)
         switch step {
@@ -462,8 +528,7 @@ public struct AtlasOnboardingFlowScreen: View {
         case .connectApps:
             updateDraft { $0.healthConnectionPromptSeen = true }
         case .trialPaywall:
-            Task { await startLimitedPreview() }
-            model.recordOnboardingFunnelEvent(.basicSelected, step: step)
+            showsLastChanceOffer = true
             return
         case .signInModal:
             updateDraft { $0.accountMode = .guest }
@@ -501,10 +566,15 @@ public struct AtlasOnboardingFlowScreen: View {
     }
 
     private func purchaseTrialAndAdvance() async {
-        let purchased = await model.purchaseKairoPro(plan: draft.premiumPlan)
+        await purchaseTrialAndAdvance(plan: visibleTrialPlan)
+    }
+
+    private func purchaseTrialAndAdvance(plan: AtlasOnboardingPremiumPlan) async {
+        let purchased = await model.purchaseKairoPro(plan: plan)
         guard purchased else { return }
 
         var next = draft
+        next.premiumPlan = plan
         next.paywallChoice = .trialStarted
         model.recordOnboardingFunnelEvent(.trialStarted, step: step)
         await saveAndAdvance(next)
@@ -519,6 +589,21 @@ public struct AtlasOnboardingFlowScreen: View {
         next.paywallChoice = .trialStarted
         model.recordOnboardingFunnelEvent(.trialStarted, step: step)
         await saveAndAdvance(next)
+    }
+
+    private func restorePurchaseAndAdvance() async {
+        guard let plan = await model.restoreKairoPro() else { return }
+
+        var next = draft
+        next.premiumPlan = plan
+        next.paywallChoice = .trialStarted
+        model.recordOnboardingFunnelEvent(.trialStarted, step: step)
+        await saveAndAdvance(next)
+    }
+
+    private func continueWithLimitedPreviewAfterOffer() async {
+        model.recordOnboardingFunnelEvent(.basicSelected, step: step)
+        await startLimitedPreview()
     }
 
     private func startLimitedPreview() async {
@@ -1996,7 +2081,7 @@ private struct KairoEvolutionScreen: View {
                 .font(.system(size: 11, weight: .black))
                 .foregroundStyle(AtlasPalette.textPrimary)
             }
-            KairoInfoBanner(text: "Your companion grows as you build consistency, complete reviews, and care for your protocol.")
+            KairoInfoBanner(text: "Your companion grows as you build consistency, see your progress, and accomplish your goals.")
         }
     }
 }
@@ -2286,7 +2371,7 @@ private struct KairoPlanReadyScreen: View {
         KairoQuestionScaffold(title: "You're ready", subtitle: "") {
             VStack(spacing: 12) {
                 KairoMiniTodayPreview(track: track, glp: glp, peptide: peptide)
-                KairoInfoBanner(text: "Kairo is tracking \(track.title.lowercased()) rhythm, inventory, adherence, and weekly review.")
+                KairoInfoBanner(text: "Kairo has your first protocol ready.")
             }
         }
     }
@@ -2294,12 +2379,10 @@ private struct KairoPlanReadyScreen: View {
 
 private struct KairoSaveProgressScreen: View {
     var body: some View {
-        KairoQuestionScaffold(title: "Save your progress", subtitle: "") {
+        KairoQuestionScaffold(title: "Keep your progress", subtitle: "") {
             VStack(spacing: 12) {
-                KairoInfoBanner(text: "Your protocol path, reminders, and generated plan stay linked to this account.")
-                KairoAuthButton(icon: "apple.logo", title: "Sign in with Apple", filled: true)
-                KairoAuthButton(icon: "g.circle.fill", title: "Continue with Google", filled: false)
-                KairoAuthButton(icon: "envelope.fill", title: "Continue with email", filled: false)
+                KairoInfoBanner(text: "Your protocol path, reminders, and generated plan stay on this device.")
+                KairoInfoBanner(text: "Kairo Cloud recovery sign-in is not offered in this release build.")
             }
         }
     }
@@ -2309,9 +2392,7 @@ private struct KairoSignInScreen: View {
     var body: some View {
         KairoQuestionScaffold(title: "Almost there", subtitle: "") {
             VStack(spacing: 12) {
-                KairoTextFieldPreview(label: "First name")
-                KairoTextFieldPreview(label: "Email")
-                KairoAuthButton(icon: "checkmark.seal.fill", title: "Create secure profile", filled: true)
+                KairoInfoBanner(text: "Kairo is ready to continue locally on this device.")
             }
         }
     }
@@ -2354,30 +2435,114 @@ private struct KairoTrialChecklistRow: View {
 private struct KairoTrialReminderScreen: View {
     var body: some View {
         KairoQuestionScaffold(title: "We'll send a reminder", subtitle: "") {
-            Image(systemName: "bell.badge.fill")
-                .font(.system(size: 76, weight: .bold))
-                .foregroundStyle(AtlasPalette.reward)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 50)
-                KairoInfoBanner(text: "No payment due now!")
+            VStack(spacing: 0) {
+                KairoRingingBellIcon()
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 46)
+                    .padding(.bottom, 56)
+
+                Text("No payment due today.")
+                    .font(.system(size: 28, weight: .black))
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(AtlasPalette.textPrimary)
+                    .padding(.horizontal, 8)
+
+                Text("If you start a trial, Kairo renews automatically after 7 days at the plan price you choose unless canceled.")
+                    .font(.system(size: 13, weight: .semibold))
+                    .lineSpacing(3)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(AtlasPalette.textSecondary)
+                    .padding(.horizontal, 18)
+                    .padding(.top, 24)
+            }
+            .frame(maxWidth: .infinity)
         }
+    }
+}
+
+private struct KairoRingingBellIcon: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var isRinging = false
+
+    var body: some View {
+        ZStack {
+            ringingMark(offset: CGSize(width: -52, height: -34), rotation: -28)
+            ringingMark(offset: CGSize(width: 52, height: -34), rotation: 28)
+            ringingMark(offset: CGSize(width: -67, height: -2), rotation: -14)
+            ringingMark(offset: CGSize(width: 67, height: -2), rotation: 14)
+
+            Image(systemName: "bell.badge.fill")
+                .font(.system(size: 78, weight: .bold))
+                .foregroundStyle(AtlasPalette.reward)
+                .rotationEffect(.degrees(reduceMotion ? 0 : (isRinging ? -8 : 8)))
+                .scaleEffect(reduceMotion ? 1 : (isRinging ? 1.04 : 0.98))
+                .animation(
+                    reduceMotion
+                        ? nil
+                        : .easeInOut(duration: 0.16).repeatForever(autoreverses: true),
+                    value: isRinging
+                )
+        }
+        .frame(width: 184, height: 142)
+        .task {
+            guard reduceMotion == false else { return }
+            isRinging = true
+        }
+    }
+
+    private func ringingMark(offset: CGSize, rotation: Double) -> some View {
+        Capsule()
+            .fill(AtlasPalette.reward.opacity(isRinging && reduceMotion == false ? 0.42 : 0.18))
+            .frame(width: 8, height: 28)
+            .rotationEffect(.degrees(rotation))
+            .offset(offset)
+            .scaleEffect(isRinging && reduceMotion == false ? 1.12 : 0.82)
+            .animation(
+                reduceMotion
+                    ? nil
+                    : .easeInOut(duration: 0.32).repeatForever(autoreverses: true),
+                value: isRinging
+            )
     }
 }
 
 private struct KairoTrialPaywallScreen: View {
     let plan: AtlasOnboardingPremiumPlan
     let onPlan: (AtlasOnboardingPremiumPlan) -> Void
-    let onLastChanceDiscount: () -> Void
+    let onPurchasePlan: (AtlasOnboardingPremiumPlan) -> Void
+    let onRestore: () -> Void
 
     var body: some View {
         KairoQuestionScaffold(title: "Start your 7-day free trial to continue", subtitle: "") {
             VStack(spacing: 12) {
                 KairoTrialTimeline()
-                KairoPlanPriceRow(title: "Annual", price: "$59.99 / year", selected: plan == .annual) { onPlan(.annual) }
-                KairoPlanPriceRow(title: "Monthly", price: "$9.99 / month", selected: plan == .monthly) { onPlan(.monthly) }
-                KairoLastChanceDiscountButton(action: onLastChanceDiscount)
+                KairoPlanPriceRow(
+                    title: "Annual",
+                    price: "$59.99 / year",
+                    terms: "7 days free, then $59.99 billed yearly. Renews automatically until canceled.",
+                    selected: plan == .annual
+                ) {
+                    onPlan(.annual)
+                    onPurchasePlan(.annual)
+                }
+                KairoPlanPriceRow(
+                    title: "Monthly",
+                    price: "$9.99 / month",
+                    terms: "7 days free, then $9.99 billed monthly. Renews automatically until canceled.",
+                    selected: plan == .monthly
+                ) {
+                    onPlan(.monthly)
+                    onPurchasePlan(.monthly)
+                }
                 KairoInfoBanner(text: "Limited preview saves your setup and lets you inspect Kairo locally without starting Pro.")
-                KairoInfoBanner(text: "Cancel anytime. Kairo does not provide dosing or medical advice.")
+                KairoInfoBanner(text: "Cancel anytime in App Store subscription settings. Kairo does not provide dosing or medical advice.")
+                Button("Restore Purchases") {
+                    onRestore()
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(AtlasPalette.primary)
+                KairoLegalLinksRow()
             }
         }
     }
@@ -2404,10 +2569,9 @@ private struct KairoPurchaseSuccessScreen: View {
 
 private struct KairoSaveProgressAgainScreen: View {
     var body: some View {
-        KairoQuestionScaffold(title: "Save your progress", subtitle: "") {
+        KairoQuestionScaffold(title: "Keep your progress", subtitle: "") {
             VStack(spacing: 12) {
-                KairoAuthButton(icon: "apple.logo", title: "Sign in with Apple", filled: true)
-                KairoAuthButton(icon: "envelope.fill", title: "Continue with email", filled: false)
+                KairoInfoBanner(text: "This release keeps Kairo data local to this device.")
             }
         }
     }
@@ -4342,7 +4506,7 @@ private struct KairoTrialTimeline: View {
             Rectangle().fill(AtlasPalette.border).frame(height: 1)
             KairoTrialTimelineItem(icon: "bell.badge.fill", title: "Day 6", detail: "Reminder")
             Rectangle().fill(AtlasPalette.border).frame(height: 1)
-            KairoTrialTimelineItem(icon: "crown.fill", title: "Day 7", detail: "Renewal")
+            KairoTrialTimelineItem(icon: "crown.fill", title: "Day 7", detail: "Auto-renews")
         }
         .padding(12)
         .background(AtlasPalette.surfaceTop, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -4410,55 +4574,50 @@ private struct KairoTextFieldPreview: View {
     }
 }
 
-private struct KairoLastChanceDiscountButton: View {
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 12) {
-                Image(systemName: "tag.fill")
-                    .font(.system(size: 17, weight: .black))
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Last chance discount")
-                        .font(.system(size: 16, weight: .black))
-                    Text("$39.99 / year")
-                        .font(.system(size: 13, weight: .bold))
-                        .opacity(0.82)
-                }
-                Spacer()
-                Image(systemName: "arrow.right.circle.fill")
-                    .font(.system(size: 19, weight: .bold))
-            }
-            .foregroundStyle(.white)
-            .padding(15)
-            .background(AtlasPalette.reward, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Last chance discount, 39.99 dollars per year")
-    }
-}
-
 private struct KairoPlanPriceRow: View {
     let title: String
     let price: String
+    let terms: String
     let selected: Bool
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             HStack {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 5) {
                     Text(title).font(.system(size: 16, weight: .black))
                     Text(price).font(.system(size: 13, weight: .bold)).opacity(0.78)
+                    Text(terms)
+                        .font(.system(size: 12, weight: .semibold))
+                        .lineSpacing(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .opacity(selected ? 0.9 : 0.7)
                 }
                 Spacer()
-                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                Image(systemName: "arrow.right.circle.fill")
+                    .font(.system(size: 19, weight: .bold))
             }
             .foregroundStyle(selected ? .white : AtlasPalette.textPrimary)
             .padding(15)
             .background(selected ? AtlasPalette.primary : AtlasPalette.surfaceSecondary, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
         .buttonStyle(.plain)
+        .accessibilityHint(terms)
+    }
+}
+
+private struct KairoLegalLinksRow: View {
+    var body: some View {
+        HStack(spacing: 12) {
+            Link("Privacy Policy", destination: URL(string: "https://chloeverse.io/kairo/privacy")!)
+            Text("and")
+                .foregroundStyle(AtlasPalette.secondaryText)
+            Link("Terms of Use", destination: URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!)
+        }
+        .font(.system(size: 12, weight: .bold))
+        .foregroundStyle(AtlasPalette.primary)
+        .multilineTextAlignment(.center)
+        .frame(maxWidth: .infinity)
     }
 }
 
