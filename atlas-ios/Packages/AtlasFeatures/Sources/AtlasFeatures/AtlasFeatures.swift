@@ -3361,8 +3361,6 @@ private struct AtlasShellView: View {
                 Button("Not now", role: .cancel) {
                     model.dismissLimitedPreviewUpgradePrompt()
                 }
-            } message: {
-                Text("Annual and monthly include a 7-day free trial, then automatically renew at the listed price until canceled in App Store subscription settings. Limited preview lets you browse Kairo's tabs without starting Pro.")
             }
             .alert(
                 "Purchase unavailable",
