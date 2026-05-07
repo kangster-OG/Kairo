@@ -2520,8 +2520,6 @@ private struct KairoTrialPaywallScreen: View {
                     onPlan(.monthly)
                     onPurchasePlan(.monthly)
                 }
-                KairoInfoBanner(text: "Limited preview saves your setup and lets you inspect Kairo locally without starting Pro.")
-                KairoInfoBanner(text: "Cancel anytime in App Store subscription settings. Kairo does not provide dosing or medical advice.")
                 Button("Restore Purchases") {
                     onRestore()
                 }
