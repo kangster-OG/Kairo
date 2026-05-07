@@ -10,7 +10,7 @@ public enum AtlasOnboardingAccountMode: String, Codable, CaseIterable, Sendable 
         case .guest:
             "Continue as guest"
         case .create:
-            "Create account"
+            "Local profile"
         case .signIn:
             "Sign in"
         }

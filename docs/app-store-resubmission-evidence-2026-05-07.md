@@ -14,17 +14,17 @@
 
 ## Uploaded Binary
 
-- Accepted archive: `output/app-store-builds/Kairo-1.0-2026050701-arm64.xcarchive`.
-- Accepted IPA: `output/app-store-builds/export-arm64/Atlas.ipa`.
-- Delivery UUID: `c54f062d-f0b5-4263-bb25-5d6bc625a52a`.
-- Upload completed on 2026-05-07 at 1:26 PM local time.
+- Accepted archive: `output/app-store-builds/Kairo-1.0-2026050703-arm64.xcarchive`.
+- Accepted IPA: `output/app-store-builds/export-2026050703-arm64/Atlas.ipa`.
+- App Store Connect build ID: `60e52ef5-6bed-42c4-9a59-567d9997bd73`.
+- Upload completed on 2026-05-07 at 4:01 PM local time; App Store Connect metadata shows upload date May 7, 2026 at 4:02 PM.
 
 ## App Store Connect Build Metadata
 
-Verified from the live App Store Connect build metadata page for `1.0 (2026050701)`:
+Verified from the live App Store Connect build metadata page for `1.0 (2026050703)`:
 
 - Binary State: `Validated`.
-- Bundle Version String: `2026050701`.
+- Bundle Version String: `2026050703`.
 - Bundle ID: `com.dkang2000.Atlas`.
 - Minimum iOS Version: `17.0`.
 - Supported Architectures: `arm64`.
@@ -37,8 +37,8 @@ Verified from the live App Store Connect build metadata page for `1.0 (202605070
 Verified from the live App Store Connect iOS version page:
 
 - iOS version `1.0` status: `Prepare for Submission`.
-- Selected build: `2026050701`.
-- Rejected build `2026050401` is no longer selected in the build slot.
+- Selected build: `2026050703`.
+- Previously selected build `2026050701` and rejected build `2026050401` are no longer selected in the build slot.
 - `Save` is disabled after saving the build and review-note changes.
 - `Update Review` is enabled and waiting for explicit user approval.
 - Release mode remains `Automatically release this version`.
@@ -47,11 +47,11 @@ Verified from the live App Store Connect iOS version page:
 
 The App Review notes now state that:
 
-- Build `2026050701` replaces rejected build `2026050401`.
+- Build `2026050703` replaces previously selected build `2026050701` and rejected build `2026050401`.
 - The resubmission addresses the May 7, 2026 `2.3.0` device-capability rejection.
 - The app and both embedded extensions were re-archived with `UIRequiredDeviceCapabilities = arm64`.
-- The upload was accepted by App Store Connect validation.
-- Local install and launch were verified on iPhone 17 Pro Max and iPad Air 11-inch simulator coverage.
+- App Store Connect build metadata shows `Binary State = Validated`, `Supported Architectures = arm64`, `Device Family = iPhone`, `Required Capabilities = arm64`, and `get-task-allow = false`.
+- Local full simulator tests, Release iPhoneOS archive/export, exported IPA plist/entitlement inspection, compiled binary scanning, and clean-install smoke testing were completed before stopping.
 - Restore Purchases and legal links are available in the paywall/settings surfaces.
 
 ## Subscriptions
@@ -84,8 +84,19 @@ Local link checks:
   - `atlas-ios/Atlas/Info.plist`
   - `atlas-ios/AtlasWidgetsExtension/Info.plist`
   - `atlas-ios/AtlasIntentsExtension/Info.plist`
+- Full simulator tests passed for build `2026050703`.
 - Release build passed for iOS 26.4 simulator target `iPhone 17 Pro Max`.
-- Local smoke launch passed on iPhone 17 Pro Max and iPad Air 11-inch simulator coverage.
+- Release iPhoneOS archive passed for `output/app-store-builds/Kairo-1.0-2026050703-arm64.xcarchive`.
+- Exported IPA inspection confirmed the app and both extensions preserve `CFBundleVersion = 2026050703`, `UIRequiredDeviceCapabilities = arm64`, and `get-task-allow = false`.
+- Compiled binary scan found no `localhost`, `127.0.0.1`, old staging copy, or in-onboarding review prompt APIs.
+- Local clean-install onboarding/paywall/limited-preview smoke passed on iPhone 17 Pro Max simulator before the final text-only `2026050703` archive.
 - Smoke screenshots:
-  - `output/app-store-builds/iphone-17-pro-max-2026050701-after-get-started.png`
-  - `output/app-store-builds/ipad-air-11-m4-2026050701-after-get-started.png`
+  - `output/app-store-builds/iphone-17-pro-max-2026050702-clean-launch.jpg`
+  - `output/app-store-builds/iphone-17-pro-max-2026050702-track-disclaimer.jpg`
+  - `output/app-store-builds/iphone-17-pro-max-2026050702-rating-primer-no-system-prompt.jpg`
+  - `output/app-store-builds/iphone-17-pro-max-2026050702-plan-ready-copy.jpg`
+  - `output/app-store-builds/iphone-17-pro-max-2026050702-trial-reminder.jpg`
+  - `output/app-store-builds/iphone-17-pro-max-2026050702-paywall.jpg`
+  - `output/app-store-builds/iphone-17-pro-max-2026050702-limited-preview-home.jpg`
+  - `output/app-store-builds/iphone-17-pro-max-2026050702-limited-upgrade-prompt.jpg`
+  - `output/app-store-builds/iphone-17-pro-max-2026050702-limited-log-tab.jpg`

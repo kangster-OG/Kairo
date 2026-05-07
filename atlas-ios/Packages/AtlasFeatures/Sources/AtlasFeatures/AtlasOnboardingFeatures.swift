@@ -1,7 +1,6 @@
 import AtlasDesignSystem
 import AtlasDomain
 import SwiftUI
-import StoreKit
 
 public let atlasDreamOnboardingSceneCountForTesting = AtlasOnboardingDraft.empty().sequence().count
 
@@ -20,11 +19,9 @@ public struct AtlasOnboardingFlowScreen: View {
     let model: AtlasAppModel
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.requestReview) private var requestReview
     @State private var draft: AtlasOnboardingDraft
     @State private var companionName: String
     @State private var showsLastChanceOffer = false
-    @State private var didRequestRatingPrimerReview = false
 
     public init(model: AtlasAppModel) {
         self.model = model
@@ -86,9 +83,6 @@ public struct AtlasOnboardingFlowScreen: View {
         }
         .onChange(of: draft.trackType) { _, _ in
             repairActiveStepIfNeeded()
-        }
-        .task(id: step) {
-            await requestReviewWhenRatingPrimerIsVisible()
         }
         .alert(
             "Purchase unavailable",
@@ -505,20 +499,6 @@ public struct AtlasOnboardingFlowScreen: View {
         }
     }
 
-    private func requestReviewWhenRatingPrimerIsVisible() async {
-        guard step == .ratingPrimer, didRequestRatingPrimerReview == false else {
-            return
-        }
-        didRequestRatingPrimerReview = true
-
-        try? await Task.sleep(for: .milliseconds(450))
-        guard Task.isCancelled == false, model.activeOnboardingStep == .ratingPrimer else {
-            return
-        }
-
-        requestReview()
-    }
-
     private func secondaryAction() {
         model.recordOnboardingFunnelEvent(.secondaryTapped, step: step)
         switch step {
@@ -876,6 +856,7 @@ private struct KairoTrackTypeScreen: View {
             VStack(spacing: 12) {
                 KairoTrackButton(type: .glp, subtitle: "GLP protocols, adherence, side effects", selected: selection == .glp || selection == .both, action: { onSelect(toggled(.glp)) })
                 KairoTrackButton(type: .peptide, subtitle: "Peptide stacks, schedules, inventory", selected: selection == .peptide || selection == .both, action: { onSelect(toggled(.peptide)) })
+                KairoInfoBanner(text: "Kairo tracks your existing protocol and logs. It does not provide dosing or medical advice.")
             }
         }
     }

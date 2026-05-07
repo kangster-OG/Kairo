@@ -666,7 +666,7 @@ public struct AtlasWeeklyReviewScreen: View {
         isExporting = true
         defer { isExporting = false }
         closeoutState = AtlasWeeklyReviewCloseoutState(
-            eyebrow: "Pack staging",
+            eyebrow: "Preparing pack",
             title: "Preparing weekly review export.",
             detail: "Building the recap pack.",
             tint: AtlasPalette.reward,

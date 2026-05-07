@@ -3532,7 +3532,7 @@ public struct AtlasMascotDetailScreen: View {
     @MainActor
     private func createMascotRecapExport(_ descriptor: AtlasMascotRecapDescriptor) async {
         recapHandoffState = AtlasMascotRecapHandoffState(
-            eyebrow: "Export staging",
+            eyebrow: "Preparing export",
             title: "Preparing the \(descriptor.kind.title.lowercased()).",
             detail: "Rendering the current recap card.",
             tint: atlasMascotLineTint(for: descriptor.selection),
@@ -3544,7 +3544,7 @@ public struct AtlasMascotDetailScreen: View {
             shareArtifact = try await model.exportMascotRecapCard(descriptor)
             recapHandoffState = AtlasMascotRecapHandoffState(
                 eyebrow: "Poster ready",
-                title: "\(descriptor.kind.title) is staged and ready to share.",
+                title: "\(descriptor.kind.title) is ready to share.",
                 detail: "Saved and ready to share.",
                 tint: atlasMascotLineHighlight(for: descriptor.selection),
                 badge: descriptor.privacyMode.title,
