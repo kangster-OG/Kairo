@@ -856,7 +856,6 @@ private struct KairoTrackTypeScreen: View {
             VStack(spacing: 12) {
                 KairoTrackButton(type: .glp, subtitle: "GLP protocols, adherence, side effects", selected: selection == .glp || selection == .both, action: { onSelect(toggled(.glp)) })
                 KairoTrackButton(type: .peptide, subtitle: "Peptide stacks, schedules, inventory", selected: selection == .peptide || selection == .both, action: { onSelect(toggled(.peptide)) })
-                KairoInfoBanner(text: "Kairo tracks your existing protocol and logs. It does not provide dosing or medical advice.")
             }
         }
     }

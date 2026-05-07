@@ -14,17 +14,17 @@
 
 ## Uploaded Binary
 
-- Accepted archive: `output/app-store-builds/Kairo-1.0-2026050703-arm64.xcarchive`.
-- Accepted IPA: `output/app-store-builds/export-2026050703-arm64/Atlas.ipa`.
-- App Store Connect build ID: `60e52ef5-6bed-42c4-9a59-567d9997bd73`.
-- Upload completed on 2026-05-07 at 4:01 PM local time; App Store Connect metadata shows upload date May 7, 2026 at 4:02 PM.
+- Accepted archive: `output/app-store-builds/Kairo-1.0-2026050704-arm64.xcarchive`.
+- Accepted IPA: `output/app-store-builds/export-2026050704-arm64/Atlas.ipa`.
+- App Store Connect build ID / delivery UUID: `2023fcfb-95cd-4510-9505-c5eee1e7668c`.
+- Upload completed on 2026-05-07 at 4:54 PM local time; App Store Connect metadata shows upload date May 7, 2026 at 4:55 PM.
 
 ## App Store Connect Build Metadata
 
-Verified from the live App Store Connect build metadata page for `1.0 (2026050703)`:
+Verified from the live App Store Connect build metadata page for `1.0 (2026050704)`:
 
 - Binary State: `Validated`.
-- Bundle Version String: `2026050703`.
+- Bundle Version String: `2026050704`.
 - Bundle ID: `com.dkang2000.Atlas`.
 - Minimum iOS Version: `17.0`.
 - Supported Architectures: `arm64`.
@@ -37,8 +37,8 @@ Verified from the live App Store Connect build metadata page for `1.0 (202605070
 Verified from the live App Store Connect iOS version page:
 
 - iOS version `1.0` status: `Prepare for Submission`.
-- Selected build: `2026050703`.
-- Previously selected build `2026050701` and rejected build `2026050401` are no longer selected in the build slot.
+- Selected build: `2026050704`.
+- Previously selected build `2026050703` and rejected build `2026050401` are no longer selected in the build slot.
 - `Save` is disabled after saving the build and review-note changes.
 - `Update Review` is enabled and waiting for explicit user approval.
 - Release mode remains `Automatically release this version`.
@@ -47,7 +47,7 @@ Verified from the live App Store Connect iOS version page:
 
 The App Review notes now state that:
 
-- Build `2026050703` replaces previously selected build `2026050701` and rejected build `2026050401`.
+- Build `2026050704` replaces previously selected build `2026050703` and rejected build `2026050401`.
 - The resubmission addresses the May 7, 2026 `2.3.0` device-capability rejection.
 - The app and both embedded extensions were re-archived with `UIRequiredDeviceCapabilities = arm64`.
 - App Store Connect build metadata shows `Binary State = Validated`, `Supported Architectures = arm64`, `Device Family = iPhone`, `Required Capabilities = arm64`, and `get-task-allow = false`.
@@ -84,12 +84,12 @@ Local link checks:
   - `atlas-ios/Atlas/Info.plist`
   - `atlas-ios/AtlasWidgetsExtension/Info.plist`
   - `atlas-ios/AtlasIntentsExtension/Info.plist`
-- Full simulator tests passed for build `2026050703`.
+- Full simulator tests passed for build `2026050704`.
 - Release build passed for iOS 26.4 simulator target `iPhone 17 Pro Max`.
-- Release iPhoneOS archive passed for `output/app-store-builds/Kairo-1.0-2026050703-arm64.xcarchive`.
-- Exported IPA inspection confirmed the app and both extensions preserve `CFBundleVersion = 2026050703`, `UIRequiredDeviceCapabilities = arm64`, and `get-task-allow = false`.
-- Compiled binary scan found no `localhost`, `127.0.0.1`, old staging copy, or in-onboarding review prompt APIs.
-- Local clean-install onboarding/paywall/limited-preview smoke passed on iPhone 17 Pro Max simulator before the final text-only `2026050703` archive.
+- Release iPhoneOS archive passed for `output/app-store-builds/Kairo-1.0-2026050704-arm64.xcarchive`.
+- Exported IPA inspection confirmed the app and both extensions preserve `CFBundleVersion = 2026050704`, `UIRequiredDeviceCapabilities = arm64`, and `get-task-allow = false`.
+- Compiled binary scan found no `localhost`, `127.0.0.1`, old staging copy, in-onboarding review prompt APIs, or the removed onboarding safety copy.
+- Local clean-install onboarding smoke passed on iPhone 17 Pro Max simulator after the final `2026050704` copy removal and build bump.
 - Smoke screenshots:
   - `output/app-store-builds/iphone-17-pro-max-2026050702-clean-launch.jpg`
   - `output/app-store-builds/iphone-17-pro-max-2026050702-track-disclaimer.jpg`
