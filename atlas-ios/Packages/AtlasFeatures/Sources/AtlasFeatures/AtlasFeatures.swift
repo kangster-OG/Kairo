@@ -1428,7 +1428,7 @@ public final class AtlasAppModel {
 
         do {
             let purchased = try await KairoPremiumStore.purchase(plan: plan)
-            if purchased {
+            if purchased, plan != .annualLastChance {
                 await scheduleKairoTrialRenewalReminder()
             }
             return purchased
@@ -3345,6 +3345,13 @@ private struct AtlasShellView: View {
                 ),
                 titleVisibility: .visible
             ) {
+                Button("Claim $39.99/year offer billed now") {
+                    Task {
+                        await model.purchaseKairoProFromLimitedPreview(
+                            plan: .annualLastChance
+                        )
+                    }
+                }
                 Button("Annual: 7 days free, then $59.99/year") {
                     Task {
                         await model.purchaseKairoProFromLimitedPreview(

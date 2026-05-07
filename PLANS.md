@@ -13,10 +13,10 @@ Status:
 - rejected build: `1.0 (2026050401)`
 - Apple issue: uploaded build metadata listed `UIRequiredDeviceCapabilities` / Required Capabilities as `arm64`, blocking install on the review devices
 - upload validation finding: App Store Connect rejects removing `arm64` from `UIRequiredDeviceCapabilities` for 64-bit app/extension binaries, so `arm64` must be present
-- current binary: build `2026050708`, with `arm64` explicitly present in the app, widget extension, and intents extension plists
-- upload status: `2026050708` upload succeeded on 2026-05-07 and is validated in App Store Connect
-- App Store Connect version page now has build `2026050708` selected for iOS version `1.0`; previously selected build `2026050707` and rejected build `2026050401` were removed from the selected build slot
-- App Review notes were updated to address the May 7, 2026 `2.3.0` device-capability rejection and to name build `2026050708`
+- current binary: build `2026050709`, with `arm64` explicitly present in the app, widget extension, and intents extension plists
+- upload status: `2026050709` upload succeeded on 2026-05-07 and is validated in App Store Connect
+- App Store Connect version page now has build `2026050709` selected for iOS version `1.0`; previously selected build `2026050708` and rejected build `2026050401` were removed from the selected build slot
+- App Review notes were updated to address the May 7, 2026 `2.3.0` device-capability rejection and to name build `2026050709`
 - App Store Connect `Update Review` / final submission has not been clicked
 
 Will deliver:
@@ -36,10 +36,10 @@ Verification goals:
 
 Evidence captured:
 - rejected sanitized upload attempt proved App Store Connect error `90502`: 64-bit app/extension binaries must include `arm64`
-- accepted upload artifact: `output/app-store-builds/export-2026050708-arm64/Atlas.ipa`
-- accepted archive: `output/app-store-builds/Kairo-1.0-2026050708-arm64.xcarchive`
+- accepted upload artifact: `output/app-store-builds/export-2026050709-arm64/Atlas.ipa`
+- accepted archive: `output/app-store-builds/Kairo-1.0-2026050709-arm64.xcarchive`
 - local smoke screenshots: `output/app-store-builds/iphone-17-pro-max-2026050702-clean-launch.jpg`, `output/app-store-builds/iphone-17-pro-max-2026050702-track-disclaimer.jpg`, `output/app-store-builds/iphone-17-pro-max-2026050702-rating-primer-no-system-prompt.jpg`, `output/app-store-builds/iphone-17-pro-max-2026050702-plan-ready-copy.jpg`, `output/app-store-builds/iphone-17-pro-max-2026050702-trial-reminder.jpg`, `output/app-store-builds/iphone-17-pro-max-2026050702-paywall.jpg`, `output/app-store-builds/iphone-17-pro-max-2026050702-limited-preview-home.jpg`, `output/app-store-builds/iphone-17-pro-max-2026050702-limited-upgrade-prompt.jpg`, and `output/app-store-builds/iphone-17-pro-max-2026050702-limited-log-tab.jpg`
-- App Store Connect build metadata for `1.0 (2026050708)` on 2026-05-07: Binary State `Validated`, Bundle Version `2026050708`, Bundle ID `com.dkang2000.Atlas`, Minimum iOS `17.0`, Supported Architectures `arm64`, Device Family `iPhone`, Required Capabilities `arm64`, `get-task-allow=false`
+- App Store Connect build metadata for `1.0 (2026050709)` on 2026-05-07: Binary State `Validated`, Bundle Version `2026050709`, Bundle ID `com.dkang2000.Atlas`, Minimum iOS `17.0`, Supported Architectures `arm64`, Device Family `iPhone`, Required Capabilities `arm64`, `get-task-allow=false`
 - App Store Connect subscriptions verified on 2026-05-07: monthly `com.dkang2000.Atlas.kairo.pro.monthly`, annual `com.dkang2000.Atlas.kairo.pro.annual`, and last-chance annual `com.dkang2000.Atlas.kairo.pro.annual.lastchance` all show `Waiting for Review`; monthly and annual have current introductory offers `Free for the first week` in 175 countries/regions; last-chance has no introductory offer
 - App Store Connect privacy metadata verified on 2026-05-07: Privacy Policy URL `https://chloeverse.io/kairo/privacy`; product page preview lists collected data categories for Health & Fitness, Contact Info, Purchases, Identifiers, User Content, and Usage Data
 - Privacy and EULA URLs returned HTTP `200` during local link checks

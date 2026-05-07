@@ -120,6 +120,10 @@ public struct AtlasOnboardingFlowScreen: View {
         } message: {
             Text("This annual offer is billed now and renews yearly until canceled. Annual and monthly trials remain available above if you prefer 7 days free before payment.")
         }
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 42)
+                .onEnded(handleTrialPaywallExitSwipe)
+        )
         .animation(AtlasMotion.screenEntry(reduceMotion: reduceMotion), value: step)
         .animation(.spring(response: 0.28, dampingFraction: 0.86), value: draft)
     }
@@ -521,6 +525,19 @@ public struct AtlasOnboardingFlowScreen: View {
             model.advanceOnboarding()
             syncFromModel()
         }
+    }
+
+    private func handleTrialPaywallExitSwipe(_ value: DragGesture.Value) {
+        guard step == .trialPaywall, showsLastChanceOffer == false else { return }
+
+        let horizontalExit = (value.translation.width > 90 || value.predictedEndTranslation.width > 160)
+            && abs(value.translation.height) < 120
+        let verticalExit = (value.translation.height > 90 || value.predictedEndTranslation.height > 160)
+            && abs(value.translation.width) < 140
+        guard horizontalExit || verticalExit else { return }
+
+        model.recordOnboardingFunnelEvent(.secondaryTapped, step: step)
+        showsLastChanceOffer = true
     }
 
     private func connectHealthAndAdvance() async {
