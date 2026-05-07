@@ -2451,44 +2451,22 @@ private struct KairoRingingBellIcon: View {
     @State private var isRinging = false
 
     var body: some View {
-        ZStack {
-            ringingMark(offset: CGSize(width: -52, height: -34), rotation: -28)
-            ringingMark(offset: CGSize(width: 52, height: -34), rotation: 28)
-            ringingMark(offset: CGSize(width: -67, height: -2), rotation: -14)
-            ringingMark(offset: CGSize(width: 67, height: -2), rotation: 14)
-
-            Image(systemName: "bell.badge.fill")
-                .font(.system(size: 78, weight: .bold))
-                .foregroundStyle(AtlasPalette.reward)
-                .rotationEffect(.degrees(reduceMotion ? 0 : (isRinging ? -8 : 8)))
-                .scaleEffect(reduceMotion ? 1 : (isRinging ? 1.04 : 0.98))
-                .animation(
-                    reduceMotion
-                        ? nil
-                        : .easeInOut(duration: 0.16).repeatForever(autoreverses: true),
-                    value: isRinging
-                )
-        }
+        Image(systemName: "bell.badge.fill")
+            .font(.system(size: 78, weight: .bold))
+            .foregroundStyle(AtlasPalette.reward)
+            .rotationEffect(.degrees(reduceMotion ? 0 : (isRinging ? -8 : 8)))
+            .scaleEffect(reduceMotion ? 1 : (isRinging ? 1.04 : 0.98))
+            .animation(
+                reduceMotion
+                    ? nil
+                    : .easeInOut(duration: 0.16).repeatForever(autoreverses: true),
+                value: isRinging
+            )
         .frame(width: 184, height: 142)
         .task {
             guard reduceMotion == false else { return }
             isRinging = true
         }
-    }
-
-    private func ringingMark(offset: CGSize, rotation: Double) -> some View {
-        Capsule()
-            .fill(AtlasPalette.reward.opacity(isRinging && reduceMotion == false ? 0.42 : 0.18))
-            .frame(width: 8, height: 28)
-            .rotationEffect(.degrees(rotation))
-            .offset(offset)
-            .scaleEffect(isRinging && reduceMotion == false ? 1.12 : 0.82)
-            .animation(
-                reduceMotion
-                    ? nil
-                    : .easeInOut(duration: 0.32).repeatForever(autoreverses: true),
-                value: isRinging
-            )
     }
 }
 
